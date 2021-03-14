@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-  "web_server",
+  "web-server",
   "queuer",
   "server",
 ]
