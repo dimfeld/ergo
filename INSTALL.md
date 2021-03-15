@@ -26,12 +26,13 @@ when upgrading between releases.
 Ergo uses [Hashicorp Vault](https://www.vaultproject.io/) by default to manage database credentials.
 
 1. Install Vault. The [Vault tutorial](https://learn.hashicorp.com/tutorials/vault/getting-started-install) explains how to do this in various ways.
-2. Configure Vault to work with PostgreSQL. If you haven't already done this, you can execute `scripts/vault_configure_postgres.sql` to create a PostgreSQL user
-appropriate for Vault to use.
+2. Configure Vault to work with PostgreSQL. If you haven't already done this, you can run `scripts/vault_configure_postgres.sql` to create a PostgreSQL user
+appropriate for Vault to use. If you've created this user on your own, you can set the `VAULT_PGUSER` and `VAULT_PGPASSWORD`
+variables in the `.env` file so that the Vault development script will use them.
 3. Run `scripts/vault_dev.sh`. This script starts a development instance of Vault and automatically runs `scripts/vault_roles.sh` to configure it.
 
-When working with a production-ready Vault setup, you can configure it for Ergo by unsealing Vault and running `scripts/vault_roles.sh`. This script can also be run after
-any software upgrade that adds new PostgreSQL roles, though these are expected to be rare.
+When working with a production-ready Vault setup, you can configure it for Ergo by unsealing Vault and running `scripts/vault_roles.sh`. This script
+should also be run after any software upgrade that adds new PostgreSQL roles, though these are expected to be rare.
 
-At some point in the future I'll add support for running without Vault.
+At some point in the future I may add support for running without Vault.
 

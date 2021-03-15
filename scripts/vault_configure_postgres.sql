@@ -2,6 +2,6 @@
 -- In prodcuction, you should use Vault's password rotation to change the password
 -- to something that only it knows.
 DO $$BEGIN
-  CREATE USER IF NOT EXIST vaultuser WITH PASSWORD 'vaultuser' CREATEROLE;
+  CREATE USER vaultuser WITH PASSWORD 'vaultuser' CREATEROLE;
   EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
