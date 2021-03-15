@@ -24,13 +24,20 @@ mostly for fun and learning.
   - [ ] Run a script
   - [ ] Run some other command
   - [ ] Embedded scripting for actions
+  - [ ] Return data for use by the next task in the chain
+- [ ] Data Schemas
+  - [ ] Each action can specify the types of data that it accepts
+  - [ ] Duck typing for events
 - [ ] Transformers will take data from an event, modify it somehow, and pass it on
-  - [ ] Embed `rhai` or some other scripting language to write transformers
+  - [ ] Embed [rhai](https://rhai.rs/) or or maybe JavaScript to write transformers
+  - [ ] Optional schema input
+  - [ ] Optional type checking on transformer return value
 - [ ] Reducers are transformers that keep some persistent state between calls
 - [ ] Tasks
   - [ ] Trigger a task based on events
   - [ ] Run actions
   - [ ] Run transformers between the events
+  - [ ] Sequences - Actions can be chained together and optionally pass information between them (file locations, etc.)
 - [ ] Templates for events, actions, and transformers
 - [ ] Extensive logging of events, actions, etc.
 
@@ -38,11 +45,11 @@ mostly for fun and learning.
 
 ## 0.1
 
-- Events can be triggered by REST endpoint
-- Tasks consists of one event that triggers one or more actions
-- Actions can run local scripts
-- Simple Web UI
-- Log everything that happens
+- [ ] Events can be triggered by REST endpoint
+- [ ] Tasks consists of one event that triggers one or more actions
+- [ ] Actions can run local scripts
+- [ ] Simple Web UI
+- [ ] Log everything that happens
 
 ## 0.2
 
