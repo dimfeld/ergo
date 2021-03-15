@@ -1,3 +1,7 @@
 -- Commands used to create a PostgreSQL user for Vault.
--- This password will be rotated by Vault to something that only it knows.
-CREATE USER IF NOT EXIST vault WITH PASSWORD 'vaultuser' CREATEROLE;
+-- In prodcuction, you should use Vault's password rotation to change the password
+-- to something that only it knows.
+DO $$BEGIN
+  CREATE USER IF NOT EXIST vaultuser WITH PASSWORD 'vaultuser' CREATEROLE;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
