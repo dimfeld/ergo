@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+  "vault_postgres",
   "web-server",
   "queuer",
   "server",
