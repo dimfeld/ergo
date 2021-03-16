@@ -12,3 +12,5 @@ hashicorp_vault = "2.0.1"
 reqwest = "0.11.2"
 serde = { version="1.0.124", features=["derive"] }
 sqlx = { version="0.5.1", features=["postgres", "json", "time", "runtime-tokio-rustls"] }
+
+vault_postgres = { path="../vault_postgres" }
