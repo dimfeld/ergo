@@ -7,6 +7,8 @@ source ./env.sh
 VAULT_PGUSER=${VAULT_PGUSER:=vaultuser}
 VAULT_PGPASSWORD=${VAULT_PGPASSWORD:=vaultuser}
 
+vault auth enable approle
+
 vault secrets enable database
 vault write database/config/ergo-postgresql \
   plugin_name=postgresql-database-plugin \
