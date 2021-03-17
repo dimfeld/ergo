@@ -5,6 +5,7 @@ use sqlx::{Connection, PgConnection};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
+use tracing::{event, span, Level};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -18,9 +19,10 @@ pub enum Error {
     VaultNoDataError,
 }
 
+pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
+
 pub struct VaultPostgresPool {
     pool: Pool<WrappedConnection, Error>,
-    manager: Arc<Manager>,
 }
 
 impl VaultPostgresPool {
@@ -34,11 +36,14 @@ impl VaultPostgresPool {
         let manager = Manager::new(vault_client, host, database, role)?;
 
         let pool = VaultPostgresPool {
-            pool: Pool::new(manager.clone(), max_connections),
-            manager: manager.clone(),
+            pool: Pool::new(manager, max_connections),
         };
 
         Ok(Arc::new(pool))
+    }
+
+    pub async fn acquire(&self) -> Result<ConnectionObject, deadpool::managed::PoolError<Error>> {
+        self.pool.get().await
     }
 }
 
@@ -52,9 +57,23 @@ async fn refresh_loop(
     loop {
         tokio::select! {
             _ = tokio::time::sleep(wait_time) => {
-                let result = manager.refresh_auth(renew_lease_id.as_ref().map(|l| l.as_str())).unwrap();
-                renew_lease_id = result.0;
-                wait_time = result.1.div_f32(2.0);
+                let lease_id = renew_lease_id.clone();
+                let m = manager.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                        m.refresh_auth(lease_id.as_ref().map(|l| l.as_str()))
+                    })
+                    .await
+                    .unwrap();
+
+                match result {
+                    Ok((lease_id, lease_duration)) => {
+                        renew_lease_id = lease_id;
+                        wait_time = lease_duration.div_f32(2.0);
+                    }
+                    Err(_) => {
+                        // For now this is handled in the function itself
+                    }
+                }
             },
             _ = tokio::signal::ctrl_c() => {
                 break;
@@ -105,12 +124,14 @@ impl Manager {
         )
     }
 
-    // TODO Implement renewable
     pub fn refresh_auth(
         &self,
         renew_lease_id: Option<&str>,
     ) -> Result<(Option<String>, std::time::Duration), Error> {
         // If the lease is renewable, then try that first.
+        let span = span!(target:"vault_update", Level::INFO, "refreshing auth", role=%self.role );
+        let _enter = span.enter();
+
         if let Some(lease_id) = renew_lease_id {
             match self
                 .vault_client
@@ -130,7 +151,12 @@ impl Manager {
                 }
                 Err(e) => {
                     // It didn't work, so try getting a new role.
-                    // TODO log the error
+                    event!(
+                        Level::INFO,
+                        role = %self.role,
+                        error = %e,
+                        "Failed to update postgres auth data",
+                    );
                 }
             }
         }
@@ -161,9 +187,9 @@ impl Manager {
     }
 }
 
-struct WrappedConnection {
+pub struct WrappedConnection {
     conn_str: String,
-    conn: PgConnection,
+    pub conn: PgConnection,
 }
 
 impl Deref for WrappedConnection {
@@ -178,6 +204,13 @@ impl DerefMut for WrappedConnection {
         &mut self.conn
     }
 }
+
+// #[async_trait]
+// impl sqlx::Executor for WrappedConnection {
+//     fn fetch_many(self, query ) {
+//         self.conn.fetch_many(query)
+//     }
+// }
 
 #[async_trait]
 impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
