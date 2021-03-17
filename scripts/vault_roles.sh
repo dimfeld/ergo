@@ -27,7 +27,7 @@ EOF
 
   vault write auth/approle/role/${role} \
     token_policies="${role}" \
-    token_period=15m \
+    token_period="${VAULT_TOKEN_PERIOD}" \
     ${SECRET_ID_PROPERTIES}
 done
 
@@ -35,5 +35,5 @@ done
 COMMAED_ROLES=$(echo "${VAULT_SINGLE_ROLES}" | sed 's/ /,/g')
 vault write auth/approle/role/${VAULT_AIO_ROLE} \
   token_policies="${COMMAED_ROLES}" \
-  token_period=15m \
+  token_period="${VAULT_TOKEN_PERIOD}" \
   ${SECRET_ID_PROPERTIES}

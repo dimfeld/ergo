@@ -10,6 +10,7 @@ fi
 export ENV=${ENV:=dev}
 export VAULT_SINGLE_ROLES="ergo_web ergo_queues ergo_actions"
 export VAULT_AIO_ROLE="ergo_aio_server"
+export VAULT_TOKEN_PERIOD=${VAULT_TOKEN_PERIOD:=15m}
 
 export DATABASE_NAME=${DATABASE_NAME:=ergo}
 export DATABASE_HOST=${DATABASE_HOST:=localhost}
