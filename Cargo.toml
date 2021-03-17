@@ -3,6 +3,7 @@
 members = [
   "vault_postgres",
   "web-server",
+  "tracing-config",
   "queuer",
   "server",
 ]
