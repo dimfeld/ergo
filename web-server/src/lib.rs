@@ -1,10 +1,28 @@
-use actix_web::{web, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{get, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use hashicorp_vault::client::VaultClient;
+use serde::Serialize;
+use sqlx::{query, query_as};
 use std::sync::{Arc, RwLock};
 use vault_postgres::VaultPostgresPool;
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()
+}
+
+#[derive(Serialize)]
+struct TestRow {
+    id: i64,
+    value: String,
+}
+
+#[get("/test")]
+async fn test(state: Data<AppState>) -> Result<HttpResponse, HttpResponse> {
+    let results = query_as!(TestRow, "SELECT * FROM test")
+        .fetch_all(&mut state.pg.acquire().await.unwrap().conn)
+        .await
+        .map_err(|e| HttpResponse::InternalServerError().finish())?;
+
+    Ok(HttpResponse::Ok().json(results))
 }
 
 #[derive(Debug)]
@@ -41,11 +59,12 @@ pub fn new(config: Config) -> std::io::Result<actix_web::dev::Server> {
     )
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let app_state = web::Data::new(AppState { pg: pg_pool });
+    let app_state = Data::new(AppState { pg: pg_pool });
 
     let server = HttpServer::new(move || {
         App::new()
-            .data(app_state.clone())
+            .app_data(app_state.clone())
+            .service(test)
             .route("/healthz", web::get().to(health))
     })
     .bind(format!("{}:{}", address, port))?

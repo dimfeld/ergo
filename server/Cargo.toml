@@ -11,4 +11,6 @@ actix-web = "4.0.0-beta.4"
 anyhow = "1.0.38"
 dotenv = "0.15.0"
 hashicorp_vault = "2.0.1"
+tracing = "0.1.25"
+tracing-config = { path="../tracing-config" }
 web-server = { path="../web-server" }
