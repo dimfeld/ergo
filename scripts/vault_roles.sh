@@ -16,11 +16,11 @@ for role in $VAULT_SINGLE_ROLES; do
         VALID UNTIL '{{expiration}}'; \
         GRANT ${role} TO \"{{name}}\";" \
       revocation_statements="REVOKE ${role} FROM \"{{name}}\"; DROP ROLE IF EXISTS \"{{name}}\"" \
-      default_ttl="1h" \
-      max_ttl="8h"
+      default_ttl="${VAULT_DATABASE_ROLE_TTL}" \
+      max_ttl="${VAULT_DATABASE_ROLE_MAX_TTL}"
 
   vault policy write ${role} - <<EOF
-path "database/creds/${role}/*" {
+path "database/creds/${role}" {
   capabilities = [ "read" ]
 }
 EOF
