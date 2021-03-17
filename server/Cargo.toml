@@ -12,5 +12,6 @@ anyhow = "1.0.38"
 dotenv = "0.15.0"
 hashicorp_vault = "2.0.1"
 tracing = "0.1.25"
+vault_postgres = { path="../vault_postgres" }
 tracing-config = { path="../tracing-config" }
 web-server = { path="../web-server" }

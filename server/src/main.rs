@@ -10,7 +10,7 @@ async fn main() -> std::io::Result<()> {
     tracing_config::configure("ergo-server");
 
     let vault_address =
-        env::var("VAULT_ADDRESS").unwrap_or_else(|_| "http://localhost:8200".to_string());
+        env::var("VAULT_ADDR").unwrap_or_else(|_| "http://localhost:8200".to_string());
     let vault_role_id = env::var("VAULT_ROLE_ERGO_AIO_SERVER_ID")
         .expect("VAULT_ROLE_ERGO_AIO_SERVER_ID is required");
     let vault_secret_id = env::var("VAULT_ROLE_ERGO_AIO_SERVER_SECRET")
@@ -21,6 +21,7 @@ async fn main() -> std::io::Result<()> {
 
     let vault_client = Arc::new(RwLock::new(vault_client));
     tracing::info!("{:?}", vault_client);
+    vault_postgres::refresh_vault_client(vault_client.clone());
 
     let web_config = web_server::Config {
         address: env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string()),

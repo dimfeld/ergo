@@ -4,7 +4,10 @@ use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
 mod connection_manager;
+mod vault_token_refresh;
+
 use connection_manager::{Manager, WrappedConnection};
+pub use vault_token_refresh::refresh_vault_client;
 
 #[derive(Error, Debug)]
 pub enum Error {

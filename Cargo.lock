@@ -1903,6 +1903,7 @@ dependencies = [
  "hashicorp_vault",
  "tracing",
  "tracing-config",
+ "vault_postgres",
  "web-server",
 ]
 
@@ -2431,6 +2432,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing-actix-web"
+version = "0.3.0-beta.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e36ba2b0ef671b8f20e6948ae3b1a6fbf168bc78f658949f27602e4fa98aa588"
+dependencies = [
+ "actix-web",
+ "futures",
+ "tracing",
+ "tracing-futures",
+ "uuid",
+]
+
+[[package]]
 name = "tracing-attributes"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2607,6 +2621,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "uuid"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
+dependencies = [
+ "getrandom 0.2.2",
+]
+
+[[package]]
 name = "vault_postgres"
 version = "0.1.0"
 dependencies = [
@@ -2734,6 +2757,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tracing",
+ "tracing-actix-web",
  "vault_postgres",
 ]
 
