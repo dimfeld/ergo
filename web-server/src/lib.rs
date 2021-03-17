@@ -3,6 +3,7 @@ use hashicorp_vault::client::VaultClient;
 use serde::Serialize;
 use sqlx::{query, query_as};
 use std::sync::{Arc, RwLock};
+use tracing_actix_web::TracingLogger;
 use vault_postgres::VaultPostgresPool;
 
 async fn health() -> impl Responder {
@@ -63,6 +64,7 @@ pub fn new(config: Config) -> std::io::Result<actix_web::dev::Server> {
 
     let server = HttpServer::new(move || {
         App::new()
+            .wrap(TracingLogger)
             .app_data(app_state.clone())
             .service(test)
             .route("/healthz", web::get().to(health))

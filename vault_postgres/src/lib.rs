@@ -70,8 +70,9 @@ async fn refresh_loop(
                         renew_lease_id = lease_id;
                         wait_time = lease_duration.div_f32(2.0);
                     }
-                    Err(_) => {
+                    Err(e) => {
                         // For now this is handled in the function itself
+                        event!(Level::ERROR, error=?e, "Failed to refresh auth");
                     }
                 }
             },
@@ -133,6 +134,7 @@ impl Manager {
         let _enter = span.enter();
 
         if let Some(lease_id) = renew_lease_id {
+            event!(Level::INFO, "Refreshing renewable lease");
             match self
                 .vault_client
                 .read()
@@ -152,15 +154,16 @@ impl Manager {
                 Err(e) => {
                     // It didn't work, so try getting a new role.
                     event!(
-                        Level::INFO,
+                        Level::ERROR,
                         role = %self.role,
                         error = %e,
-                        "Failed to update postgres auth data",
+                        "Failed to refresh lease"
                     );
                 }
             }
         }
 
+        event!(Level::INFO, "Fetching new credentials");
         let auth = self
             .vault_client
             .read()
@@ -182,6 +185,13 @@ impl Manager {
             .lease_duration
             .map(|d| d.0)
             .unwrap_or(std::time::Duration::new(3600, 0));
+
+        event!(
+            Level::INFO,
+            renewable,
+            ?lease_duration,
+            "Got new credentials"
+        );
 
         Ok((renew_lease_id, lease_duration))
     }
