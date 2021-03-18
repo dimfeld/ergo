@@ -23,19 +23,30 @@ pub enum Error {
 
 pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
 
+pub struct VaultPostgresPoolOptions {
+    pub max_connections: usize,
+    pub host: String,
+    pub database: String,
+    pub role: String,
+    pub vault_client: Arc<RwLock<VaultClient<()>>>,
+    pub shutdown: graceful_shutdown::GracefulShutdownConsumer,
+}
+
 pub struct VaultPostgresPool {
     pool: Pool<WrappedConnection, Error>,
 }
 
 impl VaultPostgresPool {
-    pub fn new(
-        max_connections: usize,
-        host: String,
-        database: String,
-        role: String,
-        vault_client: Arc<RwLock<VaultClient<()>>>,
-    ) -> Result<Arc<VaultPostgresPool>, Error> {
-        let manager = Manager::new(vault_client, host, database, role)?;
+    pub fn new(config: VaultPostgresPoolOptions) -> Result<Arc<VaultPostgresPool>, Error> {
+        let VaultPostgresPoolOptions {
+            max_connections,
+            host,
+            database,
+            role,
+            vault_client,
+            shutdown,
+        } = config;
+        let manager = Manager::new(vault_client, shutdown, host, database, role)?;
 
         let pool = VaultPostgresPool {
             pool: Pool::new(manager, max_connections),

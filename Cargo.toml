@@ -1,9 +1,10 @@
 [workspace]
 
 members = [
-  "vault_postgres",
-  "web-server",
-  "tracing-config",
+  "graceful-shutdown",
   "queuer",
   "server",
+  "tracing-config",
+  "vault_postgres",
+  "web-server",
 ]

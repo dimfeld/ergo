@@ -17,4 +17,5 @@ sqlx = { version="0.5.1", features=["postgres", "json", "time", "runtime-tokio-r
 tracing = "0.1.25"
 tracing-actix-web = "0.3.0-beta.2"
 
+graceful-shutdown = { path="../graceful-shutdown" }
 vault_postgres = { path="../vault_postgres" }

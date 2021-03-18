@@ -1,3 +1,4 @@
+use graceful_shutdown::GracefulShutdown;
 use hashicorp_vault::client::VaultClient;
 use std::env;
 use std::sync::{Arc, RwLock};
@@ -8,6 +9,8 @@ async fn main() -> std::io::Result<()> {
     dotenv::from_filename("vault_dev_roles.env").ok();
 
     tracing_config::configure("ergo-server");
+
+    let shutdown = GracefulShutdown::new();
 
     let vault_address =
         env::var("VAULT_ADDR").unwrap_or_else(|_| "http://localhost:8200".to_string());
@@ -21,7 +24,7 @@ async fn main() -> std::io::Result<()> {
 
     let vault_client = Arc::new(RwLock::new(vault_client));
     tracing::info!("{:?}", vault_client);
-    vault_postgres::refresh_vault_client(vault_client.clone());
+    vault_postgres::refresh_vault_client(vault_client.clone(), shutdown.consumer());
 
     let web_config = web_server::Config {
         address: env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string()),
@@ -33,6 +36,7 @@ async fn main() -> std::io::Result<()> {
         database: env::var("DATABASE").ok(),
         database_host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string()),
         database_role: env::var("DATABASE_ROLE_WEB").ok(),
+        shutdown: shutdown.consumer(),
     };
 
     web_server::new(web_config)?.await

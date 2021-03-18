@@ -7,17 +7,19 @@ use std::sync::{Arc, RwLock};
 use tracing::{event, span, Level};
 
 use crate::Error;
+use graceful_shutdown::GracefulShutdownConsumer;
 
 async fn refresh_loop(
     manager: Arc<Manager>,
+    mut shutdown: GracefulShutdownConsumer,
     initial_renewable: Option<String>,
     initial_lease_duration: std::time::Duration,
 ) {
     let mut renew_lease_id = initial_renewable;
-    let mut wait_time = initial_lease_duration.div_f32(2.0);
+    let mut wait_time = tokio::time::Instant::now() + initial_lease_duration.div_f32(2.0);
     loop {
         tokio::select! {
-            _ = tokio::time::sleep(wait_time) => {
+            _ = tokio::time::sleep_until(wait_time) => {
                 let lease_id = renew_lease_id.clone();
                 let m = manager.clone();
                 let result = tokio::task::spawn_blocking(move || {
@@ -29,7 +31,7 @@ async fn refresh_loop(
                 match result {
                     Ok((lease_id, lease_duration)) => {
                         renew_lease_id = lease_id;
-                        wait_time = lease_duration.div_f32(2.0);
+                        wait_time = tokio::time::Instant::now() + lease_duration.div_f32(2.0);
                     }
                     Err(e) => {
                         // For now this is handled in the function itself
@@ -37,7 +39,7 @@ async fn refresh_loop(
                     }
                 }
             },
-            _ = tokio::signal::ctrl_c() => {
+            true = shutdown.shutting_down() => {
                 break;
             }
         }
@@ -56,6 +58,7 @@ pub(crate) struct Manager {
 impl Manager {
     pub(crate) fn new(
         vault_client: Arc<RwLock<VaultClient<()>>>,
+        shutdown: GracefulShutdownConsumer,
         host: String,
         database: String,
         role: String,
@@ -71,7 +74,12 @@ impl Manager {
         let (renewable, duration) = manager.refresh_auth(None)?;
 
         let manager_ptr = Arc::new(manager);
-        tokio::task::spawn(refresh_loop(manager_ptr.clone(), renewable, duration));
+        tokio::task::spawn(refresh_loop(
+            manager_ptr.clone(),
+            shutdown,
+            renewable,
+            duration,
+        ));
 
         Ok(manager_ptr)
     }

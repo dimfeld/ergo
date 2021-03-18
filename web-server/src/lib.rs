@@ -4,7 +4,7 @@ use serde::Serialize;
 use sqlx::{query, query_as};
 use std::sync::{Arc, RwLock};
 use tracing_actix_web::TracingLogger;
-use vault_postgres::VaultPostgresPool;
+use vault_postgres::{VaultPostgresPool, VaultPostgresPoolOptions};
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()
@@ -35,6 +35,8 @@ pub struct Config {
     pub database: Option<String>,
     pub database_host: String,
     pub database_role: Option<String>,
+
+    pub shutdown: graceful_shutdown::GracefulShutdownConsumer,
 }
 
 struct AppState {
@@ -49,15 +51,17 @@ pub fn new(config: Config) -> std::io::Result<actix_web::dev::Server> {
         database,
         database_host,
         database_role,
+        shutdown,
     } = config;
 
-    let pg_pool = VaultPostgresPool::new(
-        16,
-        database_host,
-        database.unwrap_or_else(|| "ergo".to_string()),
-        database_role.unwrap_or_else(|| "ergo_web".to_string()),
-        vault_client.clone(),
-    )
+    let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
+        max_connections: 16,
+        host: database_host,
+        database: database.unwrap_or_else(|| "ergo".to_string()),
+        role: database_role.unwrap_or_else(|| "ergo_web".to_string()),
+        vault_client: vault_client.clone(),
+        shutdown,
+    })
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     let app_state = Data::new(AppState { pg: pg_pool });
