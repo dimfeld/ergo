@@ -24,7 +24,7 @@ async fn main() -> std::io::Result<()> {
 
     let vault_client = Arc::new(RwLock::new(vault_client));
     tracing::info!("{:?}", vault_client);
-    vault_postgres::refresh_vault_client(vault_client.clone(), shutdown.consumer());
+    vault::refresh_vault_client(vault_client.clone(), shutdown.consumer());
 
     let web_config = web_server::Config {
         address: env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string()),

@@ -5,6 +5,6 @@ members = [
   "queuer",
   "server",
   "tracing-config",
-  "vault_postgres",
+  "vault",
   "web-server",
 ]

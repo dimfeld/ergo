@@ -18,4 +18,4 @@ tracing = "0.1.25"
 tracing-actix-web = "0.3.0-beta.2"
 
 graceful-shutdown = { path="../graceful-shutdown" }
-vault_postgres = { path="../vault_postgres" }
+vault = { path="../vault" }

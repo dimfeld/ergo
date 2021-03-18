@@ -4,7 +4,7 @@ use serde::Serialize;
 use sqlx::{query, query_as};
 use std::sync::{Arc, RwLock};
 use tracing_actix_web::TracingLogger;
-use vault_postgres::{VaultPostgresPool, VaultPostgresPoolOptions};
+use vault::{VaultPostgresPool, VaultPostgresPoolOptions};
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()

@@ -1,5 +1,5 @@
 [package]
-name = "vault_postgres"
+name = "vault"
 version = "0.1.0"
 authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"

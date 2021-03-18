@@ -1911,7 +1911,7 @@ dependencies = [
  "hashicorp_vault",
  "tracing",
  "tracing-config",
- "vault_postgres",
+ "vault",
  "web-server",
 ]
 
@@ -2638,7 +2638,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "vault_postgres"
+name = "vault"
 version = "0.1.0"
 dependencies = [
  "async-trait",
@@ -2768,7 +2768,7 @@ dependencies = [
  "sqlx",
  "tracing",
  "tracing-actix-web",
- "vault_postgres",
+ "vault",
 ]
 
 [[package]]
