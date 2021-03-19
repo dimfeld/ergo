@@ -1,9 +1,31 @@
-use actix_web::{get, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use serde::{de::DeserializeOwned, Serialize};
+use actix_web::{
+    get, http::StatusCode, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder,
+};
+use serde::Serialize;
 use sqlx::{query, query_as};
 use std::sync::{Arc, RwLock};
+use thiserror::Error;
 use tracing_actix_web::TracingLogger;
-use vault::{SharedVaultClient, VaultPostgresPool, VaultPostgresPoolOptions};
+use vault::{execute, AppRoleVaultClient, VaultPostgresPool, VaultPostgresPoolOptions};
+
+#[derive(Debug, Error)]
+pub(crate) enum Error {
+    #[error(transparent)]
+    DbError(#[from] vault::Error),
+
+    #[error("SQL Error")]
+    SqlError(#[from] sqlx::error::Error),
+}
+
+impl actix_web::error::ResponseError for Error {
+    fn error_response(&self) -> HttpResponse<actix_web::dev::Body> {
+        HttpResponse::InternalServerError().body(self.to_string())
+    }
+
+    fn status_code(&self) -> StatusCode {
+        StatusCode::INTERNAL_SERVER_ERROR
+    }
+}
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()
@@ -16,20 +38,19 @@ struct TestRow {
 }
 
 #[get("/test")]
-async fn test(state: Data<AppState>) -> Result<HttpResponse, HttpResponse> {
+async fn test(state: Data<AppState>) -> Result<HttpResponse, Error> {
     let results = query_as!(TestRow, "SELECT * FROM test")
-        .fetch_all(&mut state.pg.acquire().await.unwrap().conn)
-        .await
-        .map_err(|e| HttpResponse::InternalServerError().finish())?;
+        .fetch_all(execute!(state.pg))
+        .await?;
 
     Ok(HttpResponse::Ok().json(results))
 }
 
 #[derive(Debug)]
-pub struct Config<VAULTAUTHTYPE: 'static + DeserializeOwned + Send + Sync> {
+pub struct Config {
     pub address: String,
     pub port: u16,
-    pub vault_client: SharedVaultClient<VAULTAUTHTYPE>,
+    pub vault_client: AppRoleVaultClient,
 
     pub database: Option<String>,
     pub database_host: String,
@@ -39,12 +60,10 @@ pub struct Config<VAULTAUTHTYPE: 'static + DeserializeOwned + Send + Sync> {
 }
 
 struct AppState {
-    pg: Arc<VaultPostgresPool>,
+    pg: VaultPostgresPool<()>,
 }
 
-pub fn new<T: 'static + DeserializeOwned + Send + Sync>(
-    config: Config<T>,
-) -> std::io::Result<actix_web::dev::Server> {
+pub fn new(config: Config) -> std::io::Result<actix_web::dev::Server> {
     let Config {
         address,
         port,

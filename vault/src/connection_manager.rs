@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
+use derivative::Derivative;
 use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultResponse};
 use serde::de::DeserializeOwned;
 use sqlx::{Connection, PgConnection};
@@ -69,8 +70,11 @@ async fn refresh_loop<T: PostgresAuthRenewer>(
     }
 }
 
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub(crate) struct Manager<RENEWER: PostgresAuthRenewer> {
     connection_string: RwLock<String>,
+    #[derivative(Debug = "ignore")]
     vault_client: Arc<RwLock<RENEWER>>,
 
     host: String,
@@ -201,6 +205,7 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
     }
 }
 
+#[derive(Debug)]
 pub struct WrappedConnection {
     conn_str: String,
     pub conn: PgConnection,
