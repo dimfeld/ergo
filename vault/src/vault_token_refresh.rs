@@ -1,7 +1,5 @@
 use graceful_shutdown::GracefulShutdownConsumer;
-use hashicorp_vault::client::VaultClient;
 use serde::de::DeserializeOwned;
-use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::select;
 use tokio::task::JoinHandle;
@@ -46,7 +44,7 @@ async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
 
                 next_wait = tokio::time::Instant::now() + lease_renew_duration;
             },
-            true = shutdown.shutting_down() => {
+            _ = shutdown.wait_for_shutdown() => {
                 break;
             }
         }

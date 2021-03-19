@@ -40,7 +40,7 @@ async fn refresh_loop<T: 'static + DeserializeOwned + Send + Sync>(
                     }
                 }
             },
-            true = shutdown.shutting_down() => {
+            _ = shutdown.wait_for_shutdown() => {
                 break;
             }
         }

@@ -8,3 +8,6 @@ edition = "2018"
 
 [dependencies]
 tokio = { version="1.3.0", features=["full"] }
+
+[dev-dependencies]
+libc = "0.2.90"

@@ -1,10 +1,9 @@
 use actix_web::{get, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
-use hashicorp_vault::client::VaultClient;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{query, query_as};
 use std::sync::{Arc, RwLock};
 use tracing_actix_web::TracingLogger;
-use vault::{VaultPostgresPool, VaultPostgresPoolOptions};
+use vault::{SharedVaultClient, VaultPostgresPool, VaultPostgresPoolOptions};
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()
@@ -27,10 +26,10 @@ async fn test(state: Data<AppState>) -> Result<HttpResponse, HttpResponse> {
 }
 
 #[derive(Debug)]
-pub struct Config {
+pub struct Config<VAULTAUTHTYPE: 'static + DeserializeOwned + Send + Sync> {
     pub address: String,
     pub port: u16,
-    pub vault_client: Arc<RwLock<VaultClient<()>>>,
+    pub vault_client: SharedVaultClient<VAULTAUTHTYPE>,
 
     pub database: Option<String>,
     pub database_host: String,
@@ -43,7 +42,9 @@ struct AppState {
     pg: Arc<VaultPostgresPool>,
 }
 
-pub fn new(config: Config) -> std::io::Result<actix_web::dev::Server> {
+pub fn new<T: 'static + DeserializeOwned + Send + Sync>(
+    config: Config<T>,
+) -> std::io::Result<actix_web::dev::Server> {
     let Config {
         address,
         port,
