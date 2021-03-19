@@ -1,5 +1,6 @@
 use deadpool::managed::Pool;
 use hashicorp_vault::client::VaultClient;
+use serde::de::DeserializeOwned;
 use std::sync::{Arc, RwLock};
 use thiserror::Error;
 
@@ -8,6 +9,10 @@ mod vault_token_refresh;
 
 use connection_manager::{Manager, WrappedConnection};
 pub use vault_token_refresh::refresh_vault_client;
+
+pub type SharedVaultClient<T> = Arc<RwLock<VaultClient<T>>>;
+pub type TokenAuthVaultClient = SharedVaultClient<hashicorp_vault::client::TokenData>;
+pub type AppRoleVaultClient = SharedVaultClient<()>;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -23,12 +28,12 @@ pub enum Error {
 
 pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
 
-pub struct VaultPostgresPoolOptions {
+pub struct VaultPostgresPoolOptions<T: DeserializeOwned + Send + Sync> {
     pub max_connections: usize,
     pub host: String,
     pub database: String,
     pub role: String,
-    pub vault_client: Arc<RwLock<VaultClient<()>>>,
+    pub vault_client: SharedVaultClient<T>,
     pub shutdown: graceful_shutdown::GracefulShutdownConsumer,
 }
 
@@ -37,7 +42,9 @@ pub struct VaultPostgresPool {
 }
 
 impl VaultPostgresPool {
-    pub fn new(config: VaultPostgresPoolOptions) -> Result<Arc<VaultPostgresPool>, Error> {
+    pub fn new<T: 'static + DeserializeOwned + Send + Sync>(
+        config: VaultPostgresPoolOptions<T>,
+    ) -> Result<Arc<VaultPostgresPool>, Error> {
         let VaultPostgresPoolOptions {
             max_connections,
             host,

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
-use hashicorp_vault::client::{PostgresqlLogin, VaultClient};
+use hashicorp_vault::client::PostgresqlLogin;
+use serde::de::DeserializeOwned;
 use sqlx::{Connection, PgConnection};
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, RwLock};
@@ -9,8 +10,8 @@ use tracing::{event, span, Level};
 use crate::Error;
 use graceful_shutdown::GracefulShutdownConsumer;
 
-async fn refresh_loop(
-    manager: Arc<Manager>,
+async fn refresh_loop<T: 'static + DeserializeOwned + Send + Sync>(
+    manager: Arc<Manager<T>>,
     mut shutdown: GracefulShutdownConsumer,
     initial_renewable: Option<String>,
     initial_lease_duration: std::time::Duration,
@@ -46,23 +47,23 @@ async fn refresh_loop(
     }
 }
 
-pub(crate) struct Manager {
+pub(crate) struct Manager<T: 'static + DeserializeOwned + Send + Sync> {
     connection_string: RwLock<String>,
-    vault_client: Arc<RwLock<VaultClient<()>>>,
+    vault_client: crate::SharedVaultClient<T>,
 
     host: String,
     database: String,
     role: String,
 }
 
-impl Manager {
+impl<T: 'static + DeserializeOwned + Send + Sync> Manager<T> {
     pub(crate) fn new(
-        vault_client: Arc<RwLock<VaultClient<()>>>,
+        vault_client: crate::SharedVaultClient<T>,
         shutdown: GracefulShutdownConsumer,
         host: String,
         database: String,
         role: String,
-    ) -> Result<Arc<Manager>, Error> {
+    ) -> Result<Arc<Manager<T>>, Error> {
         let manager = Manager {
             connection_string: RwLock::new(String::new()),
             vault_client,
@@ -192,7 +193,9 @@ impl DerefMut for WrappedConnection {
 // }
 
 #[async_trait]
-impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
+impl<T: DeserializeOwned + Send + Sync> deadpool::managed::Manager<WrappedConnection, Error>
+    for Arc<Manager<T>>
+{
     async fn create(&self) -> Result<WrappedConnection, Error> {
         let this_str = { self.connection_string.read().unwrap().clone() };
         let conn = sqlx::PgConnection::connect(&this_str).await?;
@@ -219,4 +222,10 @@ impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
 
         Ok(())
     }
+}
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    async fn connection_change() {}
 }

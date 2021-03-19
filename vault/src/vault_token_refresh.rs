@@ -1,13 +1,16 @@
 use graceful_shutdown::GracefulShutdownConsumer;
 use hashicorp_vault::client::VaultClient;
+use serde::de::DeserializeOwned;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{event, Level};
 
-async fn vault_client_renew_loop(
-    client: Arc<RwLock<VaultClient<()>>>,
+use crate::SharedVaultClient;
+
+async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
+    client: SharedVaultClient<T>,
     mut shutdown: GracefulShutdownConsumer,
 ) {
     let lease_renew_duration = client
@@ -50,8 +53,8 @@ async fn vault_client_renew_loop(
     }
 }
 
-pub fn refresh_vault_client(
-    client: Arc<RwLock<VaultClient<()>>>,
+pub fn refresh_vault_client<T: 'static + DeserializeOwned + Send + Sync>(
+    client: SharedVaultClient<T>,
     shutdown: GracefulShutdownConsumer,
 ) -> JoinHandle<()> {
     tokio::spawn(vault_client_renew_loop(client, shutdown))
