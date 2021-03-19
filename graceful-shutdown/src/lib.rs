@@ -7,7 +7,7 @@ use tokio::task::JoinHandle;
 pub struct GracefulShutdown {
     pub shutdown_finished: JoinHandle<()>,
 
-    start_shutdown: Option<oneshot::Sender<()>>,
+    start_shutdown: oneshot::Sender<()>,
     consumer: GracefulShutdownConsumer,
 }
 
@@ -35,7 +35,7 @@ impl GracefulShutdown {
         });
 
         GracefulShutdown {
-            start_shutdown: Some(start_shutdown_tx),
+            start_shutdown: start_shutdown_tx,
             shutdown_finished: shutdown_waiter,
             consumer: GracefulShutdownConsumer(shutdown_started_rx),
         }
@@ -45,10 +45,15 @@ impl GracefulShutdown {
         self.consumer.clone()
     }
 
-    pub fn shutdown(&mut self) {
-        if let Some(sender) = self.start_shutdown.take() {
-            sender.send(()).unwrap();
-        }
+    pub fn shutdown(self) -> JoinHandle<()> {
+        let GracefulShutdown {
+            start_shutdown,
+            shutdown_finished,
+            ..
+        } = self;
+        start_shutdown.send(()).unwrap();
+
+        shutdown_finished
     }
 }
 
@@ -75,6 +80,7 @@ impl GracefulShutdownConsumer {
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use std::time::Duration;
 
     use super::*;
@@ -121,37 +127,27 @@ mod tests {
 
         send_sigint();
 
-        match timeout(Duration::from_secs(2), done_task).await {
-            Ok(Ok(())) => {}
-            x => panic!("Done waiter failed to stop: {:?}", x),
-        };
-
+        assert_matches!(timeout(Duration::from_secs(2), done_task).await, Ok(Ok(())));
         assert_eq!(before_consumer.shutting_down(), true);
 
         // Consumers created after the SIGINT should work too.
         let mut after_consumer = s.consumer();
         assert_eq!(after_consumer.shutting_down(), true);
 
-        match timeout(Duration::from_secs(2), after_consumer.wait_for_shutdown()).await {
-            Ok(()) => {}
-            x => panic!(
-                "Waiter started after SIGINT does not indicate SIGINT already happened: {:?}",
-                x
-            ),
-        };
+        assert_matches!(
+            timeout(Duration::from_secs(2), after_consumer.wait_for_shutdown()).await,
+            Ok(())
+        );
 
-        match timeout(Duration::from_secs(2), s.shutdown_finished).await {
-            Ok(Ok(())) => {}
-            x => panic!(
-                "GracefulShutdown tasks didn't quit after SIGINT: result {:?}",
-                x
-            ),
-        };
+        assert_matches!(
+            timeout(Duration::from_secs(2), s.shutdown_finished).await,
+            Ok(Ok(()))
+        );
     }
 
     #[tokio::test]
     async fn handle_manual_shutdown() {
-        let mut s = GracefulShutdown::new();
+        let s = GracefulShutdown::new();
 
         let mut done_consumer = s.consumer();
         assert_eq!(done_consumer.shutting_down(), false);
@@ -164,36 +160,20 @@ mod tests {
         // It shouldn't have triggered yet.
         assert_eq!(done_rx.try_recv(), Err(TryRecvError::Empty));
 
-        let mut before_consumer = s.consumer();
-        assert_eq!(before_consumer.shutting_down(), false);
+        let mut consumer = s.consumer();
+        assert_eq!(consumer.shutting_down(), false);
 
-        s.shutdown();
+        assert_matches!(
+            timeout(Duration::from_secs(2), s.shutdown()).await,
+            Ok(Ok(()))
+        );
 
-        match timeout(Duration::from_secs(2), done_task).await {
-            Ok(Ok(())) => {}
-            x => panic!("Done waiter failed to stop: {:?}", x),
-        };
+        assert_matches!(timeout(Duration::from_secs(2), done_task).await, Ok(Ok(())));
+        assert_eq!(consumer.shutting_down(), true);
 
-        assert_eq!(before_consumer.shutting_down(), true);
-
-        // Consumers created after the shutdown has started should work too.
-        let mut after_consumer = s.consumer();
-        assert_eq!(after_consumer.shutting_down(), true);
-
-        match timeout(Duration::from_secs(2), after_consumer.wait_for_shutdown()).await {
-            Ok(()) => {}
-            x => panic!(
-                "Waiter started after SIGINT does not indicate SIGINT already happened: {:?}",
-                x
-            ),
-        };
-
-        match timeout(Duration::from_secs(2), s.shutdown_finished).await {
-            Ok(Ok(())) => {}
-            x => panic!(
-                "GracefulShutdown tasks didn't quit after SIGINT: result {:?}",
-                x
-            ),
-        };
+        assert_matches!(
+            timeout(Duration::from_secs(2), consumer.wait_for_shutdown()).await,
+            Ok(())
+        );
     }
 }

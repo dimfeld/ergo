@@ -39,5 +39,7 @@ async fn main() -> std::io::Result<()> {
         shutdown: shutdown.consumer(),
     };
 
-    web_server::new(web_config)?.await
+    web_server::new(web_config)?.await?;
+    shutdown.shutdown().await?;
+    Ok(())
 }
