@@ -1,5 +1,5 @@
 [package]
-name = "server"
+name = "config"
 version = "0.1.0"
 authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"
@@ -7,12 +7,5 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-web = "4.0.0-beta.4"
-anyhow = "1.0.38"
-dotenv = "0.15.0"
-hashicorp_vault = "2.0.1"
-tracing = "0.1.25"
 graceful-shutdown = { path="../graceful-shutdown" }
 vault = { path="../vault" }
-tracing-config = { path="../tracing-config" }
-web-server = { path="../web-server" }

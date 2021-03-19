@@ -1,5 +1,5 @@
 [package]
-name = "web-server"
+name = "web-app-server"
 version = "0.1.0"
 authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"
@@ -7,6 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+config = { path="../config" }
+graceful-shutdown = { path="../graceful-shutdown" }
+vault = { path="../vault" }
+
 actix-web = "4.0.0-beta.4"
 futures = "0.3.13"
 hashicorp_vault = "2.0.1"
@@ -14,9 +18,7 @@ reqwest = "0.11.2"
 serde = { version = "1.0.124", features = ["derive"] }
 serde_json = "1.0.64"
 sqlx = { version="0.5.1", features=["postgres", "json", "time", "runtime-tokio-rustls"] }
+thiserror = "1.0.24"
 tracing = "0.1.25"
 tracing-actix-web = "0.3.0-beta.2"
 
-graceful-shutdown = { path="../graceful-shutdown" }
-vault = { path="../vault" }
-thiserror = "1.0.24"

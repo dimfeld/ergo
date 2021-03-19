@@ -1,10 +1,13 @@
 [workspace]
 
 members = [
+  "auth",
+  "config",
   "graceful-shutdown",
   "queuer",
-  "server",
+  "aio-server",
   "tracing-config",
   "vault",
-  "web-server",
+  "web-app-server",
+  "web-event-trigger",
 ]

@@ -246,6 +246,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "aio-server"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "config 0.1.0",
+ "dotenv",
+ "graceful-shutdown",
+ "hashicorp_vault",
+ "tracing",
+ "tracing-actix-web",
+ "tracing-config",
+ "vault",
+ "web-app-server",
+ "web-event-trigger",
+]
+
+[[package]]
 name = "ansi_term"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -322,6 +340,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "616896e05fc0e2649463a93a15183c6a16bf03413a7af88ef1285ddedfa9cda5"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "auth"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "serde",
+ "sqlx",
+ "thiserror",
+ "tracing",
+ "vault",
 ]
 
 [[package]]
@@ -508,6 +538,14 @@ dependencies = [
 
 [[package]]
 name = "config"
+version = "0.1.0"
+dependencies = [
+ "graceful-shutdown",
+ "vault",
+]
+
+[[package]]
+name = "config"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b076e143e1d9538dde65da30f8481c2a6c44040edb8e02b9bf1351edb92ce3"
@@ -628,7 +666,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d126179d86aee4556e54f5f3c6bf6d9884e7cc52cef82f77ee6f90a7747616d"
 dependencies = [
  "async-trait",
- "config",
+ "config 0.10.1",
  "crossbeam-queue",
  "num_cpus",
  "serde",
@@ -2054,21 +2092,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "server"
-version = "0.1.0"
-dependencies = [
- "actix-web",
- "anyhow",
- "dotenv",
- "graceful-shutdown",
- "hashicorp_vault",
- "tracing",
- "tracing-config",
- "vault",
- "web-server",
-]
-
-[[package]]
 name = "sha-1"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2943,10 +2966,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d6f8ec44822dd71f5f221a5847fb34acd9060535c1211b70a05844c0f6383b1"
 
 [[package]]
-name = "web-server"
+name = "web-app-server"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "config 0.1.0",
  "futures",
  "graceful-shutdown",
  "hashicorp_vault",
@@ -2959,6 +2983,10 @@ dependencies = [
  "tracing-actix-web",
  "vault",
 ]
+
+[[package]]
+name = "web-event-trigger"
+version = "0.1.0"
 
 [[package]]
 name = "web-sys"

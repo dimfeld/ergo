@@ -1,7 +1,9 @@
+use actix_web::{App, HttpServer};
 use graceful_shutdown::GracefulShutdown;
 use hashicorp_vault::client::VaultClient;
 use std::env;
 use std::sync::{Arc, RwLock};
+use tracing_actix_web::TracingLogger;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -26,12 +28,12 @@ async fn main() -> std::io::Result<()> {
     tracing::info!("{:?}", vault_client);
     vault::refresh_vault_client(vault_client.clone(), shutdown.consumer());
 
-    let web_config = web_server::Config {
-        address: env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string()),
-        port: env::var("BIND_PORT")
-            .map(|s| s.parse::<u16>())
-            .unwrap_or(Ok(6543))
-            .expect("PORT"),
+    let address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = env::var("BIND_PORT")
+        .map(|s| s.parse::<u16>())
+        .unwrap_or(Ok(6543))
+        .expect("PORT");
+    let web_config = config::Config {
         vault_client: vault_client.clone(),
         database: env::var("DATABASE").ok(),
         database_host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string()),
@@ -39,7 +41,17 @@ async fn main() -> std::io::Result<()> {
         shutdown: shutdown.consumer(),
     };
 
-    web_server::new(web_config)?.await?;
+    let web_app_data = web_app_server::app_data(web_config)?;
+
+    HttpServer::new(move || {
+        App::new()
+            .wrap(TracingLogger)
+            .service(web_app_server::scope(&web_app_data, "/api/web"))
+    })
+    .bind(format!("{}:{}", address, port))?
+    .run()
+    .await?;
+
     shutdown.shutdown().await?;
     Ok(())
 }

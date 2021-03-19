@@ -51,7 +51,10 @@ impl GracefulShutdown {
             shutdown_finished,
             ..
         } = self;
-        start_shutdown.send(()).unwrap();
+
+        // This can fail to send if something else already started the shutdown process,
+        // like a SIGINT.
+        start_shutdown.send(()).ok();
 
         shutdown_finished
     }
