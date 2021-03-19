@@ -22,6 +22,9 @@ pub enum Error {
     #[error("Vault Error")]
     VaultError(#[from] hashicorp_vault::Error),
 
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
+
     #[error("Vault returned no auth data")]
     VaultNoDataError,
 }
