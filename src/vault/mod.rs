@@ -67,7 +67,7 @@ pub struct VaultPostgresPoolOptions<T: DeserializeOwned + Send + Sync> {
     pub database: String,
     pub role: String,
     pub vault_client: SharedVaultClient<T>,
-    pub shutdown: graceful_shutdown::GracefulShutdownConsumer,
+    pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -81,7 +81,7 @@ pub struct VaultPostgresPoolStats {
 #[derive(Derivative)]
 #[derivative(Debug = "transparent")]
 pub struct VaultPostgresPool<T: 'static + DeserializeOwned + Send + Sync>(
-    pub(crate) Arc<VaultPostgresPoolInner<T>>,
+    Arc<VaultPostgresPoolInner<T>>,
 );
 
 #[macro_export]

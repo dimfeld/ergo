@@ -5,6 +5,12 @@ use std::env;
 use std::sync::{Arc, RwLock};
 use tracing_actix_web::TracingLogger;
 
+mod graceful_shutdown;
+mod service_config;
+mod tracing_config;
+mod vault;
+mod web_app_server;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv::dotenv().ok();
@@ -33,7 +39,7 @@ async fn main() -> std::io::Result<()> {
         .map(|s| s.parse::<u16>())
         .unwrap_or(Ok(6543))
         .expect("PORT");
-    let web_config = config::Config {
+    let web_config = service_config::Config {
         vault_client: vault_client.clone(),
         database: env::var("DATABASE").ok(),
         database_host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string()),

@@ -1,17 +1,18 @@
+use crate::execute;
+use crate::service_config::Config;
+use crate::vault::{VaultPostgresPool, VaultPostgresPoolOptions};
 use actix_web::{
     get, http::StatusCode, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder,
 };
-use config::Config;
 use serde::Serialize;
 use sqlx::{query, query_as};
 use thiserror::Error;
 use tracing_actix_web::TracingLogger;
-use vault::{execute, VaultPostgresPool, VaultPostgresPoolOptions};
 
 #[derive(Debug, Error)]
 pub(crate) enum Error {
     #[error(transparent)]
-    DbError(#[from] vault::Error),
+    DbError(#[from] crate::vault::Error),
 
     #[error("SQL Error")]
     SqlError(#[from] sqlx::error::Error),

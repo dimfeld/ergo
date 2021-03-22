@@ -1,11 +1,11 @@
-use graceful_shutdown::GracefulShutdownConsumer;
+use crate::graceful_shutdown::GracefulShutdownConsumer;
 use serde::de::DeserializeOwned;
 use std::time::Duration;
 use tokio::select;
 use tokio::task::JoinHandle;
 use tracing::{event, Level};
 
-use crate::SharedVaultClient;
+use super::SharedVaultClient;
 
 async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
     client: SharedVaultClient<T>,

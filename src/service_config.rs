@@ -1,3 +1,6 @@
+use crate::graceful_shutdown;
+use crate::vault;
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub vault_client: vault::AppRoleVaultClient,

@@ -11,8 +11,8 @@ use std::{
 };
 use tracing::{event, span, Level};
 
-use crate::Error;
-use graceful_shutdown::GracefulShutdownConsumer;
+use super::Error;
+use crate::graceful_shutdown::GracefulShutdownConsumer;
 
 pub trait PostgresAuthRenewer: 'static + Send + Sync {
     fn renew_lease(&self, lease_id: impl Into<String>) -> Result<VaultResponse<()>, Error>;
