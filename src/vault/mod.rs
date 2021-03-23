@@ -1,3 +1,4 @@
+use crate::error::Error;
 use deadpool::managed::Pool;
 use derivative::Derivative;
 use hashicorp_vault::client::VaultClient;
@@ -5,7 +6,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
 use std::sync::{atomic::Ordering, Arc, RwLock};
-use thiserror::Error;
 
 mod conn_executor;
 mod connection_manager;
@@ -19,45 +19,6 @@ pub use vault_token_refresh::refresh_vault_client;
 pub type SharedVaultClient<T> = Arc<RwLock<VaultClient<T>>>;
 pub type TokenAuthVaultClient = SharedVaultClient<hashicorp_vault::client::TokenData>;
 pub type AppRoleVaultClient = SharedVaultClient<()>;
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error(transparent)]
-    SqlError(#[from] sqlx::error::Error),
-
-    #[error("Vault Error")]
-    VaultError(#[from] hashicorp_vault::Error),
-
-    #[error(transparent)]
-    JoinError(#[from] tokio::task::JoinError),
-
-    #[error("Vault returned no auth data")]
-    VaultNoDataError,
-
-    #[error("timed out")]
-    TimeoutError,
-}
-
-impl sqlx::error::DatabaseError for Error {
-    fn message(&self) -> &str {
-        match self {
-            Error::SqlError(sqlx::Error::Database(e)) => e.message(),
-            _ => "",
-        }
-    }
-
-    fn as_error(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
-        self
-    }
-
-    fn as_error_mut(&mut self) -> &mut (dyn std::error::Error + Send + Sync + 'static) {
-        self
-    }
-
-    fn into_error(self: Box<Self>) -> Box<dyn std::error::Error + Send + Sync + 'static> {
-        self
-    }
-}
 
 pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
 
@@ -85,7 +46,7 @@ pub struct VaultPostgresPool<T: 'static + DeserializeOwned + Send + Sync>(
 );
 
 #[macro_export]
-macro_rules! execute {
+macro_rules! pool {
     ($pool: expr) => {
         &mut **$pool.acquire().await?
     };

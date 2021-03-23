@@ -5,6 +5,7 @@ use std::env;
 use std::sync::{Arc, RwLock};
 use tracing_actix_web::TracingLogger;
 
+mod error;
 mod graceful_shutdown;
 mod service_config;
 mod tracing_config;

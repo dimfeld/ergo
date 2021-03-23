@@ -1,32 +1,14 @@
-use crate::execute;
-use crate::service_config::Config;
-use crate::vault::{VaultPostgresPool, VaultPostgresPoolOptions};
-use actix_web::{
-    get, http::StatusCode, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder,
+use crate::{
+    error::Error,
+    pool,
+    service_config::Config,
+    vault::{VaultPostgresPool, VaultPostgresPoolOptions},
 };
+
+use actix_web::{get, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
 use serde::Serialize;
 use sqlx::{query, query_as};
-use thiserror::Error;
 use tracing_actix_web::TracingLogger;
-
-#[derive(Debug, Error)]
-pub(crate) enum Error {
-    #[error(transparent)]
-    DbError(#[from] crate::vault::Error),
-
-    #[error("SQL Error")]
-    SqlError(#[from] sqlx::error::Error),
-}
-
-impl actix_web::error::ResponseError for Error {
-    fn error_response(&self) -> HttpResponse<actix_web::dev::Body> {
-        HttpResponse::InternalServerError().body(self.to_string())
-    }
-
-    fn status_code(&self) -> StatusCode {
-        StatusCode::INTERNAL_SERVER_ERROR
-    }
-}
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()
@@ -41,7 +23,7 @@ struct TestRow {
 #[get("/test")]
 async fn test(state: Data<AppState>) -> Result<HttpResponse, Error> {
     let results = query_as!(TestRow, "SELECT * FROM test")
-        .fetch_all(execute!(state.pg))
+        .fetch_all(pool!(state.pg))
         .await?;
 
     Ok(HttpResponse::Ok().json(results))
