@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use deadpool::managed::RecycleError;
 use derivative::Derivative;
 use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultResponse};
-use serde::de::DeserializeOwned;
+use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{Connection, PgConnection};
 use std::sync::{atomic::Ordering, Arc, RwLock};
 use std::{
@@ -70,6 +70,14 @@ async fn refresh_loop<T: PostgresAuthRenewer>(
     }
 }
 
+#[derive(PartialEq, Serialize, Clone, Debug)]
+pub struct ManagerStats {
+    pub update_successes: u64,
+    pub update_failures: u64,
+    pub renew_successes: u64,
+    pub renew_failures: u64,
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub(crate) struct Manager<RENEWER: PostgresAuthRenewer> {
@@ -81,10 +89,8 @@ pub(crate) struct Manager<RENEWER: PostgresAuthRenewer> {
     database: String,
     role: String,
 
-    pub(crate) update_successes: AtomicU64,
-    pub(crate) update_failures: AtomicU64,
-    pub(crate) renew_successes: AtomicU64,
-    pub(crate) renew_failures: AtomicU64,
+    stats_sender: tokio::sync::watch::Sender<ManagerStats>,
+    pub stats: tokio::sync::watch::Receiver<ManagerStats>,
 }
 
 impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
@@ -95,6 +101,13 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
         database: String,
         role: String,
     ) -> Result<Arc<Manager<RENEWER>>, Error> {
+        let (stats_sender, stats_receiver) = tokio::sync::watch::channel(ManagerStats {
+            update_successes: 0,
+            update_failures: 0,
+            renew_successes: 0,
+            renew_failures: 0,
+        });
+
         let manager = Manager {
             connection_string: RwLock::new(String::new()),
             vault_client,
@@ -102,10 +115,8 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
             database,
             role,
 
-            update_successes: AtomicU64::new(0),
-            update_failures: AtomicU64::new(0),
-            renew_successes: AtomicU64::new(0),
-            renew_failures: AtomicU64::new(0),
+            stats_sender,
+            stats: stats_receiver,
         };
 
         let (renewable, duration) = manager.refresh_auth(None)?;
@@ -139,11 +150,14 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
         let span = span!(Level::INFO, "refreshing Postgres auth", role=%self.role );
         let _enter = span.enter();
 
+        let mut stats = { self.stats_sender.borrow().clone() };
+
         if let Some(lease_id) = renew_lease_id {
             event!(Level::INFO, "Refreshing renewable lease");
             match self.vault_client.read().unwrap().renew_lease(lease_id) {
                 Ok(auth) => {
-                    self.renew_successes.fetch_add(1, Ordering::Relaxed);
+                    stats.renew_successes += 1;
+                    self.stats_sender.send(stats).ok();
                     let renewable = auth.renewable.unwrap_or(false);
                     let renew_lease_id = if renewable { auth.lease_id } else { None };
 
@@ -154,7 +168,7 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
                     return Ok((renew_lease_id, lease_duration));
                 }
                 Err(e) => {
-                    self.renew_failures.fetch_add(1, Ordering::Relaxed);
+                    stats.renew_failures += 1;
                     // It didn't work, so try getting a new role.
                     event!(
                         Level::ERROR,
@@ -169,11 +183,13 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
         event!(Level::INFO, "Fetching new credentials");
         let auth = match self.vault_client.read().unwrap().get_lease(&self.role) {
             Ok(data) => {
-                self.update_successes.fetch_add(1, Ordering::Relaxed);
+                stats.update_successes += 1;
+                self.stats_sender.send(stats).ok();
                 data
             }
             Err(e) => {
-                self.update_failures.fetch_add(1, Ordering::Relaxed);
+                stats.update_failures += 1;
+                self.stats_sender.send(stats).ok();
                 return Err(e);
             }
         };
@@ -361,7 +377,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn renews_role_lease() {
-        let shutdown = graceful_shutdown::GracefulShutdown::new();
+        let shutdown = crate::graceful_shutdown::GracefulShutdown::new();
         let vault_client = Arc::new(RwLock::new(MockVaultClient {
             lease_id: "l1".to_string(),
             lease_duration: Duration::from_secs(300),
@@ -373,7 +389,7 @@ mod tests {
             counts: RwLock::new(MockData::new()),
         }));
 
-        Manager::new(
+        let m = Manager::new(
             vault_client.clone(),
             shutdown.consumer(),
             "host".to_string(),
@@ -384,42 +400,30 @@ mod tests {
 
         vault_client.read().unwrap().check_counts(1, 0);
 
+        let mut stats_receiver = m.stats.clone();
+        // Clear the changed flag since it's set by default
+        assert!(stats_receiver.changed().await.is_ok());
+
         tokio::time::sleep(Duration::from_secs(140)).await;
         vault_client.read().unwrap().check_counts(1, 0);
         tokio::time::sleep(Duration::from_secs(20)).await;
 
-        // This is horrible, but accounts for the fact that there isn't a good way to synchronize
-        // with the spawn_blocking task that does the refresh right now.
-        const MAX_CHECKS: usize = 10;
-        let mut checks = 0;
-        while checks < MAX_CHECKS {
-            tokio::task::yield_now().await;
-            if vault_client
-                .read()
-                .unwrap()
-                .counts
-                .read()
-                .unwrap()
-                .renew_count
-                > 0
-            {
-                break;
-            } else {
-                checks += 1;
-                std::thread::sleep(Duration::from_millis(5));
+        assert!(stats_receiver.changed().await.is_ok());
+        let stats = m.stats.borrow();
+        assert_eq!(
+            *stats,
+            ManagerStats {
+                renew_failures: 0,
+                renew_successes: 1,
+                update_failures: 0,
+                update_successes: 1,
             }
-        }
-
-        if checks == MAX_CHECKS {
-            panic!("Timed out waiting for renew to happen");
-        }
-
-        vault_client.read().unwrap().check_counts(1, 1);
+        );
     }
 
     #[tokio::test(start_paused = true)]
     async fn updates_nonrenewable_lease() {
-        let shutdown = graceful_shutdown::GracefulShutdown::new();
+        let shutdown = crate::graceful_shutdown::GracefulShutdown::new();
         let vault_client = Arc::new(RwLock::new(MockVaultClient {
             lease_id: "l1".to_string(),
             lease_duration: Duration::from_secs(300),
@@ -431,7 +435,7 @@ mod tests {
             counts: RwLock::new(MockData::new()),
         }));
 
-        Manager::new(
+        let m = Manager::new(
             vault_client.clone(),
             shutdown.consumer(),
             "host".to_string(),
@@ -442,36 +446,24 @@ mod tests {
 
         vault_client.read().unwrap().check_counts(1, 0);
 
+        let mut stats_receiver = m.stats.clone();
+        // Clear the changed flag since it's set by default
+        assert!(stats_receiver.changed().await.is_ok());
+
         tokio::time::sleep(Duration::from_secs(140)).await;
         vault_client.read().unwrap().check_counts(1, 0);
         tokio::time::sleep(Duration::from_secs(20)).await;
 
-        // This is horrible, but accounts for the fact that there isn't a good way to synchronize
-        // with the spawn_blocking task that does the refresh right now.
-        const MAX_CHECKS: usize = 10;
-        let mut checks = 0;
-        while checks < MAX_CHECKS {
-            tokio::task::yield_now().await;
-            if vault_client
-                .read()
-                .unwrap()
-                .counts
-                .read()
-                .unwrap()
-                .get_count
-                > 1
-            {
-                break;
-            } else {
-                checks += 1;
-                std::thread::sleep(Duration::from_millis(5));
+        assert!(stats_receiver.changed().await.is_ok());
+        let stats = m.stats.borrow();
+        assert_eq!(
+            *stats,
+            ManagerStats {
+                renew_failures: 0,
+                renew_successes: 0,
+                update_failures: 0,
+                update_successes: 2,
             }
-        }
-
-        if checks == MAX_CHECKS {
-            panic!("Timed out waiting for renew to happen");
-        }
-
-        vault_client.read().unwrap().check_counts(2, 0);
+        );
     }
 }

@@ -107,6 +107,8 @@ mod tests {
     }
 
     #[tokio::test]
+    /// Ignored because it screws up other tests that use graceful shutdown
+    #[ignore]
     async fn handle_sigint() {
         let s = GracefulShutdown::new();
 

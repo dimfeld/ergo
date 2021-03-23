@@ -31,14 +31,6 @@ pub struct VaultPostgresPoolOptions<T: DeserializeOwned + Send + Sync> {
     pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
 }
 
-#[derive(Clone, Debug, Serialize)]
-pub struct VaultPostgresPoolStats {
-    pub renew_successes: u64,
-    pub renew_failures: u64,
-    pub update_successes: u64,
-    pub update_failures: u64,
-}
-
 #[derive(Derivative)]
 #[derivative(Debug = "transparent")]
 pub struct VaultPostgresPool<T: 'static + DeserializeOwned + Send + Sync>(
@@ -94,13 +86,12 @@ impl<T: 'static + DeserializeOwned + Send + Sync> VaultPostgresPool<T> {
         Ok(VaultPostgresPool(Arc::new(pool)))
     }
 
-    pub fn stats(&self) -> VaultPostgresPoolStats {
-        VaultPostgresPoolStats {
-            renew_successes: self.0.manager.renew_successes.load(Ordering::Relaxed),
-            renew_failures: self.0.manager.renew_failures.load(Ordering::Relaxed),
-            update_successes: self.0.manager.update_successes.load(Ordering::Relaxed),
-            update_failures: self.0.manager.update_failures.load(Ordering::Relaxed),
-        }
+    pub fn stats(&self) -> connection_manager::ManagerStats {
+        self.0.manager.stats.borrow().clone()
+    }
+
+    pub fn stats_receiver(&self) -> tokio::sync::watch::Receiver<connection_manager::ManagerStats> {
+        self.0.manager.stats.clone()
     }
 
     pub async fn acquire(&self) -> Result<ConnectionObject, Error> {
