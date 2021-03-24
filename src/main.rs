@@ -8,6 +8,7 @@ use tracing_actix_web::TracingLogger;
 mod error;
 mod graceful_shutdown;
 mod service_config;
+mod tasks;
 mod tracing_config;
 mod vault;
 mod web_app_server;

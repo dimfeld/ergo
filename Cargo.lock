@@ -493,6 +493,7 @@ dependencies = [
  "libc",
  "num-integer",
  "num-traits",
+ "serde",
  "time 0.1.43",
  "winapi 0.3.9",
 ]
@@ -702,11 +703,13 @@ dependencies = [
  "assert_matches",
  "async-stream",
  "async-trait",
+ "chrono",
  "deadpool",
  "derivative",
  "dotenv",
  "either",
  "futures",
+ "fxhash",
  "hashicorp_vault",
  "libc",
  "log",
@@ -916,6 +919,15 @@ dependencies = [
  "proc-macro-hack",
  "proc-macro-nested",
  "slab",
+]
+
+[[package]]
+name = "fxhash"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
+dependencies = [
+ "byteorder",
 ]
 
 [[package]]
@@ -2192,6 +2204,7 @@ dependencies = [
  "bitflags",
  "byteorder",
  "bytes 1.0.1",
+ "chrono",
  "crc",
  "crossbeam-channel",
  "crossbeam-queue",
