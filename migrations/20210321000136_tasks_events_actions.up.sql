@@ -57,7 +57,8 @@ CREATE TABLE tasks (
   name text not null,
   description text,
   enabled boolean not null default false,
-  state_machine jsonb not null,
+  state_machine_config jsonb not null,
+  state_machine_states jsonb not null, 
   created timestamptz not null default now(),
   modified timestamptz not null default now()
 );
