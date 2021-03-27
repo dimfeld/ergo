@@ -70,7 +70,8 @@ CREATE TABLE user_roles (
 CREATE TABLE api_keys (
   api_key text not null primary key,
   secret_key_hash text not null,
-  user_entity_id int not null references user_entity_ids,
+  org_id int not null references orgs,
+  user_id int references users,
   description text,
 
   active boolean default true,
