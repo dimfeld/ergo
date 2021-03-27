@@ -21,7 +21,7 @@ struct TestRow {
 }
 
 #[get("/test")]
-async fn test(state: Data<AppState>) -> Result<HttpResponse, Error> {
+async fn test(state: AppStateData) -> Result<HttpResponse, Error> {
     let results = query_as!(TestRow, "SELECT * FROM test")
         .fetch_all(pool!(state.pg))
         .await?;
@@ -33,7 +33,9 @@ pub struct AppState {
     pg: VaultPostgresPool<()>,
 }
 
-pub fn app_data(config: Config) -> Result<Data<AppState>, std::io::Error> {
+pub type AppStateData = Data<AppState>;
+
+pub fn app_data(config: Config) -> Result<AppStateData, std::io::Error> {
     let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
         max_connections: 16,
         host: config.database_host,
@@ -49,7 +51,7 @@ pub fn app_data(config: Config) -> Result<Data<AppState>, std::io::Error> {
     Ok(Data::new(AppState { pg: pg_pool }))
 }
 
-pub fn scope(app_data: &Data<AppState>, root: &str) -> actix_web::Scope {
+pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
     web::scope(root)
         .app_data(app_data.clone())
         .service(test)
