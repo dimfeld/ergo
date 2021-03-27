@@ -1,3 +1,4 @@
+use actix_session::CookieSession;
 use actix_web::{App, HttpServer};
 use graceful_shutdown::GracefulShutdown;
 use hashicorp_vault::client::VaultClient;
@@ -5,6 +6,7 @@ use std::env;
 use std::sync::{Arc, RwLock};
 use tracing_actix_web::TracingLogger;
 
+mod auth;
 mod error;
 mod graceful_shutdown;
 mod service_config;
@@ -51,9 +53,27 @@ async fn main() -> std::io::Result<()> {
 
     let web_app_data = web_app_server::app_data(web_config)?;
 
+    let cookie_signing_key = env::var("COOKIE_SIGNING_KEY")
+        .ok()
+        .unwrap_or_else(|| {
+            println!(
+                r##"WARNING: Using default cookie signing key.
+            Set COOKIE_SIGNING_KEY environment variable to a 32-byte string to set it"##
+            );
+
+            "wpvuwm4pvoane;bwn40s;wmvlscvG@sV".to_string()
+        })
+        .into_bytes();
+
     HttpServer::new(move || {
+        let sessions = CookieSession::signed(&cookie_signing_key)
+            .http_only(true)
+            .secure(true)
+            .same_site(cookie::SameSite::Strict);
+
         App::new()
             .wrap(TracingLogger)
+            .wrap(sessions)
             .service(web_app_server::scope(&web_app_data, "/api/web"))
     })
     .bind(format!("{}:{}", address, port))?
