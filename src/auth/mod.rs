@@ -1,11 +1,11 @@
 use crate::error::Error;
 use crate::pool;
 use crate::vault::VaultPostgresPool;
-use actix_session::Session;
+use actix_identity::Identity;
 use actix_web::{cookie::Cookie, HttpMessage, HttpRequest};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::query;
+use sqlx::query_as;
 
 pub mod handlers;
 pub mod middleware;
@@ -74,10 +74,20 @@ pub struct User {
     pub created: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct RequestUser {
+    user_id: i32,
+    external_user_id: String,
+    org_id: i32,
+    name: String,
+    email: String,
+    roles: Option<Vec<i32>>,
+}
+
 #[derive(Debug, Clone)]
 pub enum Authenticated {
     ApiKey(ApiKeyToken),
-    User(User),
+    User(RequestUser),
 }
 
 fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>, Error> {
@@ -87,17 +97,31 @@ fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>, Error> {
 // Authenticate via cookie or json web token, depending on what's provided.
 pub async fn authenticate(
     pg: &VaultPostgresPool<()>,
-    session: &Session,
+    identity: &Identity,
     req: &HttpRequest,
 ) -> Result<Authenticated, Error> {
     if let Some(auth) = get_api_key(req)? {
         return Ok(auth);
     }
 
-    let session_id: i64 = session.get("sid")?.ok_or(Error::AuthenticationError)?;
-    let user_data = query!(r##""##).execute(pool!(pg)).await;
-
-    Err(Error::AuthenticationError)
+    let user_id = identity.identity().ok_or(Error::AuthenticationError)?;
+    query_as!(
+        RequestUser,
+        r##"SELECT user_id, external_user_id,
+            active_org_id AS org_id, users.name, email,
+            array_agg(role_id) AS roles
+        FROM users
+        JOIN orgs ON orgs.org_id = active_org_id
+        LEFT JOIN user_roles USING(user_id)
+        LEFT JOIN roles USING(role_id, org_id)
+        WHERE external_user_id = $1 AND users.active AND orgs.active
+        GROUP BY user_id"##,
+        user_id
+    )
+    .fetch_optional(pool!(pg))
+    .await?
+    .map(|user| Authenticated::User(user))
+    .ok_or(Error::AuthenticationError)
 }
 
 pub async fn check_object_permission(

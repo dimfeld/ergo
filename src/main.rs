@@ -1,3 +1,4 @@
+use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_session::CookieSession;
 use actix_web::{App, HttpServer};
 use graceful_shutdown::GracefulShutdown;
@@ -66,14 +67,16 @@ async fn main() -> std::io::Result<()> {
         .into_bytes();
 
     HttpServer::new(move || {
-        let sessions = CookieSession::signed(&cookie_signing_key)
-            .http_only(true)
-            .secure(true)
-            .same_site(cookie::SameSite::Strict);
+        let identity = IdentityService::new(
+            CookieIdentityPolicy::new(&cookie_signing_key)
+                .http_only(true)
+                .secure(true)
+                .same_site(cookie::SameSite::Strict),
+        );
 
         App::new()
             .wrap(TracingLogger)
-            .wrap(sessions)
+            .wrap(identity)
             .service(web_app_server::scope(&web_app_data, "/api/web"))
     })
     .bind(format!("{}:{}", address, port))?
