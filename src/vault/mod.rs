@@ -11,7 +11,7 @@ mod conn_executor;
 mod connection_manager;
 mod vault_token_refresh;
 // Disabled until I figure out some lifetime issues
-// mod executor;
+mod executor;
 
 use connection_manager::{Manager, WrappedConnection};
 pub use vault_token_refresh::refresh_vault_client;
@@ -37,11 +37,10 @@ pub struct VaultPostgresPool<T: 'static + DeserializeOwned + Send + Sync>(
     Arc<VaultPostgresPoolInner<T>>,
 );
 
-#[macro_export]
-macro_rules! pool {
-    ($pool: expr) => {
-        &mut **$pool.acquire().await?
-    };
+impl<T: 'static + DeserializeOwned + Send + Sync> Clone for VaultPostgresPool<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
 }
 
 fn debug_format_pool(

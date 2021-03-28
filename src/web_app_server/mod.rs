@@ -1,6 +1,5 @@
 use crate::{
     error::Error,
-    pool,
     service_config::Config,
     vault::{VaultPostgresPool, VaultPostgresPoolOptions},
 };
@@ -23,7 +22,7 @@ struct TestRow {
 #[get("/test")]
 async fn test(state: AppStateData) -> Result<HttpResponse, Error> {
     let results = query_as!(TestRow, "SELECT * FROM test")
-        .fetch_all(pool!(state.pg))
+        .fetch_all(&state.pg)
         .await?;
 
     Ok(HttpResponse::Ok().json(results))

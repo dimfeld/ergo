@@ -58,26 +58,23 @@ impl actix_web::error::ResponseError for Error {
     }
 }
 
-// impl sqlx::error::DatabaseError for Error {
-//     fn message(&self) -> &str {
-//         match self {
-//             Error::SqlError(sqlx::Error::Database(e)) => e.message(),
-//             _ => "",
-//         }
-//     }
-//
-//     fn as_error(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
-//         match self {
-//             Error::ActixError(e) => &EMPTY_ERROR,
-//             _ => self,
-//         }
-//     }
-//
-//     fn as_error_mut(&mut self) -> &mut (dyn std::error::Error + Send + Sync + 'static) {
-//         self
-//     }
-//
-//     fn into_error(self: Box<Self>) -> Box<dyn std::error::Error + Send + Sync + 'static> {
-//         self
-//     }
-// }
+impl sqlx::error::DatabaseError for Error {
+    fn message(&self) -> &str {
+        match self {
+            Error::SqlError(sqlx::Error::Database(e)) => e.message(),
+            _ => "",
+        }
+    }
+
+    fn as_error(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
+        self
+    }
+
+    fn as_error_mut(&mut self) -> &mut (dyn std::error::Error + Send + Sync + 'static) {
+        self
+    }
+
+    fn into_error(self: Box<Self>) -> Box<dyn std::error::Error + Send + Sync + 'static> {
+        self
+    }
+}

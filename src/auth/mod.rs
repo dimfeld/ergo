@@ -1,5 +1,4 @@
 use crate::error::Error;
-use crate::pool;
 use crate::vault::VaultPostgresPool;
 use actix_identity::Identity;
 use actix_web::{cookie::Cookie, HttpMessage, HttpRequest};
@@ -118,7 +117,7 @@ pub async fn authenticate(
         GROUP BY user_id"##,
         user_id
     )
-    .fetch_optional(pool!(pg))
+    .fetch_optional(pg)
     .await?
     .map(|user| Authenticated::User(user))
     .ok_or(Error::AuthenticationError)
