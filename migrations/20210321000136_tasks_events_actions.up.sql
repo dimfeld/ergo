@@ -66,7 +66,7 @@ CREATE TABLE tasks (
 CREATE UNIQUE INDEX ON tasks(external_task_id);
 
 CREATE TABLE task_triggers (
-  task_trigger_id bigint generated always as identity primary key,
+  task_trigger_id bigint primary key references object_ids(object_id),
   task_id bigint not null references tasks(task_id),
   input_id bigint not null references inputs(input_id),
   last_payload jsonb

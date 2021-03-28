@@ -3,9 +3,10 @@ use deadpool::managed::Pool;
 use derivative::Derivative;
 use hashicorp_vault::client::VaultClient;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::fmt::Debug;
-use std::sync::{atomic::Ordering, Arc, RwLock};
+use std::{
+    fmt::Debug,
+    sync::{Arc, RwLock},
+};
 
 mod conn_executor;
 mod connection_manager;

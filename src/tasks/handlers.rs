@@ -1,6 +1,4 @@
-use crate::auth;
-use crate::error::Error;
-use crate::vault::VaultPostgresPool;
+use crate::{auth, error::Error, vault::VaultPostgresPool};
 use actix_web::{
     get, post, web,
     web::{Data, Path},

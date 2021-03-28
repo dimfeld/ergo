@@ -1,5 +1,4 @@
 use actix_identity::{CookieIdentityPolicy, IdentityService};
-use actix_session::CookieSession;
 use actix_web::{App, HttpServer};
 use graceful_shutdown::GracefulShutdown;
 use hashicorp_vault::client::VaultClient;

@@ -64,7 +64,8 @@ CREATE TABLE roles (
 CREATE TABLE user_roles (
   user_id int not null references users,
   role_id int not null references roles,
-  primary key (user_id, role_id)
+  org_id int not null references orgs,
+  primary key (user_id, org_id, role_id)
 );
 
 CREATE TABLE api_keys (
