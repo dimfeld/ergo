@@ -29,6 +29,9 @@ pub enum Error {
         body: String,
     },
 
+    #[error(transparent)]
+    UuidError(#[from] uuid::Error),
+
     #[error("Unspecified")]
     Unspecified,
 }

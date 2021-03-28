@@ -53,12 +53,12 @@ CREATE TYPE action_status AS ENUM (
 CREATE TABLE tasks (
   task_id bigint primary key references object_ids(object_id),
   external_task_id text not null,
-  org_id bigint not null references orgs(org_id),
+  org_id uuid not null references orgs(org_id),
   name text not null,
   description text,
   enabled boolean not null default false,
   state_machine_config jsonb not null,
-  state_machine_states jsonb not null, 
+  state_machine_states jsonb not null,
   created timestamptz not null default now(),
   modified timestamptz not null default now()
 );

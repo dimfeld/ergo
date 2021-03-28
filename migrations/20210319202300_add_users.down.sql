@@ -1,6 +1,5 @@
 BEGIN;
 
-DROP TABLE api_key_permissions;
 DROP TABLE api_keys;
 DROP TABLE user_roles;
 DROP TABLE roles;

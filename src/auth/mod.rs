@@ -3,7 +3,8 @@ use actix_identity::Identity;
 use actix_web::HttpRequest;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{query, FromRow};
+use sqlx::{postgres::PgRow, query, Encode, FromRow, Postgres};
+use uuid::Uuid;
 
 pub mod handlers;
 pub mod middleware;
@@ -14,14 +15,6 @@ pub mod middleware;
 pub enum PermissionType {
     #[serde(rename = "trigger_event")]
     TriggerEvent,
-}
-
-impl PermissionType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            PermissionType::TriggerEvent => "trigger_event",
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -37,38 +30,38 @@ pub struct Permission {
 pub enum ApiKeyToken {
     #[serde(rename = "0")]
     V0 {
-        key: String,
-        org_id: i32,
-        user_id: Option<i32>,
+        key: Uuid,
+        org_id: Uuid,
+        user_id: Option<Uuid>,
         expires: Option<DateTime<Utc>>,
     },
 }
 
 impl ApiKeyToken {
-    pub fn key(&self) -> &str {
+    pub fn key(&self) -> &Uuid {
         match self {
             ApiKeyToken::V0 { key, .. } => key,
         }
     }
 
-    pub fn user_id(&self) -> Option<i32> {
+    pub fn user_id(&self) -> Option<&Uuid> {
         match self {
-            ApiKeyToken::V0 { user_id, .. } => *user_id,
+            ApiKeyToken::V0 { user_id, .. } => user_id.as_ref(),
         }
     }
 
-    pub fn org_id(&self) -> i32 {
+    pub fn org_id(&self) -> &Uuid {
         match self {
-            ApiKeyToken::V0 { org_id, .. } => *org_id,
+            ApiKeyToken::V0 { org_id, .. } => org_id,
         }
     }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiKey {
-    pub api_key: String,
-    secret_key_hash: String,
-    pub user_entity_id: i32,
+    pub api_key_id: Uuid,
+    pub org_id: Uuid,
+    pub user_id: Uuid,
     pub description: Option<String>,
     pub active: bool,
     pub expires: Option<DateTime<Utc>>,
@@ -84,9 +77,9 @@ pub struct ApiKeyPermission {
 
 #[derive(Debug, Clone)]
 pub struct User {
-    pub user_id: i32,
+    pub user_id: Uuid,
     pub external_user_id: String,
-    pub active_org_id: i32,
+    pub active_org_id: Uuid,
     pub name: String,
     pub email: String,
     pub active: bool,
@@ -95,18 +88,26 @@ pub struct User {
 
 #[derive(Debug, Clone, Default)]
 pub struct RequestUser {
-    user_id: i32,
-    external_user_id: String,
-    org_id: i32,
+    user_id: Uuid,
+    org_id: Uuid,
     name: String,
     email: String,
-    user_entity_ids: Vec<i32>,
+    user_entity_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Authenticated {
     ApiKey(ApiKeyToken),
     User(RequestUser),
+}
+
+impl Authenticated {
+    pub fn org_and_user(&self) -> (&Uuid, &Uuid) {
+        match self {
+            Authenticated::ApiKey(key) => (key.org_id(), key.key()),
+            Authenticated::User(user) => (&user.org_id, &user.user_id),
+        }
+    }
 }
 
 fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>, Error> {
@@ -123,15 +124,19 @@ pub async fn authenticate(
         return Ok(auth);
     }
 
-    let user_id = identity.identity().ok_or(Error::AuthenticationError)?;
+    let user_id = identity
+        .identity()
+        .ok_or(Error::AuthenticationError)
+        .and_then(|s| Uuid::parse_str(&s).map_err(Error::from))?;
+
     query!(
-        r##"SELECT user_id, external_user_id,
+        r##"SELECT user_id,
             active_org_id AS org_id, users.name, email,
             array_agg(role_id) AS roles
         FROM users
         JOIN orgs ON orgs.org_id = active_org_id
         LEFT JOIN user_roles USING(user_id, org_id)
-        WHERE external_user_id = $1 AND users.active AND orgs.active
+        WHERE user_id = $1 AND users.active AND orgs.active
         GROUP BY user_id"##,
         user_id
     )
@@ -148,7 +153,6 @@ pub async fn authenticate(
 
         let req_user = RequestUser {
             user_id: user.user_id,
-            external_user_id: user.external_user_id,
             org_id: user.org_id,
             name: user.name,
             email: user.email,
@@ -160,28 +164,23 @@ pub async fn authenticate(
     .ok_or(Error::AuthenticationError)
 }
 
-pub async fn get_permitted_object<T>(
+pub async fn get_permitted_object<T, ID>(
     pool: &VaultPostgresPool<()>,
     user: &Authenticated,
     object_table: &str,
     object_id_column: &str,
-    permission: Permission,
+    permission: PermissionType,
+    object_id: ID,
 ) -> Result<T, Error>
 where
-    T: Send + Unpin + for<'r> FromRow<'r, sqlx::postgres::PgRow>,
+    T: Send + Unpin + for<'r> FromRow<'r, PgRow>,
+    ID: Send + Unpin + for<'r> Encode<'r, Postgres> + sqlx::Type<Postgres>,
 {
-    let (permissions_table, permissions_id_column) = match user {
-        Authenticated::ApiKey(_) => ("api_key_permissions", "api_key"),
-        Authenticated::User(_) => ("user_entity_permissions", "user_entity_id"),
-    };
-
     let query_str = format!(
         r##"SELECT obj.* as match
-        FROM {object_table} obj ON obj.org_id = $1 AND obj.{object_id_column} = $2
-        JOIN {permissions_table} ON {permissions_id_column} = $3 AND permission_type = $4 AND permissioned_object IN (1, $2)
+        FROM {object_table} obj ON obj.org_id = $1 AND obj.{object_id_column} = $3
+        JOIN user_entity_permissions ON user_entity_id = $2 AND permission_type = $4 AND permissioned_object IN (1, $3)
     )"##,
-        permissions_table = permissions_table,
-        permissions_id_column = permissions_id_column,
         object_table = object_table,
         object_id_column = object_id_column
     );
@@ -189,19 +188,15 @@ where
     let q = sqlx::query(&query_str);
 
     let q = match user {
-        Authenticated::ApiKey(key) => q
-            .bind(key.org_id())
-            .bind(permission.object)
-            .bind(key.key())
-            .bind(permission.perm),
-        Authenticated::User(user) => q
-            .bind(user.org_id)
-            .bind(permission.object)
-            .bind(user.user_id)
-            .bind(permission.perm),
+        Authenticated::ApiKey(key) => q.bind(key.org_id()).bind(key.key()),
+        Authenticated::User(user) => q.bind(user.org_id).bind(user.user_id),
     };
 
-    let row = q.fetch_optional(pool).await?;
+    let row = q
+        .bind(object_id)
+        .bind(permission)
+        .fetch_optional(pool)
+        .await?;
 
     if let Some(row) = row {
         Ok(T::from_row(&row)?)

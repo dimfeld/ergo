@@ -1,3 +1,4 @@
+use crate::error::Error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -23,4 +24,13 @@ pub struct InputsLog {
     pub payload: serde_json::Value,
     pub error: serde_json::Value,
     pub time: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn enqueue_input(
+    task_id: i64,
+    input_id: i64,
+    task_trigger_id: i64,
+    payload: Box<serde_json::value::RawValue>,
+) -> Result<(), Error> {
+    Ok(())
 }
