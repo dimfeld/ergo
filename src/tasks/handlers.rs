@@ -23,33 +23,38 @@ async fn post_task_trigger(
     path: Path<TaskAndTriggerPath>,
     data: BackendAppStateData,
     req: HttpRequest,
-    payload: web::Json<Box<serde_json::value::RawValue>>,
+    payload: web::Json<serde_json::Value>,
     identity: Identity,
 ) -> Result<impl Responder, Error> {
     let user = auth::authenticate(&data.pg, &identity, &req).await?;
     let (org_id, user_id) = user.org_and_user();
 
     let trigger = sqlx::query!(
-        r##"SELECT task_trigger_id, task_id, input_id
-        FROM task_triggers
+        r##"SELECT tasks.*, task_trigger_id, input_id,
+            inputs.payload_schema as input_schema
+        FROM task_triggers tt
         JOIN user_entity_permissions p ON user_entity_id = $1
             AND permission_type = 'trigger_event'
             AND permissioned_object IN(1, task_trigger_id)
         JOIN tasks USING(task_id)
-        WHERE org_id = $2 AND task_trigger_id = $3
+        JOIN inputs USING(input_id)
+        WHERE org_id = $2 AND task_trigger_id = $3 AND external_task_id = $4
         "##,
         user_id,
         org_id,
-        path.trigger_id
+        path.trigger_id,
+        path.task_id
     )
     .fetch_optional(&data.pg)
     .await?
     .ok_or(Error::AuthorizationError)?;
 
     super::inputs::enqueue_input(
+        &data.pg,
         trigger.task_id,
         trigger.input_id,
         trigger.task_trigger_id,
+        trigger.input_schema,
         payload.into_inner(),
     )
     .await?;

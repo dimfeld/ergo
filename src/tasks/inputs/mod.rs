@@ -1,4 +1,4 @@
-use crate::error::Error;
+use crate::{error::Error, vault::VaultPostgresPool};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,10 +27,29 @@ pub struct InputsLog {
 }
 
 pub async fn enqueue_input(
+    pg: &VaultPostgresPool<()>,
     task_id: i64,
     input_id: i64,
     task_trigger_id: i64,
-    payload: Box<serde_json::value::RawValue>,
+    payload_schema: serde_json::Value,
+    payload: serde_json::Value,
 ) -> Result<(), Error> {
+    {
+        let compiled_schema = jsonschema::JSONSchema::compile(&payload_schema)?;
+        compiled_schema.validate(&payload)?;
+    }
+
+    sqlx::query!(
+        r##"INSERT INTO event_queue
+        (task_id, input_id, task_trigger_id, payload) VALUES
+        ($1, $2, $3, $4)"##,
+        task_id,
+        input_id,
+        task_trigger_id,
+        payload
+    )
+    .execute(pg)
+    .await?;
+
     Ok(())
 }

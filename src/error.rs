@@ -32,8 +32,21 @@ pub enum Error {
     #[error(transparent)]
     UuidError(#[from] uuid::Error),
 
+    #[error(transparent)]
+    JsonSchemaCompilationError(#[from] jsonschema::CompilationError),
+
+    #[error("{0:?}")]
+    JsonSchemaValidationError(Vec<String>),
+
     #[error("Unspecified")]
     Unspecified,
+}
+
+impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
+    fn from(e: jsonschema::ErrorIterator<'a>) -> Error {
+        let inner = e.map(|e| e.to_string()).collect::<Vec<_>>();
+        Error::JsonSchemaValidationError(inner)
+    }
 }
 
 impl From<actix_web::Error> for Error {
