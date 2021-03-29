@@ -8,6 +8,9 @@ pub enum Error {
     #[error("Unauthorized")]
     AuthorizationError,
 
+    #[error("Not found")]
+    NotFound,
+
     #[error("SQL Error")]
     SqlError(#[from] sqlx::error::Error),
 
@@ -68,6 +71,7 @@ impl actix_web::error::ResponseError for Error {
         match self {
             Error::AuthenticationError => StatusCode::UNAUTHORIZED,
             Error::AuthorizationError => StatusCode::FORBIDDEN,
+            Error::NotFound => StatusCode::NOT_FOUND,
             Error::ActixError { status_code, .. } => *status_code,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }

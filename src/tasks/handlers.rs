@@ -54,8 +54,8 @@ async fn post_task_trigger(
         trigger.task_id,
         trigger.input_id,
         trigger.task_trigger_id,
-        trigger.input_schema,
-        payload.into_inner(),
+        &trigger.input_schema,
+        &payload.into_inner(),
     )
     .await?;
 
