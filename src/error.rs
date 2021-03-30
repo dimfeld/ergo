@@ -42,11 +42,11 @@ pub enum Error {
     #[error("{0:?}")]
     JsonSchemaValidationError(Vec<String>),
 
-    #[error("Unspecified")]
-    Unspecified,
-
     #[error("State Machine Error: {0}")]
     StateMachineError(#[from] StateMachineError),
+
+    #[error("Unable to execute serializable transaction")]
+    SerializationFailure,
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
@@ -68,7 +68,7 @@ impl From<actix_web::Error> for Error {
 
 impl actix_web::error::ResponseError for Error {
     fn error_response(&self) -> HttpResponse<actix_web::dev::Body> {
-        HttpResponse::InternalServerError().body(self.to_string())
+        HttpResponse::build(self.status_code()).body(self.to_string())
     }
 
     fn status_code(&self) -> StatusCode {

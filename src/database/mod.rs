@@ -11,6 +11,7 @@ use std::{
 mod conn_executor;
 mod connection_manager;
 mod executor;
+pub mod transaction;
 
 use connection_manager::{Manager, WrappedConnection};
 
