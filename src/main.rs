@@ -2,11 +2,14 @@ use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{App, HttpServer};
 use graceful_shutdown::GracefulShutdown;
 use hashicorp_vault::client::VaultClient;
-use std::env;
-use std::sync::{Arc, RwLock};
+use std::{
+    env,
+    sync::{Arc, RwLock},
+};
 use tracing_actix_web::TracingLogger;
 
 mod auth;
+mod database;
 mod error;
 mod graceful_shutdown;
 mod service_config;

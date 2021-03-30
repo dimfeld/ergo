@@ -1,4 +1,4 @@
-use crate::{error::Error, vault::VaultPostgresPool};
+use crate::{database::VaultPostgresPool, error::Error};
 use serde::{Deserialize, Serialize};
 
 use super::Task;
@@ -29,7 +29,7 @@ pub struct InputsLog {
 }
 
 pub fn validate_input_payload(
-    input_id: i64,
+    _input_id: i64,
     payload_schema: &serde_json::Value,
     payload: &serde_json::Value,
 ) -> Result<(), Error> {
@@ -59,19 +59,6 @@ pub async fn enqueue_input(
     )
     .execute(pg)
     .await?;
-
-    Ok(())
-}
-
-pub async fn apply_input(
-    pg: &VaultPostgresPool<()>,
-    task_id: i64,
-    input_id: i64,
-    task_trigger_id: i64,
-    payload: &serde_json::Value,
-) -> Result<(), Error> {
-    let mut task = Task::from_db(pg, task_id).await?.ok_or(Error::NotFound)?;
-    task.apply_input(input_id, task_trigger_id, payload).await?;
 
     Ok(())
 }

@@ -1,7 +1,7 @@
 use crate::{
+    database::{VaultPostgresPool, VaultPostgresPoolOptions},
     error::Error,
     service_config::Config,
-    vault::{VaultPostgresPool, VaultPostgresPoolOptions},
 };
 
 use actix_web::{get, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};

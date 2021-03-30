@@ -1,8 +1,16 @@
 use fxhash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
+use thiserror::Error;
 
-pub type StateMachineConfig = FxHashMap<String, StateMachine>;
-pub type StateMachineStates = FxHashMap<String, StateMachineData>;
+#[derive(Debug, Error)]
+pub enum StateMachineError {
+    #[error("Machine {idx} unknown state {state}")]
+    UnknownState { idx: usize, state: String },
+}
+
+pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
+pub type StateMachineStates = SmallVec<[StateMachineData; 2]>;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StateMachineData {

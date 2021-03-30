@@ -1,4 +1,4 @@
-use crate::{error::Error, vault::VaultPostgresPool};
+use crate::{database::VaultPostgresPool, error::Error};
 use actix_identity::Identity;
 use actix_web::HttpRequest;
 use chrono::{DateTime, Utc};

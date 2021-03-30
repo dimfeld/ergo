@@ -1,7 +1,7 @@
 use crate::{
     auth::{self, Permission},
+    database::VaultPostgresPool,
     error::Error,
-    vault::VaultPostgresPool,
 };
 use actix_identity::Identity;
 use actix_web::{

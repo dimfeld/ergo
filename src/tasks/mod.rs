@@ -3,7 +3,9 @@ pub mod handlers;
 pub mod inputs;
 mod state_machine;
 
-use crate::{error::Error, vault::VaultPostgresPool};
+pub use state_machine::StateMachineError;
+
+use crate::{database::VaultPostgresPool, error::Error};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{query_as, types::Json, FromRow, Postgres};
