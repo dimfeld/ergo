@@ -25,28 +25,33 @@ pub struct Task {
     pub modified: DateTime<Utc>,
 }
 
+const GET_TASK_QUERY: &'static str = r##"SELECT task_id, external_task_id, org_id, name,
+              description, enabled,
+              state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>",
+              state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>",
+              created, modified
+            FROM tasks WHERE task_id = $1"##;
+
 impl Task {
     pub async fn from_db(
         pool: &VaultPostgresPool<()>,
         task_id: i64,
     ) -> Result<Option<Task>, Error> {
-        query_as!(
-            Task,
-            r##"SELECT task_id, external_task_id, org_id, name,
-              description, enabled,
-              state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>",
-              state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>",
-              created, modified
-            FROM tasks WHERE task_id = $1"##,
-            task_id
-        )
-        .fetch_optional(pool)
-        .await
-        .map_err(Error::from)
+        sqlx::query_as::<Postgres, Task>(GET_TASK_QUERY)
+            .bind(task_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(Error::from)
     }
 
+    /// Apply an input to a task.
+    /// Instead of acting on an existing task instance, this loads the task
+    /// and applies the input inside a serializable transaction, to ensure that
+    /// the applied input doesn't have a race condition with any other concurrent
+    /// inputs to the same task.
     pub async fn apply_input(
-        &mut self,
+        pool: &VaultPostgresPool<()>,
+        task_id: i64,
         input_id: i64,
         task_trigger_id: i64,
         payload: &serde_json::Value,
