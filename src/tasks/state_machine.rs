@@ -9,6 +9,10 @@ use thiserror::Error;
 pub enum StateMachineError {
     #[error("Machine {idx} unknown state {state}")]
     UnknownState { idx: usize, state: String },
+    #[error("Context is missing required field {0}")]
+    ContextMissingField(String),
+    #[error("Payload is missing required field {0}")]
+    InputPayloadMissingField(String),
 }
 
 pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
@@ -44,10 +48,61 @@ pub struct EventHandler {
 impl EventHandler {
     fn resolve_actions(
         &self,
+        task_id: i64,
         context: &serde_json::Value,
         payload: &Option<serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
-        Ok(ActionInvocations::new())
+        self.actions
+            .as_ref()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .map(|def| {
+                let payload: Result<serde_json::Map<String, serde_json::Value>, StateMachineError> =
+                    def.data
+                        .iter()
+                        .map(|(key, invoke_def)| {
+                            let value: Result<serde_json::Value, StateMachineError> =
+                                match &invoke_def {
+                                    ActionInvokeDefDataField::Constant(v) => Ok(v.clone()),
+                                    ActionInvokeDefDataField::Input(path, required) => {
+                                        let payload_value =
+                                            payload.as_ref().and_then(|p| p.pointer(path));
+                                        match (payload_value, *required) {
+                                            (None, true) => {
+                                                Err(StateMachineError::InputPayloadMissingField(
+                                                    path.clone(),
+                                                ))
+                                            }
+                                            (None, false) => Ok(serde_json::Value::Null),
+                                            (Some(v), _) => Ok(v.clone()),
+                                        }
+                                    }
+                                    ActionInvokeDefDataField::Context(path, required) => {
+                                        let context_value = context.pointer(path);
+                                        match (context_value, *required) {
+                                            (None, true) => {
+                                                Err(StateMachineError::ContextMissingField(
+                                                    path.clone(),
+                                                ))
+                                            }
+                                            (None, false) => Ok(serde_json::Value::Null),
+                                            (Some(v), _) => Ok(v.clone()),
+                                        }
+                                    }
+                                };
+
+                            value.map(|v| (key.clone(), v))
+                        })
+                        .collect();
+
+                Ok(ActionInvocation {
+                    task_id,
+                    task_trigger_id: Some(self.trigger_id),
+                    action_id: def.action_id,
+                    payload: serde_json::Value::Object(payload?),
+                })
+            })
+            .collect::<Result<ActionInvocations, StateMachineError>>()
     }
 
     fn next_state(
@@ -73,7 +128,7 @@ pub enum TransitionTarget {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TransitionCondition {
     target: String,
-    condition: String,
+    cond: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,13 +141,13 @@ pub struct ActionInvokeDef {
 #[serde(tag = "t", content = "c")]
 pub enum ActionInvokeDefDataField {
     /// A path from the input that triggered the action.
-    Input(String),
+    Input(String, bool),
+    /// A path from the state machine's context
+    Context(String, bool),
     /// A constant value
     Constant(serde_json::Value),
     // /// A script that calculates a value
     // Script(String),
-    // /// A path from the state machine's context
-    // Context(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -106,6 +161,7 @@ pub struct ActionInvocation {
 pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;
 
 pub struct StateMachineWithData {
+    task_id: i64,
     idx: usize,
     machine: StateMachine,
     data: StateMachineData,
@@ -113,8 +169,14 @@ pub struct StateMachineWithData {
 }
 
 impl<'d> StateMachineWithData {
-    pub fn new(idx: usize, machine: StateMachine, data: StateMachineData) -> StateMachineWithData {
+    pub fn new(
+        task_id: i64,
+        idx: usize,
+        machine: StateMachine,
+        data: StateMachineData,
+    ) -> StateMachineWithData {
         StateMachineWithData {
+            task_id,
             idx,
             machine,
             data,
@@ -143,7 +205,7 @@ impl<'d> StateMachineWithData {
         match handler {
             Some(h) => {
                 let next_state = h.next_state(&self.data.context, &payload)?;
-                let actions = h.resolve_actions(&self.data.context, &payload)?;
+                let actions = h.resolve_actions(self.task_id, &self.data.context, &payload)?;
 
                 if let Some(s) = next_state {
                     self.data.state = s;
