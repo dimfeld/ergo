@@ -4,9 +4,9 @@ use crate::{
     service_config::Config,
 };
 
-use actix_web::{get, web, web::Data, App, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{get, web, web::Data, App, HttpResponse, HttpServer, Responder};
 use serde::Serialize;
-use sqlx::{query, query_as};
+use sqlx::query_as;
 use tracing_actix_web::TracingLogger;
 
 async fn health() -> impl Responder {

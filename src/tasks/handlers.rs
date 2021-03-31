@@ -1,16 +1,11 @@
-use crate::{
-    auth::{self, Permission},
-    database::VaultPostgresPool,
-    error::Error,
-};
+use crate::{auth, database::VaultPostgresPool, error::Error};
 use actix_identity::Identity;
 use actix_web::{
-    get, post, web,
+    post, web,
     web::{Data, Path},
-    App, HttpRequest, HttpResponse, HttpServer, Responder,
+    HttpRequest, HttpResponse, Responder,
 };
 use serde::Deserialize;
-use sqlx::query;
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {

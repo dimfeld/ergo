@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use super::{connection_manager::WrappedConnection, VaultPostgresPool};
+use super::VaultPostgresPool;
 use crate::error::Error;
 
 pub async fn serializable<F, T, E>(

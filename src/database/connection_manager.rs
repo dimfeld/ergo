@@ -4,10 +4,9 @@ use derivative::Derivative;
 use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultResponse};
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{Connection, PgConnection};
-use std::sync::{atomic::Ordering, Arc, RwLock};
 use std::{
     ops::{Deref, DerefMut},
-    sync::atomic::AtomicU64,
+    sync::{Arc, RwLock},
 };
 use tracing::{event, span, Level};
 

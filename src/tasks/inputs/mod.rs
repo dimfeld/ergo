@@ -1,8 +1,6 @@
 use crate::{database::VaultPostgresPool, error::Error};
 use serde::{Deserialize, Serialize};
 
-use super::Task;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InputCategory {
     pub input_category_id: i64,
