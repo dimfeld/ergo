@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use fxhash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -12,7 +14,7 @@ pub enum StateMachineError {
 pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
 pub type StateMachineStates = SmallVec<[StateMachineData; 2]>;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StateMachineData {
     state: String,
     context: serde_json::Value,
@@ -39,12 +41,33 @@ pub struct EventHandler {
     actions: Option<Vec<ActionInvokeDef>>,
 }
 
+impl EventHandler {
+    fn resolve_actions(
+        &self,
+        context: &serde_json::Value,
+        payload: &Option<serde_json::Value>,
+    ) -> Result<ActionInvocations, StateMachineError> {
+        Ok(ActionInvocations::new())
+    }
+
+    fn next_state(
+        &self,
+        _context: &serde_json::Value,
+        _payload: &Option<serde_json::Value>,
+    ) -> Result<Option<String>, StateMachineError> {
+        match &self.target {
+            None => Ok(None),
+            Some(TransitionTarget::One(s)) => Ok(Some(s.clone())),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum TransitionTarget {
     One(String),
-    Cond(Vec<TransitionCondition>),
-    Script(String),
+    // Cond(Vec<TransitionCondition>),
+    // Script(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -62,9 +85,14 @@ pub struct ActionInvokeDef {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionInvokeDefDataField {
-    Context(String),
-    Event(String),
-    Script(String),
+    /// A path from the input that triggered the action.
+    Input(String),
+    /// A constant value
+    Constant(serde_json::Value),
+    // /// A script that calculates a value
+    // Script(String),
+    // /// A path from the state machine's context
+    // Context(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -81,11 +109,17 @@ pub struct StateMachineWithData {
     idx: usize,
     machine: StateMachine,
     data: StateMachineData,
+    changed: bool,
 }
 
-impl StateMachineWithData {
+impl<'d> StateMachineWithData {
     pub fn new(idx: usize, machine: StateMachine, data: StateMachineData) -> StateMachineWithData {
-        StateMachineWithData { idx, machine, data }
+        StateMachineWithData {
+            idx,
+            machine,
+            data,
+            changed: false,
+        }
     }
 
     pub fn apply_trigger(
@@ -119,31 +153,5 @@ impl StateMachineWithData {
             }
             None => Ok(ActionInvocations::new()),
         }
-    }
-
-    fn resolve_actions(
-        &self,
-        handler: &EventHandler,
-        payload: Option<serde_json::Value>,
-    ) -> Result<ActionInvocations, StateMachineError> {
-        Ok(SmallVec::new())
-    }
-}
-
-impl EventHandler {
-    fn resolve_actions(
-        &self,
-        context: &serde_json::Value,
-        payload: &Option<serde_json::Value>,
-    ) -> Result<ActionInvocations, StateMachineError> {
-        Ok(ActionInvocations::new())
-    }
-
-    fn next_state(
-        &self,
-        context: &serde_json::Value,
-        payload: &Option<serde_json::Value>,
-    ) -> Result<Option<String>, StateMachineError> {
-        Ok(None)
     }
 }
