@@ -58,49 +58,13 @@ impl EventHandler {
             .unwrap_or(&Vec::new())
             .iter()
             .map(|def| {
-                let payload: Result<serde_json::Map<String, serde_json::Value>, StateMachineError> =
-                    def.data
-                        .iter()
-                        .map(|(key, invoke_def)| {
-                            let value: Result<serde_json::Value, StateMachineError> =
-                                match &invoke_def {
-                                    ActionInvokeDefDataField::Constant(v) => Ok(v.clone()),
-                                    ActionInvokeDefDataField::Input(path, required) => {
-                                        let payload_value =
-                                            payload.as_ref().and_then(|p| p.pointer(path));
-                                        match (payload_value, *required) {
-                                            (None, true) => {
-                                                Err(StateMachineError::InputPayloadMissingField(
-                                                    path.clone(),
-                                                ))
-                                            }
-                                            (None, false) => Ok(serde_json::Value::Null),
-                                            (Some(v), _) => Ok(v.clone()),
-                                        }
-                                    }
-                                    ActionInvokeDefDataField::Context(path, required) => {
-                                        let context_value = context.pointer(path);
-                                        match (context_value, *required) {
-                                            (None, true) => {
-                                                Err(StateMachineError::ContextMissingField(
-                                                    path.clone(),
-                                                ))
-                                            }
-                                            (None, false) => Ok(serde_json::Value::Null),
-                                            (Some(v), _) => Ok(v.clone()),
-                                        }
-                                    }
-                                };
-
-                            value.map(|v| (key.clone(), v))
-                        })
-                        .collect();
+                let payload = def.data.build(context, payload)?;
 
                 Ok(ActionInvocation {
                     task_id,
                     task_trigger_id: Some(self.trigger_id),
                     action_id: def.action_id,
-                    payload: serde_json::Value::Object(payload?),
+                    payload,
                 })
             })
             .collect::<Result<ActionInvocations, StateMachineError>>()
@@ -133,9 +97,57 @@ pub struct TransitionCondition {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "t", content = "c")]
+pub enum ActionPayloadBuilder {
+    FieldMap(FxHashMap<String, ActionInvokeDefDataField>),
+    // Script(String),
+}
+
+impl ActionPayloadBuilder {
+    fn build(
+        &self,
+        context: &serde_json::Value,
+        payload: &Option<serde_json::Value>,
+    ) -> Result<serde_json::Value, StateMachineError> {
+        match self {
+            ActionPayloadBuilder::FieldMap(data) => data
+                .iter()
+                .map(|(key, invoke_def)| {
+                    let value: Result<serde_json::Value, StateMachineError> = match &invoke_def {
+                        ActionInvokeDefDataField::Constant(v) => Ok(v.clone()),
+                        ActionInvokeDefDataField::Input(path, required) => {
+                            let payload_value = payload.as_ref().and_then(|p| p.pointer(path));
+                            match (payload_value, *required) {
+                                (None, true) => {
+                                    Err(StateMachineError::InputPayloadMissingField(path.clone()))
+                                }
+                                (None, false) => Ok(serde_json::Value::Null),
+                                (Some(v), _) => Ok(v.clone()),
+                            }
+                        }
+                        ActionInvokeDefDataField::Context(path, required) => {
+                            let context_value = context.pointer(path);
+                            match (context_value, *required) {
+                                (None, true) => {
+                                    Err(StateMachineError::ContextMissingField(path.clone()))
+                                }
+                                (None, false) => Ok(serde_json::Value::Null),
+                                (Some(v), _) => Ok(v.clone()),
+                            }
+                        }
+                    };
+
+                    value.map(|v| (key.clone(), v))
+                })
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ActionInvokeDef {
     action_id: i64,
-    data: FxHashMap<String, ActionInvokeDefDataField>,
+    data: ActionPayloadBuilder,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
