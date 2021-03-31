@@ -1,7 +1,6 @@
-Ergo is an IFTTT/Zapier style application that runs tasks based on events.
+Ergo is a low-code IFTTT/Zapier style application, built with Rust and Svelte. Tasks are customizable with Javascript and can contain state machines for more advanced task handling.
 
-This project is in very early stages right now with no current plans for proper publishing (yet). I'm doing this
-mostly for fun and learning.
+This project is in very early stages right now with no current plans for proper publishing, but that will probably come some day.
 
 # Considered use cases
 
@@ -29,7 +28,7 @@ mostly for fun and learning.
   - [ ] Each action can specify the types of data that it accepts
   - [ ] Duck typing for events
 - [ ] Transformers will take data from an event, modify it somehow, and pass it on
-  - [ ] Embed [rhai](https://rhai.rs/) or or maybe JavaScript to write transformers
+  - [ ] Embed JavaScript to write transformers
   - [ ] Optional schema input
   - [ ] Optional type checking on transformer return value
 - [ ] Reducers are transformers that keep some persistent state between calls
