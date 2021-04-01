@@ -1,49 +1,63 @@
-use std::{borrow::Cow, time::Duration};
+use futures::future::BoxFuture;
+use std::{borrow::Cow, future::Future, pin::Pin, time::Duration};
+
+use sqlx::{Connection, Postgres};
 
 use super::VaultPostgresPool;
 use crate::error::Error;
 
-pub async fn serializable<F, T, E>(
+pub fn serializable<F, T, E>(
     pool: &VaultPostgresPool<()>,
     retries: usize,
-    mut run: F,
-) -> Result<T, Error>
+    run: F,
+) -> BoxFuture<'_, Result<T, Error>>
 where
-    F: FnMut(&mut sqlx::PgConnection) -> Result<T, E>,
-    T: Send + Sync,
-    E: Into<Error> + Send + Sync,
+    for<'c> F: Fn(&'c mut sqlx::Transaction<'_, Postgres>) -> BoxFuture<'c, Result<T, E>>
+        + 'static
+        + Send
+        + Sync,
+    T: Send,
+    E: Into<Error> + Send,
 {
-    let mut retried = 0;
-    let mut sleep = Duration::from_millis(10);
+    Box::pin(async move {
+        let mut retried = 0;
+        let mut sleep = Duration::from_millis(10);
 
-    while retried <= retries {
-        let mut conn = pool.acquire().await?;
-        sqlx::query!("BEGIN").execute(&mut *conn).await?;
-        sqlx::query!("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
-            .execute(&mut *conn)
-            .await?;
-        let r = run(&mut conn.conn).map_err(|e| e.into());
+        while retried <= retries {
+            let mut conn = pool.acquire().await?;
+            let mut tx = conn.begin().await?;
+            sqlx::query!("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                .execute(&mut tx)
+                .await?;
+            let r = run(&mut tx).await.map_err(|e| e.into());
 
-        if let Err(Error::SqlError(sqlx::Error::Database(e))) = &r {
-            if e.code().unwrap_or_else(|| Cow::from("")) == "serialization_failure" {
+            let is_serialization_error = {
+                if let Err(Error::SqlError(sqlx::Error::Database(e))) = &r {
+                    e.code().unwrap_or_else(|| Cow::from("")) == "serialization_failure"
+                } else {
+                    false
+                }
+            };
+
+            if is_serialization_error {
                 retried += 1;
                 tokio::time::sleep(sleep).await;
                 sleep = sleep.mul_f32(2.0);
                 continue;
             }
+
+            match r {
+                Ok(value) => {
+                    tx.commit().await?;
+                    return Ok(value);
+                }
+                Err(e) => {
+                    tx.rollback().await?;
+                    return Err(e);
+                }
+            }
         }
 
-        match r {
-            Ok(value) => {
-                sqlx::query!("COMMIT").execute(&mut *conn).await?;
-                return Ok(value);
-            }
-            Err(e) => {
-                sqlx::query!("ROLLBACK").execute(&mut *conn).await?;
-                return Err(e);
-            }
-        }
-    }
-
-    Err(Error::SerializationFailure)
+        Err(Error::SerializationFailure)
+    })
 }

@@ -3,13 +3,23 @@ pub mod handlers;
 pub mod inputs;
 mod state_machine;
 
+use std::pin::Pin;
+
+use smallvec::SmallVec;
 pub use state_machine::StateMachineError;
 
-use crate::{database::VaultPostgresPool, error::Error};
+use crate::{
+    database::{sql_insert_parameters, transaction::serializable, VaultPostgresPool},
+    error::Error,
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{types::Json, FromRow, Postgres};
+use sqlx::{types::Json, Executor, FromRow, Postgres, Transaction};
 use uuid::Uuid;
+
+use self::state_machine::{
+    ActionInvocations, StateMachineData, StateMachineStates, StateMachineWithData,
+};
 
 #[derive(Serialize, Deserialize, FromRow)]
 pub struct Task {
@@ -54,9 +64,89 @@ impl Task {
         task_id: i64,
         input_id: i64,
         task_trigger_id: i64,
-        payload: &serde_json::Value,
+        payload: serde_json::Value,
     ) -> Result<(), Error> {
-        unimplemented!();
+        serializable(pool, 5, move |tx| {
+            let payload = payload.clone();
+            Box::pin(async move {
+                let task = sqlx::query_as::<Postgres, Task>(GET_TASK_QUERY)
+                    .bind(&task_id)
+                    .fetch_optional(&mut *tx)
+                    .await?;
+
+                let task = task.ok_or(Error::NotFound)?;
+
+                let Task {
+                    state_machine_states,
+                    state_machine_config,
+                    ..
+                } = task;
+
+                let num_machines = state_machine_config.len();
+                let (new_data, actions, changed) = state_machine_config
+                    .0
+                    .into_iter()
+                    .zip(state_machine_states.0.into_iter())
+                    .enumerate()
+                    .try_fold(
+                        (
+                            StateMachineStates::with_capacity(num_machines),
+                            ActionInvocations::new(),
+                            false,
+                        ),
+                        |mut acc, (idx, (machine, state))| {
+                            let mut m = StateMachineWithData::new(task_id, idx, machine, state);
+                            let actions = m
+                                .apply_trigger(task_trigger_id, Some(&payload))
+                                .map_err(Error::from)?;
+
+                            let (data, changed) = m.take();
+                            acc.0.push(data);
+                            acc.1.extend(actions.into_iter());
+                            acc.2 = acc.2 || changed;
+                            Ok(acc) as Result<(StateMachineStates, ActionInvocations, bool), Error>
+                        },
+                    )?;
+
+                if changed {
+                    sqlx::query!(
+                        r##"UPDATE tasks
+                        SET state_machine_states = $1::jsonb
+                        WHERE task_id = $2;
+                        "##,
+                        serde_json::value::to_value(&new_data)?,
+                        task_id,
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                }
+
+                if !actions.is_empty() {
+                    let q = format!(
+                        r##"INSERT INTO action_queue
+                        (task_id, task_trigger_id, action_id, payload)
+                        VALUES
+                        {}
+                        "##,
+                        sql_insert_parameters::<4>(actions.len())
+                    );
+
+                    let mut query = sqlx::query(&q);
+                    for action in actions {
+                        query = query
+                            .bind(action.task_id)
+                            .bind(action.task_trigger_id)
+                            .bind(action.action_id)
+                            .bind(action.payload);
+                    }
+
+                    query.execute(&mut *tx).await?;
+                }
+
+                Ok::<(), Error>(())
+            })
+        })
+        .await
     }
 }
 

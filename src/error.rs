@@ -34,6 +34,9 @@ pub enum Error {
     },
 
     #[error(transparent)]
+    SerdeJsonError(#[from] serde_json::Error),
+
+    #[error(transparent)]
     UuidError(#[from] uuid::Error),
 
     #[error(transparent)]

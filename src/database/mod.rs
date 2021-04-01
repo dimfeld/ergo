@@ -2,6 +2,7 @@ use crate::{error::Error, vault::SharedVaultClient};
 use deadpool::managed::Pool;
 use derivative::Derivative;
 use hashicorp_vault::client::VaultClient;
+use itertools::Itertools;
 use serde::de::DeserializeOwned;
 use std::{fmt::Debug, sync::Arc};
 
@@ -94,10 +95,38 @@ impl<T: 'static + DeserializeOwned + Send + Sync> VaultPostgresPool<T> {
     }
 }
 
+pub fn sql_insert_parameters<const NCOL: usize>(num_rows: usize) -> String {
+    (0..num_rows)
+        .into_iter()
+        .map(|i| {
+            let base = i * NCOL + 1;
+            let mut output = String::with_capacity(2 + NCOL * 4);
+
+            output.push('(');
+            output.push('$');
+            output.push_str(base.to_string().as_str());
+            for i in 1..NCOL {
+                output.push_str(",$");
+                output.push_str((base + i).to_string().as_str());
+            }
+            output.push(')');
+
+            output
+        })
+        .join(",\n")
+}
+
 #[cfg(test)]
 mod tests {
+    use super::sql_insert_parameters as sip;
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn sql_insert_parameters() {
+        assert_eq!(
+            sip::<2>(3),
+            r##"($1,$2),
+($3,$4),
+($5,$6)"##
+        );
     }
 }

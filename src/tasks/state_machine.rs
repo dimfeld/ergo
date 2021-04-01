@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use thiserror::Error;
 
+use super::actions::ActionInvocation;
+
 #[derive(Debug, Error)]
 pub enum StateMachineError {
     #[error("Machine {idx} unknown state {state}")]
@@ -49,7 +51,7 @@ impl EventHandler {
         &self,
         task_id: i64,
         context: &serde_json::Value,
-        payload: &Option<serde_json::Value>,
+        payload: &Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
         self.actions
             .as_ref()
@@ -71,7 +73,7 @@ impl EventHandler {
     fn next_state(
         &self,
         _context: &serde_json::Value,
-        _payload: &Option<serde_json::Value>,
+        _payload: &Option<&serde_json::Value>,
     ) -> Result<Option<String>, StateMachineError> {
         match &self.target {
             None => Ok(None),
@@ -105,7 +107,7 @@ impl ActionPayloadBuilder {
     fn build(
         &self,
         context: &serde_json::Value,
-        payload: &Option<serde_json::Value>,
+        payload: &Option<&serde_json::Value>,
     ) -> Result<serde_json::Value, StateMachineError> {
         match self {
             ActionPayloadBuilder::FieldMap(data) => data
@@ -137,7 +139,8 @@ impl ActionPayloadBuilder {
 
                     value.map(|v| (key.clone(), v))
                 })
-                .collect(),
+                .collect::<Result<serde_json::Map<String, serde_json::Value>, StateMachineError>>()
+                .map(serde_json::Value::Object),
         }
     }
 }
@@ -159,14 +162,6 @@ pub enum ActionInvokeDefDataField {
     Constant(serde_json::Value),
     // /// A script that calculates a value
     // Script(String),
-}
-
-#[derive(Debug, Serialize)]
-pub struct ActionInvocation {
-    task_id: i64,
-    task_trigger_id: Option<i64>,
-    action_id: i64,
-    payload: serde_json::Value,
 }
 
 pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;
@@ -195,10 +190,14 @@ impl<'d> StateMachineWithData {
         }
     }
 
+    pub fn take(self) -> (StateMachineData, bool) {
+        (self.data, self.changed)
+    }
+
     pub fn apply_trigger(
         &mut self,
         trigger_id: i64,
-        payload: Option<serde_json::Value>,
+        payload: Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
         let handler = {
             self.machine
@@ -223,7 +222,10 @@ impl<'d> StateMachineWithData {
                 let actions = h.resolve_actions(self.task_id, &self.data.context, &payload)?;
 
                 if let Some(s) = next_state {
-                    self.data.state = s;
+                    if self.data.state != s {
+                        self.changed = true;
+                        self.data.state = s;
+                    }
                 }
 
                 Ok(actions)
