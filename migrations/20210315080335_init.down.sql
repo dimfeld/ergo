@@ -1,4 +1,8 @@
-DROP ROLE ergo_user;
+BEGIN;
+
 DROP ROLE ergo_web;
-DROP ROLE ergo_actions;
-DROP ROLE ergo_queues;
+DROP ROLE ergo_backend;
+DROP ROLE ergo_enqueuer;
+DROP ROLE ergo_user;
+
+COMMIT;

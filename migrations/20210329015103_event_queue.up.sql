@@ -9,4 +9,8 @@ CREATE TABLE event_queue (
   time timestamptz not null default now()
 );
 
+GRANT SELECT, INSERT, DELETE, UPDATE ON event_queue TO ergo_web;
+GRANT SELECT, INSERT, DELETE, UPDATE ON event_queue TO ergo_backend;
+GRANT INSERT ON event_queue TO ergo_enqueuer;
+
 COMMIT;

@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE action_queue (
   action_queue_id bigint primary key generated always as identity,
   task_id bigint not null references tasks ON DELETE CASCADE,
@@ -6,3 +8,9 @@ CREATE TABLE action_queue (
   payload jsonb,
   time timestamptz not null default now()
 );
+
+GRANT SELECT, INSERT, DELETE, UPDATE ON action_queue TO ergo_web;
+GRANT SELECT, INSERT, DELETE, UPDATE ON action_queue TO ergo_backend;
+GRANT INSERT ON action_queue TO ergo_enqueuer;
+
+COMMIT;

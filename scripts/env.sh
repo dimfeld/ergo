@@ -8,7 +8,7 @@ if [ -f ../.env ]; then
 fi
 
 export ENV=${ENV:=dev}
-export VAULT_SINGLE_ROLES="ergo_web ergo_queues ergo_actions"
+export VAULT_SINGLE_ROLES="ergo_web ergo_backend ergo_enqueuer"
 export VAULT_AIO_ROLE="ergo_aio_server"
 export VAULT_TOKEN_PERIOD=${VAULT_TOKEN_PERIOD:=15m}
 
