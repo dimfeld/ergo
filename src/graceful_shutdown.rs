@@ -1,7 +1,9 @@
-use tokio::select;
-use tokio::signal::ctrl_c;
-use tokio::sync::{oneshot, watch};
-use tokio::task::JoinHandle;
+use tokio::{
+    select,
+    signal::ctrl_c,
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 
 #[derive(Debug)]
 pub struct GracefulShutdown {
@@ -66,6 +68,10 @@ impl GracefulShutdownConsumer {
     }
 
     pub async fn wait_for_shutdown(&mut self) -> () {
+        if *self.0.borrow() == true {
+            return;
+        }
+
         loop {
             match self.0.changed().await {
                 Ok(_) => {
