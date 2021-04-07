@@ -1112,6 +1112,7 @@ dependencies = [
  "log",
  "pbkdf2 0.7.4",
  "quick-js",
+ "rand 0.8.3",
  "redis",
  "reqwest 0.11.2",
  "serde",

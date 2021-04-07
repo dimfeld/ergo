@@ -1,5 +1,6 @@
 use std::{pin::Pin, sync::Arc, time::Duration};
 
+use rand::Rng;
 use sqlx::{Connection, Row};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
@@ -102,16 +103,23 @@ struct StageDrainTask {
 const INITIAL_SLEEP: std::time::Duration = Duration::from_millis(25);
 const MAX_SLEEP: std::time::Duration = Duration::from_secs(5);
 
+/// Return the initial sleep value, perturbed a bit to prevent lockstep
+/// exponential retry.
+fn initial_sleep_value() -> std::time::Duration {
+    let perturb = (rand::random::<f64>() - 0.5) * 5000.0;
+    INITIAL_SLEEP + Duration::from_micros(perturb as u64)
+}
+
 impl StageDrainTask {
     async fn start(mut self) {
         let mut shutdown_waiter = self.shutdown.clone();
-        let mut sleep_duration = INITIAL_SLEEP;
+        let mut sleep_duration = initial_sleep_value();
 
         loop {
             match self.try_drain().await {
                 Ok(true) => {
                     // We got some rows, so reset the sleep duration and run again immediately.
-                    sleep_duration = INITIAL_SLEEP;
+                    sleep_duration = initial_sleep_value();
                     continue;
                 }
                 Ok(false) => {

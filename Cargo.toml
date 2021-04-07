@@ -34,6 +34,7 @@ libreauth = "0.14.0"
 log = "0.4.14"
 pbkdf2 = "0.7.4"
 quick-js = "0.4.1"
+rand = "0.8.3"
 redis = { version="0.20.0", features=["tokio-comp"] }
 reqwest = "0.11.2"
 serde = { version="1.0.124", features=["derive"] }
