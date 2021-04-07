@@ -53,14 +53,16 @@ impl QueueStageDrain {
             ..
         } = config;
 
-        let join_handle = tokio::spawn(drain_task(
+        let drain = StageDrainTask {
             db_pool,
             db_select_query,
             db_delete_query,
             queue,
-            close_rx,
+            close: close_rx,
             shutdown,
-        ));
+        };
+
+        let join_handle = tokio::spawn(drain.start());
 
         Ok(QueueStageDrain {
             close: Some(close_tx),
@@ -88,77 +90,81 @@ impl Drop for QueueStageDrain {
     }
 }
 
-async fn drain_task(
+struct StageDrainTask {
     db_pool: PostgresPool,
     db_select_query: String,
     db_delete_query: String,
     queue: Queue,
     close: oneshot::Receiver<()>,
-    mut shutdown: GracefulShutdownConsumer,
-) {
-    tokio::pin!(close);
-    let shutdown_waiter = shutdown.wait_for_shutdown();
-    tokio::pin!(shutdown_waiter);
+    shutdown: GracefulShutdownConsumer,
+}
 
-    loop {
-        let db_select_query = db_select_query.clone();
-        let db_delete_query = db_delete_query.clone();
-        let queue = queue.clone();
+const INITIAL_SLEEP: std::time::Duration = Duration::from_millis(25);
+const MAX_SLEEP: std::time::Duration = Duration::from_secs(5);
 
-        // TODO no unwrap
-        let mut conn = db_pool.acquire().await.unwrap();
-        let found_some = conn
-            .transaction(move |tx| {
-                Box::pin(async move {
-                    let lock_result = sqlx::query("SELECT pg_try_advisory_xact_lock(7893478934);")
-                        .fetch_one(&mut *tx)
-                        .await?;
-                    let acquired_lock: bool = lock_result.get(0);
-                    if acquired_lock == false {
-                        // Something else has the lock, so just exit and try again after a sleep.
-                        return Ok(false);
-                    }
+impl StageDrainTask {
+    async fn start(mut self) {
+        let mut shutdown_waiter = self.shutdown.clone();
+        let mut sleep_duration = INITIAL_SLEEP;
 
-                    let rows = sqlx::query(&db_select_query).fetch_all(&mut *tx).await?;
+        loop {
+            match self.try_drain().await {
+                Ok(true) => {
+                    // We got some rows, so reset the sleep duration and run again immediately.
+                    sleep_duration = INITIAL_SLEEP;
+                    continue;
+                }
+                Ok(false) => {
+                    // No rows, so just fall through to the delay
+                }
+                Err(e) => {
+                    event!(Level::ERROR, error=?e, "Error draining job queue");
+                }
+            };
 
-                    if rows.is_empty() {
-                        return Ok(false);
-                    }
-
-                    let queue_items = rows
-                        .into_iter()
-                        .map(|row| {
-                            (
-                                row.get::<i64, usize>(0) as usize,
-                                row.get::<serde_json::Value, usize>(1),
-                            )
-                        })
-                        .collect::<Vec<_>>();
-
-                    queue.enqueue_multiple(queue_items.as_slice()).await?;
-
-                    sqlx::query(&db_delete_query).execute(&mut *tx).await?;
-
-                    return Ok::<bool, Error>(true);
-                })
-            })
-            .await;
-        drop(conn);
-
-        match found_some {
-            Ok(true) => {
-                continue;
+            sleep_duration = sleep_duration.mul_f64(2.0).min(MAX_SLEEP);
+            tokio::select! {
+                _ = tokio::time::sleep(sleep_duration) => continue,
+                _ = shutdown_waiter.wait_for_shutdown() => break,
+                _ = &mut self.close => break,
             }
-            Ok(false) => {}
-            Err(e) => {
-                event!(Level::ERROR, error=?e, "Error draining job queue");
-            }
-        };
-
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_millis(100)) => continue,
-            _ = &mut shutdown_waiter => break,
-            _ = &mut close => break,
         }
+    }
+
+    async fn try_drain(&mut self) -> Result<bool, Error> {
+        let mut conn = self.db_pool.acquire().await?;
+        let mut tx = conn.begin().await?;
+        let lock_result = sqlx::query("SELECT pg_try_advisory_xact_lock(7893478934)")
+            .fetch_one(&mut tx)
+            .await?;
+        let acquired_lock: bool = lock_result.get(0);
+        if acquired_lock == false {
+            // Something else has the lock, so just exit and try again after a sleep.
+            return Ok(false);
+        }
+
+        let rows = sqlx::query(&self.db_select_query)
+            .fetch_all(&mut tx)
+            .await?;
+
+        if rows.is_empty() {
+            return Ok(false);
+        }
+
+        let queue_items = rows
+            .into_iter()
+            .map(|row| {
+                (
+                    row.get::<i64, usize>(0) as usize,
+                    row.get::<serde_json::Value, usize>(1),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        self.queue.enqueue_multiple(queue_items.as_slice()).await?;
+
+        sqlx::query(&self.db_delete_query).execute(&mut tx).await?;
+
+        return Ok::<bool, Error>(true);
     }
 }
