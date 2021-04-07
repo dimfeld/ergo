@@ -1,4 +1,4 @@
-use crate::{auth, database::VaultPostgresPool, error::Error};
+use crate::{auth, database::PostgresPool, error::Error};
 use actix_identity::Identity;
 use actix_web::{
     post, web,
@@ -58,7 +58,7 @@ async fn post_task_trigger(
 }
 
 pub struct BackendAppState {
-    pg: VaultPostgresPool<()>,
+    pg: PostgresPool,
 }
 
 pub type BackendAppStateData = Data<BackendAppState>;

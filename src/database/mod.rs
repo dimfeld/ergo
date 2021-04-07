@@ -14,6 +14,7 @@ pub mod transaction;
 use connection_manager::{Manager, WrappedConnection};
 
 pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
+pub type PostgresPool = VaultPostgresPool<()>;
 
 pub struct VaultPostgresPoolOptions<T: DeserializeOwned + Send + Sync> {
     pub max_connections: usize,

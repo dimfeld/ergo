@@ -9,7 +9,7 @@ use smallvec::SmallVec;
 pub use state_machine::StateMachineError;
 
 use crate::{
-    database::{sql_insert_parameters, transaction::serializable, VaultPostgresPool},
+    database::{sql_insert_parameters, transaction::serializable, PostgresPool},
     error::Error,
 };
 use chrono::{DateTime, Utc};
@@ -43,10 +43,7 @@ const GET_TASK_QUERY: &'static str = r##"SELECT task_id, external_task_id, org_i
             FROM tasks WHERE task_id = $1"##;
 
 impl Task {
-    pub async fn from_db(
-        pool: &VaultPostgresPool<()>,
-        task_id: i64,
-    ) -> Result<Option<Task>, Error> {
+    pub async fn from_db(pool: &PostgresPool, task_id: i64) -> Result<Option<Task>, Error> {
         sqlx::query_as::<Postgres, Task>(GET_TASK_QUERY)
             .bind(task_id)
             .fetch_optional(pool)
@@ -60,7 +57,7 @@ impl Task {
     /// the applied input doesn't have a race condition with any other concurrent
     /// inputs to the same task.
     pub async fn apply_input(
-        pool: &VaultPostgresPool<()>,
+        pool: &PostgresPool,
         task_id: i64,
         input_id: i64,
         task_trigger_id: i64,

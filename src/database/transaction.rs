@@ -3,11 +3,11 @@ use std::{borrow::Cow, future::Future, pin::Pin, time::Duration};
 
 use sqlx::{Connection, Postgres};
 
-use super::VaultPostgresPool;
+use super::PostgresPool;
 use crate::error::Error;
 
 pub fn serializable<F, T, E>(
-    pool: &VaultPostgresPool<()>,
+    pool: &PostgresPool,
     retries: usize,
     run: F,
 ) -> BoxFuture<'_, Result<T, Error>>

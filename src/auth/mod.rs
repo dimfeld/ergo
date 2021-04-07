@@ -1,4 +1,4 @@
-use crate::{database::VaultPostgresPool, error::Error};
+use crate::{database::PostgresPool, error::Error};
 use actix_identity::Identity;
 use actix_web::HttpRequest;
 use chrono::{DateTime, Utc};
@@ -116,7 +116,7 @@ fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>, Error> {
 
 // Authenticate via cookie or json web token, depending on what's provided.
 pub async fn authenticate(
-    pg: &VaultPostgresPool<()>,
+    pg: &PostgresPool,
     identity: &Identity,
     req: &HttpRequest,
 ) -> Result<Authenticated, Error> {
@@ -165,7 +165,7 @@ pub async fn authenticate(
 }
 
 pub async fn get_permitted_object<T, ID>(
-    pool: &VaultPostgresPool<()>,
+    pool: &PostgresPool,
     user: &Authenticated,
     object_table: &str,
     object_id_column: &str,

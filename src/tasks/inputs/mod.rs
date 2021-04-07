@@ -1,4 +1,4 @@
-use crate::{database::VaultPostgresPool, error::Error};
+use crate::{database::PostgresPool, error::Error};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -37,7 +37,7 @@ pub fn validate_input_payload(
 }
 
 pub async fn enqueue_input(
-    pg: &VaultPostgresPool<()>,
+    pg: &PostgresPool,
     task_id: i64,
     input_id: i64,
     task_trigger_id: i64,

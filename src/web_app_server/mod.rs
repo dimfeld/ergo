@@ -1,5 +1,5 @@
 use crate::{
-    database::{VaultPostgresPool, VaultPostgresPoolOptions},
+    database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::Error,
     service_config::Config,
 };
@@ -19,17 +19,8 @@ struct TestRow {
     value: String,
 }
 
-#[get("/test")]
-async fn test(state: AppStateData) -> Result<HttpResponse, Error> {
-    let results = query_as!(TestRow, "SELECT * FROM test")
-        .fetch_all(&state.pg)
-        .await?;
-
-    Ok(HttpResponse::Ok().json(results))
-}
-
 pub struct AppState {
-    pg: VaultPostgresPool<()>,
+    pg: PostgresPool,
 }
 
 pub type AppStateData = Data<AppState>;
@@ -53,7 +44,6 @@ pub fn app_data(config: Config) -> Result<AppStateData, std::io::Error> {
 pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
     web::scope(root)
         .app_data(app_data.clone())
-        .service(test)
         .route("/healthz", web::get().to(health))
 }
 
