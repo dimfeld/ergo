@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_imports, unused_variables)] // Remove this once the basic application is up and working
+
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{App, HttpServer};
 use graceful_shutdown::GracefulShutdown;
