@@ -1,19 +1,18 @@
-use std::{sync::Arc, time::Duration};
+use std::{pin::Pin, sync::Arc, time::Duration};
 
-use sqlx::Connection;
-use tokio::sync::oneshot;
+use sqlx::{Connection, Row};
+use tokio::{sync::oneshot, task::JoinHandle};
+use tracing::{event, Level};
 
-use crate::{
-    database::VaultPostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer,
-};
+use super::Queue;
+use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 pub struct QueueStageDrainConfig<'a> {
-    pub db_pool: VaultPostgresPool,
+    pub db_pool: PostgresPool,
     pub db_table: &'a str,
     pub db_id_column: &'a str,
 
-    pub jetstream_queue: String,
-    pub nats_connection: nats::Connection,
+    pub queue: Queue,
     pub shutdown: GracefulShutdownConsumer,
 
     /// The number of items to drain at once. Defaults to 50.
@@ -104,6 +103,7 @@ async fn drain_task(
     loop {
         let db_select_query = db_select_query.clone();
         let db_delete_query = db_delete_query.clone();
+        let queue = queue.clone();
 
         // TODO no unwrap
         let mut conn = db_pool.acquire().await.unwrap();
@@ -129,13 +129,13 @@ async fn drain_task(
                         .into_iter()
                         .map(|row| {
                             (
-                                row.get::<String, usize>(0),
+                                row.get::<i64, usize>(0) as usize,
                                 row.get::<serde_json::Value, usize>(1),
                             )
                         })
                         .collect::<Vec<_>>();
 
-                    // TODO enqueue items
+                    queue.enqueue_multiple(queue_items.as_slice()).await?;
 
                     sqlx::query(&db_delete_query).execute(&mut *tx).await?;
 

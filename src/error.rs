@@ -33,6 +33,9 @@ pub enum Error {
         body: String,
     },
 
+    #[error("Redis error {0}")]
+    RedisError(#[from] redis::RedisError),
+
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
 

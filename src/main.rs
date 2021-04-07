@@ -12,6 +12,7 @@ mod auth;
 mod database;
 mod error;
 mod graceful_shutdown;
+mod queues;
 mod service_config;
 mod tasks;
 mod tracing_config;
@@ -53,6 +54,14 @@ async fn main() -> std::io::Result<()> {
         database_role: env::var("DATABASE_ROLE_WEB").ok(),
         shutdown: shutdown.consumer(),
     };
+
+    let redis_host = env::var("REDIS_URL").expect("REDIS_URL is required");
+    let redis_pool = deadpool_redis::Config {
+        url: Some(redis_host),
+        pool: None,
+    }
+    .create_pool()
+    .expect("Creating redis pool");
 
     let web_app_data = web_app_server::app_data(web_config)?;
 
