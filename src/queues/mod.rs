@@ -23,6 +23,7 @@ struct QueueInner {
     data_hash: String,
     processing_timeout: std::time::Duration,
     max_retries: u32,
+    enqueue_scheduled_script: redis::Script,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -41,6 +42,13 @@ impl Queue {
         default_timeout: Option<Duration>,
         default_max_retries: Option<u32>,
     ) -> Queue {
+        const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
+          local move_items = redis.call("ZRANGEBYSCORE", KEYS[1], 0, ARGV[1])
+          redis.call("ZREM", KEYS[1], unpack(move_items))
+          redis.call("LPUSH", KEYS[2], unpack(move_items))
+          return #move_items
+          "##;
+
         Queue(Arc::new(QueueInner {
             pool,
             pending_list: format!("queue_{}_pending", queue_name),
@@ -49,6 +57,7 @@ impl Queue {
             data_hash: format!("queue_{}_items", queue_name),
             processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
             max_retries: default_max_retries.unwrap_or(3),
+            enqueue_scheduled_script: redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT),
         }))
     }
 
@@ -92,18 +101,11 @@ impl Queue {
 
     /// Move each scheduled item that has reached its deadline to the pending list.
     pub async fn enqueue_scheduled_items(&self) -> Result<bool, Error> {
-        // TODO Add script to the cache just once.
-        const MOVE_SCRIPT: &str = r##"
-          local move_items = redis.call("ZRANGEBYSCORE", KEYS[1], 0, ARGV[1])
-          redis.call("ZREM", KEYS[1], unpack(move_items))
-          redis.call("LPUSH", KEYS[2], unpack(move_items))
-          return #move_items
-          "##;
-
-        let script = redis::Script::new(MOVE_SCRIPT);
         let now = Utc::now().timestamp_millis();
         let mut conn = self.0.pool.get().await?;
-        let result: usize = script
+        let result: usize = self
+            .0
+            .enqueue_scheduled_script
             .key(&self.0.scheduled_list)
             .key(&self.0.pending_list)
             .arg(now)
