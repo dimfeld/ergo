@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use derivative::Derivative;
@@ -24,15 +24,30 @@ struct QueueInner {
     processing_timeout: std::time::Duration,
     max_retries: u32,
     enqueue_scheduled_script: redis::Script,
+    dequeue_item_script: redis::Script,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
-pub struct Job<T> {
+#[derive(Debug, Default)]
+pub struct Job<T: Clone> {
     pub id: usize,
     pub payload: T,
     pub timeout: Option<std::time::Duration>,
     pub max_retries: Option<u32>,
     pub run_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct JobTrackingData<'a, T: Clone> {
+    id: usize,
+    payload: Cow<'a, T>,
+    #[serde(rename = "___ergo_queue_timeout___", with = "serde_millis")]
+    timeout: std::time::Duration,
+    retry_count: u32,
+    max_retries: u32,
+    run_at: Option<DateTime<Utc>>,
+    enqueued_at: DateTime<Utc>,
+    started_at: Option<DateTime<Utc>>,
+    ended_at: Option<DateTime<Utc>>,
 }
 
 impl Queue {
@@ -42,12 +57,41 @@ impl Queue {
         default_timeout: Option<Duration>,
         default_max_retries: Option<u32>,
     ) -> Queue {
+        // KEYS: scheduled items list, pending items list
+        // ARGV: current time
         const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
-          local move_items = redis.call("ZRANGEBYSCORE", KEYS[1], 0, ARGV[1])
-          redis.call("ZREM", KEYS[1], unpack(move_items))
-          redis.call("LPUSH", KEYS[2], unpack(move_items))
-          return #move_items
-          "##;
+            local move_items = redis.call('ZRANGEBYSCORE', KEYS[1], 0, ARGV[1])
+            if #move_items == 0 then
+                return 0
+            end
+
+            redis.call('ZREM', KEYS[1], unpack(move_items))
+            redis.call('LPUSH', KEYS[2], unpack(move_items))
+            return #move_items
+            "##;
+
+        // KEYS: pending items list, job data hash, processing list
+        // ARGV: current time
+        const DEQUEUE_ITEM_SCRIPT: &str = r##"
+            local job_info = false
+            repeat
+                local latest_item = redis.call("LPOP", KEYS[1])
+                if latest_item == false then
+                    return false
+                end
+
+                job_info = redis.call("HGET", KEYS[2], latest_item);
+                if job_info != false then
+                    -- Extract the timestamp
+                    -- This isn't great but it's fast and prevents the need to install a Redis module for JSON handling.
+                    local expires = ARGV[1] + string.match(job_info, '"___ergo_queue_timeout___":(%d+)')
+                    redis.call("ZADD", KEYS[3], latest_item, expires)
+                    return {job_info, expires}
+                end
+
+            until job_info != false
+            return job_info
+        "##;
 
         Queue(Arc::new(QueueInner {
             pool,
@@ -58,10 +102,11 @@ impl Queue {
             processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
             max_retries: default_max_retries.unwrap_or(3),
             enqueue_scheduled_script: redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT),
+            dequeue_item_script: redis::Script::new(DEQUEUE_ITEM_SCRIPT),
         }))
     }
 
-    fn add_id_to_queue<T>(&self, pipe: &mut deadpool_redis::Pipeline, job: &Job<T>) {
+    fn add_id_to_queue<T: Clone>(&self, pipe: &mut deadpool_redis::Pipeline, job: &Job<T>) {
         if let Some(timestamp) = job.run_at {
             pipe.zadd(&self.0.scheduled_list, job.id, timestamp.timestamp_millis());
         } else {
@@ -69,10 +114,32 @@ impl Queue {
         }
     }
 
-    pub async fn enqueue<T: Serialize>(&self, item: &Job<T>) -> Result<(), Error> {
+    fn initial_job_data<'a, T: Clone + Serialize>(
+        &self,
+        job: &'a Job<T>,
+    ) -> Result<JobTrackingData<'a, T>, Error> {
+        Ok(JobTrackingData {
+            id: job.id,
+            payload: Cow::Borrowed(&job.payload),
+            retry_count: 0,
+            max_retries: job.max_retries.unwrap_or(self.0.max_retries),
+            run_at: job.run_at,
+            started_at: None,
+            ended_at: None,
+            enqueued_at: Utc::now(),
+            timeout: job.timeout.unwrap_or(self.0.processing_timeout),
+        })
+    }
+
+    pub async fn enqueue<T: Clone + Serialize>(&self, item: &Job<T>) -> Result<(), Error> {
         let mut pipe = deadpool_redis::Pipeline::with_capacity(2);
 
-        pipe.hset(&self.0.data_hash, item.id, serde_json::to_string(item)?);
+        let tracking_data = self.initial_job_data(item)?;
+        pipe.hset(
+            &self.0.data_hash,
+            tracking_data.id,
+            serde_json::to_string(&tracking_data)?,
+        );
         self.add_id_to_queue(&mut pipe, item);
 
         let mut conn = self.0.pool.get().await?;
@@ -80,12 +147,18 @@ impl Queue {
         Ok(())
     }
 
-    pub async fn enqueue_multiple<T: Serialize>(&self, items: &[Job<T>]) -> Result<(), Error> {
+    pub async fn enqueue_multiple<T: Clone + Serialize>(
+        &self,
+        items: &[Job<T>],
+    ) -> Result<(), Error> {
         let mut pipe = deadpool_redis::Pipeline::with_capacity(items.len() + 1);
 
         let hash_data = items
             .iter()
-            .map(|item| Ok((item.id, serde_json::to_string(item)?)))
+            .map(|item| {
+                let tracking_data = self.initial_job_data(item)?;
+                Ok((tracking_data.id, serde_json::to_string(&tracking_data)?))
+            })
             .collect::<Result<Vec<_>, Error>>()?;
         pipe.hset_multiple(&self.0.data_hash, hash_data.as_slice());
 
@@ -116,6 +189,10 @@ impl Queue {
 
     pub async fn dequeue<T: DeserializeOwned + Send + Sync>(
     ) -> Result<Option<QueueWorkItem<T>>, Error> {
+        // 1. Look up the latest item in the list.
+        // 2. See if it still exists
+        // 1. Move the latest item from the pending list to the processing list
+        // 2.
         unimplemented!();
     }
 
