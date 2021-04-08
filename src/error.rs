@@ -36,6 +36,9 @@ pub enum Error {
     #[error("Redis error {0}")]
     RedisError(#[from] redis::RedisError),
 
+    #[error("Redis connection error {0}")]
+    RedisPoolError(#[from] deadpool::managed::PoolError<redis::RedisError>),
+
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
 

@@ -1,17 +1,17 @@
 use std::{pin::Pin, sync::Arc, time::Duration};
 
+use chrono::{DateTime, Utc};
 use rand::Rng;
-use sqlx::{Connection, Row};
+use sqlx::{Connection, Postgres, Row};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
 
-use super::Queue;
+use super::{Job, Queue};
 use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 pub struct QueueStageDrainConfig<'a> {
     pub db_pool: PostgresPool,
     pub db_table: &'a str,
-    pub db_id_column: &'a str,
 
     pub queue: Queue,
     pub shutdown: GracefulShutdownConsumer,
@@ -31,18 +31,16 @@ impl QueueStageDrain {
     pub fn new(config: QueueStageDrainConfig) -> Result<Self, Error> {
         let batch_size = config.drain_batch_size.unwrap_or(50);
         let db_select_query = format!(
-            "SELECT {id_column}, row_to_json(t) FROM {db_table} t
-            ORDER BY {id_column} LIMIT {batch_size}",
-            id_column = &config.db_id_column,
+            "SELECT id, max_retries, timeout, run_at, data FROM {db_table} t
+            ORDER BY id LIMIT {batch_size}",
             db_table = &config.db_table,
             batch_size = batch_size
         );
 
         let db_delete_query = format!(
             "DELETE FROM {db_table}
-            WHERE {id_column} < $1",
+            WHERE id < $1",
             db_table = &config.db_table,
-            id_column = &config.db_id_column,
         );
 
         let (close_tx, close_rx) = tokio::sync::oneshot::channel::<()>();
@@ -162,10 +160,15 @@ impl StageDrainTask {
         let queue_items = rows
             .into_iter()
             .map(|row| {
-                (
-                    row.get::<i64, usize>(0) as usize,
-                    row.get::<serde_json::Value, usize>(1),
-                )
+                let max_retries: Option<i32> = row.get(1);
+                let timeout: Option<u32> = row.get(2);
+                Job {
+                    id: row.get::<i64, usize>(0) as usize,
+                    max_retries: max_retries.map(|i| if i < 0 { 0 as u32 } else { i as u32 }),
+                    timeout: timeout.map(|t| Duration::from_millis(t as u64)),
+                    run_at: row.get::<Option<DateTime<Utc>>, usize>(3),
+                    payload: row.get::<serde_json::Value, usize>(4),
+                }
             })
             .collect::<Vec<_>>();
 

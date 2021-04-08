@@ -1,5 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
+use chrono::{DateTime, Utc};
 use derivative::Derivative;
 use futures::Future;
 use redis::RedisError;
@@ -17,28 +18,76 @@ struct QueueInner {
     #[derivative(Debug = "ignore")]
     pool: deadpool_redis::Pool,
     pending_list: String,
+    scheduled_list: String,
     processing_list: String,
     data_hash: String,
     processing_timeout: std::time::Duration,
+    max_retries: u32,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct Job<T> {
+    pub id: usize,
+    pub payload: T,
+    pub timeout: Option<std::time::Duration>,
+    pub max_retries: Option<u32>,
+    pub run_at: Option<DateTime<Utc>>,
 }
 
 impl Queue {
-    pub fn new(pool: deadpool_redis::Pool, queue_name: &str, timeout: Option<Duration>) -> Queue {
+    pub fn new(
+        pool: deadpool_redis::Pool,
+        queue_name: &str,
+        default_timeout: Option<Duration>,
+        default_max_retries: Option<u32>,
+    ) -> Queue {
         Queue(Arc::new(QueueInner {
             pool,
             pending_list: format!("queue_{}_pending", queue_name),
+            scheduled_list: format!("queue_{}_scheduled", queue_name),
             processing_list: format!("queue_{}_processing", queue_name),
             data_hash: format!("queue_{}_items", queue_name),
-            processing_timeout: timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
+            processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
+            max_retries: default_max_retries.unwrap_or(3),
         }))
     }
 
-    pub async fn enqueue<T: Serialize>(&self, id: usize, item: &T) -> Result<(), Error> {
-        unimplemented!();
+    fn add_id_to_queue<T>(&self, pipe: &mut deadpool_redis::Pipeline, job: &Job<T>) {
+        if let Some(timestamp) = job.run_at {
+            pipe.zadd(&self.0.scheduled_list, job.id, timestamp.timestamp_millis());
+        } else {
+            pipe.lpush(&self.0.pending_list, job.id);
+        }
     }
 
-    pub async fn enqueue_multiple<T: Serialize>(&self, items: &[(usize, T)]) -> Result<(), Error> {
-        unimplemented!();
+    pub async fn enqueue<T: Serialize>(&self, item: &Job<T>) -> Result<(), Error> {
+        let mut pipe = deadpool_redis::Pipeline::with_capacity(2);
+
+        pipe.hset(&self.0.data_hash, item.id, serde_json::to_string(item)?);
+        self.add_id_to_queue(&mut pipe, item);
+
+        let mut conn = self.0.pool.get().await?;
+        pipe.execute_async(&mut conn).await?;
+        Ok(())
+    }
+
+    pub async fn enqueue_multiple<T: Serialize>(&self, items: &[Job<T>]) -> Result<(), Error> {
+        let mut pipe = deadpool_redis::Pipeline::with_capacity(items.len() + 1);
+
+        let hash_data = items
+            .iter()
+            .map(|item| Ok((item.id, serde_json::to_string(item)?)))
+            .collect::<Result<Vec<_>, Error>>()?;
+        pipe.hset_multiple(&self.0.data_hash, hash_data.as_slice());
+
+        for item in items {
+            self.add_id_to_queue(&mut pipe, &item);
+        }
+
+        let mut conn = self.0.pool.get().await?;
+        pipe.execute_async(&mut conn).await?;
+
+        Ok(())
     }
 
     pub async fn dequeue<T: DeserializeOwned + Send + Sync>(
