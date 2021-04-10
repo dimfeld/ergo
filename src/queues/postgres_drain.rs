@@ -1,4 +1,4 @@
-use std::{pin::Pin, sync::Arc, time::Duration};
+use std::{borrow::Cow, pin::Pin, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use rand::Rng;
@@ -162,12 +162,15 @@ impl StageDrainTask {
             .map(|row| {
                 let max_retries: Option<i32> = row.get(1);
                 let timeout: Option<u32> = row.get(2);
+                let payload = row.get::<String, usize>(4);
+
                 Job {
-                    id: row.get::<i64, usize>(0) as usize,
+                    // TODO  Job should generate its own UUID
+                    id: String::from(""),
                     max_retries: max_retries.map(|i| if i < 0 { 0 as u32 } else { i as u32 }),
                     timeout: timeout.map(|t| Duration::from_millis(t as u64)),
                     run_at: row.get::<Option<DateTime<Utc>>, usize>(3),
-                    payload: row.get::<serde_json::Value, usize>(4),
+                    payload: Cow::Owned(Vec::from(payload)),
                 }
             })
             .collect::<Vec<_>>();
