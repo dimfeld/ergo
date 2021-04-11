@@ -169,6 +169,7 @@ impl StageDrainTask {
                     id: String::from(""),
                     max_retries: max_retries.map(|i| if i < 0 { 0 as u32 } else { i as u32 }),
                     timeout: timeout.map(|t| Duration::from_millis(t as u64)),
+                    retry_backoff: None,
                     run_at: row.get::<Option<DateTime<Utc>>, usize>(3),
                     payload: Cow::Owned(Vec::from(payload)),
                 }
