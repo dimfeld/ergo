@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use std::time::Duration;
 
-enum RedisJobField {
+pub(super) enum RedisJobField {
     Payload,
     Timeout,
     CurrentRetries,

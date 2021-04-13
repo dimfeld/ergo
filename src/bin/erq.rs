@@ -74,15 +74,16 @@ async fn main() -> Result<(), Error> {
         QueueCmd::Run { delay, error } => {
             run_job(&queue, delay, error).await?;
         }
-        QueueCmd::ShowJob { id } => {
-            unimplemented!();
-        }
+        QueueCmd::ShowJob { id } => match queue.job_info(&id).await? {
+            Some(job) => println!("{:?}", job),
+            None => println!("Job not found"),
+        },
     }
     Ok(())
 }
 
 async fn run_job(queue: &Queue, delay: Option<u64>, error: Option<String>) -> Result<(), Error> {
-    let job = queue.dequeue::<Box<serde_json::value::Value>>().await?;
+    let job = queue.get_job::<Box<serde_json::value::Value>>().await?;
 
     match job {
         None => {

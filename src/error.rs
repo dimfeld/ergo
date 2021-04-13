@@ -1,3 +1,5 @@
+use std::str::ParseBoolError;
+
 use crate::tasks::StateMachineError;
 use actix_web::{http::StatusCode, HttpResponse};
 use thiserror::Error;
@@ -56,6 +58,9 @@ pub enum Error {
 
     #[error("Unable to execute serializable transaction")]
     SerializationFailure,
+
+    #[error("{0}")]
+    ParseBool(#[from] ParseBoolError),
 
     #[error("{0}")]
     StringError(String),

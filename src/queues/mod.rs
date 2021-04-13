@@ -17,7 +17,7 @@ use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::error::Error;
-use redis_job_data::RedisJobSetCmd;
+use redis_job_data::{RedisJobField, RedisJobSetCmd};
 
 pub struct Queue(Arc<QueueInner>);
 
@@ -68,7 +68,7 @@ pub enum JobStatus {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct JobTrackingData {
+pub struct JobTrackingData {
     id: String,
     payload: String,
     #[serde(with = "serde_millis")]
@@ -213,7 +213,74 @@ impl Queue {
         }
     }
 
-    pub async fn dequeue<T: DeserializeOwned + Send + Sync>(
+    pub async fn job_info(&self, job_id: &str) -> Result<Option<JobTrackingData>, Error> {
+        let job_data_key = self.job_data_key(job_id);
+        let mut conn = self.0.pool.get().await?;
+        let (
+            payload,
+            timeout,
+            current_retries,
+            max_retries,
+            retry_backoff,
+            run_at,
+            enqueued_at,
+            started_at,
+            ended_at,
+            succeeded,
+            error,
+        ): (
+            Option<String>,
+            Option<u64>,
+            Option<u32>,
+            Option<u32>,
+            Option<i64>,
+            Option<i64>,
+            Option<i64>,
+            Option<i64>,
+            Option<i64>,
+            Option<String>,
+            Option<String>,
+        ) = deadpool_redis::cmd("HMGET")
+            .arg(&job_data_key)
+            .arg(RedisJobField::Payload)
+            .arg(RedisJobField::Timeout)
+            .arg(RedisJobField::CurrentRetries)
+            .arg(RedisJobField::MaxRetries)
+            .arg(RedisJobField::RetryBackoff)
+            .arg(RedisJobField::RunAt)
+            .arg(RedisJobField::EnqueuedAt)
+            .arg(RedisJobField::StartedAt)
+            .arg(RedisJobField::EndedAt)
+            .arg(RedisJobField::Succeeded)
+            .arg(RedisJobField::ErrorDetails)
+            .query_async(&mut conn)
+            .await?;
+
+        match (payload, timeout, current_retries, max_retries, enqueued_at) {
+            (
+                Some(payload),
+                Some(timeout),
+                Some(current_retries),
+                Some(max_retries),
+                Some(enqueued_at),
+            ) => Ok(Some(JobTrackingData {
+                id: String::from(job_id),
+                payload,
+                timeout: Duration::from_millis(timeout),
+                retry_count: current_retries,
+                max_retries,
+                run_at: run_at.map(|d| Utc.timestamp_millis(d)),
+                enqueued_at: Utc.timestamp_millis(enqueued_at),
+                started_at: started_at.map(|d| Utc.timestamp_millis(d)),
+                ended_at: ended_at.map(|d| Utc.timestamp_millis(d)),
+                succeeded: succeeded.map(|val| val.parse::<bool>()).transpose()?,
+                error_details: error,
+            })),
+            _ => Ok(None),
+        }
+    }
+
+    pub async fn get_job<T: DeserializeOwned + Send + Sync>(
         &self,
     ) -> Result<Option<QueueWorkItem<T>>, Error> {
         // 1. Run dequeue script
