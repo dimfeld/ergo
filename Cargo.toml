@@ -15,6 +15,10 @@ path = "src/bin/aio-server.rs"
 name = "erq"
 path = "src/bin/erq.rs"
 
+[features]
+test-redis = []
+test-all = ["test-redis"]
+
 [dependencies]
 actix-cors = "0.5.4"
 actix-identity = "0.3.1"

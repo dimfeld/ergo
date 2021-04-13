@@ -460,3 +460,60 @@ impl<'a, T: Send + Sync> QueueWorkItem<T> {
         }
     }
 }
+
+#[cfg(all(test))]
+mod tests {
+    use super::*;
+    use futures::stream::StreamExt;
+
+    async fn run_queue_test<T, Fut>(test: T) -> ()
+    where
+        T: Send + Sync + std::panic::UnwindSafe + FnOnce(Queue) -> Fut,
+        Fut: Future<Output = ()> + std::panic::UnwindSafe,
+    {
+        let queue_name = format!("test-{}", uuid::Uuid::new_v4());
+        let pool = deadpool_redis::Config {
+            url: Some(std::env::var("REDIS_URL").expect("REDIS_URL must be set")),
+            pool: None,
+        }
+        .create_pool()
+        .expect("Creating connection pool");
+
+        let queue = Queue::new(pool.clone(), &queue_name, None, None, None);
+
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                || async move { test(queue).await },
+            ));
+
+        // Clean up the test keys.
+        let mut conn = pool.get().await.expect("Acquiring cleanup connection");
+
+        let key_pattern = format!("erq:{}:*", queue_name);
+        let mut cmd = deadpool_redis::cmd("SCAN");
+        let mut iter: redis::AsyncIter<String> = cmd
+            .cursor_arg(0)
+            .arg("MATCH")
+            .arg(&key_pattern)
+            .arg("COUNT")
+            .arg(100)
+            .clone()
+            .iter_async(&mut **conn)
+            .await
+            .expect("Scanning keyspace for cleanup");
+
+        let mut pipe = deadpool_redis::pipe();
+        while let Some(key) = iter.next_item().await {
+            pipe.cmd("DEL").arg(&key);
+        }
+
+        pipe.execute_async(&mut conn)
+            .await
+            .expect("Cleanup: deleting keys");
+
+        assert!(result.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_add() {}
+}
