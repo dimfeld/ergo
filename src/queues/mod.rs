@@ -1,3 +1,13 @@
+pub mod postgres_drain;
+mod redis_job_data;
+
+mod enqueue_scheduled;
+mod get_job;
+mod job_cancel;
+mod job_done;
+mod job_error;
+mod start_work;
+
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use chrono::{DateTime, TimeZone, Utc};
@@ -7,8 +17,7 @@ use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::error::Error;
-
-pub mod postgres_drain;
+use redis_job_data::RedisJobSetCmd;
 
 pub struct Queue(Arc<QueueInner>);
 
@@ -25,21 +34,37 @@ struct QueueInner {
     processing_timeout: Duration,
     max_retries: u32,
     retry_backoff: Duration,
-    enqueue_scheduled_script: redis::Script,
-    dequeue_item_script: redis::Script,
-    start_work_script: redis::Script,
-    done_script: redis::Script,
-    error_script: redis::Script,
+    #[derivative(Debug = "ignore")]
+    enqueue_scheduled_script: enqueue_scheduled::EnqueueScript,
+    #[derivative(Debug = "ignore")]
+    dequeue_item_script: get_job::GetJobScript,
+    #[derivative(Debug = "ignore")]
+    start_work_script: start_work::StartWorkScript,
+    #[derivative(Debug = "ignore")]
+    done_script: job_done::JobDoneScript,
+    #[derivative(Debug = "ignore")]
+    error_script: job_error::JobErrorScript,
+    #[derivative(Debug = "ignore")]
+    cancel_script: job_cancel::JobCancelScript,
 }
 
 #[derive(Debug, Default)]
 pub struct Job<'a> {
     pub id: String,
     pub payload: Cow<'a, [u8]>,
-    pub timeout: Option<std::time::Duration>,
+    pub timeout: Option<Duration>,
     pub max_retries: Option<u32>,
     pub run_at: Option<DateTime<Utc>>,
     pub retry_backoff: Option<Duration>,
+}
+
+pub enum JobStatus {
+    Inactive,
+    Pending,
+    Scheduled,
+    Running,
+    Done,
+    Errored,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -47,7 +72,7 @@ struct JobTrackingData {
     id: String,
     payload: String,
     #[serde(with = "serde_millis")]
-    timeout: std::time::Duration,
+    timeout: Duration,
     retry_count: u32,
     max_retries: u32,
     run_at: Option<DateTime<Utc>>,
@@ -58,139 +83,6 @@ struct JobTrackingData {
     error_details: Option<String>,
 }
 
-enum RedisJobField {
-    Payload,
-    Timeout,
-    CurrentRetries,
-    MaxRetries,
-    RetryBackoff,
-    RunAt,
-    EnqueuedAt,
-    StartedAt,
-    EndedAt,
-    Succeeded,
-    ErrorDetails,
-}
-
-impl RedisJobField {
-    const fn as_str(&self) -> &'static str {
-        match self {
-            RedisJobField::Payload => "pay",
-            RedisJobField::Timeout => "to",
-            RedisJobField::CurrentRetries => "cr",
-            RedisJobField::MaxRetries => "mr",
-            RedisJobField::RetryBackoff => "bo",
-            RedisJobField::RunAt => "ra",
-            RedisJobField::EnqueuedAt => "qt",
-            RedisJobField::StartedAt => "st",
-            RedisJobField::EndedAt => "end",
-            RedisJobField::Succeeded => "suc",
-            RedisJobField::ErrorDetails => "err",
-        }
-    }
-}
-
-impl redis::ToRedisArgs for RedisJobField {
-    fn write_redis_args<W>(&self, out: &mut W)
-    where
-        W: ?Sized + redis::RedisWrite,
-    {
-        out.write_arg(self.as_str().as_bytes())
-    }
-}
-
-struct RedisJobSetCmd(deadpool_redis::Cmd);
-
-impl RedisJobSetCmd {
-    fn new(job_key: &str) -> Self {
-        let mut cmd = deadpool_redis::cmd("HSET");
-        cmd.arg(job_key);
-        RedisJobSetCmd(cmd)
-    }
-
-    fn build(self) -> deadpool_redis::Cmd {
-        self.0
-    }
-
-    fn increment_current_retries(job_key: &str) -> deadpool_redis::Cmd {
-        let mut cmd = deadpool_redis::cmd("hincrby");
-        cmd.arg(job_key).arg(RedisJobField::CurrentRetries).arg(1);
-        cmd
-    }
-
-    fn payload(mut self, s: &[u8]) -> Self {
-        self.0.arg(RedisJobField::Payload).arg(s);
-        self
-    }
-
-    fn timeout(mut self, timeout: Duration) -> Self {
-        self.0
-            .arg(RedisJobField::Timeout)
-            .arg(timeout.as_millis() as u64);
-        self
-    }
-
-    fn current_retries(mut self, retries: u32) -> Self {
-        self.0.arg(RedisJobField::CurrentRetries).arg(retries);
-        self
-    }
-
-    fn max_retries(mut self, retries: u32) -> Self {
-        self.0.arg(RedisJobField::MaxRetries).arg(retries);
-        self
-    }
-
-    fn retry_backoff(mut self, backoff: Duration) -> Self {
-        self.0
-            .arg(RedisJobField::RetryBackoff)
-            .arg(backoff.as_millis() as u64);
-        self
-    }
-
-    fn run_at(mut self, run_at: &DateTime<Utc>) -> Self {
-        self.0
-            .arg(RedisJobField::RunAt)
-            .arg(run_at.timestamp_millis() as u64);
-        self
-    }
-
-    fn enqueued_at(mut self, enqueued_at: &DateTime<Utc>) -> Self {
-        self.0
-            .arg(RedisJobField::EnqueuedAt)
-            .arg(enqueued_at.timestamp_millis());
-        self
-    }
-
-    fn started_at(mut self, started_at: &DateTime<Utc>) -> Self {
-        self.0
-            .arg(RedisJobField::StartedAt)
-            .arg(started_at.timestamp_millis());
-        self
-    }
-
-    fn ended_at(mut self, ended_at: &DateTime<Utc>) -> Self {
-        self.0
-            .arg(RedisJobField::EndedAt)
-            .arg(ended_at.timestamp_millis());
-        self
-    }
-
-    fn clear_succeeded(mut self) -> Self {
-        self.0.arg(RedisJobField::Succeeded).arg("");
-        self
-    }
-
-    fn succeeded(mut self, succeeded: bool) -> Self {
-        self.0.arg(RedisJobField::Succeeded).arg(succeeded);
-        self
-    }
-
-    fn error_details(mut self, error: &str) -> Self {
-        self.0.arg(RedisJobField::ErrorDetails).arg(error);
-        self
-    }
-}
-
 impl Queue {
     pub fn new(
         pool: deadpool_redis::Pool,
@@ -199,120 +91,6 @@ impl Queue {
         default_max_retries: Option<u32>,
         default_retry_backoff: Option<Duration>,
     ) -> Queue {
-        // KEYS:
-        //  1. scheduled items list
-        //  2. pending items list
-        // ARGV:
-        //  1. current time
-        const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
-            local move_items = redis.call('ZRANGEBYSCORE', KEYS[1], 0, ARGV[1])
-            if #move_items == 0 then
-                return 0
-            end
-
-            redis.call('ZREM', KEYS[1], unpack(move_items))
-            redis.call('LPUSH', KEYS[2], unpack(move_items))
-            return #move_items
-            "##;
-
-        // KEYS:
-        //  1. pending items list
-        //  2. processing list
-        // ARGV:
-        //  1. queue-default expiration time
-        const DEQUEUE_ITEM_SCRIPT: &str = r##"
-            local latest_item = redis.call("LPOP", KEYS[1])
-            if latest_item == false then
-                return false
-            end
-
-            -- Set the default queue expiration. The job worker will update it if needed
-            redis.call("ZADD", KEYS[2], latest_item, ARGV[1])
-            return latest_item
-        "##;
-
-        // Start work on an item. This assumes that the item has already been placed into the
-        // processing list.
-        // KEYS:
-        //  1. job data key
-        //  2. processing list
-        // ARGS:
-        //  1. job ID
-        //  2. current time
-        //  3. default expiration,
-        const START_WORK_SCRIPT: &str = r##"
-            -- If the job has a different timeout from the queue default, update it here.
-            local job_data = tonumber(redis.call("HMGET", KEYS[1], "to", "pay"))
-            local expiration = ARGV[2] + ARGV[3]
-            if job_data[1] != ARGV[3] then
-                redis.call("ZADD", KEYS[2], ARGV[1], expiration)
-            end
-
-            -- Set started time
-            redis.call("HSET", KEYS[1], "st", ARGV[2])
-            return {job_data[2], expiration}
-        "##;
-
-        // Mark a job done
-        // KEYS:
-        //  1. job data key
-        //  2. processing list
-        //  3. done list
-        // ARGS:
-        //  1. job id
-        //  2. expected expiration
-        //  3. current time
-        const DONE_SCRIPT: &str = r##"
-            let score = redis.call("ZSCORE", KEYS[2], ARGV[1])
-            if score != ARGV[2] then
-                -- We no longer own this item, so don't mess with it.
-                return false
-            end
-
-            redis.call("ZREM", KEYS[2], ARGV[1])
-            redis.call("LPUSH", KEYS[3], ARGV[1])
-            redis.call("HSET", KEYS[1], "end", ARGV[3], "suc", "true")
-            return true
-        "##;
-
-        // KEYS:
-        //  1. job data key
-        //  2. processing list
-        //  3. scheduled items list
-        //  4. done items list
-        // ARGS:
-        //  1. job ID
-        //  2. current time
-        //  3. expected score
-        //  4. error description
-        const ERROR_SCRIPT: &str = r##"
-            -- Make sure that the item is still in the queue and still at the expected score
-            let score = redis.call("ZSCORE", KEYS[2], ARGV[1])
-            if score == false then
-                return false
-            end
-
-            redis.call("ZREM", KEYS[2], ARGV[1])
-
-            let retries = redis.call("HGET", KEYS[1], "cr", "mr", "bo")
-            local retry = tonumber(retries[1])
-            local max_retries = tonumber(retries[2])
-            if retry >= max_retries then
-                -- No more retries. Mark the job failed.
-                redis.call("HSET", KEYS[1], "err", ARGV[4], "end", ARGV[2], "suc", "false")
-                redis.call("LPUSH", KEYS[4], ARGV[1])
-                return {retry, -1}
-            else
-                local next_run = ARGV[2] + (2 ^ retry) * backoff(retries[3])
-                retry = retry + 1
-
-                -- Set the error, increment retries, and schedule the next run.
-                redis.call("HSET", KEYS[1], "err", ARGV[4], "cr", retry)
-                redis.call("ZADD", KEYS[3], ARGV[1], next_run)
-                return {retry, next_run}
-            end
-        "##;
-
         Queue(Arc::new(QueueInner {
             pool,
             pending_list: format!("erq:{}:pending", queue_name),
@@ -323,11 +101,12 @@ impl Queue {
             processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
             max_retries: default_max_retries.unwrap_or(3),
             retry_backoff: default_retry_backoff.unwrap_or(Duration::from_millis(30000)),
-            enqueue_scheduled_script: redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT),
-            dequeue_item_script: redis::Script::new(DEQUEUE_ITEM_SCRIPT),
-            start_work_script: redis::Script::new(START_WORK_SCRIPT),
-            done_script: redis::Script::new(DONE_SCRIPT),
-            error_script: redis::Script::new(ERROR_SCRIPT),
+            enqueue_scheduled_script: enqueue_scheduled::EnqueueScript::new(),
+            dequeue_item_script: get_job::GetJobScript::new(),
+            start_work_script: start_work::StartWorkScript::new(),
+            done_script: job_done::JobDoneScript::new(),
+            error_script: job_error::JobErrorScript::new(),
+            cancel_script: job_cancel::JobCancelScript::new(),
         }))
     }
 
@@ -397,17 +176,13 @@ impl Queue {
 
     /// Move each scheduled item that has reached its deadline to the pending list.
     pub async fn enqueue_scheduled_items(&self) -> Result<bool, Error> {
-        let now = Utc::now().timestamp_millis();
         let mut conn = self.0.pool.get().await?;
-        let result: usize = self
+        let num_queued = self
             .0
             .enqueue_scheduled_script
-            .key(&self.0.scheduled_list)
-            .key(&self.0.pending_list)
-            .arg(now)
-            .invoke_async(&mut **conn)
+            .run(self, &mut conn, &Utc::now())
             .await?;
-        Ok(result > 0)
+        Ok(num_queued > 0)
     }
 
     async fn start_working<T: DeserializeOwned + Send + Sync>(
@@ -418,18 +193,12 @@ impl Queue {
         now: &DateTime<Utc>,
         now_millis: i64,
     ) -> Result<QueueWorkItem<T>, Error> {
-        let (payload, expiration): (Vec<u8>, i64) = self
+        let (payload, expiration) = self
             .0
             .start_work_script
-            .key(job_id_key)
-            .key(&self.0.processing_list)
-            .arg(job_id)
-            .arg(now_millis)
-            .arg(self.0.processing_timeout.as_millis() as i64)
-            .invoke_async(&mut **conn)
+            .run(self, conn, job_id, job_id_key, now)
             .await?;
 
-        let expiration = Utc.timestamp_millis(expiration);
         let item = QueueWorkItem::new(self.clone(), job_id, expiration, payload);
 
         match item {
@@ -437,7 +206,7 @@ impl Queue {
             Err(e) => {
                 let e = Error::from(e);
                 let err_str = format!("Failed to start job: {}", e);
-                self.errored_item(job_id, &expiration, err_str.as_str())
+                self.errored_job(job_id, &expiration, err_str.as_str())
                     .await?;
                 Err(e)
             }
@@ -454,10 +223,7 @@ impl Queue {
         let result: Option<String> = self
             .0
             .dequeue_item_script
-            .key(&self.0.pending_list)
-            .key(&self.0.processing_list)
-            .arg(now_millis + self.0.processing_timeout.as_millis() as i64)
-            .invoke_async(&mut **conn)
+            .run(self, &mut conn, &now)
             .await?;
 
         // Unwrap the Option or just exit if there was no job.
@@ -473,54 +239,67 @@ impl Queue {
             .map(Some)
     }
 
-    async fn done_item(
-        &self,
-        id: &str,
-        expected_expiration: &DateTime<Utc>,
-    ) -> Result<bool, Error> {
-        let job_data_key = self.job_data_key(id);
-        let now = Utc::now().timestamp_millis();
-
+    pub async fn cancel_job(&self, id: &str) -> Result<JobStatus, Error> {
+        let key = self.job_data_key(id);
         let mut conn = self.0.pool.get().await?;
-        let marked_done: bool = self
-            .0
-            .done_script
-            .key(&job_data_key)
-            .key(&self.0.processing_list)
-            .key(&self.0.done_list)
-            .arg(id)
-            .arg(now)
-            .arg(expected_expiration.timestamp_millis())
-            .invoke_async(&mut **conn)
-            .await?;
 
-        Ok(marked_done)
+        self.0
+            .cancel_script
+            .run(self, &mut conn, id, &key, &Utc::now())
+            .await
     }
 
-    async fn errored_item(
+    async fn done_job(&self, id: &str, expected_expiration: &DateTime<Utc>) -> Result<bool, Error> {
+        let job_data_key = self.job_data_key(id);
+        let now = Utc::now();
+
+        let mut conn = self.0.pool.get().await?;
+        self.0
+            .done_script
+            .run(
+                self,
+                &mut conn,
+                id,
+                &job_data_key,
+                &now,
+                expected_expiration,
+            )
+            .await
+    }
+
+    async fn errored_job(
         &self,
         id: &str,
         expected_expiration: &DateTime<Utc>,
         error: &str,
     ) -> Result<(), Error> {
         let job_data_key = self.job_data_key(id);
-        let now = Utc::now().timestamp_millis();
+        let now = Utc::now();
 
         let mut conn = self.0.pool.get().await?;
-        let (retry_count, next_run): (i64, i64) = self
+        let (retry_count, next_run) = self
             .0
             .error_script
-            .key(&job_data_key)
-            .key(&self.0.processing_list)
-            .key(&self.0.scheduled_list)
-            .key(&self.0.done_list)
-            .arg(id)
-            .arg(now)
-            .arg(expected_expiration.timestamp_millis())
-            .arg(error)
-            .invoke_async(&mut **conn)
+            .run(
+                self,
+                &mut conn,
+                id,
+                &job_data_key,
+                &now,
+                expected_expiration,
+                error,
+            )
             .await?;
         Ok(())
+    }
+
+    pub async fn job_expires_at(&self, id: &str) -> Result<Option<DateTime<Utc>>, Error> {
+        let mut conn = self.0.pool.get().await?;
+        let score: Option<i64> = deadpool_redis::cmd("ZSCORE")
+            .arg(id)
+            .query_async(&mut conn)
+            .await?;
+        Ok(score.map(|s| Utc.timestamp_millis(s)))
     }
 }
 
@@ -582,28 +361,35 @@ impl<T: DeserializeOwned + Send + Sync> QueueWorkItem<T> {
     }
 }
 
-impl<T: Send + Sync> QueueWorkItem<T> {
-    pub async fn process<F, Fut, R, E>(&self, f: F) -> Result<R, Error>
+impl<'a, T: Send + Sync> QueueWorkItem<T> {
+    pub async fn process<F, Fut, R, E>(&'a self, f: F) -> Result<R, Error>
     where
-        F: FnOnce(&T) -> Fut,
+        F: FnOnce(&'a str, &'a T) -> Fut,
         Fut: Future<Output = Result<R, E>>,
         T: Send,
         E: Into<Error> + Send,
     {
-        match f(&self.data).await {
+        match f(&self.id, &self.data).await {
             Ok(val) => {
-                self.queue
-                    .done_item(self.id.as_str(), &self.expires)
-                    .await?;
+                self.queue.done_job(self.id.as_str(), &self.expires).await?;
                 Ok(val)
             }
             Err(e) => {
                 let e: Error = e.into();
                 self.queue
-                    .errored_item(self.id.as_str(), &self.expires, &e.to_string().as_str())
+                    .errored_job(self.id.as_str(), &self.expires, &e.to_string().as_str())
                     .await?;
                 Err(e)
             }
+        }
+    }
+
+    /// Check if this job is still active and owned by us. Can be useful for long-running jobs
+    /// that may want to cancel.
+    pub async fn active(&self) -> Result<bool, Error> {
+        match self.queue.job_expires_at(&self.id).await? {
+            Some(e) => Ok(e == self.expires),
+            None => Ok(false),
         }
     }
 }
