@@ -56,6 +56,9 @@ pub enum Error {
 
     #[error("Unable to execute serializable transaction")]
     SerializationFailure,
+
+    #[error("{0}")]
+    StringError(String),
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
