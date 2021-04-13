@@ -17,10 +17,10 @@ use super::Queue;
 //  3. default expiration,
 const START_WORK_SCRIPT: &str = r##"
     -- If the job has a different timeout from the queue default, update it here.
-    local job_data = tonumber(redis.call("HMGET", KEYS[1], "to", "pay"))
+    local job_data = redis.call("HMGET", KEYS[1], "to", "pay")
     local expiration = ARGV[2] + ARGV[3]
-    if job_data[1] != ARGV[3] then
-        redis.call("ZADD", KEYS[2], ARGV[1], expiration)
+    if job_data[1] ~= ARGV[3] then
+        redis.call("ZADD", KEYS[2], expiration, ARGV[1])
     end
 
     -- Set started time

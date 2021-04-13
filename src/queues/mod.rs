@@ -123,7 +123,7 @@ impl Queue {
     }
 
     fn job_data_key(&self, job_id: &str) -> String {
-        format!("{}:{}", self.0.job_data_prefix, job_id)
+        format!("{}{}", self.0.job_data_prefix, job_id)
     }
 
     fn set_job_data(&self, job_id: &str) -> redis::Cmd {
@@ -234,7 +234,7 @@ impl Queue {
             }
         };
         let job_id_key = self.job_data_key(&job_id);
-        self.start_working(&mut conn, job_id.as_str(), &job_id_key, &now, now_millis)
+        self.start_working(&mut conn, &job_id, &job_id_key, &now, now_millis)
             .await
             .map(Some)
     }

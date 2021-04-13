@@ -17,14 +17,14 @@ use super::Queue;
 //  4. error description
 const ERROR_SCRIPT: &str = r##"
     -- Make sure that the item is still in the queue and still at the expected score
-    let score = redis.call("ZSCORE", KEYS[2], ARGV[1])
-    if score == false then
+    local score = redis.call("ZSCORE", KEYS[2], ARGV[1])
+    if score ~= ARGV[3] then
         return false
     end
 
     redis.call("ZREM", KEYS[2], ARGV[1])
 
-    let retries = redis.call("HGET", KEYS[1], "cr", "mr", "bo")
+    local retries = redis.call("HMGET", KEYS[1], "cr", "mr", "bo")
     local retry = tonumber(retries[1])
     local max_retries = tonumber(retries[2])
     if retry >= max_retries then
@@ -33,12 +33,12 @@ const ERROR_SCRIPT: &str = r##"
         redis.call("LPUSH", KEYS[4], ARGV[1])
         return {retry, -1}
     else
-        local next_run = ARGV[2] + (2 ^ retry) * backoff(retries[3])
+        local next_run = ARGV[2] + (2 ^ retry) * tonumber(retries[3])
         retry = retry + 1
 
         -- Set the error, increment retries, and schedule the next run.
         redis.call("HSET", KEYS[1], "err", ARGV[4], "cr", retry)
-        redis.call("ZADD", KEYS[3], ARGV[1], next_run)
+        redis.call("ZADD", KEYS[3], next_run, ARGV[1])
         return {retry, next_run}
     end
 "##;

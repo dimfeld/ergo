@@ -18,7 +18,7 @@ const DEQUEUE_ITEM_SCRIPT: &str = r##"
     end
 
     -- Set the default queue expiration. The job worker will update it if needed
-    redis.call("ZADD", KEYS[2], latest_item, ARGV[1])
+    redis.call("ZADD", KEYS[2], tonumber(ARGV[1]), latest_item)
     return latest_item
 "##;
 
