@@ -12,7 +12,7 @@ use std::{borrow::Cow, sync::Arc, time::Duration};
 
 use chrono::{DateTime, TimeZone, Utc};
 use derivative::Derivative;
-use futures::Future;
+use futures::{Future, FutureExt};
 use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -464,13 +464,29 @@ impl<'a, T: Send + Sync> QueueWorkItem<T> {
 #[cfg(all(test))]
 mod tests {
     use super::*;
+    use crate::error::Error;
     use futures::stream::StreamExt;
 
-    async fn run_queue_test<T, Fut>(test: T) -> ()
+    #[derive(Serialize, Deserialize)]
+    struct SimplePayload {
+        data: String,
+    }
+
+    impl SimplePayload {
+        fn generate() -> Result<Cow<'static, [u8]>, Error> {
+            let p = SimplePayload {
+                data: "A test string".to_string(),
+            };
+            Ok(Cow::Owned(serde_json::to_vec(&p)?))
+        }
+    }
+
+    async fn run_queue_test<T, Fut, E>(test: T) -> ()
     where
-        T: Send + Sync + std::panic::UnwindSafe + FnOnce(Queue) -> Fut,
-        Fut: Future<Output = ()> + std::panic::UnwindSafe,
+        T: Send + Sync + FnOnce(Queue) -> Fut,
+        Fut: Future<Output = Result<(), E>>,
     {
+        dotenv::dotenv().ok();
         let queue_name = format!("test-{}", uuid::Uuid::new_v4());
         let pool = deadpool_redis::Config {
             url: Some(std::env::var("REDIS_URL").expect("REDIS_URL must be set")),
@@ -481,13 +497,12 @@ mod tests {
 
         let queue = Queue::new(pool.clone(), &queue_name, None, None, None);
 
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                || async move { test(queue).await },
-            ));
+        let result = std::panic::AssertUnwindSafe(test(queue))
+            .catch_unwind()
+            .await;
 
         // Clean up the test keys.
-        let mut conn = pool.get().await.expect("Acquiring cleanup connection");
+        let mut conn = pool.get().await.expect("Cleanup: Acquiring connection");
 
         let key_pattern = format!("erq:{}:*", queue_name);
         let mut cmd = deadpool_redis::cmd("SCAN");
@@ -500,20 +515,48 @@ mod tests {
             .clone()
             .iter_async(&mut **conn)
             .await
-            .expect("Scanning keyspace for cleanup");
+            .expect("Cleanup: Scanning keyspace");
 
-        let mut pipe = deadpool_redis::pipe();
+        let mut del_cmd = deadpool_redis::cmd("DEL");
         while let Some(key) = iter.next_item().await {
-            pipe.cmd("DEL").arg(&key);
+            del_cmd.arg(&key);
         }
 
-        pipe.execute_async(&mut conn)
+        del_cmd
+            .execute_async(&mut conn)
             .await
             .expect("Cleanup: deleting keys");
 
-        assert!(result.is_ok())
+        // Assert no panic
+        assert!(result.is_ok());
+        // Assert we didn't return an error
+        assert!(result.unwrap().is_ok());
     }
 
     #[tokio::test]
-    async fn test_add() {}
+    async fn test_enqueue() {
+        run_queue_test(|queue| async move {
+            let job = Job {
+                id: String::from("a-test-id"),
+                payload: SimplePayload::generate()?,
+                ..Default::default()
+            };
+            queue.enqueue(&job).await?;
+
+            match queue.get_job::<SimplePayload>().await? {
+                Some(job) => {
+                    job.process(|id, data| async move {
+                        assert_eq!(id, "a-test-id");
+                        assert_eq!(data.data, "A test string");
+                        Ok::<(), Error>(())
+                    })
+                    .await?;
+                }
+                None => panic!("Did not see a job after enqueueing it"),
+            }
+
+            Ok::<(), Error>(())
+        })
+        .await;
+    }
 }
