@@ -86,16 +86,16 @@ pub struct JobTrackingData {
 
 #[derive(Debug, Serialize)]
 pub struct QueueStatus {
-    current_running: usize,
-    current_scheduled: usize,
-    current_pending: usize,
+    pub current_running: usize,
+    pub current_scheduled: usize,
+    pub current_pending: usize,
 
-    total_retrieved: usize,
-    total_enqueued: usize,
-    total_scheduled: usize,
-    total_succeeded: usize,
-    total_failed: usize,
-    total_errored: usize,
+    pub total_retrieved: usize,
+    pub total_enqueued: usize,
+    pub total_scheduled: usize,
+    pub total_succeeded: usize,
+    pub total_failed: usize,
+    pub total_errored: usize,
 }
 
 impl Queue {
@@ -605,11 +605,8 @@ mod tests {
             .await
             .expect("Cleanup: deleting keys");
 
-        // Assert no panic
-        result.expect("Did not panic").expect("Succeeded");
-        // assert!(result.is_ok());
-        // // Assert we didn't return an error
-        // assert!(result.unwrap().is_ok());
+        // Unwrap the results from catch_unwind and the test itself.
+        result.expect("Panicked").expect("Error");
     }
 
     #[tokio::test]
