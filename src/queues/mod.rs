@@ -30,6 +30,7 @@ struct QueueInner {
     scheduled_list: String,
     processing_list: String,
     done_list: String,
+    stats_hash: String,
     job_data_prefix: String,
     processing_timeout: Duration,
     max_retries: u32,
@@ -83,6 +84,20 @@ pub struct JobTrackingData {
     error_details: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct QueueStatus {
+    current_running: usize,
+    current_scheduled: usize,
+    current_pending: usize,
+
+    total_retrieved: usize,
+    total_enqueued: usize,
+    total_scheduled: usize,
+    total_succeeded: usize,
+    total_failed: usize,
+    total_errored: usize,
+}
+
 impl Queue {
     pub fn new(
         pool: deadpool_redis::Pool,
@@ -97,6 +112,7 @@ impl Queue {
             scheduled_list: format!("erq:{}:scheduled", queue_name),
             processing_list: format!("erq:{}:processing", queue_name),
             done_list: format!("erq:{}:done", queue_name),
+            stats_hash: format!("erq:{}:stats", queue_name),
             job_data_prefix: format!("erq:{}:job:", queue_name),
             processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
             max_retries: default_max_retries.unwrap_or(3),
@@ -149,11 +165,72 @@ impl Queue {
         cmd.build()
     }
 
+    pub async fn status(&self) -> Result<QueueStatus, Error> {
+        let mut conn = self.0.pool.get().await?;
+        let (
+            current_scheduled,
+            current_running,
+            current_pending,
+            (
+                total_retrieved,
+                total_enqueued,
+                total_scheduled,
+                total_succeeded,
+                total_failed,
+                total_errored,
+            ),
+        ): (
+            usize,
+            usize,
+            usize,
+            (
+                Option<usize>,
+                Option<usize>,
+                Option<usize>,
+                Option<usize>,
+                Option<usize>,
+                Option<usize>,
+            ),
+        ) = deadpool_redis::Pipeline::with_capacity(4)
+            .cmd("ZCARD")
+            .arg(&self.0.scheduled_list)
+            .cmd("ZCARD")
+            .arg(&self.0.processing_list)
+            .cmd("LLEN")
+            .arg(&self.0.pending_list)
+            .cmd("HMGET")
+            .arg(&[
+                &self.0.stats_hash,
+                "retrieved",
+                "enqueued",
+                "scheduled",
+                "succeeded",
+                "failed",
+                "errored",
+            ])
+            .query_async(&mut conn)
+            .await?;
+
+        Ok(QueueStatus {
+            current_running,
+            current_scheduled,
+            current_pending,
+            total_retrieved: total_retrieved.unwrap_or(0),
+            total_enqueued: total_enqueued.unwrap_or(0),
+            total_scheduled: total_scheduled.unwrap_or(0),
+            total_succeeded: total_succeeded.unwrap_or(0),
+            total_failed: total_failed.unwrap_or(0),
+            total_errored: total_errored.unwrap_or(0),
+        })
+    }
+
     pub async fn enqueue(&self, item: &'_ Job<'_>) -> Result<(), Error> {
         let mut pipe = deadpool_redis::Pipeline::with_capacity(2);
 
         pipe.add_command(self.initial_job_data_cmd(item));
         self.add_id_to_queue(&mut pipe, item);
+        pipe.cmd("HINCRBY")
+            .arg(&[&self.0.stats_hash, "enqueued", "1"]);
 
         let mut conn = self.0.pool.get().await?;
         pipe.execute_async(&mut conn).await?;
@@ -485,6 +562,7 @@ mod tests {
     where
         T: Send + Sync + FnOnce(Queue) -> Fut,
         Fut: Future<Output = Result<(), E>>,
+        E: std::fmt::Debug,
     {
         dotenv::dotenv().ok();
         let queue_name = format!("test-{}", uuid::Uuid::new_v4());
@@ -528,9 +606,10 @@ mod tests {
             .expect("Cleanup: deleting keys");
 
         // Assert no panic
-        assert!(result.is_ok());
-        // Assert we didn't return an error
-        assert!(result.unwrap().is_ok());
+        result.expect("Did not panic").expect("Succeeded");
+        // assert!(result.is_ok());
+        // // Assert we didn't return an error
+        // assert!(result.unwrap().is_ok());
     }
 
     #[tokio::test]

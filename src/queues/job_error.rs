@@ -10,6 +10,7 @@ use super::Queue;
 //  2. processing list
 //  3. scheduled items list
 //  4. done items list
+//  5. stats hash
 // ARGS:
 //  1. job ID
 //  2. current time
@@ -27,10 +28,12 @@ const ERROR_SCRIPT: &str = r##"
     local retries = redis.call("HMGET", KEYS[1], "cr", "mr", "bo")
     local retry = tonumber(retries[1])
     local max_retries = tonumber(retries[2])
+    redis.call("HINCRBY", KEYS[5], "errored", 1)
     if retry >= max_retries then
         -- No more retries. Mark the job failed.
         redis.call("HSET", KEYS[1], "err", ARGV[4], "end", ARGV[2], "suc", "false")
         redis.call("LPUSH", KEYS[4], ARGV[1])
+        redis.call("HINCRBY", KEYS[5], "failed", 1)
         return {retry, -1}
     else
         local next_run = ARGV[2] + (2 ^ retry) * tonumber(retries[3])
@@ -66,6 +69,7 @@ impl JobErrorScript {
             .key(&queue.0.processing_list)
             .key(&queue.0.scheduled_list)
             .key(&queue.0.done_list)
+            .key(&queue.0.stats_hash)
             .arg(job_id)
             .arg(now.timestamp_millis())
             .arg(expected_expiration.timestamp_millis())

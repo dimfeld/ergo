@@ -66,7 +66,8 @@ async fn main() -> Result<(), Error> {
             queue.enqueue(&job).await?;
         }
         QueueCmd::Show => {
-            unimplemented!();
+            let status = queue.status().await?;
+            println!("{:?}", status);
         }
         QueueCmd::Cancel { id } => {
             queue.cancel_job(&id).await?;

@@ -9,6 +9,7 @@ use super::Queue;
 // KEYS:
 //  1. scheduled items list
 //  2. pending items list
+//  3. queue stats hash
 // ARGV:
 //  1. current time
 const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
@@ -19,6 +20,7 @@ const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
 
     redis.call('ZREM', KEYS[1], unpack(move_items))
     redis.call('LPUSH', KEYS[2], unpack(move_items))
+    redis.call("HINCRBY", KEYS[3], "scheduled", 1)
     return #move_items
 "##;
 
@@ -39,6 +41,7 @@ impl EnqueueScript {
             .0
             .key(&queue.0.scheduled_list)
             .key(&queue.0.pending_list)
+            .key(&queue.0.stats_hash)
             .arg(now.timestamp_millis() as i64)
             .invoke_async(&mut **conn)
             .await?;
