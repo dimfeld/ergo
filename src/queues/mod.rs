@@ -19,6 +19,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use crate::error::Error;
 use redis_job_data::{RedisJobField, RedisJobSetCmd};
 
+#[derive(Debug)]
 pub struct Queue(Arc<QueueInner>);
 
 #[derive(Derivative)]
@@ -453,6 +454,7 @@ impl Clone for Queue {
     }
 }
 
+#[derive(Debug)]
 pub struct QueueWorkItem<T: Send + Sync> {
     queue: Queue,
     pub id: String,
