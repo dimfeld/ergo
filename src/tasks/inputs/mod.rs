@@ -1,3 +1,5 @@
+mod queue_drain;
+
 use crate::{database::PostgresPool, error::Error};
 use serde::{Deserialize, Serialize};
 
@@ -24,6 +26,14 @@ pub struct InputsLog {
     pub payload: serde_json::Value,
     pub error: serde_json::Value,
     pub time: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InputInvocation {
+    pub task_id: i64,
+    pub task_trigger_id: i64,
+    pub input_id: i64,
+    pub payload: serde_json::Value,
 }
 
 pub fn validate_input_payload(

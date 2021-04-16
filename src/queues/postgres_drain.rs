@@ -1,26 +1,30 @@
 use std::{borrow::Cow, pin::Pin, sync::Arc, time::Duration};
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rand::Rng;
-use sqlx::{Connection, Postgres, Row};
+use sqlx::{Connection, Postgres, Row, Transaction};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
 
-use super::{Job, Queue};
+use super::{Job, JobId, Queue};
 use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
-pub struct QueueStageDrainConfig<'a> {
+#[async_trait]
+pub trait Drainer: Send + Sync {
+    /// Retrieve and delete jobs from the table.
+    async fn get(&'_ self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job<'_>>, Error>;
+}
+
+pub struct QueueStageDrainConfig<D: Drainer + 'static> {
     pub db_pool: PostgresPool,
-    pub db_table: &'a str,
+    pub drainer: D,
 
     pub queue: Queue,
     pub shutdown: GracefulShutdownConsumer,
-
-    /// The number of items to drain at once. Defaults to 50.
-    pub drain_batch_size: Option<usize>,
 }
 
-/// This implements the drain stage of a transactionally-staged job drain, as described
+/// This implements the drain of a transactionally-staged job drain, as described
 /// at https://brandur.org/job-drain.
 pub struct QueueStageDrain {
     close: Option<oneshot::Sender<()>>,
@@ -28,35 +32,21 @@ pub struct QueueStageDrain {
 }
 
 impl QueueStageDrain {
-    pub fn new(config: QueueStageDrainConfig) -> Result<Self, Error> {
-        let batch_size = config.drain_batch_size.unwrap_or(50);
-        let db_select_query = format!(
-            "SELECT id, max_retries, timeout, run_at, data FROM {db_table} t
-            ORDER BY id LIMIT {batch_size}",
-            db_table = &config.db_table,
-            batch_size = batch_size
-        );
-
-        let db_delete_query = format!(
-            "DELETE FROM {db_table}
-            WHERE id < $1",
-            db_table = &config.db_table,
-        );
-
+    pub fn new<D: Drainer + 'static>(config: QueueStageDrainConfig<D>) -> Result<Self, Error> {
         let (close_tx, close_rx) = tokio::sync::oneshot::channel::<()>();
 
         let QueueStageDrainConfig {
             db_pool,
             queue,
             shutdown,
+            drainer,
             ..
         } = config;
 
         let drain = StageDrainTask {
             db_pool,
-            db_select_query,
-            db_delete_query,
             queue,
+            drainer,
             close: close_rx,
             shutdown,
         };
@@ -89,11 +79,10 @@ impl Drop for QueueStageDrain {
     }
 }
 
-struct StageDrainTask {
+struct StageDrainTask<D: Drainer> {
     db_pool: PostgresPool,
-    db_select_query: String,
-    db_delete_query: String,
     queue: Queue,
+    drainer: D,
     close: oneshot::Receiver<()>,
     shutdown: GracefulShutdownConsumer,
 }
@@ -108,7 +97,7 @@ fn initial_sleep_value() -> std::time::Duration {
     INITIAL_SLEEP + Duration::from_micros(perturb as u64)
 }
 
-impl StageDrainTask {
+impl<D: Drainer> StageDrainTask<D> {
     async fn start(mut self) {
         let mut shutdown_waiter = self.shutdown.clone();
         let mut sleep_duration = initial_sleep_value();
@@ -149,36 +138,13 @@ impl StageDrainTask {
             return Ok(false);
         }
 
-        let rows = sqlx::query(&self.db_select_query)
-            .fetch_all(&mut tx)
-            .await?;
+        let jobs = self.drainer.get(&mut tx).await?;
 
-        if rows.is_empty() {
+        if jobs.is_empty() {
             return Ok(false);
         }
 
-        let queue_items = rows
-            .into_iter()
-            .map(|row| {
-                let max_retries: Option<i32> = row.get(1);
-                let timeout: Option<u32> = row.get(2);
-                let payload = row.get::<String, usize>(4);
-
-                Job {
-                    // TODO  Job should generate its own UUID
-                    id: String::from(""),
-                    max_retries: max_retries.map(|i| if i < 0 { 0 as u32 } else { i as u32 }),
-                    timeout: timeout.map(|t| Duration::from_millis(t as u64)),
-                    retry_backoff: None,
-                    run_at: row.get::<Option<DateTime<Utc>>, usize>(3),
-                    payload: Cow::Owned(Vec::from(payload)),
-                }
-            })
-            .collect::<Vec<_>>();
-
-        self.queue.enqueue_multiple(queue_items.as_slice()).await?;
-
-        sqlx::query(&self.db_delete_query).execute(&mut tx).await?;
+        self.queue.enqueue_multiple(jobs.as_slice()).await?;
 
         return Ok::<bool, Error>(true);
     }
