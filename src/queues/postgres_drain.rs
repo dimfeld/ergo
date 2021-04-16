@@ -3,8 +3,12 @@ use std::{borrow::Cow, pin::Pin, sync::Arc, time::Duration};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use rand::Rng;
+use serde::Serialize;
 use sqlx::{Connection, Postgres, Row, Transaction};
-use tokio::{sync::oneshot, task::JoinHandle};
+use tokio::{
+    sync::{oneshot, watch},
+    task::JoinHandle,
+};
 use tracing::{event, Level};
 
 use super::{Job, JobId, Queue};
@@ -14,6 +18,13 @@ use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShu
 pub trait Drainer: Send + Sync {
     /// Retrieve and delete jobs from the table.
     async fn get(&'_ self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job<'_>>, Error>;
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct QueueStageDrainStats {
+    pub drained: usize,
+    pub last_drain: DateTime<Utc>,
+    pub last_check: DateTime<Utc>,
 }
 
 pub struct QueueStageDrainConfig<D: Drainer + 'static> {
@@ -29,6 +40,8 @@ pub struct QueueStageDrainConfig<D: Drainer + 'static> {
 pub struct QueueStageDrain {
     close: Option<oneshot::Sender<()>>,
     join_handle: Option<tokio::task::JoinHandle<()>>,
+
+    pub stats: watch::Receiver<QueueStageDrainStats>,
 }
 
 impl QueueStageDrain {
@@ -43,11 +56,25 @@ impl QueueStageDrain {
             ..
         } = config;
 
+        let now = Utc::now();
+
+        let (stats_tx, stats_rx) = watch::channel(QueueStageDrainStats {
+            drained: 0,
+            last_drain: now,
+            last_check: now,
+        });
+
         let drain = StageDrainTask {
             db_pool,
             queue,
             drainer,
             close: close_rx,
+            stats_tx,
+            stats: QueueStageDrainStats {
+                drained: 0,
+                last_drain: now,
+                last_check: now,
+            },
             shutdown,
         };
 
@@ -56,6 +83,7 @@ impl QueueStageDrain {
         Ok(QueueStageDrain {
             close: Some(close_tx),
             join_handle: Some(join_handle),
+            stats: stats_rx,
         })
     }
 
@@ -84,7 +112,10 @@ struct StageDrainTask<D: Drainer> {
     queue: Queue,
     drainer: D,
     close: oneshot::Receiver<()>,
+    stats_tx: watch::Sender<QueueStageDrainStats>,
     shutdown: GracefulShutdownConsumer,
+
+    stats: QueueStageDrainStats,
 }
 
 const INITIAL_SLEEP: std::time::Duration = Duration::from_millis(25);
@@ -117,6 +148,8 @@ impl<D: Drainer> StageDrainTask<D> {
                 }
             };
 
+            self.stats_tx.send(self.stats.clone()).ok();
+
             sleep_duration = sleep_duration.mul_f64(2.0).min(MAX_SLEEP);
             tokio::select! {
                 _ = tokio::time::sleep(sleep_duration) => continue,
@@ -138,11 +171,16 @@ impl<D: Drainer> StageDrainTask<D> {
             return Ok(false);
         }
 
+        let now = Utc::now();
+        self.stats.last_check = now;
+
         let jobs = self.drainer.get(&mut tx).await?;
 
         if jobs.is_empty() {
             return Ok(false);
         }
+
+        self.stats.last_drain = now;
 
         self.queue.enqueue_multiple(jobs.as_slice()).await?;
 
