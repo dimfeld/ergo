@@ -10,6 +10,7 @@ use std::{
     env,
     sync::{Arc, RwLock},
 };
+use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
 use ergo::{graceful_shutdown::GracefulShutdown, tasks, web_app_server};
@@ -72,9 +73,9 @@ async fn main() -> Result<(), ergo::error::Error> {
     let cookie_signing_key = env::var("COOKIE_SIGNING_KEY")
         .ok()
         .unwrap_or_else(|| {
-            println!(
-                r##"WARNING: Using default cookie signing key.
-            Set COOKIE_SIGNING_KEY environment variable to a 32-byte string to set it"##
+            event!(
+                Level::WARN,
+                "Using default cookie signing key. Set COOKIE_SIGNING_KEY environment variable to a 32-byte string to set it"
             );
 
             "wpvuwm4pvoane;bwn40s;wmvlscvG@sV".to_string()
