@@ -14,6 +14,9 @@ pub enum Error {
     #[error("Not found")]
     NotFound,
 
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
     #[error("SQL Error")]
     SqlError(#[from] sqlx::error::Error),
 

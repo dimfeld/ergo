@@ -33,7 +33,7 @@ pub fn app_data(config: Config) -> Result<AppStateData, std::io::Error> {
         role: config
             .database_role
             .unwrap_or_else(|| "ergo_web".to_string()),
-        vault_client: config.vault_client.clone(),
+        vault_client: config.vault_client,
         shutdown: config.shutdown,
     })
     .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
@@ -47,7 +47,11 @@ pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
         .route("/healthz", web::get().to(health))
 }
 
-pub fn new(address: String, port: u16, config: Config) -> std::io::Result<actix_web::dev::Server> {
+pub fn new_server(
+    address: String,
+    port: u16,
+    config: Config,
+) -> std::io::Result<actix_web::dev::Server> {
     let data = app_data(config)?;
     let server = HttpServer::new(move || App::new().wrap(TracingLogger).service(scope(&data, "")))
         .bind(format!("{}:{}", address, port))?

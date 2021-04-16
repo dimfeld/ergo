@@ -1,8 +1,12 @@
+use std::ops::Deref;
+
 use crate::{
+    database::PostgresPool,
     error::Error,
+    graceful_shutdown::GracefulShutdownConsumer,
     queues::{
         postgres_drain::{Drainer, QueueStageDrain, QueueStageDrainConfig},
-        Job, JobId,
+        Job, JobId, Queue,
     },
 };
 
@@ -42,4 +46,37 @@ impl Drainer for QueueDrainer {
             .collect::<Result<Vec<Job>, serde_json::Error>>()
             .map_err(Error::from)
     }
+}
+
+const QUEUE_NAME: &str = "er-input";
+
+pub struct InputQueue(Queue);
+impl Deref for InputQueue {
+    type Target = Queue;
+
+    fn deref(&self) -> &Queue {
+        &self.0
+    }
+}
+
+pub fn new(redis_pool: deadpool_redis::Pool) -> InputQueue {
+    InputQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+}
+
+/// Create an action queue and a task to drain the Postgres staging table into the queue.
+pub fn new_with_drain(
+    db_pool: PostgresPool,
+    redis_pool: deadpool_redis::Pool,
+    shutdown: GracefulShutdownConsumer,
+) -> Result<(InputQueue, QueueStageDrain), Error> {
+    let queue = new(redis_pool);
+    let config = QueueStageDrainConfig {
+        db_pool,
+        drainer: QueueDrainer {},
+        queue: queue.clone(),
+        shutdown,
+    };
+
+    let drain = QueueStageDrain::new(config)?;
+    Ok((queue, drain))
 }

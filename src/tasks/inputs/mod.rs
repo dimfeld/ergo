@@ -1,4 +1,4 @@
-mod queue_drain;
+pub mod queue;
 
 use crate::{database::PostgresPool, error::Error};
 use serde::{Deserialize, Serialize};

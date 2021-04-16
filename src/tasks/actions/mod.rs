@@ -1,4 +1,4 @@
-pub mod queue_drain;
+pub mod queue;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};

@@ -12,10 +12,10 @@ use std::{
 };
 use tracing_actix_web::TracingLogger;
 
-use ergo::{graceful_shutdown::GracefulShutdown, web_app_server};
+use ergo::{graceful_shutdown::GracefulShutdown, tasks, web_app_server};
 
 #[actix_web::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> Result<(), ergo::error::Error> {
     dotenv::dotenv().ok();
     dotenv::from_filename("vault_dev_roles.env").ok();
 
@@ -47,7 +47,13 @@ async fn main() -> std::io::Result<()> {
         database: env::var("DATABASE").ok(),
         database_host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string()),
         database_role: env::var("DATABASE_ROLE_WEB").ok(),
+        redis_host: env::var("REDIS_HOST").expect("REDIS_HOST is required"),
         shutdown: shutdown.consumer(),
+    };
+
+    let backend_config = ergo::service_config::Config {
+        database_role: env::var("DATABASE_ROLE_BACKEND").ok(),
+        ..web_config.clone()
     };
 
     let redis_host = env::var("REDIS_URL").expect("REDIS_URL is required");
@@ -59,6 +65,9 @@ async fn main() -> std::io::Result<()> {
     .expect("Creating redis pool");
 
     let web_app_data = ergo::web_app_server::app_data(web_config)?;
+    let backend_app_data = ergo::tasks::handlers::app_data(backend_config.clone())?;
+
+    let queue_drain = ergo::tasks::queue_drain_runner::AllQueuesDrain::new(backend_config);
 
     let cookie_signing_key = env::var("COOKIE_SIGNING_KEY")
         .ok()
@@ -84,6 +93,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(TracingLogger)
             .wrap(identity)
             .service(web_app_server::scope(&web_app_data, "/api/web"))
+            .service(tasks::handlers::scope(&backend_app_data, "/api/tasks"))
     })
     .bind(format!("{}:{}", address, port))?
     .run()
