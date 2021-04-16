@@ -171,14 +171,12 @@ fn job_generator(
     index: usize,
     num_jobs: usize,
     mut shutdown: GracefulShutdownConsumer,
+    close: watch::Receiver<bool>,
 ) -> JoinHandle<Result<(), Error>> {
     tokio::spawn(async move {
         let data = serde_json::to_vec(&JobPayload {
             data: format!("Payload from generator {}", index),
         })?;
-
-        let shutdown_fut = shutdown.wait_for_shutdown();
-        tokio::pin!(shutdown_fut);
 
         for i in 0..num_jobs {
             let job = Job {
@@ -187,13 +185,10 @@ fn job_generator(
                 ..Default::default()
             };
 
-            tokio::select! {
-                biased;
+            queue.enqueue(&job).await?;
 
-                _ = &mut shutdown_fut => {
-                    break;
-                },
-                result = queue.enqueue(&job) => { result? }
+            if shutdown.shutting_down() || *close.borrow() {
+                break;
             }
         }
 
@@ -217,6 +212,8 @@ fn generate_jobs(
         let jobs_per_worker = total_num_jobs / num_workers;
         let round_up = total_num_jobs % num_workers;
 
+        let (close_workers_tx, close_workers_rx) = watch::channel(false);
+
         let workers = (0..num_workers)
             .into_iter()
             .map(|i| {
@@ -225,7 +222,13 @@ fn generate_jobs(
                     num_jobs += 1;
                 }
 
-                job_generator(queue.clone(), i, num_jobs, shutdown.clone())
+                job_generator(
+                    queue.clone(),
+                    i,
+                    num_jobs,
+                    shutdown.clone(),
+                    close_workers_rx.clone(),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -236,9 +239,10 @@ fn generate_jobs(
                     _ = shutdown.wait_for_shutdown() => {}
                 };
 
-                for worker in workers {
-                    worker.abort();
-                }
+                close_workers_tx
+                    .send(true)
+                    .expect("Setting close_workers_tx");
+                try_join_all(workers).await?;
             }
             JobLimit::Num(_) => {
                 // The workers have their limit built in, so just wait for them to finish.
@@ -291,39 +295,30 @@ fn consume_jobs(
 fn job_consumer(
     queue: Queue,
     mut shutdown: GracefulShutdownConsumer,
-    mut close_consumers: watch::Receiver<bool>,
-    close_on_idle: bool,
+    close_consumers: watch::Receiver<bool>,
+    mut close_on_idle: bool,
 ) -> JoinHandle<Result<(), Error>> {
     tokio::spawn(async move {
-        let shutdown_fut = shutdown.wait_for_shutdown();
-        tokio::pin!(shutdown_fut);
-
         loop {
-            tokio::select! {
-                biased;
-
-                _ = &mut shutdown_fut => { break; },
-                _ = close_consumers.changed(), if !close_on_idle => {
-                    if *close_consumers.borrow() == true {
+            match queue.get_job::<JobPayload>().await? {
+                Some(job) => {
+                    job.process(|_, _| async move { Ok::<(), Error>(()) })
+                        .await?;
+                }
+                None => {
+                    if close_on_idle {
                         break;
-                    }
-                },
-                job = queue.get_job::<JobPayload>() => {
-                    let job = job?;
-                    match job {
-                        Some(job) => {
-                            job.process(|_, _| async move { Ok::<(), Error>(()) }).await?;
-                        },
-                        None => {
-                            if close_on_idle {
-                                break;
-                            } else {
-                                tokio::time::sleep(Duration::from_millis(10)).await;
-                            }
-                        }
+                    } else {
+                        tokio::time::sleep(Duration::from_millis(10)).await;
                     }
                 }
             };
+
+            if shutdown.shutting_down() {
+                break;
+            } else if *close_consumers.borrow() == true {
+                close_on_idle = true;
+            }
         }
 
         Ok(())
@@ -359,6 +354,8 @@ async fn queue_status(queue: Queue, mut shutdown: GracefulShutdownConsumer) -> R
     bars.add(error_bar.clone());
 
     let update_task = tokio::task::spawn(async move {
+        let mut exit = false;
+
         loop {
             match queue.status().await {
                 Ok(status) => {
@@ -374,9 +371,15 @@ async fn queue_status(queue: Queue, mut shutdown: GracefulShutdownConsumer) -> R
                 }
             };
 
+            if exit {
+                break;
+            }
+
             tokio::select! {
                 _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {},
-                _ = shutdown.wait_for_shutdown() => break,
+                _ = shutdown.wait_for_shutdown() => {
+                    exit = true;
+                },
             };
         }
 
