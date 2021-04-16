@@ -24,7 +24,7 @@ use derivative::Derivative;
 use futures::{Future, FutureExt};
 use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use tokio::task::JoinHandle;
+use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
 
 #[derive(Debug)]
@@ -58,7 +58,7 @@ struct QueueInner {
     #[derivative(Debug = "ignore")]
     cancel_script: job_cancel::JobCancelScript,
 
-    scheduled_job_enqueuer_task: Mutex<Option<JoinHandle<()>>>,
+    scheduled_job_enqueuer_task: Mutex<Option<(oneshot::Sender<()>, JoinHandle<()>)>>,
 }
 
 pub enum JobStatus {
@@ -270,6 +270,8 @@ impl Queue {
         Ok(num_queued)
     }
 
+    /// Start the scheduled jobs enqueuer task. This task will automatically be stopped when the
+    /// last reference to the queue is dropped.
     pub fn start_scheduled_jobs_enqueuer(&self, mut close: GracefulShutdownConsumer) {
         if self.0.scheduled_job_enqueuer_task.lock().unwrap().is_some() {
             return;
@@ -277,9 +279,11 @@ impl Queue {
 
         let pool = self.0.pool.clone();
         let queue = self.clone();
+        let (closer_tx, closer_rx) = oneshot::channel::<()>();
         let task = tokio::spawn(async move {
             let shutdown_fut = close.wait_for_shutdown();
             tokio::pin!(shutdown_fut);
+            tokio::pin!(closer_rx);
 
             loop {
                 match queue.enqueue_scheduled_items().await {
@@ -293,12 +297,26 @@ impl Queue {
 
                 tokio::select! {
                     _ = &mut shutdown_fut => break,
+                    _ = &mut closer_rx => break,
                     _ = tokio::time::sleep(Duration::from_millis(1000)) => {},
                 };
             }
         });
 
-        *self.0.scheduled_job_enqueuer_task.lock().unwrap() = Some(task);
+        // We don't have to do anything with `closer_tx` except keep it alive, then when
+        // the queue is dropped it'll automatically drop the channel as well and lead to
+        // the task closing.
+        *self.0.scheduled_job_enqueuer_task.lock().unwrap() = Some((closer_tx, task));
+    }
+
+    /// Stop the scheduled job enqueuer task, if it was started. This can be used to shut down the
+    /// task early, but is not necessary to call as the task will be automatically stopped when the
+    /// last reference to the queue is dropped.
+    pub fn stop_scheduled_jobs_enqueuer(&self) -> Option<JoinHandle<()>> {
+        let (_, task_handle) = self.0.scheduled_job_enqueuer_task.lock().unwrap().take()?;
+
+        // Just let the closer Sender drop, which will cause the queuer task to stop.
+        Some(task_handle)
     }
 
     async fn start_working<T: DeserializeOwned + Send + Sync>(
