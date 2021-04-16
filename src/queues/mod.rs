@@ -285,7 +285,17 @@ impl Queue {
             tokio::pin!(shutdown_fut);
             tokio::pin!(closer_rx);
 
+            let mut interval = tokio::time::interval(Duration::from_millis(1000));
+
             loop {
+                tokio::select! {
+                    biased;
+
+                    _ = &mut shutdown_fut => break,
+                    _ = &mut closer_rx => break,
+                    _ = interval.tick() => {},
+                };
+
                 match queue.enqueue_scheduled_items().await {
                     Ok(num) => {
                         event!(Level::INFO, queue=%queue.0.name, count=%num, "Enqueued scheduled jobs");
@@ -293,12 +303,6 @@ impl Queue {
                     Err(e) => {
                         event!(Level::ERROR, queue=%queue.0.name, error=%e, "Error enqueueing scheduled jobs");
                     }
-                };
-
-                tokio::select! {
-                    _ = &mut shutdown_fut => break,
-                    _ = &mut closer_rx => break,
-                    _ = tokio::time::sleep(Duration::from_millis(1000)) => {},
                 };
             }
         });

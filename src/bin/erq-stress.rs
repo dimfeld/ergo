@@ -354,8 +354,16 @@ async fn queue_status(queue: Queue, mut shutdown: GracefulShutdownConsumer) -> R
 
     let update_task = tokio::task::spawn(async move {
         let mut exit = false;
+        let mut interval = tokio::time::interval(Duration::from_millis(500));
 
-        loop {
+        while !exit {
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.wait_for_shutdown() => {
+                    exit = true;
+                },
+            };
+
             match queue.status().await {
                 Ok(status) => {
                     pending_bar.set_position(status.current_pending as u64);
@@ -368,17 +376,6 @@ async fn queue_status(queue: Queue, mut shutdown: GracefulShutdownConsumer) -> R
                 Err(_) => {
                     break;
                 }
-            };
-
-            if exit {
-                break;
-            }
-
-            tokio::select! {
-                _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {},
-                _ = shutdown.wait_for_shutdown() => {
-                    exit = true;
-                },
             };
         }
 
