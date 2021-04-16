@@ -11,15 +11,21 @@ mod start_work;
 
 pub use self::job::*;
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
-use crate::error::Error;
+use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
-use std::{borrow::Cow, sync::Arc, time::Duration};
+use std::{
+    borrow::Cow,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use chrono::{DateTime, TimeZone, Utc};
 use derivative::Derivative;
 use futures::{Future, FutureExt};
 use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use tokio::task::JoinHandle;
+use tracing::{event, Level};
 
 #[derive(Debug)]
 pub struct Queue(Arc<QueueInner>);
@@ -29,6 +35,7 @@ pub struct Queue(Arc<QueueInner>);
 struct QueueInner {
     #[derivative(Debug = "ignore")]
     pool: deadpool_redis::Pool,
+    name: String,
     pending_list: String,
     scheduled_list: String,
     processing_list: String,
@@ -50,6 +57,8 @@ struct QueueInner {
     error_script: job_error::JobErrorScript,
     #[derivative(Debug = "ignore")]
     cancel_script: job_cancel::JobCancelScript,
+
+    scheduled_job_enqueuer_task: Mutex<Option<JoinHandle<()>>>,
 }
 
 pub enum JobStatus {
@@ -101,6 +110,7 @@ impl Queue {
     ) -> Queue {
         Queue(Arc::new(QueueInner {
             pool,
+            name: queue_name.to_string(),
             pending_list: format!("erq:{}:pending", queue_name),
             scheduled_list: format!("erq:{}:scheduled", queue_name),
             processing_list: format!("erq:{}:processing", queue_name),
@@ -116,7 +126,12 @@ impl Queue {
             done_script: job_done::JobDoneScript::new(),
             error_script: job_error::JobErrorScript::new(),
             cancel_script: job_cancel::JobCancelScript::new(),
+            scheduled_job_enqueuer_task: Mutex::new(None),
         }))
+    }
+
+    pub fn name(&self) -> &str {
+        self.0.name.as_str()
     }
 
     fn add_id_to_queue(&self, pipe: &mut deadpool_redis::Pipeline, job: &'_ Job<'_>) {
@@ -245,14 +260,45 @@ impl Queue {
     }
 
     /// Move each scheduled item that has reached its deadline to the pending list.
-    pub async fn enqueue_scheduled_items(&self) -> Result<bool, Error> {
+    pub async fn enqueue_scheduled_items(&self) -> Result<usize, Error> {
         let mut conn = self.0.pool.get().await?;
         let num_queued = self
             .0
             .enqueue_scheduled_script
             .run(self, &mut conn, &Utc::now())
             .await?;
-        Ok(num_queued > 0)
+        Ok(num_queued)
+    }
+
+    pub fn start_scheduled_jobs_enqueuer(&self, mut close: GracefulShutdownConsumer) {
+        if self.0.scheduled_job_enqueuer_task.lock().unwrap().is_some() {
+            return;
+        }
+
+        let pool = self.0.pool.clone();
+        let queue = self.clone();
+        let task = tokio::spawn(async move {
+            let shutdown_fut = close.wait_for_shutdown();
+            tokio::pin!(shutdown_fut);
+
+            loop {
+                match queue.enqueue_scheduled_items().await {
+                    Ok(num) => {
+                        event!(Level::INFO, queue=%queue.0.name, count=%num, "Enqueued scheduled jobs");
+                    }
+                    Err(e) => {
+                        event!(Level::ERROR, queue=%queue.0.name, error=%e, "Error enqueueing scheduled jobs");
+                    }
+                };
+
+                tokio::select! {
+                    _ = &mut shutdown_fut => break,
+                    _ = tokio::time::sleep(Duration::from_millis(1000)) => {},
+                };
+            }
+        });
+
+        *self.0.scheduled_job_enqueuer_task.lock().unwrap() = Some(task);
     }
 
     async fn start_working<T: DeserializeOwned + Send + Sync>(
