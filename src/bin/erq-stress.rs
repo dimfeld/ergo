@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use dotenv::dotenv;
 use futures::future::try_join_all;
@@ -10,7 +10,7 @@ use tokio::{sync::watch, task::JoinHandle};
 use ergo::{
     error::Error,
     graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
-    queues::{Job, Queue},
+    queues::{Job, JobId, Queue},
 };
 
 #[derive(Debug, StructOpt)]
@@ -179,11 +179,10 @@ fn job_generator(
         })?;
 
         for i in 0..num_jobs {
-            let job = Job {
-                id: format!("w-{}-{}", index, i),
-                payload: Cow::Borrowed(data.as_slice()),
-                ..Default::default()
-            };
+            let job = Job::from_bytes(
+                JobId::Value(format!("w-{}-{}", index, i).as_str()),
+                data.as_slice(),
+            );
 
             queue.enqueue(&job).await?;
 

@@ -1,12 +1,17 @@
+pub mod job;
 pub mod postgres_drain;
-mod redis_job_data;
 
 mod enqueue_scheduled;
 mod get_job;
 mod job_cancel;
 mod job_done;
 mod job_error;
+mod redis_job_data;
 mod start_work;
+
+pub use self::job::*;
+use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
+use crate::error::Error;
 
 use std::{borrow::Cow, sync::Arc, time::Duration};
 
@@ -15,9 +20,6 @@ use derivative::Derivative;
 use futures::{Future, FutureExt};
 use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-use crate::error::Error;
-use redis_job_data::{RedisJobField, RedisJobSetCmd};
 
 #[derive(Debug)]
 pub struct Queue(Arc<QueueInner>);
@@ -48,16 +50,6 @@ struct QueueInner {
     error_script: job_error::JobErrorScript,
     #[derivative(Debug = "ignore")]
     cancel_script: job_cancel::JobCancelScript,
-}
-
-#[derive(Debug, Default)]
-pub struct Job<'a> {
-    pub id: String,
-    pub payload: Cow<'a, [u8]>,
-    pub timeout: Option<Duration>,
-    pub max_retries: Option<u32>,
-    pub run_at: Option<DateTime<Utc>>,
-    pub retry_backoff: Option<Duration>,
 }
 
 pub enum JobStatus {
@@ -149,7 +141,7 @@ impl Queue {
         cmd
     }
 
-    fn initial_job_data_cmd<'a>(&self, job: &'a Job) -> deadpool_redis::Cmd {
+    fn initial_job_data_cmd(&self, job: &Job) -> deadpool_redis::Cmd {
         let key = self.job_data_key(job.id.as_str());
         let mut cmd = RedisJobSetCmd::new(&key)
             .payload(job.payload.as_ref())
