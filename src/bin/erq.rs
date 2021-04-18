@@ -17,17 +17,21 @@ struct Args {
 
 #[derive(Debug, StructOpt)]
 enum QueueCmd {
-    Add {
-        id: String,
-        data: String,
-    },
+    #[structopt(about = "Add a job to the queue")]
+    Add { id: String, data: String },
+    #[structopt(about = "Show information about the queue")]
     Show,
-    #[structopt(name = "show-job")]
-    ShowJob {
-        id: String,
-    },
+    #[structopt(name = "show-job", about = "Show information about a job")]
+    ShowJob { id: String },
+    #[structopt(
+        about = "Get and acknowledge the next job on the queue. (Don't use this for production)"
+    )]
     Run {
-        #[structopt(short, long, help = "Processing delay in milliseconds")]
+        #[structopt(
+            short,
+            long,
+            help = "Wait this long, in milliseconds, before processing the job"
+        )]
         delay: Option<u64>,
         #[structopt(
             short,
@@ -36,9 +40,8 @@ enum QueueCmd {
         )]
         error: Option<String>,
     },
-    Cancel {
-        id: String,
-    },
+    #[structopt(about = "Cancel a job")]
+    Cancel { id: String },
 }
 
 #[tokio::main]
