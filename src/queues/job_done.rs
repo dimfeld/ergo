@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
 use redis::Script;
 
 use crate::error::Error;
@@ -29,11 +30,15 @@ const DONE_SCRIPT: &str = r##"
     return {score, true}
 "##;
 
-pub struct JobDoneScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(DONE_SCRIPT);
+}
+
+pub struct JobDoneScript(&'static redis::Script);
 
 impl JobDoneScript {
     pub fn new() -> Self {
-        JobDoneScript(redis::Script::new(DONE_SCRIPT))
+        JobDoneScript(&SCRIPT)
     }
 
     pub async fn run(

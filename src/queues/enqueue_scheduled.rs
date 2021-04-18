@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use deadpool_redis::ConnectionWrapper;
+use lazy_static::lazy_static;
 use redis::Script;
 
 use crate::error::Error;
@@ -24,11 +25,15 @@ const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
     return #move_items
 "##;
 
-pub struct EnqueueScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT);
+}
+
+pub struct EnqueueScript(&'static redis::Script);
 
 impl EnqueueScript {
     pub fn new() -> Self {
-        EnqueueScript(redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT))
+        EnqueueScript(&SCRIPT)
     }
 
     pub async fn run(

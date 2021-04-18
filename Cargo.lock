@@ -1147,6 +1147,7 @@ dependencies = [
  "itertools",
  "jsonschema",
  "jsonwebtoken",
+ "lazy_static",
  "libc",
  "libreauth",
  "log",

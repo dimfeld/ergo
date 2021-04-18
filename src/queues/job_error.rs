@@ -1,4 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
+use lazy_static::lazy_static;
 use redis::{Script, ToRedisArgs};
 
 use crate::error::Error;
@@ -46,11 +47,15 @@ const ERROR_SCRIPT: &str = r##"
     end
 "##;
 
-pub struct JobErrorScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(ERROR_SCRIPT);
+}
+
+pub struct JobErrorScript(&'static redis::Script);
 
 impl JobErrorScript {
     pub fn new() -> Self {
-        JobErrorScript(redis::Script::new(ERROR_SCRIPT))
+        JobErrorScript(&SCRIPT)
     }
 
     pub async fn run(

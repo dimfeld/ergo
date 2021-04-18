@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
 use redis::{Script, ToRedisArgs};
 
 use super::{JobStatus, Queue};
@@ -30,11 +31,15 @@ const CANCEL_SCRIPT: &str = r##"
     return { was_pending, was_processing, was_scheduled, suc }
     "##;
 
-pub struct JobCancelScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(CANCEL_SCRIPT);
+}
+
+pub struct JobCancelScript(&'static redis::Script);
 
 impl JobCancelScript {
     pub fn new() -> Self {
-        JobCancelScript(redis::Script::new(CANCEL_SCRIPT))
+        JobCancelScript(&SCRIPT)
     }
 
     pub async fn run(

@@ -1,5 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
 use deadpool_redis::ConnectionWrapper;
+use lazy_static::lazy_static;
 use redis::Script;
 
 use crate::error::Error;
@@ -28,11 +29,15 @@ const START_WORK_SCRIPT: &str = r##"
     return {job_data[2], expiration}
 "##;
 
-pub struct StartWorkScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(START_WORK_SCRIPT);
+}
+
+pub struct StartWorkScript(&'static redis::Script);
 
 impl StartWorkScript {
     pub fn new() -> Self {
-        StartWorkScript(redis::Script::new(START_WORK_SCRIPT))
+        StartWorkScript(&SCRIPT)
     }
 
     pub async fn run(

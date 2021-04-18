@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use deadpool_redis::ConnectionWrapper;
+use lazy_static::lazy_static;
 use redis::Script;
 
 use crate::error::Error;
@@ -24,11 +25,15 @@ const DEQUEUE_ITEM_SCRIPT: &str = r##"
     return latest_item
 "##;
 
-pub struct GetJobScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(DEQUEUE_ITEM_SCRIPT);
+}
+
+pub struct GetJobScript(&'static redis::Script);
 
 impl GetJobScript {
     pub fn new() -> Self {
-        GetJobScript(redis::Script::new(DEQUEUE_ITEM_SCRIPT))
+        GetJobScript(&SCRIPT)
     }
 
     pub async fn run(

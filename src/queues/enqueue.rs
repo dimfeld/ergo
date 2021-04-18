@@ -1,3 +1,4 @@
+use lazy_static::lazy_static;
 use redis::Script;
 
 // KEYS:
@@ -18,10 +19,14 @@ const ENQUEUE_SCHEDULED_SCRIPT: &str = r##"
             return #move_items
             "##;
 
-pub struct EnqueueScript(redis::Script);
+lazy_static! {
+    static ref SCRIPT: redis::Script = redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT);
+}
+
+pub struct EnqueueScript(&'static redis::Script);
 
 impl EnqueueScript {
     pub fn new() -> Self {
-        redis::Script::new(ENQUEUE_SCHEDULED_SCRIPT)
+        redis::Script::new(&SCRIPT)
     }
 }
