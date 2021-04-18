@@ -59,6 +59,7 @@ struct QueueInner {
     cancel_script: job_cancel::JobCancelScript,
 
     scheduled_job_enqueuer_task: Mutex<Option<(oneshot::Sender<()>, JoinHandle<()>)>>,
+    job_dequeuer_task: Mutex<Option<(oneshot::Sender<()>, JoinHandle<()>)>>,
 }
 
 pub enum JobStatus {
@@ -127,6 +128,7 @@ impl Queue {
             error_script: job_error::JobErrorScript::new(),
             cancel_script: job_cancel::JobCancelScript::new(),
             scheduled_job_enqueuer_task: Mutex::new(None),
+            job_dequeuer_task: Mutex::new(None),
         }))
     }
 
@@ -321,6 +323,55 @@ impl Queue {
 
         // Just let the closer Sender drop, which will cause the queuer task to stop.
         Some(task_handle)
+    }
+
+    pub fn start_dequeuer_loop<F, Fut, T, R, E>(
+        &self,
+        mut close: GracefulShutdownConsumer,
+        max_jobs: usize,
+        processor: F,
+    ) where
+        F: Fn(&str, &T) -> Fut,
+        Fut: Future<Output = Result<R, E>>,
+        T: DeserializeOwned + Send + Sync,
+        E: Into<Error> + Send,
+    {
+        if self.0.job_dequeuer_task.lock().unwrap().is_some() {
+            return;
+        }
+
+        let pool = self.0.pool.clone();
+        let queue = self.clone();
+        let (closer_tx, closer_rx) = oneshot::channel::<()>();
+        let task = tokio::spawn(async move {
+            let shutdown_fut = close.wait_for_shutdown();
+            tokio::pin!(shutdown_fut);
+            tokio::pin!(closer_rx);
+
+            let mut interval = tokio::time::interval(Duration::from_millis(100));
+
+            loop {
+                tokio::select! {
+                    biased;
+
+                    _ = &mut shutdown_fut => break,
+                    _ = &mut closer_rx => break,
+                    _ = interval.tick() => {},
+                };
+
+                match queue.get_job::<T>().await {
+                    Ok(Some(job)) => {
+                        // TODO Spawn a task to process the job
+                    }
+                    Ok(None) => {
+                        // TODO backoff
+                    }
+                    Err(e) => {
+                        // TODO report the error
+                    }
+                }
+            }
+        });
     }
 
     async fn start_working<T: DeserializeOwned + Send + Sync>(
