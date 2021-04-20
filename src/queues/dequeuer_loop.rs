@@ -7,13 +7,14 @@ use tracing::{event, Level};
 
 use std::time::Duration;
 
+use super::QueueWorkItem;
 use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 #[async_trait]
 pub trait QueueJobProcessor: Clone + Sync + Send {
     type Payload: DeserializeOwned + Send + Sync;
 
-    async fn process(&self, id: &str, item: &Self::Payload) -> Result<(), Error>;
+    async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error>;
 }
 
 pub fn dequeuer_loop<P, T>(
@@ -62,7 +63,7 @@ where
                     let p = processor.clone();
                     let queue_name = queue.0.name.clone();
                     let job_task = tokio::spawn(async move {
-                        match job.process(|id, data| p.process(id, data)).await {
+                        match job.process(|item| p.process(item)).await {
                             Ok(_) => {}
                             Err(e) => {
                                 event!(Level::ERROR, error=%e, job=%job.id, queue=%queue_name, "Job error");

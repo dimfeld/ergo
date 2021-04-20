@@ -60,12 +60,12 @@ impl<T: DeserializeOwned + Send + Sync> QueueWorkItem<T> {
 impl<'a, T: Send + Sync> QueueWorkItem<T> {
     pub async fn process<F, Fut, R, E>(&'a self, f: F) -> Result<R, Error>
     where
-        F: FnOnce(&'a str, &'a T) -> Fut,
+        F: FnOnce(&'a Self) -> Fut,
         Fut: Future<Output = Result<R, E>>,
         T: Send,
         E: Into<Error> + Send,
     {
-        match f(&self.id, &self.data).await {
+        match f(&self).await {
             Ok(val) => {
                 self.queue.done_job(self.id.as_str(), &self.expires).await?;
                 Ok(val)

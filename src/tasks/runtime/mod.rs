@@ -6,8 +6,10 @@ use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
 use crate::{
-    database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer,
-    queues::QueueJobProcessor,
+    database::PostgresPool,
+    error::Error,
+    graceful_shutdown::GracefulShutdownConsumer,
+    queues::{QueueJobProcessor, QueueWorkItem},
 };
 
 use super::{
@@ -58,7 +60,8 @@ impl Clone for TaskExecutor {
 #[async_trait]
 impl QueueJobProcessor for TaskExecutor {
     type Payload = InputInvocation;
-    async fn process(&self, id: &str, invocation: &InputInvocation) -> Result<(), Error> {
+    async fn process(&self, item: &QueueWorkItem<InputInvocation>) -> Result<(), Error> {
+        let invocation = &item.data;
         Task::apply_input(
             &self.0.pg_pool,
             invocation.task_id,

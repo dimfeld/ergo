@@ -301,8 +301,7 @@ fn job_consumer(
         loop {
             match queue.get_job::<JobPayload>().await? {
                 Some(job) => {
-                    job.process(|_, _| async move { Ok::<(), Error>(()) })
-                        .await?;
+                    job.process(|_| async move { Ok::<(), Error>(()) }).await?;
                 }
                 None => {
                     if close_on_idle {

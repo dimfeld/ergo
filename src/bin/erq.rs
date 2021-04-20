@@ -95,8 +95,8 @@ async fn run_job(queue: &Queue, delay: Option<u64>, error: Option<String>) -> Re
             Ok(())
         }
         Some(job) => {
-            job.process(|id, payload| async move {
-                println!("Got job {} with payload {}", id, payload.clone());
+            job.process(|item| async move {
+                println!("Got job {} with payload {}", item.id, item.data.clone());
 
                 if let Some(d) = delay {
                     println!("Sleeping for {}ms", d);
@@ -109,7 +109,7 @@ async fn run_job(queue: &Queue, delay: Option<u64>, error: Option<String>) -> Re
                         Ok(())
                     }
                     Some(e) => {
-                        println!("Finishing job {} with error {}", id, e);
+                        println!("Finishing job {} with error {}", item.id, e);
                         Err(Error::StringError(e))
                     }
                 }
