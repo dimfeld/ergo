@@ -15,13 +15,18 @@ use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 use std::{
     borrow::Cow,
+    num::NonZeroU32,
     sync::{Arc, Mutex},
     time::Duration,
 };
 
+use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono::{DateTime, TimeZone, Utc};
 use derivative::Derivative;
-use futures::{Future, FutureExt};
+use futures::{
+    stream::{FuturesUnordered, Stream, StreamExt},
+    Future, FutureExt,
+};
 use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::oneshot, task::JoinHandle};
@@ -325,53 +330,123 @@ impl Queue {
         Some(task_handle)
     }
 
+    pub fn default_backoff() -> ExponentialBackoff {
+        ExponentialBackoff {
+            current_interval: Duration::from_millis(50),
+            initial_interval: Duration::from_millis(50),
+            max_interval: Duration::from_millis(5000),
+            max_elapsed_time: None,
+            ..Default::default()
+        }
+    }
+
     pub fn start_dequeuer_loop<F, Fut, T, R, E>(
         &self,
         mut close: GracefulShutdownConsumer,
-        max_jobs: usize,
+        backoff: Option<Box<dyn Backoff + Send>>,
+        max_jobs: Option<NonZeroU32>,
         processor: F,
     ) where
-        F: Fn(&str, &T) -> Fut,
-        Fut: Future<Output = Result<R, E>>,
-        T: DeserializeOwned + Send + Sync,
-        E: Into<Error> + Send,
+        F: Fn(&str, &T) -> Fut + Send + Sync + Clone + 'static,
+        Fut: Future<Output = Result<R, E>> + Send,
+        T: DeserializeOwned + Send + Sync + 'static,
+        R: Send + 'static,
+        E: Into<Error> + Send + 'static,
     {
         if self.0.job_dequeuer_task.lock().unwrap().is_some() {
             return;
         }
 
+        let mut backoff = backoff.unwrap_or(Box::new(Queue::default_backoff()));
+
+        let max_jobs = max_jobs
+            .map(|n| n.get() as usize)
+            .unwrap_or_else(|| num_cpus::get() * 2);
         let pool = self.0.pool.clone();
         let queue = self.clone();
         let (closer_tx, closer_rx) = oneshot::channel::<()>();
+
         let task = tokio::spawn(async move {
             let shutdown_fut = close.wait_for_shutdown();
             tokio::pin!(shutdown_fut);
             tokio::pin!(closer_rx);
 
-            let mut interval = tokio::time::interval(Duration::from_millis(100));
+            let mut active_tasks = FuturesUnordered::<JoinHandle<()>>::new();
+            let mut sleep_time = Duration::default();
 
             loop {
-                tokio::select! {
-                    biased;
+                let wait_for_task = active_tasks.len() >= max_jobs;
+                let do_backoff = sleep_time > Duration::default();
+                if wait_for_task || do_backoff {
+                    tokio::select! {
+                        biased;
 
-                    _ = &mut shutdown_fut => break,
-                    _ = &mut closer_rx => break,
-                    _ = interval.tick() => {},
-                };
+                        _ = &mut shutdown_fut => break,
+                        _ = &mut closer_rx => break,
+                        res = active_tasks.select_next_some(), if wait_for_task => {
+                            if let Err(e) = res {
+                                event!(Level::ERROR, error=%e, "Job task panicked");
+                            }
+                        },
+                        _ = tokio::time::sleep(sleep_time), if do_backoff => {},
+                    };
+                }
 
                 match queue.get_job::<T>().await {
                     Ok(Some(job)) => {
-                        // TODO Spawn a task to process the job
+                        backoff.reset();
+                        sleep_time = Duration::default();
+
+                        let p = processor.clone();
+                        let queue_name = queue.0.name.clone();
+                        let job_task = tokio::spawn(async move {
+                            match job.process(p).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    event!(Level::ERROR, error=%e, job=%job.id, queue=%queue_name, "Job error");
+                                }
+                            };
+                        });
+                        active_tasks.push(job_task);
                     }
-                    Ok(None) => {
-                        // TODO backoff
-                    }
+                    Ok(None) => match backoff.next_backoff() {
+                        Some(next_sleep_time) => {
+                            sleep_time = next_sleep_time;
+                        }
+                        None => break,
+                    },
                     Err(e) => {
-                        // TODO report the error
+                        event!(Level::ERROR, error=%e, queue=%queue.0.name, "Error dequeueing job");
+                        match backoff.next_backoff() {
+                            Some(next_sleep_time) => {
+                                sleep_time = next_sleep_time;
+                            }
+                            None => break,
+                        }
                     }
                 }
+
+                // Make sure we call this periodically so that futures are processed.
+                match active_tasks.next().await {
+                    Some(Err(e)) => {
+                        event!(Level::ERROR, error=%e, "Job task panicked");
+                    }
+                    _ => {}
+                };
             }
         });
+
+        *self.0.job_dequeuer_task.lock().unwrap() = Some((closer_tx, task));
+    }
+
+    /// Stop the job dequeuer task, if it was started. This can be used to shut down the
+    /// task early, but is not necessary to call as the task will be automatically stopped when the
+    /// last reference to the queue is dropped.
+    pub fn stop_dequeuer_loop(&self) -> Option<JoinHandle<()>> {
+        let (_, task_handle) = self.0.job_dequeuer_task.lock().unwrap().take()?;
+
+        // Just let the closer Sender drop, which will cause the queuer task to stop.
+        Some(task_handle)
     }
 
     async fn start_working<T: DeserializeOwned + Send + Sync>(

@@ -1,18 +1,16 @@
 //! Read events from the queues and execute tasks
 
-mod dequeue_loop;
-
 use std::sync::atomic::AtomicU64;
 
 use tokio::task::JoinHandle;
 
 use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
+use super::inputs::queue::InputQueue;
+
 pub struct TaskExecutor {
     pg_pool: PostgresPool,
-    redis_pool: deadpool_redis::Pool,
-    shutdown: GracefulShutdownConsumer,
-    active_jobs: AtomicU64,
+    queue: InputQueue,
 }
 
 pub struct TaskExecutorConfig {
@@ -26,12 +24,18 @@ pub struct TaskExecutorConfig {
 impl TaskExecutor {
     pub fn new(config: TaskExecutorConfig) -> Result<TaskExecutor, Error> {
         // Start the event queue reader.
+        let queue = super::inputs::queue::new(config.redis_pool);
+
+        queue.start_dequeuer_loop(
+            config.shutdown,
+            None,
+            None,
+            |id, data: &Box<serde_json::value::RawValue>| async move { Ok::<(), Error>(()) },
+        );
 
         Ok(TaskExecutor {
             pg_pool: config.pg_pool,
-            redis_pool: config.redis_pool,
-            shutdown: config.shutdown,
-            active_jobs: AtomicU64::new(0),
+            queue,
         })
     }
 }
