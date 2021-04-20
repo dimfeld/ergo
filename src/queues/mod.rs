@@ -1,6 +1,7 @@
 mod dequeuer_loop;
 pub mod job;
 pub mod postgres_drain;
+pub mod work_item;
 
 mod enqueue_scheduled;
 mod get_job;
@@ -11,7 +12,7 @@ mod redis_job_data;
 mod start_work;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
-pub use self::{dequeuer_loop::QueueJobProcessor, job::*};
+pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
 use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 use std::{
@@ -568,92 +569,6 @@ impl Queue {
 impl Clone for Queue {
     fn clone(&self) -> Queue {
         Queue(self.0.clone())
-    }
-}
-
-#[derive(Debug)]
-pub struct QueueWorkItem<T: Send + Sync> {
-    queue: Queue,
-    pub id: String,
-    pub data: T,
-    pub expires: DateTime<Utc>,
-
-    finished: bool,
-}
-
-// Eventually I can enable these. For now, you'll have to use Box<serde_json::value::RawValue> if
-// you don't want your value parsed as JSON.
-//
-// impl QueueWorkItem<Vec<u8>> {
-//     fn new(queue: Queue, job_id: &str, data: Vec<u8>) -> Result<Self, Error> {
-//         Ok(QueueWorkItem {
-//             queue,
-//             id: String::from(job_id),
-//             data,
-//             finished: false,
-//         })
-//     }
-// }
-//
-// impl QueueWorkItem<String> {
-//     fn new(queue: Queue, job_id: &str, data: Vec<u8>) -> Result<Self, Error> {
-//         Ok(QueueWorkItem {
-//             queue,
-//             id: String::from(job_id),
-//             data: String::from_utf8(data)?,
-//             finished: false,
-//         })
-//     }
-// }
-
-impl<T: DeserializeOwned + Send + Sync> QueueWorkItem<T> {
-    fn new(
-        queue: Queue,
-        job_id: &str,
-        expires: DateTime<Utc>,
-        data: Vec<u8>,
-    ) -> Result<Self, Error> {
-        let converted: T = serde_json::from_slice(data.as_slice())?;
-        Ok(QueueWorkItem {
-            queue,
-            id: String::from(job_id),
-            data: converted,
-            expires,
-            finished: false,
-        })
-    }
-}
-
-impl<'a, T: Send + Sync> QueueWorkItem<T> {
-    pub async fn process<F, Fut, R, E>(&'a self, f: F) -> Result<R, Error>
-    where
-        F: FnOnce(&'a str, &'a T) -> Fut,
-        Fut: Future<Output = Result<R, E>>,
-        T: Send,
-        E: Into<Error> + Send,
-    {
-        match f(&self.id, &self.data).await {
-            Ok(val) => {
-                self.queue.done_job(self.id.as_str(), &self.expires).await?;
-                Ok(val)
-            }
-            Err(e) => {
-                let e: Error = e.into();
-                self.queue
-                    .errored_job(self.id.as_str(), &self.expires, &e.to_string().as_str())
-                    .await?;
-                Err(e)
-            }
-        }
-    }
-
-    /// Check if this job is still active and owned by us. Can be useful for long-running jobs
-    /// that may want to cancel.
-    pub async fn active(&self) -> Result<bool, Error> {
-        match self.queue.job_expires_at(&self.id).await? {
-            Some(e) => Ok(e == self.expires),
-            None => Ok(false),
-        }
     }
 }
 
