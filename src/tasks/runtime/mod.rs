@@ -1,14 +1,23 @@
 //! Read events from the queues and execute tasks
 
-use std::sync::atomic::AtomicU64;
+use std::sync::{atomic::AtomicU64, Arc};
 
+use async_trait::async_trait;
 use tokio::task::JoinHandle;
 
-use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
+use crate::{
+    database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer,
+    queues::QueueJobProcessor,
+};
 
-use super::inputs::queue::InputQueue;
+use super::{
+    inputs::{queue::InputQueue, InputInvocation},
+    Task,
+};
 
-pub struct TaskExecutor {
+pub struct TaskExecutor(Arc<TaskExecutorInner>);
+
+pub struct TaskExecutorInner {
     pg_pool: PostgresPool,
     queue: InputQueue,
 }
@@ -26,16 +35,38 @@ impl TaskExecutor {
         // Start the event queue reader.
         let queue = super::inputs::queue::new(config.redis_pool);
 
-        queue.start_dequeuer_loop(
-            config.shutdown,
-            None,
-            None,
-            |id, data: &Box<serde_json::value::RawValue>| async move { Ok::<(), Error>(()) },
-        );
-
-        Ok(TaskExecutor {
+        let executor = TaskExecutor(Arc::new(TaskExecutorInner {
             pg_pool: config.pg_pool,
             queue,
-        })
+        }));
+
+        executor
+            .0
+            .queue
+            .start_dequeuer_loop(config.shutdown, None, None, executor.clone());
+
+        Ok(executor)
+    }
+}
+
+impl Clone for TaskExecutor {
+    fn clone(&self) -> Self {
+        TaskExecutor(self.0.clone())
+    }
+}
+
+#[async_trait]
+impl QueueJobProcessor for TaskExecutor {
+    type Payload = InputInvocation;
+    async fn process(&self, id: &str, invocation: &InputInvocation) -> Result<(), Error> {
+        Task::apply_input(
+            &self.0.pg_pool,
+            invocation.task_id,
+            invocation.input_id,
+            invocation.task_trigger_id,
+            invocation.payload.clone(),
+        )
+        .await?;
+        Ok(())
     }
 }

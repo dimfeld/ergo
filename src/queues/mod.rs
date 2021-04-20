@@ -1,3 +1,4 @@
+mod dequeuer_loop;
 pub mod job;
 pub mod postgres_drain;
 
@@ -9,8 +10,8 @@ mod job_error;
 mod redis_job_data;
 mod start_work;
 
-pub use self::job::*;
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
+pub use self::{dequeuer_loop::QueueJobProcessor, job::*};
 use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 use std::{
@@ -340,24 +341,21 @@ impl Queue {
         }
     }
 
-    pub fn start_dequeuer_loop<F, Fut, T, R, E>(
+    pub fn start_dequeuer_loop<P, T>(
         &self,
-        mut close: GracefulShutdownConsumer,
+        shutdown: GracefulShutdownConsumer,
         backoff: Option<Box<dyn Backoff + Send>>,
         max_jobs: Option<NonZeroU32>,
-        processor: F,
+        processor: P,
     ) where
-        F: Fn(&str, &T) -> Fut + Send + Sync + Clone + 'static,
-        Fut: Future<Output = Result<R, E>> + Send,
+        P: QueueJobProcessor<Payload = T> + 'static,
         T: DeserializeOwned + Send + Sync + 'static,
-        R: Send + 'static,
-        E: Into<Error> + Send + 'static,
     {
         if self.0.job_dequeuer_task.lock().unwrap().is_some() {
             return;
         }
 
-        let mut backoff = backoff.unwrap_or(Box::new(Queue::default_backoff()));
+        let backoff = backoff.unwrap_or(Box::new(Queue::default_backoff()));
 
         let max_jobs = max_jobs
             .map(|n| n.get() as usize)
@@ -366,75 +364,8 @@ impl Queue {
         let queue = self.clone();
         let (closer_tx, closer_rx) = oneshot::channel::<()>();
 
-        let task = tokio::spawn(async move {
-            let shutdown_fut = close.wait_for_shutdown();
-            tokio::pin!(shutdown_fut);
-            tokio::pin!(closer_rx);
-
-            let mut active_tasks = FuturesUnordered::<JoinHandle<()>>::new();
-            let mut sleep_time = Duration::default();
-
-            loop {
-                let wait_for_task = active_tasks.len() >= max_jobs;
-                let do_backoff = sleep_time > Duration::default();
-                if wait_for_task || do_backoff {
-                    tokio::select! {
-                        biased;
-
-                        _ = &mut shutdown_fut => break,
-                        _ = &mut closer_rx => break,
-                        res = active_tasks.select_next_some(), if wait_for_task => {
-                            if let Err(e) = res {
-                                event!(Level::ERROR, error=%e, "Job task panicked");
-                            }
-                        },
-                        _ = tokio::time::sleep(sleep_time), if do_backoff => {},
-                    };
-                }
-
-                match queue.get_job::<T>().await {
-                    Ok(Some(job)) => {
-                        backoff.reset();
-                        sleep_time = Duration::default();
-
-                        let p = processor.clone();
-                        let queue_name = queue.0.name.clone();
-                        let job_task = tokio::spawn(async move {
-                            match job.process(p).await {
-                                Ok(_) => {}
-                                Err(e) => {
-                                    event!(Level::ERROR, error=%e, job=%job.id, queue=%queue_name, "Job error");
-                                }
-                            };
-                        });
-                        active_tasks.push(job_task);
-                    }
-                    Ok(None) => match backoff.next_backoff() {
-                        Some(next_sleep_time) => {
-                            sleep_time = next_sleep_time;
-                        }
-                        None => break,
-                    },
-                    Err(e) => {
-                        event!(Level::ERROR, error=%e, queue=%queue.0.name, "Error dequeueing job");
-                        match backoff.next_backoff() {
-                            Some(next_sleep_time) => {
-                                sleep_time = next_sleep_time;
-                            }
-                            None => break,
-                        }
-                    }
-                }
-
-                // Make sure we call this periodically so that futures are processed.
-                match active_tasks.next().await {
-                    Some(Err(e)) => {
-                        event!(Level::ERROR, error=%e, "Job task panicked");
-                    }
-                    _ => {}
-                };
-            }
-        });
+        let task =
+            dequeuer_loop::dequeuer_loop(queue, shutdown, closer_rx, backoff, max_jobs, processor);
 
         *self.0.job_dequeuer_task.lock().unwrap() = Some((closer_tx, task));
     }
