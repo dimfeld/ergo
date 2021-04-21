@@ -1,7 +1,13 @@
+pub mod accounts;
+pub mod execute;
 pub mod queue;
+pub mod template;
 
+use fxhash::FxHashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+
+use self::template::TemplateFields;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ActionCategory {
@@ -11,13 +17,11 @@ pub struct ActionCategory {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum ActionExecutor {
-    #[serde(rename = "http")]
-    Http,
-    #[serde(rename = "nomad")]
-    Nomad,
-    #[serde(rename = "input")]
-    Input,
+pub struct Executor {
+    pub executor_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub template_fields: TemplateFields,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -26,9 +30,20 @@ pub struct Action {
     pub action_category_id: i64,
     pub name: String,
     pub description: Option<String>,
-    pub input_schema: Box<serde_json::value::RawValue>,
-    pub executor: ActionExecutor,
-    pub executor_data: Box<serde_json::value::RawValue>,
+    pub executor_id: String,
+    pub executor_template: serde_json::Map<String, serde_json::Value>,
+    pub template_fields: TemplateFields,
+    pub account_required: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TaskAction {
+    pub task_action_id: i64,
+    pub action_id: i64,
+    pub task_id: i64,
+    pub account_id: Option<i64>,
+    pub name: String,
+    pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
