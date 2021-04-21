@@ -63,7 +63,7 @@ impl EventHandler {
                 Ok(ActionInvocation {
                     task_id,
                     task_trigger_id: Some(self.trigger_id),
-                    action_id: def.action_id,
+                    task_action_id: def.task_action_id,
                     payload,
                 })
             })
@@ -147,7 +147,7 @@ impl ActionPayloadBuilder {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ActionInvokeDef {
-    action_id: i64,
+    task_action_id: i64,
     data: ActionPayloadBuilder,
 }
 

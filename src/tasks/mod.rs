@@ -123,7 +123,7 @@ impl Task {
                 if !actions.is_empty() {
                     let q = format!(
                         r##"INSERT INTO action_queue
-                        (task_id, task_trigger_id, action_id, payload)
+                        (task_id, task_trigger_id, task_action_id, payload)
                         VALUES
                         {}
                         "##,
@@ -135,7 +135,7 @@ impl Task {
                         query = query
                             .bind(action.task_id)
                             .bind(action.task_trigger_id)
-                            .bind(action.action_id)
+                            .bind(action.task_action_id)
                             .bind(action.payload);
                     }
 

@@ -45,6 +45,6 @@ pub enum ActionStatus {
 pub struct ActionInvocation {
     pub task_id: i64,
     pub task_trigger_id: Option<i64>,
-    pub action_id: i64,
+    pub task_action_id: i64,
     pub payload: serde_json::Value,
 }
