@@ -80,15 +80,22 @@ pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Re
     }
 
     // 2. Verify that it all matches the action template_fields.
-    template::validate(
+    let action_template_values = template::validate_and_apply(
         "action",
         action.action_id,
         &action.action_template_fields.0,
+        &action.action_executor_template,
         &action_payload,
     )?;
 
-    // 3. Apply the action template payload to the action_template.
-    // 4. Apply the filled-in action template to the executor template.
+    // 3. Apply the filled-in action template to the executor template.
+    let executor_payload = template::validate(
+        "executor",
+        action.executor_id,
+        &action.executor_template_fields.0,
+        &action_template_values,
+    )?;
+
     // 4. Send the executor payload to the executor to actually run it.
 
     Ok(())

@@ -1,7 +1,21 @@
 use std::fmt::Display;
 
 use fxhash::FxHashMap;
+use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
+
+lazy_static! {
+    static ref HANDLEBARS: handlebars::Handlebars<'static> = handlebars::Handlebars::new();
+}
+
+#[derive(Debug, Error)]
+pub enum TemplateError {
+    #[error("{0}")]
+    Validation(#[from] TemplateValidationError),
+    #[error("{0}")]
+    Render(#[from] handlebars::TemplateRenderError),
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TemplateFieldFormat {
@@ -9,6 +23,7 @@ pub enum TemplateFieldFormat {
     StringArray,
     Integer,
     Float,
+    Boolean,
     Object,
     Choice {
         choices: Vec<String>,
@@ -46,6 +61,9 @@ impl TemplateFieldFormat {
             (Self::Choice { choices, max }, Self::StringArray) => {
                 todo!();
             }
+            (Self::Float, Self::String) => todo!(), // Verify can be coerced to a float
+            (Self::Integer, Self::String) => todo!(), // Verify can be coerced to an integer
+            (Self::Boolean, Self::String) => todo!(), // Verify can be coerced to a boolean
             (Self::Float, Self::Integer) => Ok(()),
             (_, actual) => Err(TemplateValidationFailure::Invalid {
                 name: field_name.to_string(),
@@ -58,13 +76,12 @@ impl TemplateFieldFormat {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TemplateField {
-    pub name: String,
     pub format: TemplateFieldFormat,
     pub optional: bool,
     pub description: Option<String>,
 }
 
-pub type TemplateFields = Vec<TemplateField>;
+pub type TemplateFields = FxHashMap<String, TemplateField>;
 
 #[derive(Debug)]
 pub enum TemplateValidationFailure {
@@ -98,7 +115,7 @@ impl Display for TemplateValidationFailure {
 #[derive(Debug)]
 pub struct TemplateValidationError {
     object: &'static str,
-    id: i64,
+    id: String,
     fields: Vec<TemplateValidationFailure>,
 }
 
@@ -136,16 +153,16 @@ impl Display for TemplateValidationError {
 
 pub fn validate(
     object: &'static str,
-    id: i64,
+    id: impl ToString,
     fields: &TemplateFields,
     values: &FxHashMap<String, serde_json::Value>,
-) -> Result<(), TemplateValidationError> {
+) -> Result<(), TemplateError> {
     let errors = fields
         .iter()
-        .filter_map(|field| match (values.get(&field.name), field.optional) {
-            (Some(v), _) => Some(field.format.validate(&field.name, &v)),
+        .filter_map(|(name, field)| match (values.get(name), field.optional) {
+            (Some(v), _) => Some(field.format.validate(name, &v)),
             (None, true) => None,
-            (None, false) => Some(Err(TemplateValidationFailure::Required(field.name.clone()))),
+            (None, false) => Some(Err(TemplateValidationFailure::Required(name.to_string()))),
         })
         .filter_map(|e| match e {
             Ok(_) => None,
@@ -156,10 +173,47 @@ pub fn validate(
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(TemplateValidationError {
+        Err(TemplateError::Validation(TemplateValidationError {
             object,
-            id,
+            id: id.to_string(),
             fields: errors,
-        })
+        }))
     }
+}
+
+pub fn apply_field(
+    template: &serde_json::Value,
+    values: &FxHashMap<String, serde_json::Value>,
+) -> Result<String, handlebars::TemplateRenderError> {
+    match template {
+        serde_json::Value::String(template) => HANDLEBARS.render_template(template, values),
+        s => Ok(s.to_string()),
+    }
+}
+
+pub fn validate_and_apply<'a>(
+    object: &'static str,
+    id: i64,
+    fields: &TemplateFields,
+    template: &'a Vec<(String, serde_json::Value)>,
+    values: &FxHashMap<String, serde_json::Value>,
+) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
+    validate(object, id, fields, values)?;
+    let output = template
+        .iter()
+        .map(|(name, field_template)| {
+            apply_field(field_template, values).map(|rendered| {
+                let trimmed = rendered.trim();
+                let result = if trimmed.len() == rendered.len() {
+                    rendered
+                } else {
+                    trimmed.to_string()
+                };
+
+                (name.to_string(), serde_json::Value::String(result))
+            })
+        })
+        .collect::<Result<FxHashMap<_, _>, _>>()?;
+
+    Ok(output)
 }

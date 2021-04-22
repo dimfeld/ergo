@@ -1,6 +1,6 @@
 use std::str::ParseBoolError;
 
-use crate::tasks::{actions::template::TemplateValidationError, StateMachineError};
+use crate::tasks::{actions::template::TemplateError, StateMachineError};
 use actix_web::{http::StatusCode, HttpResponse};
 use thiserror::Error;
 
@@ -69,7 +69,7 @@ pub enum Error {
     StringError(String),
 
     #[error(transparent)]
-    TemplateValidationError(#[from] TemplateValidationError),
+    TemplateError(#[from] TemplateError),
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
