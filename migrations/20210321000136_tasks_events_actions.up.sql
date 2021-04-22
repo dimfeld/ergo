@@ -77,7 +77,6 @@ CREATE TABLE actions (
   action_category_id bigint not null references action_categories,
   name text not null,
   description text,
-  input_schema jsonb not null,
   executor_id text not null references executors,
   executor_template jsonb not null,
   template_fields jsonb not null,
