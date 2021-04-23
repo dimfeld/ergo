@@ -1,7 +1,7 @@
 use crate::{database::PostgresPool, error::Error};
 
 use super::{
-    execute::Executor,
+    execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
 use async_trait::async_trait;
@@ -65,7 +65,7 @@ impl Executor for HttpExecutor {
         &self,
         pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ExecutorError> {
         Ok(())
     }
 
