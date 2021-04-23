@@ -3,6 +3,9 @@ pub mod execute;
 pub mod queue;
 pub mod template;
 
+mod http_executor;
+mod raw_command_executor;
+
 use fxhash::FxHashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};

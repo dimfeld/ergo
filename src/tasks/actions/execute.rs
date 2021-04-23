@@ -1,7 +1,9 @@
 use std::collections::hash_map::RandomState;
 
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use fxhash::{FxBuildHasher, FxHashMap};
+use lazy_static::lazy_static;
 use sqlx::{types::Json, Postgres};
 
 use crate::{database::PostgresPool, error::Error};
@@ -10,6 +12,27 @@ use super::{
     template::{self, TemplateFields},
     ActionInvocation,
 };
+
+#[async_trait]
+pub trait Executor: std::fmt::Debug + Send + Sync {
+    async fn execute(
+        &self,
+        pg_pool: PostgresPool,
+        payload: FxHashMap<String, serde_json::Value>,
+    ) -> Result<(), Error>;
+}
+
+lazy_static! {
+    static ref EXECUTOR_REGISTRY: FxHashMap<String, Box<dyn Executor>> = {
+        vec![
+            super::http_executor::HttpExecutor::new(),
+            super::raw_command_executor::RawCommandExecutor::new(),
+        ]
+        .into_iter()
+        .map(|(name, ex)| (name.to_string(), ex))
+        .collect::<FxHashMap<String, Box<dyn Executor>>>()
+    };
+}
 
 #[derive(Debug, sqlx::FromRow)]
 struct ExecuteActionData {
@@ -27,7 +50,7 @@ struct ExecuteActionData {
 }
 
 pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Result<(), Error> {
-    let action: ExecuteActionData = sqlx::query_as(
+    let mut action: ExecuteActionData = sqlx::query_as(
         r##"SELECT
         executor_id,
         executors.template_fields as executor_template_fields,
@@ -73,7 +96,7 @@ pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Re
         }
     }
 
-    if let Some(account_fields) = action.account_fields {
+    if let Some(account_fields) = std::mem::take(&mut action.account_fields) {
         for (k, v) in account_fields.0 {
             action_payload.insert(k, v);
         }
@@ -88,15 +111,22 @@ pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Re
         &action_payload,
     )?;
 
-    // 3. Apply the filled-in action template to the executor template.
-    let executor_payload = template::validate(
+    // 3. Make sure the resulting template matches what the executor expects.
+    template::validate(
         "executor",
-        action.executor_id,
+        &action.executor_id,
         &action.executor_template_fields.0,
         &action_template_values,
     )?;
 
     // 4. Send the executor payload to the executor to actually run it.
+    let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
+        Error::StringError(format!("No code for executor {}", action.executor_id))
+    })?;
+
+    executor
+        .execute(pg_pool.clone(), action_template_values)
+        .await?;
 
     Ok(())
 }
