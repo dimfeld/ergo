@@ -184,11 +184,41 @@ pub fn validate(
 pub fn apply_field(
     template: &serde_json::Value,
     values: &FxHashMap<String, serde_json::Value>,
-) -> Result<String, handlebars::TemplateRenderError> {
-    match template {
-        serde_json::Value::String(template) => HANDLEBARS.render_template(template, values),
-        s => Ok(s.to_string()),
-    }
+) -> Result<serde_json::Value, handlebars::TemplateRenderError> {
+    let result = match template {
+        serde_json::Value::String(template) => {
+            let rendered = HANDLEBARS.render_template(template, values)?;
+
+            let trimmed = rendered.trim();
+            let result = if trimmed.len() == rendered.len() {
+                rendered
+            } else {
+                trimmed.to_string()
+            };
+
+            serde_json::Value::String(result)
+        }
+        serde_json::Value::Array(template) => {
+            let output_array = template
+                .iter()
+                .map(|t| apply_field(t, values))
+                .collect::<Result<Vec<_>, _>>()?;
+            serde_json::Value::Array(output_array)
+        }
+        serde_json::Value::Object(o) => {
+            let output_object = o
+                .iter()
+                .map(|(k, v)| {
+                    let mapped_value = apply_field(v, values)?;
+                    Ok::<_, handlebars::TemplateRenderError>((k.clone(), mapped_value))
+                })
+                .collect::<Result<serde_json::Map<String, _>, _>>()?;
+            serde_json::Value::Object(output_object)
+        }
+        s => s.clone(),
+    };
+
+    Ok(result)
 }
 
 pub fn validate_and_apply<'a>(
@@ -202,16 +232,7 @@ pub fn validate_and_apply<'a>(
     let output = template
         .iter()
         .map(|(name, field_template)| {
-            apply_field(field_template, values).map(|rendered| {
-                let trimmed = rendered.trim();
-                let result = if trimmed.len() == rendered.len() {
-                    rendered
-                } else {
-                    trimmed.to_string()
-                };
-
-                (name.to_string(), serde_json::Value::String(result))
-            })
+            apply_field(field_template, values).map(|rendered| (name.to_string(), rendered))
         })
         .collect::<Result<FxHashMap<_, _>, _>>()?;
 
