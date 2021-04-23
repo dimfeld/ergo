@@ -36,8 +36,7 @@ GRANT SELECT ON inputs_log TO ergo_web;
 CREATE TABLE executors (
   executor_id text primary key,
   name text not null,
-  description text,
-  template_fields jsonb not null
+  description text
 );
 
 CREATE TABLE action_categories (

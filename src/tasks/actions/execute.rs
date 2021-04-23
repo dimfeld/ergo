@@ -18,8 +18,11 @@ pub trait Executor: std::fmt::Debug + Send + Sync {
     async fn execute(
         &self,
         pg_pool: PostgresPool,
-        payload: FxHashMap<String, serde_json::Value>,
+        template_values: FxHashMap<String, serde_json::Value>,
     ) -> Result<(), Error>;
+
+    /// Returns the template fields for the executor
+    fn template_fields(&self) -> &TemplateFields;
 }
 
 lazy_static! {
@@ -37,7 +40,6 @@ lazy_static! {
 #[derive(Debug, sqlx::FromRow)]
 struct ExecuteActionData {
     executor_id: String,
-    executor_template_fields: Json<TemplateFields>,
     action_id: i64,
     action_name: String,
     action_executor_template: Json<Vec<(String, serde_json::Value)>>,
@@ -53,7 +55,6 @@ pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Re
     let mut action: ExecuteActionData = sqlx::query_as(
         r##"SELECT
         executor_id,
-        executors.template_fields as executor_template_fields,
         action_id,
         actions.name as action_name,
         actions.executor_template as action_executor_template,
@@ -74,6 +75,10 @@ pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Re
     .bind(invocation.task_action_id)
     .fetch_one(pg_pool)
     .await?;
+
+    let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
+        Error::StringError(format!("No code for executor {}", action.executor_id))
+    })?;
 
     if action.account_required && action.account_id.is_none() {
         // TODO Real Error
@@ -115,15 +120,11 @@ pub async fn execute(pg_pool: &PostgresPool, invocation: ActionInvocation) -> Re
     template::validate(
         "executor",
         &action.executor_id,
-        &action.executor_template_fields.0,
+        executor.template_fields(),
         &action_template_values,
     )?;
 
     // 4. Send the executor payload to the executor to actually run it.
-    let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
-        Error::StringError(format!("No code for executor {}", action.executor_id))
-    })?;
-
     executor
         .execute(pg_pool.clone(), action_template_values)
         .await?;
