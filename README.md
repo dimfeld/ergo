@@ -48,7 +48,7 @@ This project is in very early stages right now with no current plans for proper 
 
 - [X] Events can be triggered by REST endpoint
 - [ ] Tasks consists of one event that triggers one or more actions
-- [ ] Actions can run local scripts
+- [X] Actions can run local scripts
 - [ ] Log everything that happens
 - [X] Events go into a queue for processing
 - [X] Actions are triggered from a queue
