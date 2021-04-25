@@ -4,6 +4,7 @@ pub mod database;
 pub mod error;
 pub mod graceful_shutdown;
 pub mod queues;
+pub mod scripting;
 pub mod service_config;
 pub mod tasks;
 pub mod tracing_config;
