@@ -6,6 +6,8 @@ use super::{
 };
 use async_trait::async_trait;
 use fxhash::FxHashMap;
+use serde_json::json;
+use std::process::Stdio;
 
 #[derive(Debug)]
 pub struct RawCommandExecutor {
@@ -57,13 +59,15 @@ impl Executor for RawCommandExecutor {
         &self,
         pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
-    ) -> Result<(), ExecutorError> {
+    ) -> Result<serde_json::Value, ExecutorError> {
         let command = get_primitive_payload_value(&payload, "command", false)?;
 
         let mut cmd = tokio::process::Command::new(command.as_ref());
 
         // Don't leak our environment, which may contain secrets, to other commands.
         cmd.env_clear();
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
 
         if let Some(args) = payload.get("args") {
             match args {
@@ -89,16 +93,32 @@ impl Executor for RawCommandExecutor {
             }
         }
 
-        cmd.spawn()
-            .map_err(|e| ExecutorError::CommandError(e.into()))?
-            .wait()
+        let output = cmd
+            .output()
             .await
-            .map_err(|e| ExecutorError::CommandError(e.into()))?;
+            .map_err(|e| ExecutorError::CommandError {
+                source: e.into(),
+                result: json!(null),
+            })?;
 
-        Ok(())
+        Ok(json!({
+            "exitcode": output.status.to_string(),
+            "stdout": String::from_utf8_lossy(&output.stdout),
+            "stderr": String::from_utf8_lossy(&output.stderr),
+        }))
     }
 
     fn template_fields(&self) -> &TemplateFields {
         &self.template_fields
     }
+}
+
+mod tests {
+    use super::*;
+
+    // #[tokio::test]
+    // fn test_basic_command() {
+    //     let (_, exec) = RawCommandExecutor::new();
+    //     let result = exec.execute(pg_pool, args).await;
+    // }
 }

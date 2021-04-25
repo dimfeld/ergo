@@ -6,6 +6,7 @@ use super::{
 };
 use async_trait::async_trait;
 use fxhash::FxHashMap;
+use serde_json::json;
 
 #[derive(Debug)]
 pub struct HttpExecutor {
@@ -65,8 +66,8 @@ impl Executor for HttpExecutor {
         &self,
         pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
-    ) -> Result<(), ExecutorError> {
-        Ok(())
+    ) -> Result<serde_json::Value, ExecutorError> {
+        Ok(json!(null))
     }
 
     fn template_fields(&self) -> &TemplateFields {

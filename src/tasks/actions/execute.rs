@@ -70,8 +70,11 @@ pub enum ExecutorError {
         expected: String,
     },
 
-    #[error("Error during command execution: {0}")]
-    CommandError(#[from] anyhow::Error),
+    #[error("Error during command execution: {source}")]
+    CommandError {
+        source: anyhow::Error,
+        result: serde_json::Value,
+    },
 }
 
 #[derive(Debug, Error)]
@@ -107,7 +110,7 @@ pub trait Executor: std::fmt::Debug + Send + Sync {
         &self,
         pg_pool: PostgresPool,
         template_values: FxHashMap<String, serde_json::Value>,
-    ) -> Result<(), ExecutorError>;
+    ) -> Result<serde_json::Value, ExecutorError>;
 
     /// Returns the template fields for the executor
     fn template_fields(&self) -> &TemplateFields;
@@ -219,7 +222,7 @@ pub async fn execute(
     )?;
 
     // 4. Send the executor payload to the executor to actually run it.
-    executor
+    let results = executor
         .execute(pg_pool.clone(), action_template_values)
         .await
         .map_err(|e| ExecuteError::ExecuteError {
@@ -227,6 +230,8 @@ pub async fn execute(
             action_id: action.action_id,
             error: e,
         })?;
+
+    // 5. Write results to the action log. Retry on failure.
 
     Ok(())
 }
