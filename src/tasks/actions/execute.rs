@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, Postgres};
 use thiserror::Error;
 
@@ -128,12 +129,19 @@ lazy_static! {
     };
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "t", content = "c")]
+pub enum ScriptOrTemplate {
+    Template(Vec<(String, serde_json::Value)>),
+    // Script(String),
+}
+
 #[derive(Debug, sqlx::FromRow)]
 struct ExecuteActionData {
     executor_id: String,
     action_id: i64,
     action_name: String,
-    action_executor_template: Json<Vec<(String, serde_json::Value)>>,
+    action_executor_template: Json<ScriptOrTemplate>,
     action_template_fields: Json<TemplateFields>,
     account_required: bool,
     task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
@@ -179,7 +187,6 @@ pub async fn execute(
     })?;
 
     if action.account_required && action.account_id.is_none() {
-        // TODO Real Error
         return Err(ExecuteError::AccountRequired {
             action_name: action.action_name,
         });
@@ -211,13 +218,15 @@ pub async fn execute(
     }
 
     // 2. Verify that it all matches the action template_fields.
-    let action_template_values = template::validate_and_apply(
-        "action",
-        action.action_id,
-        &action.action_template_fields.0,
-        &action.action_executor_template,
-        &action_payload,
-    )?;
+    let action_template_values = match &action.action_executor_template.0 {
+        ScriptOrTemplate::Template(t) => template::validate_and_apply(
+            "action",
+            action.action_id,
+            &action.action_template_fields.0,
+            t,
+            &action_payload,
+        )?,
+    };
 
     // 3. Make sure the resulting template matches what the executor expects.
     template::validate(
