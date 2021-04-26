@@ -87,7 +87,7 @@ async fn main() -> Result<(), ergo::error::Error> {
             CookieIdentityPolicy::new(&cookie_signing_key)
                 .http_only(true)
                 .secure(true)
-                .same_site(cookie::SameSite::Strict),
+                .same_site(actix_web::cookie::SameSite::Strict),
         );
 
         App::new()
