@@ -5,6 +5,7 @@ use crate::{
     error::Error,
     queues::postgres_drain,
     service_config::Config,
+    vault::VaultClientTokenData,
 };
 
 use actix_identity::Identity;
@@ -74,15 +75,12 @@ pub struct BackendAppState {
 
 pub type BackendAppStateData = Data<BackendAppState>;
 
-pub fn app_data(config: Config) -> Result<BackendAppStateData, Error> {
+pub fn app_data(config: Config<impl VaultClientTokenData>) -> Result<BackendAppStateData, Error> {
     let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
         max_connections: 16,
         host: config.database_host,
         database: config.database.unwrap_or_else(|| "ergo".to_string()),
-        role: config
-            .database_role
-            .unwrap_or_else(|| "ergo_backend".to_string()),
-        vault_client: config.vault_client,
+        auth: config.database_auth,
         shutdown: config.shutdown.clone(),
     })?;
 

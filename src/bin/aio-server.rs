@@ -13,7 +13,9 @@ use std::{
 use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
-use ergo::{graceful_shutdown::GracefulShutdown, tasks, web_app_server};
+use ergo::{
+    database::VaultPostgresPoolAuth, graceful_shutdown::GracefulShutdown, tasks, web_app_server,
+};
 
 #[actix_web::main]
 async fn main() -> Result<(), ergo::error::Error> {
@@ -24,19 +26,8 @@ async fn main() -> Result<(), ergo::error::Error> {
 
     let shutdown = GracefulShutdown::new();
 
-    let vault_address =
-        env::var("VAULT_ADDR").unwrap_or_else(|_| "http://localhost:8200".to_string());
-    let vault_role_id = env::var("VAULT_ROLE_ERGO_AIO_SERVER_ID")
-        .expect("VAULT_ROLE_ERGO_AIO_SERVER_ID is required");
-    let vault_secret_id = env::var("VAULT_ROLE_ERGO_AIO_SERVER_SECRET")
-        .expect("VAULT_ROLE_ERGO_AIO_SERVER_SECRET is required");
-    let vault_client =
-        VaultClient::new_app_role(vault_address, vault_role_id, Some(vault_secret_id))
-            .expect("Creating vault client");
-
-    let vault_client = Arc::new(RwLock::new(vault_client));
-    tracing::info!("{:?}", vault_client);
-    ergo::vault::refresh_vault_client(vault_client.clone(), shutdown.consumer());
+    let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown);
+    let auth = tracing::info!("{:?}", vault_client);
 
     let address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("BIND_PORT")
@@ -44,16 +35,15 @@ async fn main() -> Result<(), ergo::error::Error> {
         .unwrap_or(Ok(6543))
         .expect("PORT");
     let web_config = ergo::service_config::Config {
-        vault_client: vault_client.clone(),
+        database_auth: VaultPostgresPoolAuth::from_env(&vault_client, "WEB", "ergo_web")?,
         database: env::var("DATABASE").ok(),
         database_host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string()),
-        database_role: env::var("DATABASE_ROLE_WEB").ok(),
         redis_host: env::var("REDIS_HOST").expect("REDIS_HOST is required"),
         shutdown: shutdown.consumer(),
     };
 
     let backend_config = ergo::service_config::Config {
-        database_role: env::var("DATABASE_ROLE_BACKEND").ok(),
+        database_auth: VaultPostgresPoolAuth::from_env(&vault_client, "BACKEND", "ergo_backend")?,
         ..web_config.clone()
     };
 

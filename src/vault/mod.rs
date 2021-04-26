@@ -1,7 +1,8 @@
-use crate::graceful_shutdown::GracefulShutdownConsumer;
-use hashicorp_vault::client::VaultClient;
+use crate::graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer};
+use hashicorp_vault::client::{TokenData, VaultClient};
 use serde::de::DeserializeOwned;
 use std::{
+    env,
     sync::{Arc, RwLock},
     time::Duration,
 };
@@ -11,6 +12,10 @@ use tracing::{event, Level};
 pub type SharedVaultClient<T> = Arc<RwLock<VaultClient<T>>>;
 pub type TokenAuthVaultClient = SharedVaultClient<hashicorp_vault::client::TokenData>;
 pub type AppRoleVaultClient = SharedVaultClient<()>;
+
+pub trait VaultClientTokenData: std::fmt::Debug + DeserializeOwned + Send + Sync + 'static {}
+impl VaultClientTokenData for TokenData {}
+impl VaultClientTokenData for () {}
 
 async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
     client: SharedVaultClient<T>,
@@ -56,9 +61,31 @@ async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
     }
 }
 
-pub fn refresh_vault_client<T: 'static + DeserializeOwned + Send + Sync>(
+fn refresh_vault_client<T: 'static + DeserializeOwned + Send + Sync>(
     client: SharedVaultClient<T>,
     shutdown: GracefulShutdownConsumer,
 ) -> JoinHandle<()> {
     tokio::spawn(vault_client_renew_loop(client, shutdown))
+}
+
+pub fn from_env(env_name: &str, shutdown: &GracefulShutdown) -> Option<AppRoleVaultClient> {
+    let vault_address =
+        env::var("VAULT_ADDR").unwrap_or_else(|_| "http://localhost:8200".to_string());
+    let vault_role_id_env = format!("VAULT_ROLE_ERGO_{}_ID", env_name);
+    let vault_secret_id_env = format!("VAULT_ROLE_ERGO_{}_SECRET", env_name);
+
+    let vault_role_id = env::var(&vault_role_id_env);
+    let vault_secret_id = env::var(&vault_secret_id_env);
+
+    match (vault_role_id, vault_secret_id) {
+        (Ok(vault_role_id), Ok(vault_secret_id)) => {
+            let client =
+                VaultClient::new_app_role(vault_address, vault_role_id, Some(vault_secret_id))
+                    .expect("Creating vault client");
+            let client = Arc::new(RwLock::new(client));
+            refresh_vault_client(client.clone(), shutdown.consumer());
+            Some(client)
+        }
+        _ => None,
+    }
 }

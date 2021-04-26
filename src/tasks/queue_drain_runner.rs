@@ -6,6 +6,7 @@ use crate::{
     error::Error,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
     service_config::Config,
+    vault::VaultClientTokenData,
 };
 
 use serde::Serialize;
@@ -22,15 +23,12 @@ pub struct AllQueuesDrainStats {
 }
 
 impl AllQueuesDrain {
-    pub fn new(config: Config) -> Result<AllQueuesDrain, Error> {
+    pub fn new(config: Config<impl VaultClientTokenData>) -> Result<AllQueuesDrain, Error> {
         let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
             max_connections: 16,
             host: config.database_host,
             database: config.database.unwrap_or_else(|| "ergo".to_string()),
-            role: config
-                .database_role
-                .unwrap_or_else(|| "ergo_backend".to_string()),
-            vault_client: config.vault_client,
+            auth: config.database_auth,
             shutdown: config.shutdown.clone(),
         })?;
 

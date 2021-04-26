@@ -1,10 +1,17 @@
-use crate::{error::Error, vault::SharedVaultClient};
+use crate::{
+    error::Error,
+    vault::{SharedVaultClient, VaultClientTokenData},
+};
 use deadpool::managed::Pool;
 use derivative::Derivative;
 use hashicorp_vault::client::VaultClient;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    env,
+    fmt::Debug,
+    sync::{Arc, RwLock},
+};
 
 mod conn_executor;
 mod connection_manager;
@@ -14,24 +21,63 @@ pub mod transaction;
 use connection_manager::{Manager, WrappedConnection};
 
 pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
-pub type PostgresPool = VaultPostgresPool<()>;
+pub type PostgresPool = VaultPostgresPool;
 
-pub struct VaultPostgresPoolOptions<T: DeserializeOwned + Send + Sync> {
+#[derive(Clone, Debug)]
+pub enum VaultPostgresPoolAuth<T: VaultClientTokenData> {
+    Vault {
+        client: SharedVaultClient<T>,
+        role: String,
+    },
+    Password {
+        username: String,
+        password: String,
+    },
+}
+
+impl<T: VaultClientTokenData> VaultPostgresPoolAuth<T> {
+    pub fn from_env(
+        vault_client: &Option<SharedVaultClient<T>>,
+        database_role_env_name: &str,
+        default_vault_role: &str,
+    ) -> Result<Self, Error> {
+        if let Some(client) = vault_client {
+            let db_role_env = env::var(&format!("DATABASE_ROLE_{}", database_role_env_name))
+                .unwrap_or_else(|_| default_vault_role.to_string());
+            return Ok(Self::Vault {
+                client: client.clone(),
+                role: db_role_env,
+            });
+        }
+
+        let db_username_env = format!("DATABASE_ROLE_{}_USERNAME", database_role_env_name);
+        let db_password_env = format!("DATABASE_ROLE_{}_PASSWORD", database_role_env_name);
+        let db_username = env::var(&db_username_env);
+        let db_password = env::var(&db_password_env);
+
+        match (db_username, db_password) {
+            (Ok(username), Ok(password)) => Ok(Self::Password{username, password}),
+            _ =>
+                Err(Error::ConfigError(format!("Environment must have Vault AppRole configuration (VAULT_* env) or Fixed database credentials ({}, {}) settings, but not both",
+                    db_username_env, db_password_env
+                ))),
+        }
+    }
+}
+
+pub struct VaultPostgresPoolOptions<T: VaultClientTokenData> {
     pub max_connections: usize,
     pub host: String,
     pub database: String,
-    pub role: String,
-    pub vault_client: SharedVaultClient<T>,
+    pub auth: VaultPostgresPoolAuth<T>,
     pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
 }
 
 #[derive(Derivative)]
 #[derivative(Debug = "transparent")]
-pub struct VaultPostgresPool<T: 'static + DeserializeOwned + Send + Sync>(
-    Arc<VaultPostgresPoolInner<T>>,
-);
+pub struct VaultPostgresPool(Arc<VaultPostgresPoolInner>);
 
-impl<T: 'static + DeserializeOwned + Send + Sync> Clone for VaultPostgresPool<T> {
+impl Clone for VaultPostgresPool {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
@@ -46,8 +92,8 @@ fn debug_format_pool(
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-struct VaultPostgresPoolInner<T: 'static + DeserializeOwned + Send + Sync> {
-    manager: Arc<Manager<VaultClient<T>>>,
+struct VaultPostgresPoolInner {
+    manager: Arc<Manager>,
     #[derivative(Debug(format_with = "debug_format_pool"))]
     pool: Pool<WrappedConnection, Error>,
 }
@@ -59,17 +105,18 @@ fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
     }
 }
 
-impl<T: 'static + DeserializeOwned + Send + Sync> VaultPostgresPool<T> {
-    pub fn new(config: VaultPostgresPoolOptions<T>) -> Result<VaultPostgresPool<T>, Error> {
+impl VaultPostgresPool {
+    pub fn new<T: VaultClientTokenData>(
+        config: VaultPostgresPoolOptions<T>,
+    ) -> Result<VaultPostgresPool, Error> {
         let VaultPostgresPoolOptions {
             max_connections,
             host,
             database,
-            role,
-            vault_client,
+            auth,
             shutdown,
         } = config;
-        let manager = Manager::new(vault_client, shutdown, host, database, role)?;
+        let manager = Manager::new(auth, shutdown, host, database)?;
 
         let pool = VaultPostgresPoolInner {
             manager: manager.clone(),

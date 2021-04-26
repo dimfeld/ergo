@@ -6,6 +6,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("Configuration Error: {0}")]
+    ConfigError(String),
+
     #[error("Authentication failure")]
     AuthenticationError,
     #[error("Unauthorized")]
@@ -62,7 +65,7 @@ pub enum Error {
     #[error("Unable to execute serializable transaction")]
     SerializationFailure,
 
-    #[error("{0}")]
+    #[error(transparent)]
     ParseBool(#[from] ParseBoolError),
 
     #[error("{0}")]

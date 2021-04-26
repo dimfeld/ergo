@@ -280,5 +280,31 @@ fn prepare_invocation(
 }
 
 mod tests {
+    use super::*;
+    use async_trait::async_trait;
+    use serde_json::{json, Value};
+
+    #[derive(Debug)]
+    struct MockExecutor {
+        template_fields: TemplateFields,
+        return_value: serde_json::Value,
+    }
+
+    #[async_trait]
+    impl Executor for MockExecutor {
+        async fn execute(
+            &self,
+            pg_pool: PostgresPool,
+            template_values: FxHashMap<String, Value>,
+        ) -> Result<Value, ExecutorError> {
+            todo!()
+        }
+
+        fn template_fields(&self) -> &TemplateFields {
+            &self.template_fields
+        }
+    }
+
+    #[test]
     fn test_simple() {}
 }

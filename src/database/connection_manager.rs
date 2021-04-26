@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
 use derivative::Derivative;
-use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultResponse};
+use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultDuration, VaultResponse};
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{Connection, PgConnection};
 use std::{
@@ -10,29 +10,76 @@ use std::{
 };
 use tracing::{event, span, Level};
 
-use super::Error;
-use crate::graceful_shutdown::GracefulShutdownConsumer;
+use super::{Error, VaultPostgresPoolAuth};
+use crate::{graceful_shutdown::GracefulShutdownConsumer, vault::VaultClientTokenData};
 
 pub trait PostgresAuthRenewer: 'static + Send + Sync {
-    fn renew_lease(&self, lease_id: impl Into<String>) -> Result<VaultResponse<()>, Error>;
+    fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error>;
     fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error>;
 }
 
-impl<T: 'static + DeserializeOwned + Send + Sync> PostgresAuthRenewer for VaultClient<T> {
-    fn renew_lease(&self, lease_id: impl Into<String>) -> Result<VaultResponse<()>, Error> {
-        VaultClient::renew_lease(self, lease_id, None).map_err(Error::from)
+impl<T: 'static + DeserializeOwned + Send + Sync> PostgresAuthRenewer
+    for Arc<RwLock<VaultClient<T>>>
+{
+    fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
+        self.read()
+            .unwrap()
+            .renew_lease(lease_id, None)
+            .map_err(Error::from)
     }
 
     fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
-        self.get_secret_engine_creds::<PostgresqlLogin>("database", role)
+        self.read()
+            .unwrap()
+            .get_secret_engine_creds::<PostgresqlLogin>("database", role)
             .map_err(Error::from)
+    }
+}
+
+/// An auth manager that only ever returns the same auth info that it was intialized with.
+/// Used when running a system without Vault.
+#[derive(Debug)]
+struct FixedAuth {
+    username: String,
+    password: String,
+}
+
+impl PostgresAuthRenewer for FixedAuth {
+    fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
+        Ok(VaultResponse {
+            request_id: String::new(),
+            lease_id: None,
+            renewable: Some(false),
+            lease_duration: Some(VaultDuration::days(10000000)),
+            data: None,
+            warnings: None,
+            auth: None,
+            wrap_info: None,
+        })
+    }
+
+    fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
+        Ok(VaultResponse {
+            request_id: String::new(),
+            lease_id: None,
+            renewable: Some(false),
+            // Never expires
+            lease_duration: Some(VaultDuration::days(10000000)),
+            data: Some(PostgresqlLogin {
+                username: self.username.clone(),
+                password: self.password.clone(),
+            }),
+            warnings: None,
+            auth: None,
+            wrap_info: None,
+        })
     }
 }
 
 pub type SharedRenewer<T> = Arc<RwLock<T>>;
 
-async fn refresh_loop<T: PostgresAuthRenewer>(
-    manager: Arc<Manager<T>>,
+async fn refresh_loop(
+    manager: Arc<Manager>,
     mut shutdown: GracefulShutdownConsumer,
     initial_renewable: Option<String>,
     initial_lease_duration: std::time::Duration,
@@ -79,10 +126,10 @@ pub struct ManagerStats {
 
 #[derive(Derivative)]
 #[derivative(Debug)]
-pub(crate) struct Manager<RENEWER: PostgresAuthRenewer> {
+pub(crate) struct Manager {
     connection_string: RwLock<String>,
     #[derivative(Debug = "ignore")]
-    vault_client: Arc<RwLock<RENEWER>>,
+    renewer: Box<dyn PostgresAuthRenewer>,
 
     host: String,
     database: String,
@@ -92,14 +139,13 @@ pub(crate) struct Manager<RENEWER: PostgresAuthRenewer> {
     pub stats: tokio::sync::watch::Receiver<ManagerStats>,
 }
 
-impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
-    pub(crate) fn new(
-        vault_client: SharedRenewer<RENEWER>,
+impl Manager {
+    pub(crate) fn new<T: VaultClientTokenData>(
+        auth_method: VaultPostgresPoolAuth<T>,
         shutdown: GracefulShutdownConsumer,
         host: String,
         database: String,
-        role: String,
-    ) -> Result<Arc<Manager<RENEWER>>, Error> {
+    ) -> Result<Arc<Manager>, Error> {
         let (stats_sender, stats_receiver) = tokio::sync::watch::channel(ManagerStats {
             update_successes: 0,
             update_failures: 0,
@@ -107,9 +153,16 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
             renew_failures: 0,
         });
 
+        let (renewer, role): (Box<dyn PostgresAuthRenewer>, String) = match auth_method {
+            VaultPostgresPoolAuth::Vault { client, role } => (Box::new(client), role),
+            VaultPostgresPoolAuth::Password { username, password } => {
+                (Box::new(FixedAuth { username, password }), String::new())
+            }
+        };
+
         let manager = Manager {
             connection_string: RwLock::new(String::new()),
-            vault_client,
+            renewer,
             host,
             database,
             role,
@@ -121,6 +174,7 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
         let (renewable, duration) = manager.refresh_auth(None)?;
 
         let manager_ptr = Arc::new(manager);
+
         tokio::task::spawn(refresh_loop(
             manager_ptr.clone(),
             shutdown,
@@ -153,7 +207,7 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
 
         if let Some(lease_id) = renew_lease_id {
             event!(Level::INFO, "Refreshing renewable lease");
-            match self.vault_client.read().unwrap().renew_lease(lease_id) {
+            match self.renewer.renew_lease(lease_id) {
                 Ok(auth) => {
                     stats.renew_successes += 1;
                     self.stats_sender.send(stats).ok();
@@ -180,7 +234,7 @@ impl<RENEWER: PostgresAuthRenewer> Manager<RENEWER> {
         }
 
         event!(Level::INFO, "Fetching new credentials");
-        let auth = match self.vault_client.read().unwrap().get_lease(&self.role) {
+        let auth = match self.renewer.get_lease(&self.role) {
             Ok(data) => {
                 stats.update_successes += 1;
                 self.stats_sender.send(stats).ok();
@@ -247,9 +301,7 @@ impl DerefMut for WrappedConnection {
 // }
 
 #[async_trait]
-impl<T: PostgresAuthRenewer> deadpool::managed::Manager<WrappedConnection, Error>
-    for Arc<Manager<T>>
-{
+impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
     async fn create(&self) -> Result<WrappedConnection, Error> {
         let this_str = { self.connection_string.read().unwrap().clone() };
         let conn = sqlx::PgConnection::connect(&this_str).await?;
@@ -280,7 +332,7 @@ impl<T: PostgresAuthRenewer> deadpool::managed::Manager<WrappedConnection, Error
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::VaultPostgresPoolAuth, *};
     use hashicorp_vault::client::VaultDuration;
     use std::time::Duration;
 
@@ -389,7 +441,7 @@ mod tests {
         }));
 
         let m = Manager::new(
-            vault_client.clone(),
+            VaultPostgresPoolAuth::Value(vault_client.clone()),
             shutdown.consumer(),
             "host".to_string(),
             "database".to_string(),

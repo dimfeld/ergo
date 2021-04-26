@@ -16,8 +16,7 @@ use super::VaultPostgresPool;
 // This is modified from the Pool Executor implementation in sqlx.
 // Currently disabled until I figure out some lifetime problems.
 
-impl<'p, T: 'static + DeserializeOwned + std::fmt::Debug + Send + Sync> Executor<'p>
-    for &'_ VaultPostgresPool<T>
+impl<'p> Executor<'p> for &'_ VaultPostgresPool
 where
     for<'c> &'c mut PgConnection: Executor<'c, Database = Postgres>,
 {
