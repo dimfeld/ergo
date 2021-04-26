@@ -79,27 +79,39 @@ pub enum ExecutorError {
 }
 
 #[derive(Debug, Error)]
-pub enum ExecuteError {
+#[error("Action {task_action_name} ({task_action_id}): {error}")]
+pub struct ExecuteError {
+    task_action_id: i64,
+    task_action_name: String,
+    error: ExecuteErrorSource,
+}
+
+impl ExecuteError {
+    fn from_action_and_error(
+        action: &ExecuteActionData,
+        error: impl Into<ExecuteErrorSource>,
+    ) -> Self {
+        ExecuteError {
+            task_action_id: action.task_action_id,
+            task_action_name: action.task_action_name.clone(),
+            error: error.into(),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ExecuteErrorSource {
     #[error(transparent)]
     TemplateError(#[from] super::template::TemplateError),
 
-    #[error("Action {action_name} ({action_id}) encountered error {error}")]
-    ExecuteError {
-        action_name: String,
-        action_id: i64,
-        #[source]
-        error: ExecutorError,
-    },
+    #[error(transparent)]
+    ExecutorError(#[from] ExecutorError),
 
-    #[error("No executor {executor_id} found for action {action_name} ({action_id})")]
-    MissingExecutor {
-        executor_id: String,
-        action_name: String,
-        action_id: i64,
-    },
+    #[error("Unknown executor {0}")]
+    MissingExecutor(String),
 
-    #[error("Action {action_name} requires an account")]
-    AccountRequired { action_name: String },
+    #[error("Action requires an account")]
+    AccountRequired,
 
     #[error("SQL Error")]
     SqlError(#[from] sqlx::error::Error),
@@ -144,6 +156,8 @@ struct ExecuteActionData {
     action_executor_template: Json<ScriptOrTemplate>,
     action_template_fields: Json<TemplateFields>,
     account_required: bool,
+    task_action_id: i64,
+    task_action_name: String,
     task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
     account_id: Option<i64>,
     account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
@@ -154,6 +168,7 @@ pub async fn execute(
     pg_pool: &PostgresPool,
     invocation: ActionInvocation,
 ) -> Result<(), ExecuteError> {
+    let task_action_id = invocation.task_action_id;
     let mut action: ExecuteActionData = sqlx::query_as(
         r##"SELECT
         executor_id,
@@ -162,6 +177,8 @@ pub async fn execute(
         actions.executor_template as action_executor_template,
         actions.template_fields as action_template_fields,
         actions.account_required,
+        task_actions.task_action_id,
+        task_actions.name as task_action_name,
         task_actions.action_template as task_action_template,
         task_actions.account_id,
         accounts.fields as account_fields,
@@ -174,22 +191,43 @@ pub async fn execute(
 
         WHERE task_action_id=$1"##,
     )
-    .bind(invocation.task_action_id)
+    .bind(task_action_id)
     .fetch_one(pg_pool)
-    .await?;
-
-    let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
-        ExecuteError::MissingExecutor {
-            executor_id: action.executor_id.clone(),
-            action_id: action.action_id,
-            action_name: action.action_name.clone(),
-        }
+    .await
+    .map_err(|e| ExecuteError {
+        task_action_id,
+        task_action_name: String::new(),
+        error: e.into(),
     })?;
 
+    let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
+        ExecuteError::from_action_and_error(
+            &action,
+            ExecuteErrorSource::MissingExecutor(action.executor_id.clone()),
+        )
+    })?;
+
+    let action_template_values = prepare_invocation(executor, invocation.payload, &mut action)
+        .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
+
+    // 4. Send the executor payload to the executor to actually run it.
+    let results = executor
+        .execute(pg_pool.clone(), action_template_values)
+        .await
+        .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
+
+    // 5. Write the action to the log
+
+    Ok(())
+}
+
+fn prepare_invocation(
+    executor: &Box<dyn Executor>,
+    invocation_payload: serde_json::Value,
+    action: &mut ExecuteActionData,
+) -> Result<FxHashMap<String, serde_json::Value>, ExecuteErrorSource> {
     if action.account_required && action.account_id.is_none() {
-        return Err(ExecuteError::AccountRequired {
-            action_name: action.action_name,
-        });
+        return Err(ExecuteErrorSource::AccountRequired);
     }
 
     // 1. Merge the invocation payload with action_template and account_fields, if present.
@@ -205,7 +243,7 @@ pub async fn execute(
         }
     }
 
-    if let serde_json::Value::Object(invocation_payload) = invocation.payload {
+    if let serde_json::Value::Object(invocation_payload) = invocation_payload {
         for (k, v) in invocation_payload {
             action_payload.insert(k, v);
         }
@@ -223,7 +261,7 @@ pub async fn execute(
             "action",
             action.action_id,
             &action.action_template_fields.0,
-            t,
+            &t,
             &action_payload,
         )?,
     };
@@ -236,17 +274,11 @@ pub async fn execute(
         &action_template_values,
     )?;
 
-    // 4. Send the executor payload to the executor to actually run it.
-    let results = executor
-        .execute(pg_pool.clone(), action_template_values)
-        .await
-        .map_err(|e| ExecuteError::ExecuteError {
-            action_name: action.action_name.clone(),
-            action_id: action.action_id,
-            error: e,
-        })?;
-
     // 5. Write results to the action log. Retry on failure.
 
-    Ok(())
+    Ok(action_template_values)
+}
+
+mod tests {
+    fn test_simple() {}
 }
