@@ -655,9 +655,9 @@ mod tests {
 
             match queue.get_job::<SimplePayload>().await? {
                 Some(job) => {
-                    job.process(|id, data| async move {
-                        assert_eq!(id, "a-test-id");
-                        assert_eq!(data.data, "A test string");
+                    job.process(|item| async move {
+                        assert_eq!(item.id, "a-test-id");
+                        assert_eq!(item.data.data, "A test string");
                         Ok::<(), Error>(())
                     })
                     .await?;
