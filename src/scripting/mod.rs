@@ -37,7 +37,8 @@ impl Runtime {
         Runtime { runtime }
     }
 
-    pub fn take_snapshot(&self) -> Snapshot {
-        todo!()
+    pub fn make_snapshot(&mut self) -> Snapshot {
+        let snapshot = self.runtime.snapshot();
+        Snapshot(snapshot.as_ref().to_vec().into_boxed_slice())
     }
 }
