@@ -136,7 +136,7 @@ struct ExecuteActionData {
     action_executor_template: Json<Vec<(String, serde_json::Value)>>,
     action_template_fields: Json<TemplateFields>,
     account_required: bool,
-    action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
+    task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
     account_id: Option<i64>,
     account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
     account_expires: Option<DateTime<Utc>>,
@@ -154,7 +154,7 @@ pub async fn execute(
         actions.executor_template as action_executor_template,
         actions.template_fields as action_template_fields,
         actions.account_required,
-        task_actions.action_template as action_template,
+        task_actions.action_template as task_action_template,
         task_actions.account_id,
         accounts.fields as account_fields,
         accounts.expires as account_expires
@@ -192,13 +192,19 @@ pub async fn execute(
         FxBuildHasher::default(),
     );
 
+    if let Some(task_action_fields) = action.task_action_template.take() {
+        for (k, v) in task_action_fields.0 {
+            action_payload.insert(k, v);
+        }
+    }
+
     if let serde_json::Value::Object(invocation_payload) = invocation.payload {
         for (k, v) in invocation_payload {
             action_payload.insert(k, v);
         }
     }
 
-    if let Some(account_fields) = std::mem::take(&mut action.account_fields) {
+    if let Some(account_fields) = action.account_fields.take() {
         for (k, v) in account_fields.0 {
             action_payload.insert(k, v);
         }
