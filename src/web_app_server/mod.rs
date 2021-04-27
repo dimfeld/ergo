@@ -26,7 +26,7 @@ pub struct AppState {
 
 pub type AppStateData = Data<AppState>;
 
-pub fn app_data(config: Config<impl VaultClientTokenData>) -> Result<AppStateData, std::io::Error> {
+pub fn app_data(config: Config) -> Result<AppStateData, std::io::Error> {
     let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
         max_connections: 16,
         host: config.database_host,
@@ -48,7 +48,7 @@ pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
 pub fn new_server(
     address: String,
     port: u16,
-    config: Config<impl VaultClientTokenData>,
+    config: Config,
 ) -> std::io::Result<actix_web::dev::Server> {
     let data = app_data(config)?;
     let server = HttpServer::new(move || App::new().wrap(TracingLogger).service(scope(&data, "")))

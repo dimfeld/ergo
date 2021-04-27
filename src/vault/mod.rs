@@ -1,4 +1,7 @@
-use crate::graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer};
+use crate::{
+    database::PostgresAuthRenewer,
+    graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
+};
 use hashicorp_vault::client::{TokenData, VaultClient};
 use serde::de::DeserializeOwned;
 use std::{
@@ -68,7 +71,10 @@ fn refresh_vault_client<T: 'static + DeserializeOwned + Send + Sync>(
     tokio::spawn(vault_client_renew_loop(client, shutdown))
 }
 
-pub fn from_env(env_name: &str, shutdown: &GracefulShutdown) -> Option<AppRoleVaultClient> {
+pub fn from_env(
+    env_name: &str,
+    shutdown: &GracefulShutdown,
+) -> Option<Arc<dyn PostgresAuthRenewer>> {
     let vault_address =
         env::var("VAULT_ADDR").unwrap_or_else(|_| "http://localhost:8200".to_string());
     let vault_role_id_env = format!("VAULT_ROLE_ERGO_{}_ID", env_name);
@@ -84,7 +90,7 @@ pub fn from_env(env_name: &str, shutdown: &GracefulShutdown) -> Option<AppRoleVa
                     .expect("Creating vault client");
             let client = Arc::new(RwLock::new(client));
             refresh_vault_client(client.clone(), shutdown.consumer());
-            Some(client)
+            Some(client as Arc<dyn PostgresAuthRenewer>)
         }
         _ => None,
     }

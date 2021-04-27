@@ -34,18 +34,15 @@ async fn main() -> Result<(), ergo::error::Error> {
         .map(|s| s.parse::<u16>())
         .unwrap_or(Ok(6543))
         .expect("PORT");
-    let web_config = ergo::service_config::Config {
-        database_auth: VaultPostgresPoolAuth::from_env(&vault_client, "WEB", "ergo_web")?,
-        database: env::var("DATABASE").ok(),
-        database_host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string()),
-        redis_host: env::var("REDIS_HOST").expect("REDIS_HOST is required"),
-        shutdown: shutdown.consumer(),
-    };
+    let web_config = ergo::service_config::Config::new(
+        VaultPostgresPoolAuth::from_env(&vault_client, "WEB", "ergo_web")?,
+        &shutdown,
+    );
 
-    let backend_config = ergo::service_config::Config {
-        database_auth: VaultPostgresPoolAuth::from_env(&vault_client, "BACKEND", "ergo_backend")?,
-        ..web_config.clone()
-    };
+    let backend_config = ergo::service_config::Config::new(
+        VaultPostgresPoolAuth::from_env(&vault_client, "BACKEND", "ergo_backend")?,
+        &shutdown,
+    );
 
     let redis_host = env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_pool = deadpool_redis::Config {

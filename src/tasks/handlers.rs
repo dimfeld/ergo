@@ -75,7 +75,7 @@ pub struct BackendAppState {
 
 pub type BackendAppStateData = Data<BackendAppState>;
 
-pub fn app_data(config: Config<impl VaultClientTokenData>) -> Result<BackendAppStateData, Error> {
+pub fn app_data(config: Config) -> Result<BackendAppStateData, Error> {
     let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
         max_connections: 16,
         host: config.database_host,

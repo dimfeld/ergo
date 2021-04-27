@@ -20,13 +20,15 @@ pub mod transaction;
 
 use connection_manager::{Manager, WrappedConnection};
 
+pub use self::connection_manager::PostgresAuthRenewer;
+
 pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
 pub type PostgresPool = VaultPostgresPool;
 
 #[derive(Clone, Debug)]
-pub enum VaultPostgresPoolAuth<T: VaultClientTokenData> {
+pub enum VaultPostgresPoolAuth {
     Vault {
-        client: SharedVaultClient<T>,
+        client: Arc<dyn PostgresAuthRenewer>,
         role: String,
     },
     Password {
@@ -35,9 +37,9 @@ pub enum VaultPostgresPoolAuth<T: VaultClientTokenData> {
     },
 }
 
-impl<T: VaultClientTokenData> VaultPostgresPoolAuth<T> {
+impl VaultPostgresPoolAuth {
     pub fn from_env(
-        vault_client: &Option<SharedVaultClient<T>>,
+        vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
         database_role_env_name: &str,
         default_vault_role: &str,
     ) -> Result<Self, Error> {
@@ -65,11 +67,11 @@ impl<T: VaultClientTokenData> VaultPostgresPoolAuth<T> {
     }
 }
 
-pub struct VaultPostgresPoolOptions<T: VaultClientTokenData> {
+pub struct VaultPostgresPoolOptions {
     pub max_connections: usize,
     pub host: String,
     pub database: String,
-    pub auth: VaultPostgresPoolAuth<T>,
+    pub auth: VaultPostgresPoolAuth,
     pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
 }
 
@@ -106,9 +108,7 @@ fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
 }
 
 impl VaultPostgresPool {
-    pub fn new<T: VaultClientTokenData>(
-        config: VaultPostgresPoolOptions<T>,
-    ) -> Result<VaultPostgresPool, Error> {
+    pub fn new(config: VaultPostgresPoolOptions) -> Result<VaultPostgresPool, Error> {
         let VaultPostgresPoolOptions {
             max_connections,
             host,

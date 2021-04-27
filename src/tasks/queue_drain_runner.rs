@@ -23,7 +23,7 @@ pub struct AllQueuesDrainStats {
 }
 
 impl AllQueuesDrain {
-    pub fn new(config: Config<impl VaultClientTokenData>) -> Result<AllQueuesDrain, Error> {
+    pub fn new(config: Config) -> Result<AllQueuesDrain, Error> {
         let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
             max_connections: 16,
             host: config.database_host,

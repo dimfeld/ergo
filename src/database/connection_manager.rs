@@ -5,6 +5,7 @@ use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultDuration, Vault
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{Connection, PgConnection};
 use std::{
+    fmt::Debug,
     ops::{Deref, DerefMut},
     sync::{Arc, RwLock},
 };
@@ -13,13 +14,13 @@ use tracing::{event, span, Level};
 use super::{Error, VaultPostgresPoolAuth};
 use crate::{graceful_shutdown::GracefulShutdownConsumer, vault::VaultClientTokenData};
 
-pub trait PostgresAuthRenewer: 'static + Send + Sync {
+pub trait PostgresAuthRenewer: 'static + Send + Sync + Debug {
     fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error>;
     fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error>;
 }
 
-impl<T: 'static + DeserializeOwned + Send + Sync> PostgresAuthRenewer
-    for Arc<RwLock<VaultClient<T>>>
+impl<T: 'static + DeserializeOwned + Send + Sync + Debug> PostgresAuthRenewer
+    for RwLock<VaultClient<T>>
 {
     fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
         self.read()
@@ -38,7 +39,7 @@ impl<T: 'static + DeserializeOwned + Send + Sync> PostgresAuthRenewer
 
 /// An auth manager that only ever returns the same auth info that it was intialized with.
 /// Used when running a system without Vault.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct FixedAuth {
     username: String,
     password: String,
@@ -129,7 +130,7 @@ pub struct ManagerStats {
 pub(crate) struct Manager {
     connection_string: RwLock<String>,
     #[derivative(Debug = "ignore")]
-    renewer: Box<dyn PostgresAuthRenewer>,
+    renewer: Arc<dyn PostgresAuthRenewer>,
 
     host: String,
     database: String,
@@ -140,8 +141,8 @@ pub(crate) struct Manager {
 }
 
 impl Manager {
-    pub(crate) fn new<T: VaultClientTokenData>(
-        auth_method: VaultPostgresPoolAuth<T>,
+    pub(crate) fn new(
+        auth_method: VaultPostgresPoolAuth,
         shutdown: GracefulShutdownConsumer,
         host: String,
         database: String,
@@ -153,10 +154,10 @@ impl Manager {
             renew_failures: 0,
         });
 
-        let (renewer, role): (Box<dyn PostgresAuthRenewer>, String) = match auth_method {
-            VaultPostgresPoolAuth::Vault { client, role } => (Box::new(client), role),
+        let (renewer, role): (Arc<dyn PostgresAuthRenewer>, String) = match auth_method {
+            VaultPostgresPoolAuth::Vault { client, role } => (client, role),
             VaultPostgresPoolAuth::Password { username, password } => {
-                (Box::new(FixedAuth { username, password }), String::new())
+                (Arc::new(FixedAuth { username, password }), String::new())
             }
         };
 
@@ -351,6 +352,7 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
     struct MockVaultClient {
         lease_id: String,
         lease_duration: Duration,
@@ -379,19 +381,19 @@ mod tests {
         }
     }
 
-    impl PostgresAuthRenewer for MockVaultClient {
-        fn renew_lease(&self, lease_id: impl Into<String>) -> Result<VaultResponse<()>, Error> {
+    impl PostgresAuthRenewer for RwLock<MockVaultClient> {
+        fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
             {
-                let mut counts = self.counts.write().unwrap();
-                counts.renew_count += 1;
+                self.write().unwrap().counts.write().unwrap().renew_count += 1;
             }
 
-            if self.renewable && lease_id.into() == self.lease_id {
+            let client = self.read().unwrap();
+            if client.renewable && lease_id == client.lease_id {
                 Ok(VaultResponse {
                     request_id: String::new(),
-                    lease_id: Some(self.lease_id.clone()),
-                    renewable: Some(self.renewable),
-                    lease_duration: Some(VaultDuration(self.lease_duration)),
+                    lease_id: Some(client.lease_id.clone()),
+                    renewable: Some(client.renewable),
+                    lease_duration: Some(VaultDuration(client.lease_duration)),
                     data: None,
                     warnings: None,
                     auth: None,
@@ -403,21 +405,22 @@ mod tests {
         }
 
         fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
-            assert_eq!(role, self.role);
+            assert_eq!(role, self.read().unwrap().role);
 
             {
-                let mut counts = self.counts.write().unwrap();
-                counts.get_count += 1;
+                self.write().unwrap().counts.write().unwrap().get_count += 1;
             }
+
+            let client = self.read().unwrap();
 
             Ok(VaultResponse {
                 request_id: String::new(),
-                lease_id: Some(self.lease_id.clone()),
-                renewable: Some(self.renewable),
-                lease_duration: Some(VaultDuration(self.lease_duration)),
+                lease_id: Some(client.lease_id.clone()),
+                renewable: Some(client.renewable),
+                lease_duration: Some(VaultDuration(client.lease_duration)),
                 data: Some(PostgresqlLogin {
-                    username: self.postgres_user.clone(),
-                    password: self.postgres_password.clone(),
+                    username: client.postgres_user.clone(),
+                    password: client.postgres_password.clone(),
                 }),
                 warnings: None,
                 auth: None,
@@ -441,11 +444,13 @@ mod tests {
         }));
 
         let m = Manager::new(
-            VaultPostgresPoolAuth::Value(vault_client.clone()),
+            VaultPostgresPoolAuth::Vault {
+                client: vault_client.clone(),
+                role: "dbrole".to_string(),
+            },
             shutdown.consumer(),
             "host".to_string(),
             "database".to_string(),
-            "dbrole".to_string(),
         )
         .unwrap();
 
@@ -487,11 +492,13 @@ mod tests {
         }));
 
         let m = Manager::new(
-            vault_client.clone(),
+            VaultPostgresPoolAuth::Vault {
+                client: vault_client.clone(),
+                role: "dbrole".to_string(),
+            },
             shutdown.consumer(),
             "host".to_string(),
             "database".to_string(),
-            "dbrole".to_string(),
         )
         .unwrap();
 
