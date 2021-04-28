@@ -7,6 +7,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, Postgres};
 use thiserror::Error;
+use tracing::{event, instrument, span, Instrument, Level};
 
 use crate::database::PostgresPool;
 
@@ -164,10 +165,13 @@ struct ExecuteActionData {
     account_expires: Option<DateTime<Utc>>,
 }
 
+#[instrument(name = "execute_action", level = "debug")]
 pub async fn execute(
     pg_pool: &PostgresPool,
     invocation: ActionInvocation,
 ) -> Result<(), ExecuteError> {
+    event!(Level::DEBUG, ?invocation);
+
     let task_action_id = invocation.task_action_id;
     let mut action: ExecuteActionData = sqlx::query_as(
         r##"SELECT
@@ -200,6 +204,15 @@ pub async fn execute(
         error: e.into(),
     })?;
 
+    event!(Level::TRACE, ?action);
+    event!(Level::INFO,
+        %action.task_action_id,
+        %action.action_id,
+        %action.action_name,
+        %action.task_action_name,
+        "executing action"
+    );
+
     let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
         ExecuteError::from_action_and_error(
             &action,
@@ -210,11 +223,15 @@ pub async fn execute(
     let action_template_values = prepare_invocation(executor, invocation.payload, &mut action)
         .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
 
+    event!(Level::TRACE, ?action_template_values);
+
     // 4. Send the executor payload to the executor to actually run it.
     let results = executor
         .execute(pg_pool.clone(), action_template_values)
         .await
         .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
+
+    event!(Level::TRACE, ?results);
 
     // 5. Write the action to the log
 

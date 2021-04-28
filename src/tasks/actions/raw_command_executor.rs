@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use fxhash::FxHashMap;
 use serde_json::json;
 use std::process::Stdio;
+use tracing::{event, instrument, span, Level};
 
 #[derive(Debug)]
 pub struct RawCommandExecutor {
@@ -55,6 +56,7 @@ impl RawCommandExecutor {
 
 #[async_trait]
 impl Executor for RawCommandExecutor {
+    #[instrument(level = "debug", name = "RawCommandExecutor::execute")]
     async fn execute(
         &self,
         pg_pool: PostgresPool,
@@ -93,6 +95,8 @@ impl Executor for RawCommandExecutor {
             }
         }
 
+        event!(Level::DEBUG, ?cmd);
+
         let output = cmd
             .output()
             .await
@@ -101,10 +105,17 @@ impl Executor for RawCommandExecutor {
                 result: json!(null),
             })?;
 
+        let exitcode = output.status.to_string();
+        event!(Level::DEBUG, exitcode = %exitcode);
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        event!(Level::TRACE, %stdout, %stderr);
+
         Ok(json!({
-            "exitcode": output.status.to_string(),
-            "stdout": String::from_utf8_lossy(&output.stdout),
-            "stderr": String::from_utf8_lossy(&output.stderr),
+            "exitcode": exitcode,
+            "stdout": stdout,
+            "stderr": stderr,
         }))
     }
 

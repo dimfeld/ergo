@@ -201,8 +201,7 @@ impl Manager {
         renew_lease_id: Option<&str>,
     ) -> Result<(Option<String>, std::time::Duration), Error> {
         // If the lease is renewable, then try that first.
-        let span = span!(Level::INFO, "refreshing Postgres auth", role=%self.role );
-        let _enter = span.enter();
+        let span = span!(Level::INFO, "refreshing Postgres auth", role=%self.role ).entered();
 
         let mut stats = { self.stats_sender.borrow().clone() };
 
