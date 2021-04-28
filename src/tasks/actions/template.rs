@@ -27,6 +27,7 @@ pub enum TemplateFieldFormat {
     Object,
     Choice {
         choices: Vec<String>,
+        min: Option<usize>,
         max: Option<usize>,
     },
 }
@@ -37,39 +38,63 @@ impl TemplateFieldFormat {
         field_name: &str,
         value: &serde_json::Value,
     ) -> Result<(), TemplateValidationFailure> {
-        let actual_type = match value {
-            serde_json::Value::String(_) => TemplateFieldFormat::String,
-            serde_json::Value::Array(_) => TemplateFieldFormat::StringArray,
-            serde_json::Value::Number(n) => {
-                if n.is_i64() {
-                    TemplateFieldFormat::Integer
-                } else {
-                    TemplateFieldFormat::Float
+        let ok = match value {
+            serde_json::Value::String(s) => {
+                match self {
+                    Self::String => true,
+                    Self::Integer => s.parse::<u64>().is_ok(),
+                    Self::Float => s.parse::<f64>().is_ok(),
+                    Self::Boolean => s.parse::<bool>().is_ok(),
+                    Self::Choice { choices, min, .. } => {
+                        if min.map(|m| m > 1).unwrap_or(false) {
+                            // Requires more than one argument
+                            false
+                        } else {
+                            choices.iter().find(|&x| x == s).is_some()
+                        }
+                    }
+                    _ => false,
                 }
             }
-            _ => TemplateFieldFormat::Object,
+            serde_json::Value::Array(a) => match self {
+                Self::StringArray => true,
+                Self::Choice { choices, min, max } => {
+                    if min.map(|m| m > a.len()).unwrap_or(false)
+                        || max.map(|m| m < a.len()).unwrap_or(false)
+                    {
+                        false
+                    } else {
+                        a.iter().all(|value| {
+                            choices
+                                .iter()
+                                .find(|&c| value.as_str().map(|s| s == c).unwrap_or(false))
+                                .is_some()
+                        })
+                    }
+                }
+                _ => false,
+            },
+            serde_json::Value::Bool(_) => match self {
+                Self::String | Self::Boolean => true,
+                _ => false,
+            },
+            serde_json::Value::Number(n) => match self {
+                Self::String | Self::Float => true,
+                Self::Integer => n.is_i64(),
+                _ => false,
+            },
+            serde_json::Value::Object(_) => *self == TemplateFieldFormat::Object,
+            serde_json::Value::Null => false,
         };
 
-        if self == &actual_type {
-            return Ok(());
-        }
-
-        match (self, actual_type) {
-            (Self::Choice { choices, max }, Self::String) => {
-                todo!();
-            }
-            (Self::Choice { choices, max }, Self::StringArray) => {
-                todo!();
-            }
-            (Self::Float, Self::String) => todo!(), // Verify can be coerced to a float
-            (Self::Integer, Self::String) => todo!(), // Verify can be coerced to an integer
-            (Self::Boolean, Self::String) => todo!(), // Verify can be coerced to a boolean
-            (Self::Float, Self::Integer) => Ok(()),
-            (_, actual) => Err(TemplateValidationFailure::Invalid {
+        if ok {
+            Ok(())
+        } else {
+            Err(TemplateValidationFailure::Invalid {
                 name: field_name.to_string(),
                 expected: self.clone(),
-                actual,
-            }),
+                actual: value.clone(),
+            })
         }
     }
 }
@@ -89,7 +114,7 @@ pub enum TemplateValidationFailure {
     Invalid {
         name: String,
         expected: TemplateFieldFormat,
-        actual: TemplateFieldFormat,
+        actual: serde_json::Value,
     },
 }
 
@@ -237,4 +262,252 @@ pub fn validate_and_apply<'a>(
         .collect::<Result<FxHashMap<_, _>, _>>()?;
 
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn test_validate_and_apply() {}
+
+    mod validate {
+        use super::super::{validate, TemplateFieldFormat, TemplateValidationFailure};
+        use serde_json::{value, Value};
+        use std::error::Error;
+
+        #[test]
+        fn string() -> Result<(), TemplateValidationFailure> {
+            TemplateFieldFormat::String.validate("string", &Value::String(String::new()))?;
+
+            TemplateFieldFormat::String.validate("integer", &serde_json::json!({"a": 5})["a"])?;
+
+            TemplateFieldFormat::String.validate(
+                "float",
+                &Value::Number(value::Number::from_f64(5.5).unwrap()),
+            )?;
+
+            TemplateFieldFormat::String.validate("boolean", &Value::Bool(true))?;
+
+            TemplateFieldFormat::String
+                .validate("object", &Value::Object(value::Map::new()))
+                .expect_err("object input");
+
+            TemplateFieldFormat::String
+                .validate("array", &Value::Array(Vec::new()))
+                .expect_err("array input");
+
+            Ok(())
+        }
+
+        #[test]
+        fn string_array() -> Result<(), TemplateValidationFailure> {
+            TemplateFieldFormat::StringArray
+                .validate("string", &Value::String(String::new()))
+                .expect_err("string");
+
+            TemplateFieldFormat::StringArray
+                .validate("integer", &serde_json::json!({"a": 5})["a"])
+                .expect_err("integer");
+
+            TemplateFieldFormat::StringArray
+                .validate(
+                    "float",
+                    &Value::Number(value::Number::from_f64(5.5).unwrap()),
+                )
+                .expect_err("float");
+
+            TemplateFieldFormat::StringArray
+                .validate("boolean", &Value::Bool(true))
+                .expect_err("boolean");
+
+            TemplateFieldFormat::StringArray
+                .validate("object", &Value::Object(value::Map::new()))
+                .expect_err("object input");
+
+            TemplateFieldFormat::StringArray.validate("array", &Value::Array(Vec::new()))?;
+
+            Ok(())
+        }
+
+        #[test]
+        fn integer() -> Result<(), TemplateValidationFailure> {
+            TemplateFieldFormat::Integer
+                .validate("string", &Value::String(String::new()))
+                .expect_err("string");
+
+            TemplateFieldFormat::Integer.validate("integer", &serde_json::json!({"a": 5})["a"])?;
+
+            TemplateFieldFormat::Integer
+                .validate(
+                    "float",
+                    &Value::Number(value::Number::from_f64(5.5).unwrap()),
+                )
+                .expect_err("float");
+
+            TemplateFieldFormat::Integer
+                .validate("boolean", &Value::Bool(true))
+                .expect_err("boolean");
+
+            TemplateFieldFormat::Integer
+                .validate("object", &Value::Object(value::Map::new()))
+                .expect_err("object input");
+
+            TemplateFieldFormat::Integer
+                .validate("array", &Value::Array(Vec::new()))
+                .expect_err("array input");
+
+            Ok(())
+        }
+
+        #[test]
+        fn float() -> Result<(), TemplateValidationFailure> {
+            TemplateFieldFormat::Float
+                .validate("string", &Value::String(String::new()))
+                .expect_err("string");
+
+            TemplateFieldFormat::Float.validate("integer", &serde_json::json!({"a": 5})["a"])?;
+
+            TemplateFieldFormat::Float.validate(
+                "float",
+                &Value::Number(value::Number::from_f64(5.5).unwrap()),
+            )?;
+
+            TemplateFieldFormat::Float
+                .validate("boolean", &Value::Bool(true))
+                .expect_err("boolean");
+
+            TemplateFieldFormat::Float
+                .validate("object", &Value::Object(value::Map::new()))
+                .expect_err("object input");
+
+            TemplateFieldFormat::Float
+                .validate("array", &Value::Array(Vec::new()))
+                .expect_err("array input");
+
+            Ok(())
+        }
+
+        #[test]
+        fn boolean() -> Result<(), TemplateValidationFailure> {
+            TemplateFieldFormat::Boolean
+                .validate("string", &Value::String(String::new()))
+                .expect_err("non-matching string");
+            TemplateFieldFormat::Boolean
+                .validate("true string", &Value::String("true".to_string()))?;
+            TemplateFieldFormat::Boolean
+                .validate("false string", &Value::String("false".to_string()))?;
+
+            TemplateFieldFormat::Boolean
+                .validate("integer", &serde_json::json!({"a": 5})["a"])
+                .expect_err("integer");
+
+            TemplateFieldFormat::Boolean
+                .validate(
+                    "float",
+                    &Value::Number(value::Number::from_f64(5.5).unwrap()),
+                )
+                .expect_err("float");
+
+            TemplateFieldFormat::Boolean.validate("boolean", &Value::Bool(true))?;
+
+            TemplateFieldFormat::Boolean
+                .validate("object", &Value::Object(value::Map::new()))
+                .expect_err("object input");
+
+            TemplateFieldFormat::Boolean
+                .validate("array", &Value::Array(Vec::new()))
+                .expect_err("array input");
+
+            Ok(())
+        }
+
+        #[test]
+        fn object() -> Result<(), TemplateValidationFailure> {
+            TemplateFieldFormat::Object
+                .validate("string", &Value::String(String::new()))
+                .expect_err("string");
+
+            TemplateFieldFormat::Object
+                .validate("integer", &serde_json::json!({"a": 5})["a"])
+                .expect_err("integer");
+
+            TemplateFieldFormat::Object
+                .validate(
+                    "float",
+                    &Value::Number(value::Number::from_f64(5.5).unwrap()),
+                )
+                .expect_err("float");
+
+            TemplateFieldFormat::Object
+                .validate("boolean", &Value::Bool(true))
+                .expect_err("boolean");
+
+            TemplateFieldFormat::Object.validate("object", &Value::Object(value::Map::new()))?;
+
+            TemplateFieldFormat::Object
+                .validate("array", &Value::Array(Vec::new()))
+                .expect_err("array input");
+
+            Ok(())
+        }
+
+        #[test]
+        fn choice_failing_formats() -> Result<(), TemplateValidationFailure> {
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string()],
+                min: None,
+                max: None,
+            };
+
+            choice
+                .validate("integer", &serde_json::json!({"a": 5})["a"])
+                .expect_err("integer");
+
+            choice
+                .validate(
+                    "float",
+                    &Value::Number(value::Number::from_f64(5.5).unwrap()),
+                )
+                .expect_err("float");
+
+            choice
+                .validate("boolean", &Value::Bool(true))
+                .expect_err("boolean");
+
+            choice
+                .validate("object", &Value::Object(value::Map::new()))
+                .expect_err("object input");
+
+            Ok(())
+        }
+
+        #[test]
+        #[ignore]
+        fn choice_against_string() -> Result<(), TemplateValidationFailure> {
+            Ok(())
+        }
+
+        #[test]
+        #[ignore]
+        fn choice_against_array() -> Result<(), TemplateValidationFailure> {
+            Ok(())
+        }
+    }
+
+    mod apply {
+        // #[test]
+        // fn simple_template() {
+        //     todo!()
+        // }
+        //
+        // #[test]
+        // fn object_template() {
+        //     todo!()
+        // }
+        //
+        // #[test]
+        // fn array_template() {
+        //     todo!()
+        // }
+    }
 }
