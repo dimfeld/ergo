@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use fxhash::FxHashMap;
+use handlebars::TemplateRenderError;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -246,6 +247,18 @@ pub fn apply_field(
     Ok(result)
 }
 
+fn apply(
+    template: &Vec<(String, serde_json::Value)>,
+    values: &FxHashMap<String, serde_json::Value>,
+) -> Result<FxHashMap<String, serde_json::Value>, TemplateRenderError> {
+    template
+        .iter()
+        .map(|(name, field_template)| {
+            apply_field(field_template, values).map(|rendered| (name.to_string(), rendered))
+        })
+        .collect::<Result<FxHashMap<_, _>, _>>()
+}
+
 pub fn validate_and_apply<'a>(
     object: &'static str,
     id: i64,
@@ -254,22 +267,11 @@ pub fn validate_and_apply<'a>(
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
     validate(object, id, fields, values)?;
-    let output = template
-        .iter()
-        .map(|(name, field_template)| {
-            apply_field(field_template, values).map(|rendered| (name.to_string(), rendered))
-        })
-        .collect::<Result<FxHashMap<_, _>, _>>()?;
-
-    Ok(output)
+    apply(template, values).map_err(|e| e.into())
 }
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    #[ignore]
-    fn test_validate_and_apply() {}
-
     mod validate {
         use super::super::{validate, TemplateFieldFormat, TemplateValidationFailure};
         use serde_json::{value, Value};
@@ -634,19 +636,67 @@ mod tests {
     }
 
     mod apply {
-        // #[test]
-        // fn simple_template() {
-        //     todo!()
-        // }
-        //
-        // #[test]
-        // fn object_template() {
-        //     todo!()
-        // }
-        //
-        // #[test]
-        // fn array_template() {
-        //     todo!()
-        // }
+        use super::super::apply;
+        use assert_matches::assert_matches;
+        use fxhash::FxHashMap;
+        use serde_json::{value, Value};
+        use std::{array::IntoIter, error::Error, iter::FromIterator};
+
+        #[test]
+        fn simple_template() -> Result<(), anyhow::Error> {
+            let template = vec![
+                (
+                    "command".to_string(),
+                    serde_json::Value::String("{{command}}".to_string()),
+                ),
+                (
+                    "output".to_string(),
+                    serde_json::Value::String("{{filename}}.json".to_string()),
+                ),
+            ];
+
+            let values = FxHashMap::<String, serde_json::Value>::from_iter(IntoIter::new([
+                (
+                    "command".to_string(),
+                    serde_json::Value::String("program".to_string()),
+                ),
+                (
+                    "filename".to_string(),
+                    serde_json::Value::String("fgh".to_string()),
+                ),
+                (
+                    "extra".to_string(),
+                    serde_json::Value::String("extra".to_string()),
+                ),
+            ]));
+
+            let output = apply(&template, &values)?;
+
+            assert_matches!(output.get("command"), Some(serde_json::Value::String(s)) => {
+                assert_eq!(s, "program");
+            });
+
+            assert_matches!(output.get("output"), Some(serde_json::Value::String(s)) => {
+                assert_eq!(s, "fgh.json");
+            });
+
+            let mut keys = output.keys().collect::<Vec<_>>();
+            keys.sort();
+            assert_eq!(keys, ["command", "output"]);
+
+            Ok(())
+        }
+
+        #[test]
+        #[ignore]
+        fn object_template() {
+            todo!()
+        }
+
+        #[test]
+        #[ignore]
+        fn array_template() {
+            todo!()
+        }
     }
 }
