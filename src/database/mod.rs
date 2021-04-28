@@ -54,11 +54,12 @@ impl VaultPostgresPoolAuth {
 
         let db_username_env = format!("DATABASE_ROLE_{}_USERNAME", database_role_env_name);
         let db_password_env = format!("DATABASE_ROLE_{}_PASSWORD", database_role_env_name);
-        let db_username = env::var(&db_username_env);
+        let db_username =
+            env::var(&db_username_env).unwrap_or_else(|_| default_vault_role.to_string());
         let db_password = env::var(&db_password_env);
 
-        match (db_username, db_password) {
-            (Ok(username), Ok(password)) => Ok(Self::Password{username, password}),
+        match db_password {
+            Ok(password) => Ok(Self::Password{username: db_username, password}),
             _ =>
                 Err(Error::ConfigError(format!("Environment must have Vault AppRole configuration (VAULT_* env) or Fixed database credentials ({}, {}) settings, but not both",
                     db_username_env, db_password_env
