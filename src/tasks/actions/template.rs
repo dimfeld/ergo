@@ -482,14 +482,153 @@ mod tests {
         }
 
         #[test]
-        #[ignore]
         fn choice_against_string() -> Result<(), TemplateValidationFailure> {
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string()],
+                min: None,
+                max: None,
+            };
+
+            choice.validate("matching string", &Value::String("abc".to_string()))?;
+            choice
+                .validate("non-matching string", &Value::String("jklsdf".to_string()))
+                .expect_err("non-matching string");
+
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string()],
+                min: Some(1),
+                max: None,
+            };
+            choice.validate("min=1: matching string", &Value::String("abc".to_string()))?;
+            choice
+                .validate(
+                    "min=1: non-matching string",
+                    &Value::String("jklsdf".to_string()),
+                )
+                .expect_err("min=1: non-matching string");
+
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string()],
+                min: Some(2),
+                max: None,
+            };
+            choice
+                .validate("min=2: matching string", &Value::String("abc".to_string()))
+                .expect_err("min=2: matching string");
+            choice
+                .validate(
+                    "min=2: non-matching string",
+                    &Value::String("jklsdf".to_string()),
+                )
+                .expect_err("min=2: non-matching string");
+
             Ok(())
         }
 
         #[test]
-        #[ignore]
         fn choice_against_array() -> Result<(), TemplateValidationFailure> {
+            fn make_array(v: Vec<&'static str>) -> serde_json::Value {
+                let strings = v
+                    .iter()
+                    .map(|s| serde_json::Value::String(s.to_string()))
+                    .collect::<Vec<_>>();
+                serde_json::Value::Array(strings)
+            }
+
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                min: None,
+                max: None,
+            };
+
+            choice.validate("empty list", &make_array(vec![]))?;
+            choice.validate("matching one-element list", &make_array(vec!["def"]))?;
+            choice.validate(
+                "matching three-element list",
+                &make_array(vec!["def", "ghi", "abc"]),
+            )?;
+            choice
+                .validate("non-matching element", &make_array(vec!["def", "jklsdf"]))
+                .expect_err("non-matching element");
+
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                min: Some(1),
+                max: None,
+            };
+
+            choice
+                .validate("min=1: empty list", &make_array(vec![]))
+                .expect_err("min=1: empty list");
+            choice.validate("min=1: matching one-element list", &make_array(vec!["def"]))?;
+            choice.validate(
+                "min=1: matching three-element list",
+                &make_array(vec!["def", "ghi", "abc"]),
+            )?;
+            choice
+                .validate(
+                    "min=1: non-matching element",
+                    &make_array(vec!["def", "jklsdf"]),
+                )
+                .expect_err("non-matching element");
+
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                min: Some(2),
+                max: None,
+            };
+
+            choice
+                .validate("min=2: empty list", &make_array(vec![]))
+                .expect_err("min=2: empty list");
+            choice
+                .validate("min=2: matching one-element list", &make_array(vec!["def"]))
+                .expect_err("min=2: matching one-element list");
+            choice.validate(
+                "min=2: matching two-element list",
+                &make_array(vec!["abc", "def"]),
+            )?;
+            choice.validate(
+                "min=2: matching three-element list",
+                &make_array(vec!["def", "ghi", "abc"]),
+            )?;
+            choice
+                .validate(
+                    "min=2: non-matching element",
+                    &make_array(vec!["def", "jklsdf", "abc"]),
+                )
+                .expect_err("non-matching element");
+
+            let choice = TemplateFieldFormat::Choice {
+                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                min: Some(1),
+                max: Some(2),
+            };
+
+            choice
+                .validate("min=1, max=2: empty list", &make_array(vec![]))
+                .expect_err("min=1, max=2: empty list");
+            choice.validate(
+                "min=1, max=2: matching one-element list",
+                &make_array(vec!["def"]),
+            )?;
+            choice.validate(
+                "min=1:, max=2 matching two-element list",
+                &make_array(vec!["abc", "def"]),
+            )?;
+            choice
+                .validate(
+                    "min=1:, max=2 matching three-element list",
+                    &make_array(vec!["def", "ghi", "abc"]),
+                )
+                .expect_err("min=1, max=2: matching three-element list");
+            choice
+                .validate(
+                    "min=1:, max=2 non-matching element",
+                    &make_array(vec!["def", "jklsdf"]),
+                )
+                .expect_err("non-matching element");
+
             Ok(())
         }
     }
