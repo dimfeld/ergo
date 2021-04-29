@@ -50,6 +50,7 @@ impl EventHandler {
     fn resolve_actions(
         &self,
         task_id: i64,
+        input_arrival_id: &Option<uuid::Uuid>,
         context: &serde_json::Value,
         payload: &Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
@@ -61,8 +62,7 @@ impl EventHandler {
                 let payload = def.data.build(context, payload)?;
 
                 Ok(ActionInvocation {
-                    task_id,
-                    task_trigger_id: Some(self.trigger_id),
+                    input_arrival_id: input_arrival_id.clone(),
                     task_action_id: def.task_action_id,
                     payload,
                 })
@@ -197,6 +197,7 @@ impl<'d> StateMachineWithData {
     pub fn apply_trigger(
         &mut self,
         trigger_id: i64,
+        input_arrival_id: &Option<uuid::Uuid>,
         payload: Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
         let handler = {
@@ -219,7 +220,12 @@ impl<'d> StateMachineWithData {
         match handler {
             Some(h) => {
                 let next_state = h.next_state(&self.data.context, &payload)?;
-                let actions = h.resolve_actions(self.task_id, &self.data.context, &payload)?;
+                let actions = h.resolve_actions(
+                    self.task_id,
+                    input_arrival_id,
+                    &self.data.context,
+                    &payload,
+                )?;
 
                 if let Some(s) = next_state {
                     if self.data.state != s {

@@ -65,8 +65,10 @@ impl Task {
         task_trigger_id: i64,
         payload: serde_json::Value,
     ) -> Result<(), Error> {
+        let input_arrival_id = uuid::Uuid::new_v4();
         serializable(pool, 5, move |tx| {
             let payload = payload.clone();
+            let input_arrival_id = input_arrival_id.clone();
             Box::pin(async move {
                 let task = sqlx::query_as::<Postgres, Task>(GET_TASK_QUERY)
                     .bind(&task_id)
@@ -96,7 +98,11 @@ impl Task {
                         |mut acc, (idx, (machine, state))| {
                             let mut m = StateMachineWithData::new(task_id, idx, machine, state);
                             let actions = m
-                                .apply_trigger(task_trigger_id, Some(&payload))
+                                .apply_trigger(
+                                    task_trigger_id,
+                                    &Some(input_arrival_id),
+                                    Some(&payload),
+                                )
                                 .map_err(Error::from)?;
 
                             let (data, changed) = m.take();
@@ -123,7 +129,7 @@ impl Task {
                 if !actions.is_empty() {
                     let q = format!(
                         r##"INSERT INTO action_queue
-                        (task_id, task_trigger_id, task_action_id, payload)
+                        (task_action_id, input_event_id, payload)
                         VALUES
                         {}
                         "##,
@@ -133,9 +139,8 @@ impl Task {
                     let mut query = sqlx::query(&q);
                     for action in actions {
                         query = query
-                            .bind(action.task_id)
-                            .bind(action.task_trigger_id)
                             .bind(action.task_action_id)
+                            .bind(action.input_arrival_id)
                             .bind(action.payload);
                     }
 

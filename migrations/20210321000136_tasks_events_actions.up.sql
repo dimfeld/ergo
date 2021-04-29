@@ -22,7 +22,7 @@ GRANT SELECT ON inputs TO ergo_backend;
 GRANT SELECT, UPDATE, INSERT, DELETE ON inputs TO ergo_web;
 
 CREATE TABLE inputs_log (
-  inputs_log_id bigint primary key generated always as identity,
+  inputs_log_id uuid primary key,
   input_id bigint references inputs,
   payload jsonb,
   error jsonb,
@@ -148,6 +148,7 @@ CREATE INDEX task_actions_task_id ON task_actions(task_id);
 
 CREATE TABLE actions_log (
   actions_log_id bigint primary key generated always as identity,
+  inputs_log_id uuid references inputs_log,
   action_id bigint references actions,
   task_id bigint references tasks,
   payload jsonb,

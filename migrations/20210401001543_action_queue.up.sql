@@ -2,9 +2,8 @@ BEGIN;
 
 CREATE TABLE action_queue (
   action_queue_id bigint primary key generated always as identity,
-  task_id bigint not null references tasks ON DELETE CASCADE,
-  task_trigger_id bigint references task_triggers ON DELETE CASCADE,
   task_action_id bigint not null references task_actions ON DELETE CASCADE,
+  input_arrival_id uuid,
   payload jsonb,
   time timestamptz not null default now()
 );
