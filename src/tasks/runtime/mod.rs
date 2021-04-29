@@ -67,6 +67,7 @@ impl QueueJobProcessor for TaskExecutor {
             invocation.task_id,
             invocation.input_id,
             invocation.task_trigger_id,
+            invocation.inputs_log_id,
             invocation.payload.clone(),
         )
         .await?;

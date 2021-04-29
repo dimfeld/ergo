@@ -5,11 +5,12 @@ use chrono::{DateTime, Utc};
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{types::Json, Postgres};
 use thiserror::Error;
 use tracing::{event, instrument, span, Instrument, Level};
 
-use crate::database::PostgresPool;
+use crate::{database::PostgresPool, tasks::actions::ActionStatus};
 
 use super::{
     template::{self, TemplateFields},
@@ -169,9 +170,61 @@ struct ExecuteActionData {
 pub async fn execute(
     pg_pool: &PostgresPool,
     invocation: ActionInvocation,
-) -> Result<(), ExecuteError> {
+) -> Result<serde_json::Value, ExecuteError> {
     event!(Level::DEBUG, ?invocation);
 
+    let actions_log_id = invocation.actions_log_id.clone();
+    let task_action_id = invocation.task_action_id;
+    sqlx::query!(
+        "UPDATE actions_log SET status='running' WHERE actions_log_id=$1",
+        invocation.actions_log_id
+    )
+    .execute(pg_pool)
+    .await
+    .map_err(|e| ExecuteError {
+        task_action_id,
+        // We don't actually know the task action name here, but that's ok.
+        task_action_name: String::new(),
+        error: e.into(),
+    })?;
+
+    let result = execute_action(pg_pool, invocation).await;
+    event!(Level::TRACE, ?result);
+
+    let (status, response) = match &result {
+        Ok(r) => (ActionStatus::Success, json!({ "output": r })),
+        Err(e) => (
+            ActionStatus::Error,
+            json!({
+                "error": e.to_string(),
+                "info": format!("{:?}", e),
+            }),
+        ),
+    };
+
+    sqlx::query!(
+        "UPDATE actions_log SET status=$2, result=$3, time=now()
+        WHERE actions_log_id=$1",
+        actions_log_id,
+        status as _,
+        response
+    )
+    .execute(pg_pool)
+    .await
+    .map_err(|e| ExecuteError {
+        task_action_id,
+        // We don't actually know the task action name here, but that's ok.
+        task_action_name: String::new(),
+        error: e.into(),
+    })?;
+
+    result
+}
+
+async fn execute_action(
+    pg_pool: &PostgresPool,
+    invocation: ActionInvocation,
+) -> Result<serde_json::Value, ExecuteError> {
     let task_action_id = invocation.task_action_id;
     let mut action: ExecuteActionData = sqlx::query_as(
         r##"SELECT
@@ -231,11 +284,7 @@ pub async fn execute(
         .await
         .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
 
-    event!(Level::TRACE, ?results);
-
-    // 5. Write the action to the log
-
-    Ok(())
+    Ok(results)
 }
 
 fn prepare_invocation(

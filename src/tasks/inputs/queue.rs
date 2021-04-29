@@ -19,7 +19,7 @@ struct QueueDrainer {}
 impl Drainer for QueueDrainer {
     async fn get(&self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job>, Error> {
         let results = sqlx::query!(
-            r##"SELECT event_queue_id, task_id, task_trigger_id, input_id, payload
+            r##"SELECT event_queue_id, task_id, task_trigger_id, input_id, inputs_log_id, payload
             FROM event_queue ORDER BY event_queue_id LIMIT 50"##
         )
         .fetch_all(&mut *tx)
@@ -38,6 +38,7 @@ impl Drainer for QueueDrainer {
                     task_id: row.task_id,
                     task_trigger_id: row.task_trigger_id,
                     input_id: row.input_id,
+                    inputs_log_id: row.inputs_log_id,
                     payload: row.payload.unwrap_or(serde_json::Value::Null),
                 };
 

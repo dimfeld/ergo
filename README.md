@@ -39,7 +39,7 @@ This project is in very early stages right now with no current plans for proper 
   - [ ] Sequences - Tasks can be chained together and optionally pass information between them (file locations, etc.)
   - [ ] Tasks can clone themselves, and further inputs for that clone are routed to them. This will probably involve interaction with another process set up to be aware of how this works.
 - [ ] Templates for events, actions, and state machines
-- [ ] Extensive logging of events, actions, etc.
+- [X] Extensive logging of events, actions, etc.
 
 # Roadmap
 
@@ -49,7 +49,7 @@ This project is in very early stages right now with no current plans for proper 
 - [ ] Tasks consists of one event that triggers one or more actions
 - [X] Actions can run local scripts
 - [ ] Log everything that happens
-    - [ ] Log inputs and actions to Postgres tables
+    - [X] Log inputs and actions to Postgres tables
     - [ ] Trigger Discord webhooks
 - [X] Events go into a queue for processing
 - [X] Actions are triggered from a queue

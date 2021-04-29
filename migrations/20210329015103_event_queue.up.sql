@@ -5,6 +5,7 @@ CREATE TABLE event_queue (
   task_id bigint not null references tasks ON DELETE CASCADE,
   task_trigger_id bigint not null references task_triggers ON DELETE CASCADE,
   input_id bigint not null references inputs ON DELETE CASCADE,
+  inputs_log_id uuid not null,
   payload jsonb,
   time timestamptz not null default now()
 );

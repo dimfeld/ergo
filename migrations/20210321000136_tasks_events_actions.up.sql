@@ -21,9 +21,16 @@ GRANT SELECT ON inputs TO ergo_enqueuer;
 GRANT SELECT ON inputs TO ergo_backend;
 GRANT SELECT, UPDATE, INSERT, DELETE ON inputs TO ergo_web;
 
+CREATE TYPE input_status AS ENUM (
+  'pending',
+  'success',
+  'error'
+);
+
 CREATE TABLE inputs_log (
   inputs_log_id uuid primary key,
-  input_id bigint references inputs,
+  task_trigger_id bigint references inputs,
+  status input_status not null default 'pending',
   payload jsonb,
   error jsonb,
   time timestamptz not null default now()
@@ -97,6 +104,7 @@ GRANT SELECT ON allowed_action_account_types TO ergo_web;
 
 CREATE TYPE action_status AS ENUM (
   'pending',
+  'running',
   'success',
   'error'
 );
@@ -147,12 +155,11 @@ CREATE INDEX task_actions_task_id ON task_actions(task_id);
 
 
 CREATE TABLE actions_log (
-  actions_log_id bigint primary key generated always as identity,
+  actions_log_id uuid primary key,
   inputs_log_id uuid references inputs_log,
-  action_id bigint references actions,
-  task_id bigint references tasks,
+  task_action_id bigint references task_actions,
   payload jsonb,
-  response jsonb,
+  result jsonb,
   status action_status not null default 'pending',
   time timestamptz not null default now()
 );

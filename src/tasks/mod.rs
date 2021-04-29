@@ -5,7 +5,7 @@ pub mod queue_drain_runner;
 pub mod runtime;
 mod state_machine;
 
-use std::pin::Pin;
+use std::{error::Error as StdError, pin::Pin, sync::Arc};
 
 use smallvec::SmallVec;
 pub use state_machine::StateMachineError;
@@ -13,10 +13,11 @@ pub use state_machine::StateMachineError;
 use crate::{
     database::{sql_insert_parameters, transaction::serializable, PostgresPool},
     error::Error,
+    tasks::{actions::ActionStatus, inputs::InputStatus},
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{types::Json, Executor, FromRow, Postgres, Transaction};
+use sqlx::{types::Json, Executor, FromRow, Postgres, Row, Transaction};
 use uuid::Uuid;
 
 use self::state_machine::{
@@ -63,10 +64,10 @@ impl Task {
         task_id: i64,
         input_id: i64,
         task_trigger_id: i64,
+        input_arrival_id: uuid::Uuid,
         payload: serde_json::Value,
     ) -> Result<(), Error> {
-        let input_arrival_id = uuid::Uuid::new_v4();
-        serializable(pool, 5, move |tx| {
+        let result = serializable(pool, 5, move |tx| {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
             Box::pin(async move {
@@ -128,8 +129,29 @@ impl Task {
 
                 if !actions.is_empty() {
                     let q = format!(
+                        "INSERT INTO actions_log (task_action_id, actions_log_id, inputs_log_id, payload, status)
+                        VALUES
+                        {}
+                        ",
+                        sql_insert_parameters::<5>(actions.len())
+                    );
+
+                    let mut log_query = sqlx::query(&q);
+
+                    for action in &actions {
+                        log_query = log_query
+                            .bind(action.task_action_id)
+                            .bind(action.actions_log_id)
+                            .bind(action.input_arrival_id)
+                            .bind(&action.payload)
+                            .bind(ActionStatus::Pending);
+                    }
+
+                    let action_log_ids = log_query.fetch_all(&mut *tx).await?;
+
+                    let q = format!(
                         r##"INSERT INTO action_queue
-                        (task_action_id, input_event_id, payload)
+                        (task_action_id, actions_log_id, input_arrival_id, payload)
                         VALUES
                         {}
                         "##,
@@ -140,17 +162,36 @@ impl Task {
                     for action in actions {
                         query = query
                             .bind(action.task_action_id)
+                            .bind(action.actions_log_id)
                             .bind(action.input_arrival_id)
                             .bind(action.payload);
                     }
 
                     query.execute(&mut *tx).await?;
                 }
-
                 Ok::<(), Error>(())
             })
         })
-        .await
+        .await;
+
+        let (log_error, status) = match &result {
+            Ok(_) => (None, InputStatus::Success),
+            Err(e) => (
+                Some(serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) })),
+                InputStatus::Error,
+            ),
+        };
+
+        sqlx::query!(
+            "UPDATE inputs_log SET status=$2, error=$3 WHERE inputs_log_id=$1",
+            input_arrival_id,
+            status as _,
+            log_error
+        )
+        .execute(pool)
+        .await?;
+
+        result
     }
 }
 

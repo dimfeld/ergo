@@ -2,6 +2,8 @@ pub mod queue;
 
 use crate::{database::PostgresPool, error::Error};
 use serde::{Deserialize, Serialize};
+use sqlx::Connection;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InputCategory {
@@ -23,9 +25,18 @@ pub struct Input {
 pub struct InputsLog {
     pub inputs_log_id: i64,
     pub input_id: i64,
+    pub status: InputStatus,
     pub payload: serde_json::Value,
     pub error: serde_json::Value,
     pub time: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "input_status", rename_all = "lowercase")]
+pub enum InputStatus {
+    Pending,
+    Success,
+    Error,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,6 +44,7 @@ pub struct InputInvocation {
     pub task_id: i64,
     pub task_trigger_id: i64,
     pub input_id: i64,
+    pub inputs_log_id: uuid::Uuid,
     pub payload: serde_json::Value,
 }
 
@@ -52,21 +64,44 @@ pub async fn enqueue_input(
     input_id: i64,
     task_trigger_id: i64,
     payload_schema: &serde_json::Value,
-    payload: &serde_json::Value,
-) -> Result<(), Error> {
-    validate_input_payload(input_id, payload_schema, payload)?;
+    payload: serde_json::Value,
+) -> Result<Uuid, Error> {
+    validate_input_payload(input_id, payload_schema, &payload)?;
 
-    sqlx::query!(
-        r##"INSERT INTO event_queue
-        (task_id, input_id, task_trigger_id, payload) VALUES
-        ($1, $2, $3, $4)"##,
-        task_id,
-        input_id,
-        task_trigger_id,
-        payload
-    )
-    .execute(pg)
+    let input_arrival_id = Uuid::new_v4();
+
+    let mut conn = pg.acquire().await?;
+    conn.transaction(|tx| {
+        Box::pin(async move {
+            sqlx::query!(
+                r##"INSERT INTO event_queue
+        (task_id, input_id, task_trigger_id, inputs_log_id, payload) VALUES
+        ($1, $2, $3, $4, $5)"##,
+                task_id,
+                input_id,
+                task_trigger_id,
+                &input_arrival_id,
+                payload
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            sqlx::query!(
+                r##"INSERT INTO inputs_log
+        (inputs_log_id, task_trigger_id, status, payload)
+        VALUES
+        ($1, $2, 'pending', $3)"##,
+                input_arrival_id,
+                task_trigger_id,
+                payload
+            )
+            .execute(&mut *tx)
+            .await?;
+
+            Ok::<(), Error>(())
+        })
+    })
     .await?;
 
-    Ok(())
+    Ok(input_arrival_id)
 }

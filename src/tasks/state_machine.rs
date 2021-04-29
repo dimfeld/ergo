@@ -63,6 +63,7 @@ impl EventHandler {
 
                 Ok(ActionInvocation {
                     input_arrival_id: input_arrival_id.clone(),
+                    actions_log_id: uuid::Uuid::new_v4(),
                     task_action_id: def.task_action_id,
                     payload,
                 })

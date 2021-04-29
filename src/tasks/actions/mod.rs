@@ -9,6 +9,7 @@ mod raw_command_executor;
 use fxhash::FxHashMap;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use self::template::TemplateFields;
 
@@ -49,21 +50,19 @@ pub struct TaskAction {
     pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, sqlx::Type)]
+#[sqlx(type_name = "action_status", rename_all = "lowercase")]
 pub enum ActionStatus {
-    #[serde(rename = "success")]
     Success,
-    #[serde(rename = "pending")]
     Pending,
-    #[serde(rename = "error")]
+    Running,
     Error,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ActionInvocation {
-    // pub task_id: i64,
-    // pub task_trigger_id: Option<i64>,
     pub task_action_id: i64,
-    pub input_arrival_id: Option<uuid::Uuid>,
+    pub actions_log_id: Uuid,
+    pub input_arrival_id: Option<Uuid>,
     pub payload: serde_json::Value,
 }
