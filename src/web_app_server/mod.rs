@@ -41,9 +41,13 @@ pub fn new_server(
     pg_pool: VaultPostgresPool,
 ) -> std::io::Result<actix_web::dev::Server> {
     let data = app_data(pg_pool);
-    let server = HttpServer::new(move || App::new().wrap(TracingLogger).service(scope(&data, "")))
-        .bind(format!("{}:{}", address, port))?
-        .run();
+    let server = HttpServer::new(move || {
+        App::new()
+            .wrap(TracingLogger::default())
+            .service(scope(&data, ""))
+    })
+    .bind(format!("{}:{}", address, port))?
+    .run();
 
     Ok(server)
 }

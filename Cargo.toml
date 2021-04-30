@@ -25,10 +25,10 @@ test-redis = []
 test-all = ["test-redis"]
 
 [dependencies]
-actix-cors = "0.5.4"
-actix-identity = "0.3.1"
-actix-session = "0.4.1"
-actix-web = "3.3.2"
+# actix-cors = "0.6.0-beta.1"
+actix-identity = "0.4.0-beta.1"
+# actix-session = "0.5.0-beta.1"
+actix-web = "=4.0.0-beta.5"
 anyhow = "1.0.40"
 async-stream = "0.3.1"
 async-trait = "0.1.50"
@@ -71,7 +71,7 @@ structopt = "0.3.21"
 thiserror = "1.0.24"
 tokio = { version = "1.5.0", features = ["full", "test-util"] }
 tracing = "0.1.25"
-tracing-actix-web = "0.2.1"
+tracing-actix-web = "0.4.0-beta.1"
 tracing-bunyan-formatter = "0.2.0"
 tracing-futures = "0.2.5"
 tracing-log = "0.1.2"

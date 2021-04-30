@@ -106,7 +106,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         );
 
         App::new()
-            .wrap(TracingLogger)
+            .wrap(TracingLogger::default())
             .wrap(identity)
             .service(web_app_server::scope(&web_app_data, "/api/web"))
             .service(tasks::handlers::scope(&backend_app_data, "/api/tasks"))
