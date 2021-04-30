@@ -1,6 +1,9 @@
 use std::str::ParseBoolError;
 
-use crate::tasks::{actions::template::TemplateError, StateMachineError};
+use crate::tasks::{
+    actions::{execute::ExecuteError, template::TemplateError},
+    StateMachineError,
+};
 use actix_web::{http::StatusCode, HttpResponse};
 use thiserror::Error;
 
@@ -70,6 +73,9 @@ pub enum Error {
 
     #[error("{0}")]
     StringError(String),
+
+    #[error(transparent)]
+    ExecuteError(#[from] ExecuteError),
 
     #[error(transparent)]
     TemplateError(#[from] TemplateError),

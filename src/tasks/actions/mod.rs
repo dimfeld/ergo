@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod dequeue;
 pub mod execute;
 pub mod queue;
 pub mod template;

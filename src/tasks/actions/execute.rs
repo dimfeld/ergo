@@ -169,7 +169,7 @@ struct ExecuteActionData {
 #[instrument(name = "execute_action", level = "debug")]
 pub async fn execute(
     pg_pool: &PostgresPool,
-    invocation: ActionInvocation,
+    invocation: &ActionInvocation,
 ) -> Result<serde_json::Value, ExecuteError> {
     event!(Level::DEBUG, ?invocation);
 
@@ -223,7 +223,7 @@ pub async fn execute(
 
 async fn execute_action(
     pg_pool: &PostgresPool,
-    invocation: ActionInvocation,
+    invocation: &ActionInvocation,
 ) -> Result<serde_json::Value, ExecuteError> {
     let task_action_id = invocation.task_action_id;
     let mut action: ExecuteActionData = sqlx::query_as(
@@ -273,7 +273,7 @@ async fn execute_action(
         )
     })?;
 
-    let action_template_values = prepare_invocation(executor, invocation.payload, &mut action)
+    let action_template_values = prepare_invocation(executor, &invocation.payload, &mut action)
         .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
 
     event!(Level::TRACE, ?action_template_values);
@@ -289,7 +289,7 @@ async fn execute_action(
 
 fn prepare_invocation(
     executor: &Box<dyn Executor>,
-    invocation_payload: serde_json::Value,
+    invocation_payload: &serde_json::Value,
     action: &mut ExecuteActionData,
 ) -> Result<FxHashMap<String, serde_json::Value>, ExecuteErrorSource> {
     if action.account_required && action.account_id.is_none() {
@@ -311,7 +311,7 @@ fn prepare_invocation(
 
     if let serde_json::Value::Object(invocation_payload) = invocation_payload {
         for (k, v) in invocation_payload {
-            action_payload.insert(k, v);
+            action_payload.insert(k.clone(), v.clone());
         }
     }
 

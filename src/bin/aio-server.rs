@@ -18,8 +18,14 @@ use ergo::{
     graceful_shutdown::GracefulShutdown,
     tasks::{
         self,
-        actions::queue::ActionQueue,
-        inputs::{dequeue::TaskExecutorConfig, queue::InputQueue},
+        actions::{
+            dequeue::{ActionExecutor, ActionExecutorConfig},
+            queue::ActionQueue,
+        },
+        inputs::{
+            dequeue::{TaskExecutor, TaskExecutorConfig},
+            queue::InputQueue,
+        },
     },
     web_app_server,
 };
@@ -65,7 +71,14 @@ async fn main() -> Result<(), ergo::error::Error> {
         shutdown.consumer(),
     );
 
-    let input_runner = ergo::tasks::inputs::dequeue::TaskExecutor::new(TaskExecutorConfig {
+    let input_runner = TaskExecutor::new(TaskExecutorConfig {
+        redis_pool: redis_pool.clone(),
+        pg_pool: backend_pg_pool.clone(),
+        shutdown: shutdown.consumer(),
+        max_concurrent_jobs: None,
+    });
+
+    let action_runner = ActionExecutor::new(ActionExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),

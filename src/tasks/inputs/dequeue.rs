@@ -1,6 +1,6 @@
 //! Read events from the queues and execute tasks
 
-use std::sync::{atomic::AtomicU64, Arc};
+use std::{num::NonZeroU32, sync::Arc};
 
 use async_trait::async_trait;
 use tokio::task::JoinHandle;
@@ -37,16 +37,21 @@ impl TaskExecutor {
             pg_pool: config.pg_pool,
         };
 
-        executor
-            .queue
-            .start_dequeuer_loop(config.shutdown, None, None, processor);
+        executor.queue.start_dequeuer_loop(
+            config.shutdown,
+            None,
+            config
+                .max_concurrent_jobs
+                .and_then(|n| NonZeroU32::new(n as u32)),
+            processor,
+        );
 
         Ok(executor)
     }
 }
 
 #[derive(Clone)]
-pub struct TaskExecutorJobProcessor {
+struct TaskExecutorJobProcessor {
     pg_pool: PostgresPool,
 }
 
