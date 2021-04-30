@@ -1,3 +1,4 @@
+pub mod dequeue;
 pub mod queue;
 
 use crate::{database::PostgresPool, error::Error};

@@ -12,10 +12,7 @@ use crate::{
     queues::{QueueJobProcessor, QueueWorkItem},
 };
 
-use super::{
-    inputs::{queue::InputQueue, InputInvocation},
-    Task,
-};
+use super::{super::Task, queue::InputQueue, InputInvocation};
 
 pub struct TaskExecutor {
     queue: InputQueue,
@@ -32,7 +29,7 @@ pub struct TaskExecutorConfig {
 impl TaskExecutor {
     pub fn new(config: TaskExecutorConfig) -> Result<TaskExecutor, Error> {
         // Start the event queue reader.
-        let queue = super::inputs::queue::InputQueue::new(config.redis_pool);
+        let queue = InputQueue::new(config.redis_pool);
 
         let executor = TaskExecutor { queue };
 

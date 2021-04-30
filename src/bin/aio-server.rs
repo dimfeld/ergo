@@ -17,7 +17,9 @@ use ergo::{
     database::VaultPostgresPoolAuth,
     graceful_shutdown::GracefulShutdown,
     tasks::{
-        self, actions::queue::ActionQueue, inputs::queue::InputQueue, runtime::TaskExecutorConfig,
+        self,
+        actions::queue::ActionQueue,
+        inputs::{dequeue::TaskExecutorConfig, queue::InputQueue},
     },
     web_app_server,
 };
@@ -32,7 +34,7 @@ async fn main() -> Result<(), ergo::error::Error> {
     let shutdown = GracefulShutdown::new();
 
     let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown);
-    let auth = tracing::info!("{:?}", vault_client);
+    tracing::info!("{:?}", vault_client);
 
     let address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
     let port = env::var("BIND_PORT")
@@ -63,7 +65,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         shutdown.consumer(),
     );
 
-    let input_runner = ergo::tasks::runtime::TaskExecutor::new(TaskExecutorConfig {
+    let input_runner = ergo::tasks::inputs::dequeue::TaskExecutor::new(TaskExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
