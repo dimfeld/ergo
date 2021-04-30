@@ -6,10 +6,7 @@
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{App, HttpServer};
 use hashicorp_vault::client::VaultClient;
-use std::{
-    env,
-    sync::{Arc, RwLock},
-};
+use std::{env, sync::Arc};
 use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
@@ -39,7 +36,7 @@ async fn main() -> Result<(), ergo::error::Error> {
 
     let shutdown = GracefulShutdown::new();
 
-    let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown);
+    let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown).await;
     tracing::info!("{:?}", vault_client);
 
     let address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
@@ -48,9 +45,9 @@ async fn main() -> Result<(), ergo::error::Error> {
         .unwrap_or(Ok(6543))
         .expect("PORT");
 
-    let web_pg_pool = ergo::service_config::web_pg_pool(shutdown.consumer(), &vault_client)?;
+    let web_pg_pool = ergo::service_config::web_pg_pool(shutdown.consumer(), &vault_client).await?;
     let backend_pg_pool =
-        ergo::service_config::backend_pg_pool(shutdown.consumer(), &vault_client)?;
+        ergo::service_config::backend_pg_pool(shutdown.consumer(), &vault_client).await?;
 
     let redis_pool = ergo::service_config::redis_pool()?;
 

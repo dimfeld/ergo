@@ -8,7 +8,7 @@ use crate::{
 };
 use std::{env, sync::Arc};
 
-fn pg_pool(
+async fn pg_pool(
     shutdown: GracefulShutdownConsumer,
     auth: VaultPostgresPoolAuth,
 ) -> Result<VaultPostgresPool, Error> {
@@ -22,6 +22,7 @@ fn pg_pool(
         auth,
         shutdown,
     })
+    .await
 }
 
 pub fn redis_pool() -> Result<deadpool_redis::Pool, Error> {
@@ -34,7 +35,7 @@ pub fn redis_pool() -> Result<deadpool_redis::Pool, Error> {
     .map_err(|e| e.into())
 }
 
-pub fn backend_pg_pool(
+pub async fn backend_pg_pool(
     shutdown: GracefulShutdownConsumer,
     vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
 ) -> Result<VaultPostgresPool, Error> {
@@ -42,9 +43,10 @@ pub fn backend_pg_pool(
         shutdown,
         VaultPostgresPoolAuth::from_env(vault_client, "BACKEND", "ergo_backend")?,
     )
+    .await
 }
 
-pub fn web_pg_pool(
+pub async fn web_pg_pool(
     shutdown: GracefulShutdownConsumer,
     vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
 ) -> Result<VaultPostgresPool, Error> {
@@ -52,4 +54,5 @@ pub fn web_pg_pool(
         shutdown,
         VaultPostgresPoolAuth::from_env(vault_client, "WEB", "ergo_web")?,
     )
+    .await
 }

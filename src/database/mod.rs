@@ -7,11 +7,7 @@ use derivative::Derivative;
 use hashicorp_vault::client::VaultClient;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
-use std::{
-    env,
-    fmt::Debug,
-    sync::{Arc, RwLock},
-};
+use std::{env, fmt::Debug, sync::Arc};
 
 mod conn_executor;
 mod connection_manager;
@@ -109,7 +105,7 @@ fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
 }
 
 impl VaultPostgresPool {
-    pub fn new(config: VaultPostgresPoolOptions) -> Result<VaultPostgresPool, Error> {
+    pub async fn new(config: VaultPostgresPoolOptions) -> Result<VaultPostgresPool, Error> {
         let VaultPostgresPoolOptions {
             max_connections,
             host,
@@ -117,7 +113,7 @@ impl VaultPostgresPool {
             auth,
             shutdown,
         } = config;
-        let manager = Manager::new(auth, shutdown, host, database)?;
+        let manager = Manager::new(auth, shutdown, host, database).await?;
 
         let pool = VaultPostgresPoolInner {
             manager: manager.clone(),

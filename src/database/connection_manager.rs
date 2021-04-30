@@ -7,32 +7,37 @@ use sqlx::{Connection, PgConnection};
 use std::{
     fmt::Debug,
     ops::{Deref, DerefMut},
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
-use tracing::{event, span, Level};
+use tokio::sync::RwLock;
+use tracing::{event, instrument, span, Level};
 
 use super::{Error, VaultPostgresPoolAuth};
 use crate::{graceful_shutdown::GracefulShutdownConsumer, vault::VaultClientTokenData};
 
+#[async_trait]
 pub trait PostgresAuthRenewer: 'static + Send + Sync + Debug {
-    fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error>;
-    fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error>;
+    async fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error>;
+    async fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error>;
 }
 
+#[async_trait]
 impl<T: 'static + DeserializeOwned + Send + Sync + Debug> PostgresAuthRenewer
     for RwLock<VaultClient<T>>
 {
-    fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
+    async fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
         self.read()
-            .unwrap()
+            .await
             .renew_lease(lease_id, None)
+            .await
             .map_err(Error::from)
     }
 
-    fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
+    async fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
         self.read()
-            .unwrap()
+            .await
             .get_secret_engine_creds::<PostgresqlLogin>("database", role)
+            .await
             .map_err(Error::from)
     }
 }
@@ -45,8 +50,9 @@ struct FixedAuth {
     password: String,
 }
 
+#[async_trait]
 impl PostgresAuthRenewer for FixedAuth {
-    fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
+    async fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
         Ok(VaultResponse {
             request_id: String::new(),
             lease_id: None,
@@ -59,7 +65,7 @@ impl PostgresAuthRenewer for FixedAuth {
         })
     }
 
-    fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
+    async fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
         Ok(VaultResponse {
             request_id: String::new(),
             lease_id: None,
@@ -92,12 +98,10 @@ async fn refresh_loop(
             _ = tokio::time::sleep_until(wait_time) => {
                 let lease_id = renew_lease_id.clone();
                 let m = manager.clone();
-                let result = tokio::task::spawn_blocking(move || {
-                        m.refresh_auth(lease_id.as_ref().map(|l| l.as_str()))
-                    })
+                let result =
+                    m.refresh_auth(lease_id.as_ref().map(|l| l.as_str()))
                     .await
-                    .map_err(Error::from)
-                    .and_then(|r| r);
+                    .map_err(Error::from);
 
                 match result {
                     Ok((lease_id, lease_duration)) => {
@@ -128,7 +132,7 @@ pub struct ManagerStats {
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub(crate) struct Manager {
-    connection_string: RwLock<String>,
+    connection_string: std::sync::RwLock<String>,
     #[derivative(Debug = "ignore")]
     renewer: Arc<dyn PostgresAuthRenewer>,
 
@@ -141,7 +145,7 @@ pub(crate) struct Manager {
 }
 
 impl Manager {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         auth_method: VaultPostgresPoolAuth,
         shutdown: GracefulShutdownConsumer,
         host: String,
@@ -162,7 +166,7 @@ impl Manager {
         };
 
         let manager = Manager {
-            connection_string: RwLock::new(String::new()),
+            connection_string: std::sync::RwLock::new(String::new()),
             renewer,
             host,
             database,
@@ -172,7 +176,7 @@ impl Manager {
             stats: stats_receiver,
         };
 
-        let (renewable, duration) = manager.refresh_auth(None)?;
+        let (renewable, duration) = manager.refresh_auth(None).await?;
 
         let manager_ptr = Arc::new(manager);
 
@@ -196,18 +200,19 @@ impl Manager {
         )
     }
 
-    pub fn refresh_auth(
+    #[instrument(level="info", name="refreshing Postgres auth", fields(role=%self.role))]
+    pub async fn refresh_auth(
         &self,
         renew_lease_id: Option<&str>,
     ) -> Result<(Option<String>, std::time::Duration), Error> {
         // If the lease is renewable, then try that first.
-        let span = span!(Level::INFO, "refreshing Postgres auth", role=%self.role ).entered();
+        // let span = span!(Level::INFO, "refreshing Postgres auth", role=%self.role ).entered();
 
         let mut stats = { self.stats_sender.borrow().clone() };
 
         if let Some(lease_id) = renew_lease_id {
             event!(Level::INFO, "Refreshing renewable lease");
-            match self.renewer.renew_lease(lease_id) {
+            match self.renewer.renew_lease(lease_id).await {
                 Ok(auth) => {
                     stats.renew_successes += 1;
                     self.stats_sender.send(stats).ok();
@@ -234,7 +239,7 @@ impl Manager {
         }
 
         event!(Level::INFO, "Fetching new credentials");
-        let auth = match self.renewer.get_lease(&self.role) {
+        let auth = match self.renewer.get_lease(&self.role).await {
             Ok(data) => {
                 stats.update_successes += 1;
                 self.stats_sender.send(stats).ok();
@@ -380,8 +385,9 @@ mod tests {
         }
     }
 
+    #[async_trait]
     impl PostgresAuthRenewer for RwLock<MockVaultClient> {
-        fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
+        async fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
             {
                 self.write().unwrap().counts.write().unwrap().renew_count += 1;
             }
@@ -403,7 +409,7 @@ mod tests {
             }
         }
 
-        fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
+        async fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
             assert_eq!(role, self.read().unwrap().role);
 
             {

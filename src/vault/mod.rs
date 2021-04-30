@@ -4,12 +4,8 @@ use crate::{
 };
 use hashicorp_vault::client::{TokenData, VaultClient};
 use serde::de::DeserializeOwned;
-use std::{
-    env,
-    sync::{Arc, RwLock},
-    time::Duration,
-};
-use tokio::{select, task::JoinHandle};
+use std::{env, sync::Arc, time::Duration};
+use tokio::{select, sync::RwLock, task::JoinHandle};
 use tracing::{event, Level};
 
 pub type SharedVaultClient<T> = Arc<RwLock<VaultClient<T>>>;
@@ -26,7 +22,7 @@ async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
 ) {
     let lease_renew_duration = client
         .read()
-        .unwrap()
+        .await
         .data
         .as_ref()
         .and_then(|d| d.auth.as_ref())
@@ -49,7 +45,7 @@ async fn vault_client_renew_loop<T: 'static + DeserializeOwned + Send + Sync>(
                 let c = client.clone();
                 // TODO Error handling, retry, etc.
                 event!(Level::INFO, "Refreshing vault client auth");
-                let result = tokio::task::spawn_blocking(move || c.write().unwrap().renew()).await.unwrap();
+                let result = c.write().await.renew().await;
                 match result {
                     Ok(_) => event!(Level::INFO, "Done refreshing vault client auth"),
                     Err(e) => event!(Level::ERROR, error=?e, "Error refreshing vault client auth"),
@@ -71,7 +67,7 @@ fn refresh_vault_client<T: 'static + DeserializeOwned + Send + Sync>(
     tokio::spawn(vault_client_renew_loop(client, shutdown))
 }
 
-pub fn from_env(
+pub async fn from_env(
     env_name: &str,
     shutdown: &GracefulShutdown,
 ) -> Option<Arc<dyn PostgresAuthRenewer>> {
@@ -87,6 +83,7 @@ pub fn from_env(
         (Ok(vault_role_id), Ok(vault_secret_id)) => {
             let client =
                 VaultClient::new_app_role(vault_address, vault_role_id, Some(vault_secret_id))
+                    .await
                     .expect("Creating vault client");
             let client = Arc::new(RwLock::new(client));
             refresh_vault_client(client.clone(), shutdown.consumer());
