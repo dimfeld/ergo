@@ -7,7 +7,6 @@ use crate::{
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::Error,
     queues::postgres_drain,
-    service_config::Config,
     vault::VaultClientTokenData,
 };
 

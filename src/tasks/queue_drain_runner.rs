@@ -6,7 +6,6 @@ use crate::{
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
-    service_config::Config,
     vault::VaultClientTokenData,
 };
 

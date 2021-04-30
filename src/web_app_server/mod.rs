@@ -1,7 +1,6 @@
 use crate::{
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::Error,
-    service_config::Config,
     vault::VaultClientTokenData,
 };
 
@@ -39,9 +38,9 @@ pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
 pub fn new_server(
     address: String,
     port: u16,
-    config: Config,
+    pg_pool: VaultPostgresPool,
 ) -> std::io::Result<actix_web::dev::Server> {
-    let data = app_data(config.pg_pool);
+    let data = app_data(pg_pool);
     let server = HttpServer::new(move || App::new().wrap(TracingLogger).service(scope(&data, "")))
         .bind(format!("{}:{}", address, port))?
         .run();

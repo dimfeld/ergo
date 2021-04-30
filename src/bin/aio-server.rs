@@ -39,30 +39,19 @@ async fn main() -> Result<(), ergo::error::Error> {
         .map(|s| s.parse::<u16>())
         .unwrap_or(Ok(6543))
         .expect("PORT");
-    let web_config = ergo::service_config::Config::new(
-        VaultPostgresPoolAuth::from_env(&vault_client, "WEB", "ergo_web")?,
-        &shutdown,
-    )?;
 
-    let backend_config = ergo::service_config::Config::new(
-        VaultPostgresPoolAuth::from_env(&vault_client, "BACKEND", "ergo_backend")?,
-        &shutdown,
-    )?;
+    let web_pg_pool = ergo::service_config::web_pg_pool(shutdown.consumer(), &vault_client)?;
+    let backend_pg_pool =
+        ergo::service_config::backend_pg_pool(shutdown.consumer(), &vault_client)?;
 
-    let redis_host = env::var("REDIS_URL").expect("REDIS_URL is required");
-    let redis_pool = deadpool_redis::Config {
-        url: Some(redis_host),
-        pool: None,
-    }
-    .create_pool()
-    .expect("Creating redis pool");
+    let redis_pool = ergo::service_config::redis_pool()?;
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
-    let web_app_data = ergo::web_app_server::app_data(web_config.pg_pool);
+    let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = ergo::tasks::handlers::app_data(
-        backend_config.pg_pool.clone(),
+        backend_pg_pool.clone(),
         input_queue.clone(),
         action_queue.clone(),
     )?;
@@ -70,13 +59,13 @@ async fn main() -> Result<(), ergo::error::Error> {
     let queue_drain = ergo::tasks::queue_drain_runner::AllQueuesDrain::new(
         input_queue.clone(),
         action_queue.clone(),
-        backend_app_data.get_ref().pg.clone(),
+        backend_pg_pool.clone(),
         shutdown.consumer(),
     );
 
     let input_runner = ergo::tasks::runtime::TaskExecutor::new(TaskExecutorConfig {
         redis_pool: redis_pool.clone(),
-        pg_pool: backend_app_data.get_ref().pg.clone(),
+        pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
         max_concurrent_jobs: None,
     });

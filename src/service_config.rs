@@ -1,36 +1,55 @@
 use crate::{
-    database::{VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions},
+    database::{
+        PostgresAuthRenewer, VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions,
+    },
     error::Error,
-    graceful_shutdown::{self, GracefulShutdown},
+    graceful_shutdown::{self, GracefulShutdown, GracefulShutdownConsumer},
     vault::VaultClientTokenData,
 };
-use std::env;
+use std::{env, sync::Arc};
 
-#[derive(Clone, Debug)]
-pub struct Config {
-    pub pg_pool: VaultPostgresPool,
-    pub redis_host: String,
-    pub shutdown: graceful_shutdown::GracefulShutdownConsumer,
+fn pg_pool(
+    shutdown: GracefulShutdownConsumer,
+    auth: VaultPostgresPoolAuth,
+) -> Result<VaultPostgresPool, Error> {
+    let database = env::var("DATABASE").unwrap_or_else(|_| "ergo".to_string());
+    let database_host = env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string());
+
+    VaultPostgresPool::new(VaultPostgresPoolOptions {
+        max_connections: 16,
+        host: database_host,
+        database,
+        auth,
+        shutdown,
+    })
 }
 
-impl Config {
-    pub fn new(auth: VaultPostgresPoolAuth, shutdown: &GracefulShutdown) -> Result<Self, Error> {
-        let database = env::var("DATABASE").unwrap_or_else(|_| "ergo".to_string());
-        let database_host =
-            env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string());
-
-        let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
-            max_connections: 16,
-            host: database_host,
-            database,
-            auth,
-            shutdown: shutdown.consumer(),
-        })?;
-
-        Ok(Config {
-            pg_pool,
-            redis_host: env::var("REDIS_HOST").expect("REDIS_HOST is required"),
-            shutdown: shutdown.consumer(),
-        })
+pub fn redis_pool() -> Result<deadpool_redis::Pool, Error> {
+    let redis_host = env::var("REDIS_URL").expect("REDIS_URL is required");
+    deadpool_redis::Config {
+        url: Some(redis_host),
+        pool: None,
     }
+    .create_pool()
+    .map_err(|e| e.into())
+}
+
+pub fn backend_pg_pool(
+    shutdown: GracefulShutdownConsumer,
+    vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
+) -> Result<VaultPostgresPool, Error> {
+    pg_pool(
+        shutdown,
+        VaultPostgresPoolAuth::from_env(vault_client, "BACKEND", "ergo_backend")?,
+    )
+}
+
+pub fn web_pg_pool(
+    shutdown: GracefulShutdownConsumer,
+    vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
+) -> Result<VaultPostgresPool, Error> {
+    pg_pool(
+        shutdown,
+        VaultPostgresPoolAuth::from_env(vault_client, "WEB", "ergo_web")?,
+    )
 }
