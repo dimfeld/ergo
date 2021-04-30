@@ -51,6 +51,7 @@ impl Drainer for QueueDrainer {
 
 const QUEUE_NAME: &str = "er-input";
 
+#[derive(Clone)]
 pub struct InputQueue(Queue);
 impl Deref for InputQueue {
     type Target = Queue;
@@ -60,24 +61,24 @@ impl Deref for InputQueue {
     }
 }
 
-pub fn new(redis_pool: deadpool_redis::Pool) -> InputQueue {
-    InputQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+impl InputQueue {
+    pub fn new(redis_pool: deadpool_redis::Pool) -> InputQueue {
+        InputQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+    }
 }
 
 /// Create an action queue and a task to drain the Postgres staging table into the queue.
-pub fn new_with_drain(
+pub fn new_drain(
+    input_queue: InputQueue,
     db_pool: PostgresPool,
-    redis_pool: deadpool_redis::Pool,
     shutdown: GracefulShutdownConsumer,
-) -> Result<(InputQueue, QueueStageDrain), Error> {
-    let queue = new(redis_pool);
+) -> Result<QueueStageDrain, Error> {
     let config = QueueStageDrainConfig {
         db_pool,
         drainer: QueueDrainer {},
-        queue: queue.clone(),
+        queue: input_queue.0,
         shutdown,
     };
 
-    let drain = QueueStageDrain::new(config)?;
-    Ok((queue, drain))
+    QueueStageDrain::new(config)
 }

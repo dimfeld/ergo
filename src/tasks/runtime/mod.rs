@@ -32,7 +32,7 @@ pub struct TaskExecutorConfig {
 impl TaskExecutor {
     pub fn new(config: TaskExecutorConfig) -> Result<TaskExecutor, Error> {
         // Start the event queue reader.
-        let queue = super::inputs::queue::new(config.redis_pool);
+        let queue = super::inputs::queue::InputQueue::new(config.redis_pool);
 
         let executor = TaskExecutor { queue };
 

@@ -53,6 +53,7 @@ impl Drainer for QueueDrainer {
 
 const QUEUE_NAME: &str = "er-action";
 
+#[derive(Clone)]
 pub struct ActionQueue(Queue);
 impl Deref for ActionQueue {
     type Target = Queue;
@@ -62,24 +63,24 @@ impl Deref for ActionQueue {
     }
 }
 
-pub fn new(redis_pool: deadpool_redis::Pool) -> ActionQueue {
-    ActionQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+impl ActionQueue {
+    pub fn new(redis_pool: deadpool_redis::Pool) -> ActionQueue {
+        ActionQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+    }
 }
 
 /// Create an action queue and a task to drain the Postgres staging table into the queue.
-pub fn new_with_drain(
+pub fn new_drain(
+    queue: ActionQueue,
     db_pool: PostgresPool,
-    redis_pool: deadpool_redis::Pool,
     shutdown: GracefulShutdownConsumer,
-) -> Result<(ActionQueue, QueueStageDrain), Error> {
-    let queue = new(redis_pool);
+) -> Result<QueueStageDrain, Error> {
     let config = QueueStageDrainConfig {
         db_pool,
         drainer: QueueDrainer {},
-        queue: queue.clone(),
+        queue: queue.0,
         shutdown,
     };
 
-    let drain = QueueStageDrain::new(config)?;
-    Ok((queue, drain))
+    QueueStageDrain::new(config)
 }

@@ -1,4 +1,7 @@
-use super::{actions, inputs};
+use super::{
+    actions::{self, queue::ActionQueue},
+    inputs::{self, queue::InputQueue},
+};
 use crate::{
     auth,
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
@@ -68,32 +71,22 @@ async fn post_task_trigger(
 }
 
 pub struct BackendAppState {
-    pg: PostgresPool,
+    pub pg: PostgresPool,
     action_queue: actions::queue::ActionQueue,
     input_queue: inputs::queue::InputQueue,
 }
 
 pub type BackendAppStateData = Data<BackendAppState>;
 
-pub fn app_data(config: Config) -> Result<BackendAppStateData, Error> {
-    let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
-        max_connections: 16,
-        host: config.database_host,
-        database: config.database.unwrap_or_else(|| "ergo".to_string()),
-        auth: config.database_auth,
-        shutdown: config.shutdown.clone(),
-    })?;
-
-    let redis_pool = deadpool_redis::Config {
-        url: Some(config.redis_host),
-        pool: None,
-    }
-    .create_pool()?;
-
+pub fn app_data(
+    pg_pool: VaultPostgresPool,
+    input_queue: InputQueue,
+    action_queue: ActionQueue,
+) -> Result<BackendAppStateData, Error> {
     Ok(Data::new(BackendAppState {
         pg: pg_pool,
-        action_queue: actions::queue::new(redis_pool.clone()),
-        input_queue: inputs::queue::new(redis_pool.clone()),
+        action_queue,
+        input_queue,
     }))
 }
 

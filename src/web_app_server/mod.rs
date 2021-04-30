@@ -26,17 +26,8 @@ pub struct AppState {
 
 pub type AppStateData = Data<AppState>;
 
-pub fn app_data(config: Config) -> Result<AppStateData, std::io::Error> {
-    let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
-        max_connections: 16,
-        host: config.database_host,
-        database: config.database.unwrap_or_else(|| "ergo".to_string()),
-        auth: config.database_auth,
-        shutdown: config.shutdown,
-    })
-    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-
-    Ok(Data::new(AppState { pg: pg_pool }))
+pub fn app_data(pg: VaultPostgresPool) -> AppStateData {
+    Data::new(AppState { pg })
 }
 
 pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
@@ -50,7 +41,7 @@ pub fn new_server(
     port: u16,
     config: Config,
 ) -> std::io::Result<actix_web::dev::Server> {
-    let data = app_data(config)?;
+    let data = app_data(config.pg_pool);
     let server = HttpServer::new(move || App::new().wrap(TracingLogger).service(scope(&data, "")))
         .bind(format!("{}:{}", address, port))?
         .run();

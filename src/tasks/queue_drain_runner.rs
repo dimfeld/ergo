@@ -4,6 +4,7 @@ use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 use crate::{
     database::{VaultPostgresPool, VaultPostgresPoolOptions},
     error::Error,
+    graceful_shutdown::GracefulShutdownConsumer,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
     service_config::Config,
     vault::VaultClientTokenData,
@@ -11,6 +12,7 @@ use crate::{
 
 use serde::Serialize;
 
+/// Handle draining task staging tables for both actions and inputs.
 pub struct AllQueuesDrain {
     action_drain: QueueStageDrain,
     input_drain: QueueStageDrain,
@@ -23,32 +25,17 @@ pub struct AllQueuesDrainStats {
 }
 
 impl AllQueuesDrain {
-    pub fn new(config: Config) -> Result<AllQueuesDrain, Error> {
-        let pg_pool = VaultPostgresPool::new(VaultPostgresPoolOptions {
-            max_connections: 16,
-            host: config.database_host,
-            database: config.database.unwrap_or_else(|| "ergo".to_string()),
-            auth: config.database_auth,
-            shutdown: config.shutdown.clone(),
-        })?;
+    pub fn new(
+        input_queue: InputQueue,
+        action_queue: ActionQueue,
+        pg_pool: VaultPostgresPool,
+        shutdown: GracefulShutdownConsumer,
+    ) -> Result<AllQueuesDrain, Error> {
+        let action_drain =
+            super::actions::queue::new_drain(action_queue, pg_pool.clone(), shutdown.clone())?;
 
-        let redis_pool = deadpool_redis::Config {
-            url: Some(config.redis_host),
-            pool: None,
-        }
-        .create_pool()?;
-
-        let (_, action_drain) = super::actions::queue::new_with_drain(
-            pg_pool.clone(),
-            redis_pool.clone(),
-            config.shutdown.clone(),
-        )?;
-
-        let (_, input_drain) = super::inputs::queue::new_with_drain(
-            pg_pool.clone(),
-            redis_pool.clone(),
-            config.shutdown.clone(),
-        )?;
+        let input_drain =
+            super::inputs::queue::new_drain(input_queue, pg_pool.clone(), shutdown.clone())?;
 
         Ok(AllQueuesDrain {
             action_drain,

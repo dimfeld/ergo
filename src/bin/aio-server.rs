@@ -14,7 +14,12 @@ use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
 use ergo::{
-    database::VaultPostgresPoolAuth, graceful_shutdown::GracefulShutdown, tasks, web_app_server,
+    database::VaultPostgresPoolAuth,
+    graceful_shutdown::GracefulShutdown,
+    tasks::{
+        self, actions::queue::ActionQueue, inputs::queue::InputQueue, runtime::TaskExecutorConfig,
+    },
+    web_app_server,
 };
 
 #[actix_web::main]
@@ -37,12 +42,12 @@ async fn main() -> Result<(), ergo::error::Error> {
     let web_config = ergo::service_config::Config::new(
         VaultPostgresPoolAuth::from_env(&vault_client, "WEB", "ergo_web")?,
         &shutdown,
-    );
+    )?;
 
     let backend_config = ergo::service_config::Config::new(
         VaultPostgresPoolAuth::from_env(&vault_client, "BACKEND", "ergo_backend")?,
         &shutdown,
-    );
+    )?;
 
     let redis_host = env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_pool = deadpool_redis::Config {
@@ -52,10 +57,29 @@ async fn main() -> Result<(), ergo::error::Error> {
     .create_pool()
     .expect("Creating redis pool");
 
-    let web_app_data = ergo::web_app_server::app_data(web_config)?;
-    let backend_app_data = ergo::tasks::handlers::app_data(backend_config.clone())?;
+    let input_queue = InputQueue::new(redis_pool.clone());
+    let action_queue = ActionQueue::new(redis_pool.clone());
 
-    let queue_drain = ergo::tasks::queue_drain_runner::AllQueuesDrain::new(backend_config);
+    let web_app_data = ergo::web_app_server::app_data(web_config.pg_pool);
+    let backend_app_data = ergo::tasks::handlers::app_data(
+        backend_config.pg_pool.clone(),
+        input_queue.clone(),
+        action_queue.clone(),
+    )?;
+
+    let queue_drain = ergo::tasks::queue_drain_runner::AllQueuesDrain::new(
+        input_queue.clone(),
+        action_queue.clone(),
+        backend_app_data.get_ref().pg.clone(),
+        shutdown.consumer(),
+    );
+
+    let input_runner = ergo::tasks::runtime::TaskExecutor::new(TaskExecutorConfig {
+        redis_pool: redis_pool.clone(),
+        pg_pool: backend_app_data.get_ref().pg.clone(),
+        shutdown: shutdown.consumer(),
+        max_concurrent_jobs: None,
+    });
 
     let cookie_signing_key = env::var("COOKIE_SIGNING_KEY")
         .ok()
