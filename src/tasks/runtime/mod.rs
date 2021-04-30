@@ -17,10 +17,7 @@ use super::{
     Task,
 };
 
-pub struct TaskExecutor(Arc<TaskExecutorInner>);
-
-pub struct TaskExecutorInner {
-    pg_pool: PostgresPool,
+pub struct TaskExecutor {
     queue: InputQueue,
 }
 
@@ -37,33 +34,32 @@ impl TaskExecutor {
         // Start the event queue reader.
         let queue = super::inputs::queue::new(config.redis_pool);
 
-        let executor = TaskExecutor(Arc::new(TaskExecutorInner {
+        let executor = TaskExecutor { queue };
+
+        let processor = TaskExecutorJobProcessor {
             pg_pool: config.pg_pool,
-            queue,
-        }));
+        };
 
         executor
-            .0
             .queue
-            .start_dequeuer_loop(config.shutdown, None, None, executor.clone());
+            .start_dequeuer_loop(config.shutdown, None, None, processor);
 
         Ok(executor)
     }
 }
 
-impl Clone for TaskExecutor {
-    fn clone(&self) -> Self {
-        TaskExecutor(self.0.clone())
-    }
+#[derive(Clone)]
+pub struct TaskExecutorJobProcessor {
+    pg_pool: PostgresPool,
 }
 
 #[async_trait]
-impl QueueJobProcessor for TaskExecutor {
+impl QueueJobProcessor for TaskExecutorJobProcessor {
     type Payload = InputInvocation;
     async fn process(&self, item: &QueueWorkItem<InputInvocation>) -> Result<(), Error> {
         let invocation = &item.data;
         Task::apply_input(
-            &self.0.pg_pool,
+            &self.pg_pool,
             invocation.task_id,
             invocation.input_id,
             invocation.task_trigger_id,
