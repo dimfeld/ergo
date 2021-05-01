@@ -176,7 +176,7 @@ pub async fn execute(
     let actions_log_id = invocation.actions_log_id.clone();
     let task_action_id = invocation.task_action_id;
     sqlx::query!(
-        "UPDATE actions_log SET status='running' WHERE actions_log_id=$1",
+        "UPDATE actions_log SET status='running', updated=now() WHERE actions_log_id=$1",
         invocation.actions_log_id
     )
     .execute(pg_pool)
@@ -203,7 +203,7 @@ pub async fn execute(
     };
 
     sqlx::query!(
-        "UPDATE actions_log SET status=$2, result=$3, time=now()
+        "UPDATE actions_log SET status=$2, result=$3, updated=now()
         WHERE actions_log_id=$1",
         actions_log_id,
         status as _,

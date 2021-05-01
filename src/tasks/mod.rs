@@ -182,7 +182,7 @@ impl Task {
         };
 
         sqlx::query!(
-            "UPDATE inputs_log SET status=$2, error=$3 WHERE inputs_log_id=$1",
+            "UPDATE inputs_log SET status=$2, error=$3, updated=now() WHERE inputs_log_id=$1",
             input_arrival_id,
             status as _,
             log_error

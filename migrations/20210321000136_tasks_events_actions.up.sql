@@ -33,7 +33,8 @@ CREATE TABLE inputs_log (
   status input_status not null default 'pending',
   payload jsonb,
   error jsonb,
-  time timestamptz not null default now()
+  created timestamptz not null default now(),
+  updated timestamptz not null default now()
 );
 
 GRANT INSERT ON inputs_log TO ergo_enqueuer;
@@ -161,7 +162,8 @@ CREATE TABLE actions_log (
   payload jsonb,
   result jsonb,
   status action_status not null default 'pending',
-  time timestamptz not null default now()
+  created timestamptz not null default now(),
+  updated timestamptz not null default now()
 );
 
 GRANT SELECT ON actions_log TO ergo_web;
