@@ -3,7 +3,6 @@ use crate::{
     vault::{SharedVaultClient, VaultClientTokenData},
 };
 use deadpool::managed::Pool;
-use derivative::Derivative;
 use hashicorp_vault::client::VaultClient;
 use itertools::Itertools;
 use serde::de::DeserializeOwned;
@@ -72,9 +71,16 @@ pub struct VaultPostgresPoolOptions {
     pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
 }
 
-#[derive(Derivative)]
-#[derivative(Debug = "transparent")]
 pub struct VaultPostgresPool(Arc<VaultPostgresPoolInner>);
+
+impl std::fmt::Debug for VaultPostgresPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PostgresPool")
+            .field("pool", &self.0.pool.status())
+            .field("manager", &self.0.manager)
+            .finish()
+    }
+}
 
 impl Clone for VaultPostgresPool {
     fn clone(&self) -> Self {
@@ -82,18 +88,8 @@ impl Clone for VaultPostgresPool {
     }
 }
 
-fn debug_format_pool(
-    p: &Pool<WrappedConnection, Error>,
-    fmt: &mut std::fmt::Formatter,
-) -> Result<(), std::fmt::Error> {
-    p.status().fmt(fmt)
-}
-
-#[derive(Derivative)]
-#[derivative(Debug)]
 struct VaultPostgresPoolInner {
     manager: Arc<Manager>,
-    #[derivative(Debug(format_with = "debug_format_pool"))]
     pool: Pool<WrappedConnection, Error>,
 }
 

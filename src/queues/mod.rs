@@ -24,7 +24,6 @@ use std::{
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono::{DateTime, TimeZone, Utc};
-use derivative::Derivative;
 use futures::{
     stream::{FuturesUnordered, Stream, StreamExt},
     Future, FutureExt,
@@ -34,13 +33,20 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
 
-#[derive(Debug)]
 pub struct Queue(Arc<QueueInner>);
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+impl std::fmt::Debug for Queue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Queue")
+            .field("name", &self.0.name)
+            .field("max_retries", &self.0.max_retries)
+            .field("processing_timeout", &self.0.processing_timeout)
+            .field("retry_backoff", &self.0.retry_backoff)
+            .finish()
+    }
+}
+
 struct QueueInner {
-    #[derivative(Debug = "ignore")]
     pool: deadpool_redis::Pool,
     name: String,
     pending_list: String,
@@ -52,17 +58,11 @@ struct QueueInner {
     processing_timeout: Duration,
     max_retries: u32,
     retry_backoff: Duration,
-    #[derivative(Debug = "ignore")]
     enqueue_scheduled_script: enqueue_scheduled::EnqueueScript,
-    #[derivative(Debug = "ignore")]
     dequeue_item_script: get_job::GetJobScript,
-    #[derivative(Debug = "ignore")]
     start_work_script: start_work::StartWorkScript,
-    #[derivative(Debug = "ignore")]
     done_script: job_done::JobDoneScript,
-    #[derivative(Debug = "ignore")]
     error_script: job_error::JobErrorScript,
-    #[derivative(Debug = "ignore")]
     cancel_script: job_cancel::JobCancelScript,
 
     scheduled_job_enqueuer_task: Mutex<Option<(oneshot::Sender<()>, JoinHandle<()>)>>,

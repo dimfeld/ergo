@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
-use derivative::Derivative;
 use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultDuration, VaultResponse};
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{Connection, PgConnection};
@@ -129,11 +128,9 @@ pub struct ManagerStats {
     pub renew_failures: u64,
 }
 
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Debug)]
 pub(crate) struct Manager {
     connection_string: std::sync::RwLock<String>,
-    #[derivative(Debug = "ignore")]
     renewer: Arc<dyn PostgresAuthRenewer>,
 
     host: String,
@@ -366,7 +363,7 @@ mod tests {
         postgres_user: String,
         postgres_password: String,
 
-        counts: RwLock<MockData>,
+        counts: std::sync::RwLock<MockData>,
     }
 
     impl MockVaultClient {
@@ -389,10 +386,10 @@ mod tests {
     impl PostgresAuthRenewer for RwLock<MockVaultClient> {
         async fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
             {
-                self.write().unwrap().counts.write().unwrap().renew_count += 1;
+                self.write().await.counts.write().unwrap().renew_count += 1;
             }
 
-            let client = self.read().unwrap();
+            let client = self.read().await;
             if client.renewable && lease_id == client.lease_id {
                 Ok(VaultResponse {
                     request_id: String::new(),
@@ -410,13 +407,13 @@ mod tests {
         }
 
         async fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
-            assert_eq!(role, self.read().unwrap().role);
+            assert_eq!(role, self.read().await.role);
 
             {
-                self.write().unwrap().counts.write().unwrap().get_count += 1;
+                self.write().await.counts.write().unwrap().get_count += 1;
             }
 
-            let client = self.read().unwrap();
+            let client = self.read().await;
 
             Ok(VaultResponse {
                 request_id: String::new(),
@@ -445,7 +442,7 @@ mod tests {
             postgres_user: "username".to_string(),
             postgres_password: "pwd".to_string(),
 
-            counts: RwLock::new(MockData::new()),
+            counts: std::sync::RwLock::new(MockData::new()),
         }));
 
         let m = Manager::new(
@@ -457,16 +454,17 @@ mod tests {
             "host".to_string(),
             "database".to_string(),
         )
+        .await
         .unwrap();
 
-        vault_client.read().unwrap().check_counts(1, 0);
+        vault_client.read().await.check_counts(1, 0);
 
         let mut stats_receiver = m.stats.clone();
         // Clear the changed flag since it's set by default
         assert!(stats_receiver.changed().await.is_ok());
 
         tokio::time::sleep(Duration::from_secs(140)).await;
-        vault_client.read().unwrap().check_counts(1, 0);
+        vault_client.read().await.check_counts(1, 0);
         tokio::time::sleep(Duration::from_secs(20)).await;
 
         assert!(stats_receiver.changed().await.is_ok());
@@ -493,7 +491,7 @@ mod tests {
             postgres_user: "username".to_string(),
             postgres_password: "pwd".to_string(),
 
-            counts: RwLock::new(MockData::new()),
+            counts: std::sync::RwLock::new(MockData::new()),
         }));
 
         let m = Manager::new(
@@ -505,16 +503,17 @@ mod tests {
             "host".to_string(),
             "database".to_string(),
         )
+        .await
         .unwrap();
 
-        vault_client.read().unwrap().check_counts(1, 0);
+        vault_client.read().await.check_counts(1, 0);
 
         let mut stats_receiver = m.stats.clone();
         // Clear the changed flag since it's set by default
         assert!(stats_receiver.changed().await.is_ok());
 
         tokio::time::sleep(Duration::from_secs(140)).await;
-        vault_client.read().unwrap().check_counts(1, 0);
+        vault_client.read().await.check_counts(1, 0);
         tokio::time::sleep(Duration::from_secs(20)).await;
 
         assert!(stats_receiver.changed().await.is_ok());
