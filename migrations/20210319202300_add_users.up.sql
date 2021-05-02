@@ -26,6 +26,9 @@ GRANT SELECT, INSERT, DELETE ON object_ids TO ergo_web;
 INSERT INTO object_ids (object_id) VALUES (1);
 
 CREATE TYPE permission AS ENUM (
+  'read',
+  'write',
+  'create',
   'trigger_event'
 );
 

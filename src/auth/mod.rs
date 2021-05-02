@@ -1,9 +1,12 @@
-use crate::{database::PostgresPool, error::Error};
+use crate::{
+    database::PostgresPool,
+    error::{Error, Result},
+};
 use actix_identity::Identity;
 use actix_web::HttpRequest;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, query, Encode, FromRow, Postgres};
+use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
 use uuid::Uuid;
 
 pub mod handlers;
@@ -15,6 +18,10 @@ pub mod middleware;
 pub enum PermissionType {
     #[serde(rename = "trigger_event")]
     TriggerEvent,
+    #[serde(rename = "read")]
+    Read,
+    #[serde(rename = "write")]
+    Write,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -88,47 +95,51 @@ pub struct User {
 
 #[derive(Debug, Clone, Default)]
 pub struct RequestUser {
-    user_id: Uuid,
-    org_id: Uuid,
-    name: String,
-    email: String,
-    user_entity_ids: Vec<Uuid>,
+    pub user_id: Uuid,
+    pub org_id: Uuid,
+    pub name: String,
+    pub email: String,
+    pub user_entity_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Authenticated {
-    ApiKey(ApiKeyToken),
+    ApiKey {
+        key: ApiKeyToken,
+        user: Option<RequestUser>,
+    },
     User(RequestUser),
 }
 
 impl Authenticated {
     pub fn org_and_user(&self) -> (&Uuid, &Uuid) {
         match self {
-            Authenticated::ApiKey(key) => (key.org_id(), key.key()),
             Authenticated::User(user) => (&user.org_id, &user.user_id),
+            Authenticated::ApiKey { key, .. } => (key.org_id(), key.key()),
+        }
+    }
+
+    pub async fn user_info(&mut self, pg: &PostgresPool) -> Result<&RequestUser> {
+        match self {
+            Self::User(user) => Ok(user),
+            Self::ApiKey { key, user } => {
+                if user.is_none() {
+                    let user_id = key.user_id().ok_or_else(|| Error::AuthenticationError)?;
+                    let req_user = get_user_info(pg, user_id).await?;
+                    user.replace(req_user);
+                }
+
+                Ok(user.as_ref().unwrap())
+            }
         }
     }
 }
 
-fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>, Error> {
+fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>> {
     Ok(None)
 }
 
-// Authenticate via cookie or json web token, depending on what's provided.
-pub async fn authenticate(
-    pg: &PostgresPool,
-    identity: &Identity,
-    req: &HttpRequest,
-) -> Result<Authenticated, Error> {
-    if let Some(auth) = get_api_key(req)? {
-        return Ok(auth);
-    }
-
-    let user_id = identity
-        .identity()
-        .ok_or(Error::AuthenticationError)
-        .and_then(|s| Uuid::parse_str(&s).map_err(Error::from))?;
-
+async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser> {
     query!(
         r##"SELECT user_id,
             active_org_id AS org_id, users.name, email,
@@ -151,17 +162,52 @@ pub async fn authenticate(
             None => vec![user.user_id],
         };
 
-        let req_user = RequestUser {
+        RequestUser {
             user_id: user.user_id,
             org_id: user.org_id,
             name: user.name,
             email: user.email,
             user_entity_ids,
-        };
-
-        Authenticated::User(req_user)
+        }
     })
     .ok_or(Error::AuthenticationError)
+}
+
+// Authenticate via cookie or json web token, depending on what's provided.
+pub async fn authenticate(
+    pg: &PostgresPool,
+    identity: &Identity,
+    req: &HttpRequest,
+) -> Result<Authenticated> {
+    if let Some(auth) = get_api_key(req)? {
+        return Ok(auth);
+    }
+
+    let user_id = identity
+        .identity()
+        .ok_or(Error::AuthenticationError)
+        .and_then(|s| Uuid::parse_str(&s).map_err(Error::from))?;
+
+    let req_user = get_user_info(pg, &user_id).await?;
+    Ok(Authenticated::User(req_user))
+}
+
+pub async fn authenticate_request_user(
+    pg: &PostgresPool,
+    identity: &Identity,
+    req: &HttpRequest,
+) -> Result<RequestUser> {
+    let auth = authenticate(pg, identity, req).await?;
+    match auth {
+        Authenticated::User(user) => Ok(user),
+        Authenticated::ApiKey {
+            user: Some(user), ..
+        } => Ok(user),
+        Authenticated::ApiKey { key, .. } => {
+            let user_id = key.user_id().ok_or(Error::AuthenticationError)?;
+            get_user_info(&pg, &user_id).await
+        }
+    }
 }
 
 pub async fn get_permitted_object<T, ID>(
@@ -178,18 +224,18 @@ where
 {
     let query_str = format!(
         r##"SELECT obj.* as match
-        FROM {object_table} obj ON obj.org_id = $1 AND obj.{object_id_column} = $3
+        FROM {object_table} obj
         JOIN user_entity_permissions ON user_entity_id = $2 AND permission_type = $4 AND permissioned_object IN (1, $3)
+        WHERE obj.org_id = $1 AND obj.{object_id_column} = $3
     )"##,
         object_table = object_table,
         object_id_column = object_id_column
     );
 
     let q = sqlx::query(&query_str);
-
     let q = match user {
-        Authenticated::ApiKey(key) => q.bind(key.org_id()).bind(key.key()),
         Authenticated::User(user) => q.bind(user.org_id).bind(user.user_id),
+        Authenticated::ApiKey { key, .. } => q.bind(key.org_id()).bind(key.key()),
     };
 
     let row = q

@@ -705,6 +705,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "402da840495de3f976eaefc3485b7f5eb5b0bf9761f9a47be27fe975b3b8c2ec"
 
 [[package]]
+name = "const_format"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c75ea7d6aeb2ebd1ee24f7b7e1b23242ef5a56b3a693733b99bfbe5ef31d0306"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29c36c619c422113552db4eb28cddba8faa757e33f758cc3415bd2885977b591"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
 name = "constant_time_eq"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1024,6 +1044,7 @@ dependencies = [
  "chrono",
  "config 0.11.0",
  "console",
+ "const_format",
  "crossbeam",
  "deadpool",
  "deadpool-redis",

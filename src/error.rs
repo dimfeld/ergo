@@ -7,6 +7,8 @@ use crate::tasks::{
 use actix_web::{http::StatusCode, HttpResponse};
 use thiserror::Error;
 
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Configuration Error: {0}")]

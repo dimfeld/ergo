@@ -1,28 +1,106 @@
 use super::{
     actions::{self, queue::ActionQueue},
     inputs::{self, queue::InputQueue},
+    Task,
 };
 use crate::{
     auth,
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
-    error::Error,
+    error::{Error, Result},
     queues::postgres_drain,
     vault::VaultClientTokenData,
 };
 
 use actix_identity::Identity;
 use actix_web::{
-    post, web,
+    delete, get, post, put, web,
     web::{Data, Path},
     HttpRequest, HttpResponse, Responder,
 };
+use chrono::{DateTime, Utc};
 use postgres_drain::QueueStageDrain;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
     task_id: String,
     trigger_id: i64,
+}
+
+#[derive(Debug, Serialize)]
+struct TaskDescription {
+    id: String,
+    name: String,
+    description: Option<String>,
+    enabled: bool,
+    created: DateTime<Utc>,
+    modified: DateTime<Utc>,
+}
+
+#[get("/tasks")]
+async fn list_tasks(
+    data: BackendAppStateData,
+    req: HttpRequest,
+    identity: Identity,
+) -> Result<impl Responder> {
+    let user = auth::authenticate_request_user(&data.pg, &identity, &req).await?;
+    let tasks = sqlx::query_as!(
+        TaskDescription,
+        "SELECT external_task_id AS id, name, description, enabled, created, modified
+        FROM tasks
+        JOIN user_entity_permissions ON
+            permissioned_object = tasks.task_id
+            AND user_entity_id = ANY($2)
+            AND permission_type = 'read'
+        WHERE tasks.org_id = $1",
+        user.org_id,
+        &user.user_entity_ids
+    )
+    .fetch_all(&data.pg)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(tasks))
+}
+
+#[get("/tasks/{task_id}")]
+async fn get_task(
+    task_id: Path<String>,
+    data: BackendAppStateData,
+    req: HttpRequest,
+    identity: Identity,
+) -> Result<impl Responder> {
+    let user = auth::authenticate_request_user(&data.pg, &identity, &req).await?;
+    Ok(HttpResponse::NotImplemented().finish())
+}
+
+#[delete("/tasks/{task_id}")]
+async fn delete_task(
+    task_id: Path<String>,
+    data: BackendAppStateData,
+    req: HttpRequest,
+    identity: Identity,
+) -> Result<impl Responder> {
+    Ok(HttpResponse::NotImplemented().finish())
+}
+
+#[put("/tasks/{task_id}")]
+async fn update_task(
+    task_id: Path<String>,
+    data: BackendAppStateData,
+    req: HttpRequest,
+    identity: Identity,
+) -> Result<impl Responder> {
+    Ok(HttpResponse::NotImplemented().finish())
+}
+
+#[post("/tasks")]
+async fn new_task(
+    req: HttpRequest,
+    data: BackendAppStateData,
+    identity: Identity,
+    payload: web::Json<Task>,
+) -> Result<impl Responder> {
+    Ok(HttpResponse::NotImplemented().finish())
 }
 
 #[post("/tasks/{task_id}/trigger/{trigger_id}")]
@@ -32,7 +110,7 @@ async fn post_task_trigger(
     req: HttpRequest,
     payload: web::Json<serde_json::Value>,
     identity: Identity,
-) -> Result<impl Responder, Error> {
+) -> Result<impl Responder> {
     let user = auth::authenticate(&data.pg, &identity, &req).await?;
     let (org_id, user_id) = user.org_and_user();
 
@@ -81,7 +159,7 @@ pub fn app_data(
     pg_pool: VaultPostgresPool,
     input_queue: InputQueue,
     action_queue: ActionQueue,
-) -> Result<BackendAppStateData, Error> {
+) -> Result<BackendAppStateData> {
     Ok(Data::new(BackendAppState {
         pg: pg_pool,
         action_queue,

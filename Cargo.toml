@@ -36,6 +36,7 @@ backoff = { version = "0.3.0", features = ["tokio"] }
 chrono = { version = "0.4.19", features = ["serde"] }
 config = "0.11.0"
 console = "0.14.1"
+const_format = "0.2.14"
 crossbeam = "0.8.0"
 deadpool = "0.7.0"
 deadpool-redis = "0.7.1"
@@ -69,7 +70,7 @@ structopt = "0.3.21"
 thiserror = "1.0.24"
 tokio = { version = "1.5.0", features = ["full", "test-util"] }
 tracing = "0.1.25"
-tracing-actix-web = "0.4.0-beta.1"
+tracing-actix-web = "0.4.0-beta.4"
 tracing-bunyan-formatter = "0.2.0"
 tracing-futures = "0.2.5"
 tracing-log = "0.1.2"
