@@ -1,3 +1,10 @@
+mod api_key;
+pub mod handlers;
+pub mod middleware;
+
+use api_key::get_api_key;
+pub use api_key::ApiKey;
+
 use crate::{
     database::PostgresPool,
     error::{Error, Result},
@@ -6,12 +13,8 @@ use actix_identity::Identity;
 use actix_web::HttpRequest;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
 use uuid::Uuid;
-
-pub mod handlers;
-pub mod middleware;
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "permission")]
@@ -31,74 +34,6 @@ pub struct Permission {
     pub perm: PermissionType,
     #[serde(rename = "permissioned_object")]
     pub object: Option<i64>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
-pub struct ApiKey {
-    api_key_id: Uuid,
-    prefix: String,
-    org_id: Uuid,
-    user_id: Option<Uuid>,
-    inherits_user_permissions: bool,
-    description: Option<String>,
-    active: bool,
-    expires: Option<DateTime<Utc>>,
-    created: DateTime<Utc>,
-}
-
-pub struct KeyAndHash {
-    api_key_id: Uuid,
-    key: String,
-    hash: Vec<u8>,
-}
-
-impl KeyAndHash {
-    pub fn new(salt: &str) -> KeyAndHash {
-        let id = Uuid::new_v4();
-        let base64_id = base64::encode_config(id.as_bytes(), base64::URL_SAFE_NO_PAD);
-        let random = base64::encode_config(Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
-        let key = format!("er1.{}.{}", base64_id, random);
-
-        let mut hasher = sha2::Sha512::default();
-        hasher.update(key.as_bytes());
-        hasher.update(salt.as_bytes());
-        let hash = hasher.finalize().to_vec();
-
-        KeyAndHash {
-            api_key_id: id,
-            key,
-            hash,
-        }
-    }
-
-    pub fn from_key(salt: &str, token: &str) -> Result<(Uuid, Vec<u8>)> {
-        if !token.starts_with("er1.") || token.len() != 49 {
-            return Err(Error::AuthenticationError);
-        }
-
-        let mut hasher = sha2::Sha512::default();
-        hasher.update(token.as_bytes());
-        hasher.update(salt.as_bytes());
-        let hash = hasher.finalize().to_vec();
-
-        let id_portion = token
-            .split('.')
-            .skip(1)
-            .next()
-            .ok_or(Error::AuthenticationError)?;
-        let api_key_bytes = base64::decode_config(id_portion.as_bytes(), base64::URL_SAFE_NO_PAD)
-            .map_err(|_| Error::AuthenticationError)?;
-        let api_key_id = Uuid::from_slice(&api_key_bytes)?;
-
-        Ok((api_key_id, hash))
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ApiKeyPermission {
-    pub api_key: String,
-    #[serde(flatten)]
-    pub permission: Permission,
 }
 
 #[derive(Debug, Clone)]
@@ -161,13 +96,6 @@ impl Authenticated {
     }
 }
 
-async fn get_api_key(pg: &PostgresPool, req: &HttpRequest) -> Result<Option<Authenticated>> {
-    // Extract key from headers of query string.
-    // Hash the provided key
-    // Match the key against the
-    Ok(None)
-}
-
 async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser> {
     query!(
         r##"SELECT user_id,
@@ -209,7 +137,7 @@ pub async fn authenticate(
     identity: &Identity,
     req: &HttpRequest,
 ) -> Result<Authenticated> {
-    if let Some(auth) = get_api_key(pg, req).await? {
+    if let Some(auth) = api_key::get_api_key(pg, req).await? {
         return Ok(auth);
     }
 
