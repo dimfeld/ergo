@@ -11,6 +11,7 @@ use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
 use ergo::{
+    auth::AuthData,
     database::VaultPostgresPoolAuth,
     graceful_shutdown::GracefulShutdown,
     tasks::{
@@ -39,11 +40,8 @@ async fn main() -> Result<(), ergo::error::Error> {
     let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown).await;
     tracing::info!("{:?}", vault_client);
 
-    let address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1".to_string());
-    let port = env::var("BIND_PORT")
-        .map(|s| s.parse::<u16>())
-        .unwrap_or(Ok(6543))
-        .expect("PORT");
+    let address: String = envoption::with_default("BIND_ADDRESS", "127.0.0.1")?;
+    let port: u16 = envoption::with_default("BIND_PORT", 6543 as u16)?;
 
     let web_pg_pool = ergo::service_config::web_pg_pool(shutdown.consumer(), &vault_client).await?;
     let backend_pg_pool =
@@ -54,12 +52,9 @@ async fn main() -> Result<(), ergo::error::Error> {
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
-    let api_token_salt = env::var("API_TOKEN_SALT").expect("API_TOKEN_SALT");
-
     let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = ergo::tasks::handlers::app_data(
         backend_pg_pool.clone(),
-        api_token_salt,
         input_queue.clone(),
         action_queue.clone(),
     )?;

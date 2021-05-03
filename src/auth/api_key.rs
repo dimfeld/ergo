@@ -100,6 +100,8 @@ async fn handle_api_key(pg: &PostgresPool, salt: &str, key: &str) -> Result<supe
 
     let user = match &auth_key.user_id {
         None => None,
+        // This could be combined with the query above, but for simplicity we just keep it separate
+        // for now.
         Some(id) => Some(super::get_user_info(pg, id).await?),
     };
 

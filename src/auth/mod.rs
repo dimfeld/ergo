@@ -131,24 +131,40 @@ async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser>
     .ok_or(Error::AuthenticationError)
 }
 
-// Authenticate via cookie or API key, depending on what's provided.
-pub async fn authenticate(
-    pg: &PostgresPool,
-    identity: &Identity,
-    salt: &str,
-    req: &HttpRequest,
-) -> Result<Authenticated> {
-    if let Some(auth) = api_key::get_api_key(pg, salt, req).await? {
-        return Ok(auth);
+#[derive(Debug, Clone)]
+pub struct AuthData {
+    api_token_salt: String,
+    password_salt: String,
+    pg_pool: PostgresPool,
+}
+
+impl AuthData {
+    pub fn new(pg_pool: PostgresPool) -> Result<AuthData> {
+        Ok(AuthData {
+            pg_pool,
+            api_token_salt: envoption::require("API_TOKEN_SALT")?,
+            password_salt: envoption::require("PASSWORD_SALT")?,
+        })
     }
 
-    let user_id = identity
-        .identity()
-        .ok_or(Error::AuthenticationError)
-        .and_then(|s| Uuid::parse_str(&s).map_err(Error::from))?;
+    // Authenticate via cookie or API key, depending on what's provided.
+    pub async fn authenticate(
+        &self,
+        identity: &Identity,
+        req: &HttpRequest,
+    ) -> Result<Authenticated> {
+        if let Some(auth) = api_key::get_api_key(&self.pg_pool, &self.api_token_salt, req).await? {
+            return Ok(auth);
+        }
 
-    let req_user = get_user_info(pg, &user_id).await?;
-    Ok(Authenticated::User(req_user))
+        let user_id = identity
+            .identity()
+            .ok_or(Error::AuthenticationError)
+            .and_then(|s| Uuid::parse_str(&s).map_err(Error::from))?;
+
+        let req_user = get_user_info(&self.pg_pool, &user_id).await?;
+        Ok(Authenticated::User(req_user))
+    }
 }
 
 pub async fn get_permitted_object<T, ID>(

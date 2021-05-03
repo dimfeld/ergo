@@ -4,7 +4,7 @@ use super::{
     Task,
 };
 use crate::{
-    auth,
+    auth::{self, AuthData},
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::{Error, Result},
     queues::postgres_drain,
@@ -43,7 +43,7 @@ async fn list_tasks(
     req: HttpRequest,
     identity: Identity,
 ) -> Result<impl Responder> {
-    let auth = auth::authenticate(&data.pg, &identity, &data.api_token_salt, &req).await?;
+    let auth = data.auth.authenticate(&identity, &req).await?;
     let ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
@@ -70,7 +70,7 @@ async fn get_task(
     req: HttpRequest,
     identity: Identity,
 ) -> Result<impl Responder> {
-    let user = auth::authenticate(&data.pg, &identity, &data.api_token_salt, &req).await?;
+    let user = data.auth.authenticate(&identity, &req).await?;
     Ok(HttpResponse::NotImplemented().finish())
 }
 
@@ -112,7 +112,7 @@ async fn post_task_trigger(
     payload: web::Json<serde_json::Value>,
     identity: Identity,
 ) -> Result<impl Responder> {
-    let auth = auth::authenticate(&data.pg, &identity, &data.api_token_salt, &req).await?;
+    let auth = data.auth.authenticate(&identity, &req).await?;
     let ids = auth.user_entity_ids();
 
     let trigger = sqlx::query!(
@@ -150,7 +150,7 @@ async fn post_task_trigger(
 
 pub struct BackendAppState {
     pub pg: PostgresPool,
-    pub api_token_salt: String,
+    pub auth: AuthData,
     action_queue: actions::queue::ActionQueue,
     input_queue: inputs::queue::InputQueue,
 }
@@ -159,13 +159,12 @@ pub type BackendAppStateData = Data<BackendAppState>;
 
 pub fn app_data(
     pg_pool: VaultPostgresPool,
-    api_token_salt: String,
     input_queue: InputQueue,
     action_queue: ActionQueue,
 ) -> Result<BackendAppStateData> {
     Ok(Data::new(BackendAppState {
+        auth: AuthData::new(pg_pool.clone())?,
         pg: pg_pool,
-        api_token_salt,
         action_queue,
         input_queue,
     }))

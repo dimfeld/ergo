@@ -5,6 +5,7 @@ use crate::tasks::{
     StateMachineError,
 };
 use actix_web::{http::StatusCode, HttpResponse};
+use envoption::EnvOptionError;
 use thiserror::Error;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -81,6 +82,15 @@ pub enum Error {
 
     #[error(transparent)]
     TemplateError(#[from] TemplateError),
+
+    #[error("Environment variable error: {0}")]
+    EnvOptionError(String),
+}
+
+impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
+    fn from(e: EnvOptionError<T>) -> Self {
+        Self::EnvOptionError(e.to_string())
+    }
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
