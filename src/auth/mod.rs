@@ -6,6 +6,7 @@ use actix_identity::Identity;
 use actix_web::HttpRequest;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
 use uuid::Uuid;
 
@@ -32,57 +33,65 @@ pub struct Permission {
     pub object: Option<i64>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "v")]
-pub enum ApiKeyToken {
-    #[serde(rename = "0")]
-    V0 {
-        key: Uuid,
-        org_id: Uuid,
-        inherits_user_permissions: bool,
-        user_id: Option<Uuid>,
-        expires: Option<DateTime<Utc>>,
-    },
-}
-
-impl ApiKeyToken {
-    pub fn key(&self) -> &Uuid {
-        match self {
-            ApiKeyToken::V0 { key, .. } => key,
-        }
-    }
-
-    pub fn user_id(&self) -> Option<&Uuid> {
-        match self {
-            ApiKeyToken::V0 { user_id, .. } => user_id.as_ref(),
-        }
-    }
-
-    pub fn org_id(&self) -> &Uuid {
-        match self {
-            ApiKeyToken::V0 { org_id, .. } => org_id,
-        }
-    }
-
-    pub fn inherits_user_permissions(&self) -> bool {
-        match self {
-            Self::V0 {
-                inherits_user_permissions,
-                ..
-            } => *inherits_user_permissions,
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ApiKey {
-    pub api_key_id: String,
-    pub org_id: Uuid,
-    pub user_id: Uuid,
-    pub description: Option<String>,
-    pub active: bool,
-    pub expires: Option<DateTime<Utc>>,
-    pub created: DateTime<Utc>,
+    api_key_id: Uuid,
+    prefix: String,
+    org_id: Uuid,
+    user_id: Option<Uuid>,
+    inherits_user_permissions: bool,
+    description: Option<String>,
+    active: bool,
+    expires: Option<DateTime<Utc>>,
+    created: DateTime<Utc>,
+}
+
+pub struct KeyAndHash {
+    api_key_id: Uuid,
+    key: String,
+    hash: Vec<u8>,
+}
+
+impl KeyAndHash {
+    pub fn new(salt: &str) -> KeyAndHash {
+        let id = Uuid::new_v4();
+        let base64_id = base64::encode_config(id.as_bytes(), base64::URL_SAFE_NO_PAD);
+        let random = base64::encode_config(Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
+        let key = format!("er1.{}.{}", base64_id, random);
+
+        let mut hasher = sha2::Sha512::default();
+        hasher.update(key.as_bytes());
+        hasher.update(salt.as_bytes());
+        let hash = hasher.finalize().to_vec();
+
+        KeyAndHash {
+            api_key_id: id,
+            key,
+            hash,
+        }
+    }
+
+    pub fn from_key(salt: &str, token: &str) -> Result<(Uuid, Vec<u8>)> {
+        if !token.starts_with("er1.") || token.len() != 49 {
+            return Err(Error::AuthenticationError);
+        }
+
+        let mut hasher = sha2::Sha512::default();
+        hasher.update(token.as_bytes());
+        hasher.update(salt.as_bytes());
+        let hash = hasher.finalize().to_vec();
+
+        let id_portion = token
+            .split('.')
+            .skip(1)
+            .next()
+            .ok_or(Error::AuthenticationError)?;
+        let api_key_bytes = base64::decode_config(id_portion.as_bytes(), base64::URL_SAFE_NO_PAD)
+            .map_err(|_| Error::AuthenticationError)?;
+        let api_key_id = Uuid::from_slice(&api_key_bytes)?;
+
+        Ok((api_key_id, hash))
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -115,7 +124,7 @@ pub struct RequestUser {
 #[derive(Debug, Clone)]
 pub enum Authenticated {
     ApiKey {
-        key: ApiKeyToken,
+        key: ApiKey,
         user: Option<RequestUser>,
     },
     User(RequestUser),
@@ -127,24 +136,24 @@ impl Authenticated {
     pub fn org_id(&self) -> &Uuid {
         match self {
             Self::User(user) => &user.org_id,
-            Self::ApiKey { key, .. } => key.org_id(),
+            Self::ApiKey { key, .. } => &key.org_id,
         }
     }
 
     pub fn user_entity_ids(&self) -> UserEntityList {
         match self {
             Self::User(user) => user.user_entity_ids.clone(),
-            Self::ApiKey { key, user } => match (key.inherits_user_permissions(), user) {
+            Self::ApiKey { key, user } => match (key.inherits_user_permissions, user) {
                 (false, _) => {
                     let mut list = UserEntityList::new();
-                    list.push(key.key().clone());
+                    list.push(key.api_key_id.clone());
                     list
                 }
                 (true, Some(user)) => user.user_entity_ids.clone(),
                 (true, None) => {
                     let mut list = UserEntityList::new();
-                    list.push(key.key().clone());
-                    list.push(key.org_id().clone());
+                    list.push(key.api_key_id.clone());
+                    list.push(key.org_id.clone());
                     list
                 }
             },
@@ -152,7 +161,10 @@ impl Authenticated {
     }
 }
 
-fn get_api_key(req: &HttpRequest) -> Result<Option<Authenticated>> {
+async fn get_api_key(pg: &PostgresPool, req: &HttpRequest) -> Result<Option<Authenticated>> {
+    // Extract key from headers of query string.
+    // Hash the provided key
+    // Match the key against the
     Ok(None)
 }
 
@@ -191,13 +203,13 @@ async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser>
     .ok_or(Error::AuthenticationError)
 }
 
-// Authenticate via cookie or json web token, depending on what's provided.
+// Authenticate via cookie or API key, depending on what's provided.
 pub async fn authenticate(
     pg: &PostgresPool,
     identity: &Identity,
     req: &HttpRequest,
 ) -> Result<Authenticated> {
-    if let Some(auth) = get_api_key(req)? {
+    if let Some(auth) = get_api_key(pg, req).await? {
         return Ok(auth);
     }
 
@@ -222,8 +234,8 @@ pub async fn authenticate_request_user(
             user: Some(user), ..
         } => Ok(user),
         Authenticated::ApiKey { key, .. } => {
-            let user_id = key.user_id().ok_or(Error::AuthenticationError)?;
-            get_user_info(&pg, &user_id).await
+            let user_id = key.user_id.as_ref().ok_or(Error::AuthenticationError)?;
+            get_user_info(&pg, user_id).await
         }
     }
 }
@@ -253,7 +265,7 @@ where
     let q = sqlx::query(&query_str);
     let q = match user {
         Authenticated::User(user) => q.bind(user.org_id).bind(user.user_id),
-        Authenticated::ApiKey { key, .. } => q.bind(key.org_id()).bind(key.key()),
+        Authenticated::ApiKey { key, .. } => q.bind(key.org_id).bind(key.api_key_id),
     };
 
     let row = q
