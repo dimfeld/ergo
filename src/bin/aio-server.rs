@@ -53,7 +53,7 @@ async fn main() -> Result<(), ergo::error::Error> {
     let action_queue = ActionQueue::new(redis_pool.clone());
 
     let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
-    let backend_app_data = ergo::tasks::handlers::app_data(
+    let backend_app_data = ergo::backend_data::app_data(
         backend_pg_pool.clone(),
         input_queue.clone(),
         action_queue.clone(),

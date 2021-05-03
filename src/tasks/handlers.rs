@@ -5,6 +5,7 @@ use super::{
 };
 use crate::{
     auth::{self, AuthData},
+    backend_data::BackendAppStateData,
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::{Error, Result},
     queues::postgres_drain,
@@ -146,28 +147,6 @@ async fn post_task_trigger(
     .await?;
 
     Ok(HttpResponse::Accepted().finish())
-}
-
-pub struct BackendAppState {
-    pub pg: PostgresPool,
-    pub auth: AuthData,
-    action_queue: actions::queue::ActionQueue,
-    input_queue: inputs::queue::InputQueue,
-}
-
-pub type BackendAppStateData = Data<BackendAppState>;
-
-pub fn app_data(
-    pg_pool: VaultPostgresPool,
-    input_queue: InputQueue,
-    action_queue: ActionQueue,
-) -> Result<BackendAppStateData> {
-    Ok(Data::new(BackendAppState {
-        auth: AuthData::new(pg_pool.clone())?,
-        pg: pg_pool,
-        action_queue,
-        input_queue,
-    }))
 }
 
 pub fn scope(app_data: &BackendAppStateData, root: &str) -> actix_web::Scope {
