@@ -2,7 +2,8 @@ use crate::{
     database::PostgresPool,
     error::{Error, Result},
 };
-use actix_web::HttpRequest;
+use actix_web::{http::header::Header, HttpRequest};
+use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -20,6 +21,14 @@ pub struct ApiKey {
     pub active: bool,
     pub expires: Option<DateTime<Utc>>,
     pub created: DateTime<Utc>,
+}
+
+#[derive(Clone, Debug, sqlx::FromRow)]
+pub struct ApiKeyAuth {
+    pub api_key_id: Uuid,
+    pub org_id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub inherits_user_permissions: bool,
 }
 
 pub struct KeyAndHash {
@@ -70,13 +79,52 @@ impl KeyAndHash {
     }
 }
 
+#[derive(Deserialize)]
+struct ApiQueryString {
+    api_key: String,
+}
+
+async fn handle_api_key(pg: &PostgresPool, salt: &str, key: &str) -> Result<super::Authenticated> {
+    let (api_key_id, hash) = KeyAndHash::from_key(salt, key)?;
+    let auth_key = sqlx::query_as!(
+        ApiKeyAuth,
+        "SELECT api_key_id, org_id, user_id, inherits_user_permissions
+        FROM api_keys
+        WHERE api_key_id=$1 AND hash=$2 AND active AND (expires IS NULL OR expires < now())
+        LIMIT 1",
+        api_key_id,
+        hash
+    )
+    .fetch_one(pg)
+    .await?;
+
+    let user = match &auth_key.user_id {
+        None => None,
+        Some(id) => Some(super::get_user_info(pg, id).await?),
+    };
+
+    Ok(super::Authenticated::ApiKey {
+        key: auth_key,
+        user,
+    })
+}
+
 pub async fn get_api_key(
     pg: &PostgresPool,
+    salt: &str,
     req: &HttpRequest,
 ) -> Result<Option<super::Authenticated>> {
-    // Extract key from headers of query string.
-    // Hash the provided key
-    // Match the key against the
+    if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
+        let auth = handle_api_key(pg, salt, &query.0.api_key).await?;
+        return Ok(Some(auth));
+    }
+
+    if let Ok(header) = Authorization::<Bearer>::parse(req) {
+        let key = header.into_scheme();
+        let auth = handle_api_key(pg, salt, key.token()).await?;
+        return Ok(Some(auth));
+    }
+
     Ok(None)
 }
 

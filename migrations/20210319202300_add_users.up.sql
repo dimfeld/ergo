@@ -97,12 +97,14 @@ GRANT SELECT, UPDATE, DELETE, INSERT ON user_roles TO ergo_web;
 
 CREATE TABLE api_keys (
   api_key_id uuid primary key references user_entity_ids(user_entity_id),
+  prefix text not null,
+  hash bytea not null,
   org_id uuid not null references orgs,
   user_id uuid references users,
   inherits_user_permissions bool not null default false,
   description text,
 
-  active boolean default true,
+  active boolean not null default true,
   expires timestamptz,
   created timestamptz not null default now()
 );

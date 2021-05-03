@@ -54,9 +54,12 @@ async fn main() -> Result<(), ergo::error::Error> {
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
+    let api_token_salt = env::var("API_TOKEN_SALT").expect("API_TOKEN_SALT");
+
     let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = ergo::tasks::handlers::app_data(
         backend_pg_pool.clone(),
+        api_token_salt,
         input_queue.clone(),
         action_queue.clone(),
     )?;

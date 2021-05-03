@@ -59,7 +59,7 @@ pub struct RequestUser {
 #[derive(Debug, Clone)]
 pub enum Authenticated {
     ApiKey {
-        key: ApiKey,
+        key: api_key::ApiKeyAuth,
         user: Option<RequestUser>,
     },
     User(RequestUser),
@@ -135,9 +135,10 @@ async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser>
 pub async fn authenticate(
     pg: &PostgresPool,
     identity: &Identity,
+    salt: &str,
     req: &HttpRequest,
 ) -> Result<Authenticated> {
-    if let Some(auth) = api_key::get_api_key(pg, req).await? {
+    if let Some(auth) = api_key::get_api_key(pg, salt, req).await? {
         return Ok(auth);
     }
 
@@ -148,24 +149,6 @@ pub async fn authenticate(
 
     let req_user = get_user_info(pg, &user_id).await?;
     Ok(Authenticated::User(req_user))
-}
-
-pub async fn authenticate_request_user(
-    pg: &PostgresPool,
-    identity: &Identity,
-    req: &HttpRequest,
-) -> Result<RequestUser> {
-    let auth = authenticate(pg, identity, req).await?;
-    match auth {
-        Authenticated::User(user) => Ok(user),
-        Authenticated::ApiKey {
-            user: Some(user), ..
-        } => Ok(user),
-        Authenticated::ApiKey { key, .. } => {
-            let user_id = key.user_id.as_ref().ok_or(Error::AuthenticationError)?;
-            get_user_info(&pg, user_id).await
-        }
-    }
 }
 
 pub async fn get_permitted_object<T, ID>(

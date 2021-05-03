@@ -213,6 +213,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-web-httpauth"
+version = "0.6.0-beta.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7943eed6d24b1bb61f5e3a2162339f7aa7285a51f334442b9e52cb6fc37856a5"
+dependencies = [
+ "actix-service",
+ "actix-web",
+ "base64 0.13.0",
+ "futures-util",
+]
+
+[[package]]
 name = "adler"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1036,6 +1048,7 @@ version = "0.1.0"
 dependencies = [
  "actix-identity",
  "actix-web",
+ "actix-web-httpauth",
  "anyhow",
  "assert_matches",
  "async-stream",
