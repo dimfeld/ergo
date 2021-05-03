@@ -43,18 +43,19 @@ async fn list_tasks(
     req: HttpRequest,
     identity: Identity,
 ) -> Result<impl Responder> {
-    let user = auth::authenticate_request_user(&data.pg, &identity, &req).await?;
+    let auth = auth::authenticate(&data.pg, &identity, &req).await?;
+    let ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
         "SELECT external_task_id AS id, name, description, enabled, created, modified
         FROM tasks
         JOIN user_entity_permissions ON
             permissioned_object = tasks.task_id
-            AND user_entity_id = ANY($2)
+            AND user_entity_id = ANY($1)
             AND permission_type = 'read'
-        WHERE tasks.org_id = $1",
-        user.org_id,
-        &user.user_entity_ids
+        WHERE tasks.org_id = $2",
+        ids.as_slice(),
+        auth.org_id(),
     )
     .fetch_all(&data.pg)
     .await?;
@@ -111,22 +112,22 @@ async fn post_task_trigger(
     payload: web::Json<serde_json::Value>,
     identity: Identity,
 ) -> Result<impl Responder> {
-    let user = auth::authenticate(&data.pg, &identity, &req).await?;
-    let (org_id, user_id) = user.org_and_user();
+    let auth = auth::authenticate(&data.pg, &identity, &req).await?;
+    let ids = auth.user_entity_ids();
 
     let trigger = sqlx::query!(
         r##"SELECT tasks.*, task_trigger_id, input_id,
             inputs.payload_schema as input_schema
         FROM task_triggers tt
-        JOIN user_entity_permissions p ON user_entity_id = $1
+        JOIN user_entity_permissions p ON user_entity_id = ANY($1)
             AND permission_type = 'trigger_event'
             AND permissioned_object IN(1, task_trigger_id)
         JOIN tasks USING(task_id)
         JOIN inputs USING(input_id)
         WHERE org_id = $2 AND task_trigger_id = $3 AND external_task_id = $4
         "##,
-        user_id,
-        org_id,
+        ids.as_slice(),
+        auth.org_id(),
         path.trigger_id,
         path.task_id
     )

@@ -39,6 +39,7 @@ pub enum ApiKeyToken {
     V0 {
         key: Uuid,
         org_id: Uuid,
+        inherits_user_permissions: bool,
         user_id: Option<Uuid>,
         expires: Option<DateTime<Utc>>,
     },
@@ -62,11 +63,20 @@ impl ApiKeyToken {
             ApiKeyToken::V0 { org_id, .. } => org_id,
         }
     }
+
+    pub fn inherits_user_permissions(&self) -> bool {
+        match self {
+            Self::V0 {
+                inherits_user_permissions,
+                ..
+            } => *inherits_user_permissions,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiKey {
-    pub api_key_id: Uuid,
+    pub api_key_id: String,
     pub org_id: Uuid,
     pub user_id: Uuid,
     pub description: Option<String>,
@@ -99,7 +109,7 @@ pub struct RequestUser {
     pub org_id: Uuid,
     pub name: String,
     pub email: String,
-    pub user_entity_ids: Vec<Uuid>,
+    pub user_entity_ids: UserEntityList,
 }
 
 #[derive(Debug, Clone)]
@@ -111,26 +121,33 @@ pub enum Authenticated {
     User(RequestUser),
 }
 
+pub type UserEntityList = smallvec::SmallVec<[Uuid; 4]>;
+
 impl Authenticated {
-    pub fn org_and_user(&self) -> (&Uuid, &Uuid) {
+    pub fn org_id(&self) -> &Uuid {
         match self {
-            Authenticated::User(user) => (&user.org_id, &user.user_id),
-            Authenticated::ApiKey { key, .. } => (key.org_id(), key.key()),
+            Self::User(user) => &user.org_id,
+            Self::ApiKey { key, .. } => key.org_id(),
         }
     }
 
-    pub async fn user_info(&mut self, pg: &PostgresPool) -> Result<&RequestUser> {
+    pub fn user_entity_ids(&self) -> UserEntityList {
         match self {
-            Self::User(user) => Ok(user),
-            Self::ApiKey { key, user } => {
-                if user.is_none() {
-                    let user_id = key.user_id().ok_or_else(|| Error::AuthenticationError)?;
-                    let req_user = get_user_info(pg, user_id).await?;
-                    user.replace(req_user);
+            Self::User(user) => user.user_entity_ids.clone(),
+            Self::ApiKey { key, user } => match (key.inherits_user_permissions(), user) {
+                (false, _) => {
+                    let mut list = UserEntityList::new();
+                    list.push(key.key().clone());
+                    list
                 }
-
-                Ok(user.as_ref().unwrap())
-            }
+                (true, Some(user)) => user.user_entity_ids.clone(),
+                (true, None) => {
+                    let mut list = UserEntityList::new();
+                    list.push(key.key().clone());
+                    list.push(key.org_id().clone());
+                    list
+                }
+            },
         }
     }
 }
@@ -155,11 +172,12 @@ async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser>
     .await?
     .map(|user| {
         let user_entity_ids = match user.roles {
-            Some(mut roles) => {
-                roles.push(user.user_id);
-                roles
+            Some(roles) => {
+                let mut ids = UserEntityList::from_vec(roles);
+                ids.push(user.user_id);
+                ids
             }
-            None => vec![user.user_id],
+            None => UserEntityList::from_elem(user.user_id, 1),
         };
 
         RequestUser {

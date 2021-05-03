@@ -99,6 +99,7 @@ CREATE TABLE api_keys (
   api_key_id uuid primary key references user_entity_ids(user_entity_id),
   org_id uuid not null references orgs,
   user_id uuid references users,
+  inherits_user_permissions bool not null default false,
   description text,
 
   active boolean default true,

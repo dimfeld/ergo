@@ -64,7 +64,7 @@ serde = { version = "1.0.125", features = ["derive"] }
 serde_json = "1.0.64"
 serde_millis = "0.1.1"
 serde_v8 = "0.3.0"
-smallvec = { version = "1.6.1", features = ["serde"] }
+smallvec = { version = "1.6.1", features = ["serde", "union"] }
 sqlx = { version = "0.5.2", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
 structopt = "0.3.21"
 thiserror = "1.0.24"
