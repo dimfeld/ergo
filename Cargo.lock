@@ -1094,7 +1094,7 @@ dependencies = [
  "serde_json",
  "serde_millis",
  "serde_v8",
- "sha2",
+ "sha3",
  "smallvec",
  "sqlx",
  "structopt",

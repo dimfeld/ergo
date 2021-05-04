@@ -6,7 +6,7 @@ use actix_web::{dev::ServiceRequest, http::header::Header, HttpRequest};
 use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
+use sha3::Digest;
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
 use uuid::Uuid;
 
@@ -31,52 +31,50 @@ pub struct ApiKeyAuth {
     pub inherits_user_permissions: bool,
 }
 
-pub struct KeyAndHash {
-    api_key_id: Uuid,
-    key: String,
-    hash: Vec<u8>,
+pub struct ApiKeyData {
+    pub api_key_id: Uuid,
+    pub key: String,
+    pub hash: Vec<u8>,
 }
 
-impl KeyAndHash {
-    pub fn new(salt: &str) -> KeyAndHash {
+impl ApiKeyData {
+    pub fn new() -> ApiKeyData {
         let id = Uuid::new_v4();
         let base64_id = base64::encode_config(id.as_bytes(), base64::URL_SAFE_NO_PAD);
         let random = base64::encode_config(Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
         let key = format!("er1.{}.{}", base64_id, random);
+        let hash = hash_key(&key);
 
-        let mut hasher = sha2::Sha512::default();
-        hasher.update(key.as_bytes());
-        hasher.update(salt.as_bytes());
-        let hash = hasher.finalize().to_vec();
-
-        KeyAndHash {
+        ApiKeyData {
             api_key_id: id,
             key,
             hash,
         }
     }
+}
 
-    pub fn from_key(salt: &str, token: &str) -> Result<(Uuid, Vec<u8>)> {
-        if !token.starts_with("er1.") || token.len() != 49 {
-            return Err(Error::AuthenticationError);
-        }
+fn hash_key(key: &str) -> Vec<u8> {
+    let mut hasher = sha3::Sha3_512::default();
+    hasher.update(key.as_bytes());
+    hasher.finalize().to_vec()
+}
 
-        let mut hasher = sha2::Sha512::default();
-        hasher.update(token.as_bytes());
-        hasher.update(salt.as_bytes());
-        let hash = hasher.finalize().to_vec();
-
-        let id_portion = token
-            .split('.')
-            .skip(1)
-            .next()
-            .ok_or(Error::AuthenticationError)?;
-        let api_key_bytes = base64::decode_config(id_portion.as_bytes(), base64::URL_SAFE_NO_PAD)
-            .map_err(|_| Error::AuthenticationError)?;
-        let api_key_id = Uuid::from_slice(&api_key_bytes)?;
-
-        Ok((api_key_id, hash))
+fn decode_key(key: &str) -> Result<(Uuid, Vec<u8>)> {
+    if !key.starts_with("er1.") || key.len() != 49 {
+        return Err(Error::AuthenticationError);
     }
+
+    let hash = hash_key(key);
+    let id_portion = key
+        .split('.')
+        .skip(1)
+        .next()
+        .ok_or(Error::AuthenticationError)?;
+    let api_key_bytes = base64::decode_config(id_portion.as_bytes(), base64::URL_SAFE_NO_PAD)
+        .map_err(|_| Error::AuthenticationError)?;
+    let api_key_id = Uuid::from_slice(&api_key_bytes).map_err(|_| Error::AuthenticationError)?;
+
+    Ok((api_key_id, hash))
 }
 
 #[derive(Deserialize)]
@@ -84,12 +82,8 @@ struct ApiQueryString {
     api_key: String,
 }
 
-async fn handle_api_key(
-    pg: &PostgresPool,
-    salt: &str,
-    key: &str,
-) -> Result<super::AuthenticationInfo> {
-    let (api_key_id, hash) = KeyAndHash::from_key(salt, key)?;
+async fn handle_api_key(pg: &PostgresPool, key: &str) -> Result<super::AuthenticationInfo> {
+    let (api_key_id, hash) = decode_key(key)?;
     let auth_key = sqlx::query_as!(
         ApiKeyAuth,
         "SELECT api_key_id, org_id, user_id, inherits_user_permissions
@@ -99,8 +93,9 @@ async fn handle_api_key(
         api_key_id,
         hash
     )
-    .fetch_one(pg)
-    .await?;
+    .fetch_optional(pg)
+    .await?
+    .ok_or_else(|| Error::AuthenticationError)?;
 
     let user = match &auth_key.user_id {
         None => None,
@@ -117,17 +112,16 @@ async fn handle_api_key(
 
 pub async fn get_api_key(
     pg: &PostgresPool,
-    salt: &str,
     req: &ServiceRequest,
 ) -> Result<Option<super::AuthenticationInfo>> {
     if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
-        let auth = handle_api_key(pg, salt, &query.0.api_key).await?;
+        let auth = handle_api_key(pg, &query.0.api_key).await?;
         return Ok(Some(auth));
     }
 
     if let Ok(header) = Authorization::<Bearer>::parse(req) {
         let key = header.into_scheme();
-        let auth = handle_api_key(pg, salt, key.token()).await?;
+        let auth = handle_api_key(pg, key.token()).await?;
         return Ok(Some(auth));
     }
 
@@ -136,63 +130,52 @@ pub async fn get_api_key(
 
 #[cfg(test)]
 mod tests {
-    use super::KeyAndHash;
+    use super::{decode_key, ApiKeyData};
     use crate::error::Result;
     use assert_matches::assert_matches;
 
     #[test]
     fn valid_key() -> Result<()> {
-        let k = KeyAndHash::new("s");
-        assert_eq!(KeyAndHash::from_key("s", &k.key)?, (k.api_key_id, k.hash));
-        Ok(())
-    }
+        let data = ApiKeyData::new();
 
-    #[test]
-    fn bad_salt() -> Result<()> {
-        let key = KeyAndHash::new("12345");
-        let result = KeyAndHash::from_key("abc", &key.key)?;
-        assert_eq!(key.api_key_id, result.0);
-        assert_ne!(
-            key.hash, result.1,
-            "hash with different salt should not match"
-        );
+        let (api_key_id, hash) = decode_key(&data.key)?;
+        assert_eq!(api_key_id, data.api_key_id, "api_key_id");
+        assert_eq!(hash, data.hash, "hash");
         Ok(())
     }
 
     #[test]
     fn bad_key() -> Result<()> {
-        let key = KeyAndHash::new("12345");
+        let data = ApiKeyData::new();
 
-        let mut bad_key = String::from(key.key);
-        bad_key.pop();
-        bad_key.push('a');
+        // Alter the key.
+        let mut key = String::from(data.key);
+        key.pop();
+        key.push('a');
 
-        let result = KeyAndHash::from_key("12345", &bad_key)?;
-        assert_eq!(key.api_key_id, result.0);
-        assert_ne!(
-            key.hash, result.1,
-            "hash with different key should not match"
-        );
+        let (api_key_id, hash) = decode_key(&key)?;
+        assert_eq!(api_key_id, data.api_key_id, "api_key_id");
+        assert_ne!(hash, data.hash, "hash");
         Ok(())
     }
 
     #[test]
     fn bad_prefix() {
-        let key = KeyAndHash::new("12345");
-        let bad_key = format!("aa1.{}", key.key.chars().skip(4).collect::<String>());
-        KeyAndHash::from_key("12345", &bad_key).expect_err("bad prefix");
+        let data = ApiKeyData::new();
+        let bad_key = format!("aa1.{}", data.key.chars().skip(4).collect::<String>());
+        decode_key(&bad_key).expect_err("bad prefix");
     }
 
     #[test]
     fn bad_length() {
-        let key = KeyAndHash::new("12345");
-        let mut bad_key = String::from(key.key);
-        bad_key.push('a');
+        let data = ApiKeyData::new();
 
-        KeyAndHash::from_key("12345", &bad_key).expect_err("length too high");
+        let mut key = String::from(&data.key);
+        key.push('a');
+        decode_key(&key).expect_err("length too high");
 
-        bad_key.pop();
-        bad_key.pop();
-        KeyAndHash::from_key("12345", &bad_key).expect_err("length too low");
+        key.pop();
+        key.pop();
+        decode_key(&key).expect_err("length too low");
     }
 }
