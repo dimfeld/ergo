@@ -2,6 +2,8 @@ mod api_key;
 pub mod handlers;
 pub mod middleware;
 
+use std::future::{ready, Ready};
+
 use api_key::get_api_key;
 pub use api_key::ApiKey;
 
@@ -10,7 +12,7 @@ use crate::{
     error::{Error, Result},
 };
 use actix_identity::Identity;
-use actix_web::HttpRequest;
+use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
@@ -54,6 +56,38 @@ pub struct RequestUser {
     pub name: String,
     pub email: String,
     pub user_entity_ids: UserEntityList,
+}
+
+pub struct MaybeAuthenticated(Option<Authenticated>);
+
+impl MaybeAuthenticated {
+    pub fn into_inner(self) -> Option<Authenticated> {
+        self.0
+    }
+}
+
+impl FromRequest for MaybeAuthenticated {
+    type Config = ();
+
+    type Error = Error;
+
+    type Future = Ready<Result<Self, Self::Error>>;
+
+    fn from_request(req: &HttpRequest, payload: &mut actix_web::dev::Payload) -> Self::Future {
+        let value = req
+            .extensions()
+            .get::<Option<Authenticated>>()
+            .unwrap_or(None);
+        ready(Ok(MaybeAuthenticated(value)))
+    }
+}
+
+impl std::ops::Deref for MaybeAuthenticated {
+    type Target = Option<Authenticated>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -150,17 +184,14 @@ impl AuthData {
     // Authenticate via cookie or API key, depending on what's provided.
     pub async fn authenticate(
         &self,
-        identity: &Identity,
-        req: &HttpRequest,
+        identity: &str,
+        req: &ServiceRequest,
     ) -> Result<Authenticated> {
         if let Some(auth) = api_key::get_api_key(&self.pg_pool, &self.api_token_salt, req).await? {
             return Ok(auth);
         }
 
-        let user_id = identity
-            .identity()
-            .ok_or(Error::AuthenticationError)
-            .and_then(|s| Uuid::parse_str(&s).map_err(Error::from))?;
+        let user_id = Uuid::parse_str(identity)?;
 
         let req_user = get_user_info(&self.pg_pool, &user_id).await?;
         Ok(Authenticated::User(req_user))
