@@ -4,7 +4,7 @@ use super::{
     Task,
 };
 use crate::{
-    auth::{self, AuthData, MaybeAuthenticated},
+    auth::{self, AuthData, Authenticated, MaybeAuthenticated},
     backend_data::BackendAppStateData,
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::{Error, Result},
@@ -43,9 +43,8 @@ async fn list_tasks(
     data: BackendAppStateData,
     req: HttpRequest,
 
-    auth: MaybeAuthenticated,
+    auth: Authenticated,
 ) -> Result<impl Responder> {
-    let auth = auth.expect_authed()?;
     let ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
@@ -80,7 +79,7 @@ async fn delete_task(
     task_id: Path<String>,
     data: BackendAppStateData,
     req: HttpRequest,
-    auth: MaybeAuthenticated,
+    auth: Authenticated,
 ) -> Result<impl Responder> {
     Ok(HttpResponse::NotImplemented().finish())
 }
@@ -110,10 +109,9 @@ async fn post_task_trigger(
     path: Path<TaskAndTriggerPath>,
     data: BackendAppStateData,
     req: HttpRequest,
-    auth: MaybeAuthenticated,
+    auth: Authenticated,
     payload: web::Json<serde_json::Value>,
 ) -> Result<impl Responder> {
-    let auth = auth.expect_authed()?;
     let ids = auth.user_entity_ids();
 
     let trigger = sqlx::query!(
