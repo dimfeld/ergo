@@ -2,7 +2,7 @@ use crate::{
     database::PostgresPool,
     error::{Error, Result},
 };
-use actix_web::{http::header::Header, HttpRequest};
+use actix_web::{dev::ServiceRequest, http::header::Header, HttpRequest};
 use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -114,7 +114,7 @@ async fn handle_api_key(pg: &PostgresPool, salt: &str, key: &str) -> Result<supe
 pub async fn get_api_key(
     pg: &PostgresPool,
     salt: &str,
-    req: &HttpRequest,
+    req: &ServiceRequest,
 ) -> Result<Option<super::Authenticated>> {
     if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
         let auth = handle_api_key(pg, salt, &query.0.api_key).await?;

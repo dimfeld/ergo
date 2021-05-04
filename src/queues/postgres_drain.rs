@@ -36,7 +36,7 @@ pub struct QueueStageDrainConfig<D: Drainer + 'static> {
 }
 
 /// This implements the drain of a transactionally-staged job drain, as described
-/// at https://brandur.org/job-drain.
+/// at <https://brandur.org/job-drain>.
 pub struct QueueStageDrain {
     close: Option<oneshot::Sender<()>>,
     join_handle: Option<tokio::task::JoinHandle<()>>,
