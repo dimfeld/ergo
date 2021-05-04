@@ -2,7 +2,10 @@ mod api_key;
 pub mod handlers;
 pub mod middleware;
 
-use std::future::{ready, Ready};
+use std::{
+    future::{ready, Ready},
+    sync::Arc,
+};
 
 use api_key::get_api_key;
 pub use api_key::ApiKey;
@@ -58,11 +61,15 @@ pub struct RequestUser {
     pub user_entity_ids: UserEntityList,
 }
 
-pub struct MaybeAuthenticated(Option<Authenticated>);
+pub struct MaybeAuthenticated(Option<Arc<Authenticated>>);
 
 impl MaybeAuthenticated {
-    pub fn into_inner(self) -> Option<Authenticated> {
+    pub fn into_inner(self) -> Option<Arc<Authenticated>> {
         self.0
+    }
+
+    pub fn expect_authed(self) -> Result<Arc<Authenticated>> {
+        self.0.ok_or(Error::AuthenticationError)
     }
 }
 
@@ -74,16 +81,13 @@ impl FromRequest for MaybeAuthenticated {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut actix_web::dev::Payload) -> Self::Future {
-        let value = req
-            .extensions()
-            .get::<Option<Authenticated>>()
-            .unwrap_or(None);
+        let value = req.extensions().get::<Arc<Authenticated>>().cloned();
         ready(Ok(MaybeAuthenticated(value)))
     }
 }
 
 impl std::ops::Deref for MaybeAuthenticated {
-    type Target = Option<Authenticated>;
+    type Target = Option<Arc<Authenticated>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -166,7 +170,10 @@ async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser>
 }
 
 #[derive(Debug, Clone)]
-pub struct AuthData {
+pub struct AuthData(Arc<AuthDataInner>);
+
+#[derive(Debug)]
+struct AuthDataInner {
     api_token_salt: String,
     password_salt: String,
     pg_pool: PostgresPool,
@@ -174,11 +181,11 @@ pub struct AuthData {
 
 impl AuthData {
     pub fn new(pg_pool: PostgresPool) -> Result<AuthData> {
-        Ok(AuthData {
+        Ok(AuthData(Arc::new(AuthDataInner {
             pg_pool,
             api_token_salt: envoption::require("API_TOKEN_SALT")?,
             password_salt: envoption::require("PASSWORD_SALT")?,
-        })
+        })))
     }
 
     // Authenticate via cookie or API key, depending on what's provided.
@@ -187,13 +194,15 @@ impl AuthData {
         identity: &str,
         req: &ServiceRequest,
     ) -> Result<Authenticated> {
-        if let Some(auth) = api_key::get_api_key(&self.pg_pool, &self.api_token_salt, req).await? {
+        if let Some(auth) =
+            api_key::get_api_key(&self.0.pg_pool, &self.0.api_token_salt, req).await?
+        {
             return Ok(auth);
         }
 
         let user_id = Uuid::parse_str(identity)?;
 
-        let req_user = get_user_info(&self.pg_pool, &user_id).await?;
+        let req_user = get_user_info(&self.0.pg_pool, &user_id).await?;
         Ok(Authenticated::User(req_user))
     }
 }

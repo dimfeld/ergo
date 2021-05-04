@@ -4,7 +4,7 @@ use super::{
     Task,
 };
 use crate::{
-    auth::{self, AuthData},
+    auth::{self, AuthData, MaybeAuthenticated},
     backend_data::BackendAppStateData,
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::{Error, Result},
@@ -42,9 +42,10 @@ struct TaskDescription {
 async fn list_tasks(
     data: BackendAppStateData,
     req: HttpRequest,
-    identity: Identity,
+
+    auth: MaybeAuthenticated,
 ) -> Result<impl Responder> {
-    let auth = data.auth.authenticate(&identity, &req).await?;
+    let auth = auth.expect_authed()?;
     let ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
@@ -69,9 +70,8 @@ async fn get_task(
     task_id: Path<String>,
     data: BackendAppStateData,
     req: HttpRequest,
-    identity: Identity,
 ) -> Result<impl Responder> {
-    let user = data.auth.authenticate(&identity, &req).await?;
+    // let user = data.auth.authenticate(&identity, &req).await?;
     Ok(HttpResponse::NotImplemented().finish())
 }
 
@@ -110,10 +110,10 @@ async fn post_task_trigger(
     path: Path<TaskAndTriggerPath>,
     data: BackendAppStateData,
     req: HttpRequest,
+    auth: MaybeAuthenticated,
     payload: web::Json<serde_json::Value>,
-    identity: Identity,
 ) -> Result<impl Responder> {
-    let auth = data.auth.authenticate(&identity, &req).await?;
+    let auth = auth.expect_authed()?;
     let ids = auth.user_entity_ids();
 
     let trigger = sqlx::query!(

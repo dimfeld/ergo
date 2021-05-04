@@ -2,7 +2,7 @@
 //! Session cookie
 //! API Key
 
-use std::rc::Rc;
+use std::{rc::Rc, sync::Arc};
 
 use actix_identity::{Identity, RequestIdentity};
 use actix_web::{
@@ -36,7 +36,7 @@ where
 {
     type Response = ServiceResponse<B>;
 
-    type Error = crate::error::Error;
+    type Error = Error;
 
     type Transform = AuthenticateMiddleware<S>;
 
@@ -52,7 +52,7 @@ where
     }
 }
 
-struct AuthenticateMiddleware<S> {
+pub struct AuthenticateMiddleware<S> {
     auth_data: Rc<AuthData>,
     service: Rc<S>,
 }
@@ -64,21 +64,21 @@ where
     S::Future: 'static,
 {
     type Response = ServiceResponse<B>;
-    type Error = crate::error::Error;
+    type Error = Error;
     type Future = LocalBoxFuture<'static, Result<Self::Response, Self::Error>>;
 
     actix_service::forward_ready!(service);
 
-    fn call(&self, mut req: ServiceRequest) -> Self::Future {
+    fn call(&self, req: ServiceRequest) -> Self::Future {
         let srv = Rc::clone(&self.service);
+        let auth_data = self.auth_data.clone();
 
         async move {
-            let auth = match req.get_identity() {
-                Some(id) => Some(self.auth_data.authenticate(&id, &req).await?),
-                None => None,
-            };
+            if let Some(id) = req.get_identity() {
+                let auth = auth_data.authenticate(&id, &req).await?;
+                req.extensions_mut().insert(Arc::new(auth));
+            }
 
-            req.extensions_mut().insert(auth);
             let res = srv.call(req).await?;
 
             Ok(res)

@@ -11,7 +11,10 @@ use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
 use ergo::{
-    auth::AuthData,
+    auth::{
+        middleware::{AuthenticateMiddleware, AuthenticateService},
+        AuthData,
+    },
     database::VaultPostgresPoolAuth,
     graceful_shutdown::GracefulShutdown,
     tasks::{
@@ -102,6 +105,7 @@ async fn main() -> Result<(), ergo::error::Error> {
 
         App::new()
             .wrap(TracingLogger::default())
+            .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
             .wrap(identity)
             .service(web_app_server::scope(&web_app_data, "/api/web"))
             .service(tasks::handlers::scope(&backend_app_data, "/api/tasks"))
