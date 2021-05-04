@@ -1,6 +1,7 @@
 mod api_key;
 pub mod handlers;
 pub mod middleware;
+pub mod password;
 
 use std::{
     future::{ready, Ready},

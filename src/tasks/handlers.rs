@@ -45,7 +45,7 @@ async fn list_tasks(
 
     auth: Authenticated,
 ) -> Result<impl Responder> {
-    let ids = auth.user_entity_ids();
+    let user_ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
         "SELECT external_task_id AS id, name, description, enabled, created, modified
@@ -55,7 +55,7 @@ async fn list_tasks(
             AND user_entity_id = ANY($1)
             AND permission_type = 'read'
         WHERE tasks.org_id = $2",
-        ids.as_slice(),
+        user_ids.as_slice(),
         auth.org_id(),
     )
     .fetch_all(&data.pg)
@@ -69,8 +69,8 @@ async fn get_task(
     task_id: Path<String>,
     data: BackendAppStateData,
     req: HttpRequest,
+    auth: Authenticated,
 ) -> Result<impl Responder> {
-    // let user = data.auth.authenticate(&identity, &req).await?;
     Ok(HttpResponse::NotImplemented().finish())
 }
 
@@ -89,7 +89,7 @@ async fn update_task(
     task_id: Path<String>,
     data: BackendAppStateData,
     req: HttpRequest,
-    identity: Identity,
+    auth: Authenticated,
 ) -> Result<impl Responder> {
     Ok(HttpResponse::NotImplemented().finish())
 }
@@ -98,7 +98,7 @@ async fn update_task(
 async fn new_task(
     req: HttpRequest,
     data: BackendAppStateData,
-    identity: Identity,
+    auth: Authenticated,
     payload: web::Json<Task>,
 ) -> Result<impl Responder> {
     Ok(HttpResponse::NotImplemented().finish())

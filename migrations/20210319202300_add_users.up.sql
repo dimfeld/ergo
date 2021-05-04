@@ -62,8 +62,8 @@ CREATE TABLE users (
   active_org_id uuid not null references orgs(org_id),
   name text not null,
   email text unique not null,
-  password_hash bytea,
-  salt bytea,
+  password_hash text,
+  salt uuid,
   active boolean default true,
   created timestamptz not null default now()
 );

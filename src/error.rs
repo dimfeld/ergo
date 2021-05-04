@@ -85,6 +85,9 @@ pub enum Error {
 
     #[error("Environment variable error: {0}")]
     EnvOptionError(String),
+
+    #[error("Password hasher error: {0}")]
+    PasswordHasherError(String),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
