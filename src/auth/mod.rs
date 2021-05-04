@@ -61,14 +61,14 @@ pub struct RequestUser {
     pub user_entity_ids: UserEntityList,
 }
 
-pub struct MaybeAuthenticated(Option<Arc<Authenticated>>);
+pub struct MaybeAuthenticated(Option<Arc<AuthenticationInfo>>);
 
 impl MaybeAuthenticated {
-    pub fn into_inner(self) -> Option<Arc<Authenticated>> {
+    pub fn into_inner(self) -> Option<Arc<AuthenticationInfo>> {
         self.0
     }
 
-    pub fn expect_authed(self) -> Result<Arc<Authenticated>> {
+    pub fn expect_authed(self) -> Result<Arc<AuthenticationInfo>> {
         self.0.ok_or(Error::AuthenticationError)
     }
 }
@@ -81,13 +81,13 @@ impl FromRequest for MaybeAuthenticated {
     type Future = Ready<Result<Self, Self::Error>>;
 
     fn from_request(req: &HttpRequest, payload: &mut actix_web::dev::Payload) -> Self::Future {
-        let value = req.extensions().get::<Arc<Authenticated>>().cloned();
+        let value = req.extensions().get::<Arc<AuthenticationInfo>>().cloned();
         ready(Ok(MaybeAuthenticated(value)))
     }
 }
 
 impl std::ops::Deref for MaybeAuthenticated {
-    type Target = Option<Arc<Authenticated>>;
+    type Target = Option<Arc<AuthenticationInfo>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -95,7 +95,7 @@ impl std::ops::Deref for MaybeAuthenticated {
 }
 
 #[derive(Debug, Clone)]
-pub enum Authenticated {
+pub enum AuthenticationInfo {
     ApiKey {
         key: api_key::ApiKeyAuth,
         user: Option<RequestUser>,
@@ -105,7 +105,7 @@ pub enum Authenticated {
 
 pub type UserEntityList = smallvec::SmallVec<[Uuid; 4]>;
 
-impl Authenticated {
+impl AuthenticationInfo {
     pub fn org_id(&self) -> &Uuid {
         match self {
             Self::User(user) => &user.org_id,
@@ -193,7 +193,7 @@ impl AuthData {
         &self,
         identity: &str,
         req: &ServiceRequest,
-    ) -> Result<Authenticated> {
+    ) -> Result<AuthenticationInfo> {
         if let Some(auth) =
             api_key::get_api_key(&self.0.pg_pool, &self.0.api_token_salt, req).await?
         {
@@ -203,13 +203,13 @@ impl AuthData {
         let user_id = Uuid::parse_str(identity)?;
 
         let req_user = get_user_info(&self.0.pg_pool, &user_id).await?;
-        Ok(Authenticated::User(req_user))
+        Ok(AuthenticationInfo::User(req_user))
     }
 }
 
 pub async fn get_permitted_object<T, ID>(
     pool: &PostgresPool,
-    user: &Authenticated,
+    user: &AuthenticationInfo,
     object_table: &str,
     object_id_column: &str,
     permission: PermissionType,
@@ -231,8 +231,8 @@ where
 
     let q = sqlx::query(&query_str);
     let q = match user {
-        Authenticated::User(user) => q.bind(user.org_id).bind(user.user_id),
-        Authenticated::ApiKey { key, .. } => q.bind(key.org_id).bind(key.api_key_id),
+        AuthenticationInfo::User(user) => q.bind(user.org_id).bind(user.user_id),
+        AuthenticationInfo::ApiKey { key, .. } => q.bind(key.org_id).bind(key.api_key_id),
     };
 
     let row = q

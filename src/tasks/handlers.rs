@@ -80,7 +80,7 @@ async fn delete_task(
     task_id: Path<String>,
     data: BackendAppStateData,
     req: HttpRequest,
-    identity: Identity,
+    auth: MaybeAuthenticated,
 ) -> Result<impl Responder> {
     Ok(HttpResponse::NotImplemented().finish())
 }

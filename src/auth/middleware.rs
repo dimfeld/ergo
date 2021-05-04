@@ -14,7 +14,7 @@ use futures::{
     ready, Future, FutureExt,
 };
 
-use super::{AuthData, Authenticated, MaybeAuthenticated};
+use super::AuthData;
 
 pub struct AuthenticateService {
     auth_data: Rc<AuthData>,

@@ -84,7 +84,11 @@ struct ApiQueryString {
     api_key: String,
 }
 
-async fn handle_api_key(pg: &PostgresPool, salt: &str, key: &str) -> Result<super::Authenticated> {
+async fn handle_api_key(
+    pg: &PostgresPool,
+    salt: &str,
+    key: &str,
+) -> Result<super::AuthenticationInfo> {
     let (api_key_id, hash) = KeyAndHash::from_key(salt, key)?;
     let auth_key = sqlx::query_as!(
         ApiKeyAuth,
@@ -105,7 +109,7 @@ async fn handle_api_key(pg: &PostgresPool, salt: &str, key: &str) -> Result<supe
         Some(id) => Some(super::get_user_info(pg, id).await?),
     };
 
-    Ok(super::Authenticated::ApiKey {
+    Ok(super::AuthenticationInfo::ApiKey {
         key: auth_key,
         user,
     })
@@ -115,7 +119,7 @@ pub async fn get_api_key(
     pg: &PostgresPool,
     salt: &str,
     req: &ServiceRequest,
-) -> Result<Option<super::Authenticated>> {
+) -> Result<Option<super::AuthenticationInfo>> {
     if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
         let auth = handle_api_key(pg, salt, &query.0.api_key).await?;
         return Ok(Some(auth));
