@@ -68,6 +68,7 @@ GRANT SELECT ON account_types TO ergo_web;
 
 CREATE TABLE accounts (
   account_id bigint primary key references object_ids(object_id),
+  account_type_id text not null references account_types,
   name text not null,
   org_id uuid not null references orgs,
   user_id uuid references users,
