@@ -66,6 +66,7 @@ impl VaultPostgresPoolAuth {
 pub struct VaultPostgresPoolOptions {
     pub max_connections: usize,
     pub host: String,
+    pub port: u16,
     pub database: String,
     pub auth: VaultPostgresPoolAuth,
     pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
@@ -105,11 +106,12 @@ impl VaultPostgresPool {
         let VaultPostgresPoolOptions {
             max_connections,
             host,
+            port,
             database,
             auth,
             shutdown,
         } = config;
-        let manager = Manager::new(auth, shutdown, host, database).await?;
+        let manager = Manager::new(auth, shutdown, host, port, database).await?;
 
         let pool = VaultPostgresPoolInner {
             manager: manager.clone(),

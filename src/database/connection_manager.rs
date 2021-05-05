@@ -1,8 +1,9 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
 use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultDuration, VaultResponse};
+use log::LevelFilter;
 use serde::{de::DeserializeOwned, Serialize};
-use sqlx::{Connection, PgConnection};
+use sqlx::{postgres::PgConnectOptions, ConnectOptions, Connection, PgConnection};
 use std::{
     fmt::Debug,
     ops::{Deref, DerefMut},
@@ -130,10 +131,11 @@ pub struct ManagerStats {
 
 #[derive(Debug)]
 pub(crate) struct Manager {
-    connection_string: std::sync::RwLock<String>,
+    creds: std::sync::RwLock<(String, String)>,
     renewer: Arc<dyn PostgresAuthRenewer>,
 
     host: String,
+    port: u16,
     database: String,
     role: String,
 
@@ -146,6 +148,7 @@ impl Manager {
         auth_method: VaultPostgresPoolAuth,
         shutdown: GracefulShutdownConsumer,
         host: String,
+        port: u16,
         database: String,
     ) -> Result<Arc<Manager>, Error> {
         let (stats_sender, stats_receiver) = tokio::sync::watch::channel(ManagerStats {
@@ -163,9 +166,10 @@ impl Manager {
         };
 
         let manager = Manager {
-            connection_string: std::sync::RwLock::new(String::new()),
+            creds: std::sync::RwLock::new((String::new(), String::new())),
             renewer,
             host,
+            port,
             database,
             role,
 
@@ -187,17 +191,7 @@ impl Manager {
         Ok(manager_ptr)
     }
 
-    fn get_connection_string(&self, user: &str, password: &str) -> String {
-        format!(
-            "postgresql://{user}:{password}@{host}/{database}",
-            user = user,
-            password = password,
-            host = self.host,
-            database = self.database
-        )
-    }
-
-    #[instrument(level="info", name="refreshing Postgres auth", fields(role=%self.role))]
+    #[instrument(level="info", name="refreshing Postgres auth", fields(role=%self.role), skip(self))]
     pub async fn refresh_auth(
         &self,
         renew_lease_id: Option<&str>,
@@ -236,7 +230,7 @@ impl Manager {
         }
 
         event!(Level::INFO, "Fetching new credentials");
-        let auth = match self.renewer.get_lease(&self.role).await {
+        let mut auth = match self.renewer.get_lease(&self.role).await {
             Ok(data) => {
                 stats.update_successes += 1;
                 self.stats_sender.send(stats).ok();
@@ -249,12 +243,10 @@ impl Manager {
             }
         };
 
-        let data = auth.data.as_ref().ok_or(Error::VaultNoDataError)?;
-
-        let new_conn = self.get_connection_string(&data.username, &data.password);
+        let data = auth.data.take().ok_or(Error::VaultNoDataError)?;
         {
-            let mut conn = self.connection_string.write().unwrap();
-            *conn = new_conn;
+            let mut creds = self.creds.write().unwrap();
+            *creds = (data.username, data.password)
         }
 
         let renewable = auth.renewable.unwrap_or(false);
@@ -278,7 +270,7 @@ impl Manager {
 
 #[derive(Debug)]
 pub struct WrappedConnection {
-    conn_str: String,
+    username: String,
     pub conn: PgConnection,
 }
 
@@ -305,19 +297,25 @@ impl DerefMut for WrappedConnection {
 #[async_trait]
 impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
     async fn create(&self) -> Result<WrappedConnection, Error> {
-        let this_str = { self.connection_string.read().unwrap().clone() };
-        let conn = sqlx::PgConnection::connect(&this_str).await?;
-        Ok(WrappedConnection {
-            conn_str: this_str,
-            conn,
-        })
+        let (username, password) = { self.creds.read().unwrap().clone() };
+        let conn = PgConnectOptions::new()
+            .username(&username)
+            .password(&password)
+            .host(&self.host)
+            .port(self.port)
+            .database(&self.database)
+            .log_statements(LevelFilter::Debug)
+            .connect()
+            .await?;
+
+        Ok(WrappedConnection { username, conn })
     }
 
     async fn recycle(
         &self,
         connection: &mut WrappedConnection,
     ) -> deadpool::managed::RecycleResult<Error> {
-        let stale = { connection.conn_str != *self.connection_string.read().unwrap() };
+        let stale = { connection.username != *self.creds.read().unwrap().0 };
         if stale {
             return Err(RecycleError::Message("expired user".to_string()));
         }
@@ -452,6 +450,7 @@ mod tests {
             },
             shutdown.consumer(),
             "host".to_string(),
+            5432,
             "database".to_string(),
         )
         .await
@@ -501,6 +500,7 @@ mod tests {
             },
             shutdown.consumer(),
             "host".to_string(),
+            5432,
             "database".to_string(),
         )
         .await

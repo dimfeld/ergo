@@ -13,11 +13,13 @@ async fn pg_pool(
     auth: VaultPostgresPoolAuth,
 ) -> Result<VaultPostgresPool, Error> {
     let database = env::var("DATABASE").unwrap_or_else(|_| "ergo".to_string());
-    let database_host = env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost:5432".to_string());
+    let database_host = env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost".to_string());
+    let database_port: u16 = envoption::with_default("DATABASE_PORT", 5432 as u16)?;
 
     VaultPostgresPool::new(VaultPostgresPoolOptions {
         max_connections: 16,
         host: database_host,
+        port: database_port,
         database,
         auth,
         shutdown,
