@@ -63,7 +63,6 @@ CREATE TABLE users (
   name text not null,
   email text unique not null,
   password_hash text,
-  salt uuid,
   active boolean default true,
   created timestamptz not null default now()
 );
