@@ -5,12 +5,18 @@ authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"
 resolver = "2"
 
+default-run = "aio-server"
+
 [lib]
 name = "ergo"
 
 [[bin]]
 name = "aio-server"
 path = "src/bin/aio-server.rs"
+
+[[bin]]
+name = "drain-queues"
+path = "src/bin/drain-queues.rs"
 
 [[bin]]
 name = "erq"

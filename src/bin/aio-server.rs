@@ -7,6 +7,7 @@ use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{App, HttpServer};
 use hashicorp_vault::client::VaultClient;
 use std::{env, sync::Arc};
+use structopt::StructOpt;
 use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
@@ -31,10 +32,18 @@ use ergo::{
     web_app_server,
 };
 
+#[derive(Debug, StructOpt)]
+struct Args {
+    #[structopt(long, help = "Do not run the PostgreSQL queue stage drain tasks")]
+    no_drain_queue: bool,
+}
+
 #[actix_web::main]
 async fn main() -> Result<(), ergo::error::Error> {
     dotenv::dotenv().ok();
     dotenv::from_filename("vault_dev_roles.env").ok();
+
+    let args = Args::from_args();
 
     ergo::tracing_config::configure("ergo-server");
 
@@ -62,26 +71,30 @@ async fn main() -> Result<(), ergo::error::Error> {
         action_queue.clone(),
     )?;
 
-    let queue_drain = ergo::tasks::queue_drain_runner::AllQueuesDrain::new(
-        input_queue.clone(),
-        action_queue.clone(),
-        backend_pg_pool.clone(),
-        shutdown.consumer(),
-    );
+    let queue_drain = if args.no_drain_queue {
+        None
+    } else {
+        Some(ergo::tasks::queue_drain_runner::AllQueuesDrain::new(
+            input_queue.clone(),
+            action_queue.clone(),
+            backend_pg_pool.clone(),
+            shutdown.consumer(),
+        )?)
+    };
 
     let input_runner = TaskExecutor::new(TaskExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
         max_concurrent_jobs: None,
-    });
+    })?;
 
     let action_runner = ActionExecutor::new(ActionExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
         max_concurrent_jobs: None,
-    });
+    })?;
 
     let cookie_signing_key = env::var("COOKIE_SIGNING_KEY")
         .ok()
