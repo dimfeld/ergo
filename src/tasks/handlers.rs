@@ -1,7 +1,7 @@
 use super::{
-    actions::{self, queue::ActionQueue},
+    actions::{self, queue::ActionQueue, TaskAction},
     inputs::{self, queue::InputQueue},
-    Task,
+    state_machine, Task,
 };
 use crate::{
     auth::{self, AuthData, Authenticated, MaybeAuthenticated},
@@ -19,8 +19,10 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use chrono::{DateTime, Utc};
+use fxhash::FxHashMap;
 use postgres_drain::QueueStageDrain;
 use serde::{Deserialize, Serialize};
+use sqlx::Connection;
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
@@ -84,12 +86,32 @@ async fn delete_task(
     Ok(HttpResponse::NotImplemented().finish())
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TaskActionInput {
+    pub task_local_id: String,
+    pub name: String,
+    pub action_id: i64,
+    pub account_id: Option<i64>,
+    pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TaskInput {
+    pub name: String,
+    pub description: Option<String>,
+    pub enabled: bool,
+    pub state_machine_config: state_machine::StateMachineConfig,
+    pub state_machine_states: state_machine::StateMachineStates,
+    pub actions: FxHashMap<String, TaskActionInput>,
+}
+
 #[put("/tasks/{task_id}")]
 async fn update_task(
     task_id: Path<String>,
     data: BackendAppStateData,
     req: HttpRequest,
     auth: Authenticated,
+    payload: web::Json<TaskInput>,
 ) -> Result<impl Responder> {
     Ok(HttpResponse::NotImplemented().finish())
 }
@@ -99,8 +121,53 @@ async fn new_task(
     req: HttpRequest,
     data: BackendAppStateData,
     auth: Authenticated,
-    payload: web::Json<Task>,
+    payload: web::Json<TaskInput>,
 ) -> Result<impl Responder> {
+    let mut conn = data.pg.acquire().await?;
+    let mut tx = conn.begin().await?;
+
+    let external_task_id =
+        base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
+
+    let task_id = sqlx::query_scalar!(
+        "INSERT INTO object_ids (object_id) VALUES (DEFAULT) RETURNING object_id"
+    )
+    .fetch_one(&mut tx)
+    .await?;
+
+    sqlx::query!(
+        "INSERT INTO tasks (task_id, external_task_id, org_id, name,
+        description, enabled, state_machine_config, state_machine_states) VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8)",
+        task_id,
+        external_task_id,
+        auth.org_id(),
+        payload.name,
+        payload.description,
+        payload.enabled,
+        sqlx::types::Json(payload.state_machine_config.as_slice()) as _,
+        sqlx::types::Json(payload.state_machine_states.as_slice()) as _
+    )
+    .execute(&mut tx)
+    .await?;
+
+    for (local_id, action) in &payload.actions {
+        sqlx::query!(
+            "INSERT INTO task_actions (task_id, task_action_local_id,
+                action_id, account_id, name, action_template)
+                VALUES
+                ($1, $2, $3, $4, $5, $6)",
+            task_id,
+            local_id,
+            action.action_id,
+            action.account_id,
+            action.name,
+            sqlx::types::Json(action.action_template.as_ref()) as _
+        )
+        .execute(&mut tx)
+        .await?;
+    }
+
     Ok(HttpResponse::NotImplemented().finish())
 }
 

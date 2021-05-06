@@ -19,8 +19,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, Executor, FromRow, Postgres, Row, Transaction};
 use uuid::Uuid;
 
-use self::state_machine::{
-    ActionInvocations, StateMachineData, StateMachineStates, StateMachineWithData,
+use self::{
+    actions::TaskAction,
+    state_machine::{
+        ActionInvocations, StateMachineData, StateMachineStates, StateMachineWithData,
+    },
 };
 
 #[derive(Serialize, Deserialize, FromRow)]
@@ -45,14 +48,6 @@ const GET_TASK_QUERY: &'static str = r##"SELECT task_id, external_task_id, org_i
             FROM tasks WHERE task_id = $1"##;
 
 impl Task {
-    pub async fn from_db(pool: &PostgresPool, task_id: i64) -> Result<Option<Task>, Error> {
-        sqlx::query_as::<Postgres, Task>(GET_TASK_QUERY)
-            .bind(task_id)
-            .fetch_optional(pool)
-            .await
-            .map_err(Error::from)
-    }
-
     /// Apply an input to a task.
     /// Instead of acting on an existing task instance, this loads the task
     /// and applies the input inside a serializable transaction, to ensure that
