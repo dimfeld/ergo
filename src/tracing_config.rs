@@ -5,7 +5,7 @@ use tracing_subscriber::{fmt::time::ChronoUtc, layer::SubscriberExt, EnvFilter, 
 pub fn configure(name: impl Into<String>) {
     LogTracer::init().expect("Failed to create logger");
 
-    let env_filter = EnvFilter::try_from_default_env().unwrap_or(EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_env("LOG").unwrap_or(EnvFilter::new("info"));
 
     let subscriber = Registry::default().with(env_filter);
 
