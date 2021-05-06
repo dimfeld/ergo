@@ -47,6 +47,7 @@ pub struct TaskAction {
     pub action_id: i64,
     pub task_id: i64,
     pub account_id: Option<i64>,
+    pub task_local_id: String,
     pub name: String,
     pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
@@ -62,7 +63,8 @@ pub enum ActionStatus {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ActionInvocation {
-    pub task_action_id: i64,
+    pub task_id: i64,
+    pub task_action_local_id: String,
     pub actions_log_id: Uuid,
     pub input_arrival_id: Option<Uuid>,
     pub payload: serde_json::Value,

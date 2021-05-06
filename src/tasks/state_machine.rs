@@ -64,7 +64,8 @@ impl EventHandler {
                 Ok(ActionInvocation {
                     input_arrival_id: input_arrival_id.clone(),
                     actions_log_id: uuid::Uuid::new_v4(),
-                    task_action_id: def.task_action_id,
+                    task_id,
+                    task_action_local_id: def.task_action_local_id.clone(),
                     payload,
                 })
             })
@@ -148,7 +149,7 @@ impl ActionPayloadBuilder {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ActionInvokeDef {
-    task_action_id: i64,
+    task_action_local_id: String,
     data: ActionPayloadBuilder,
 }
 

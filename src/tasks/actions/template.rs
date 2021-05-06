@@ -19,6 +19,7 @@ pub enum TemplateError {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", tag = "type")]
 pub enum TemplateFieldFormat {
     String,
     StringArray,

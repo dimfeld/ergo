@@ -128,7 +128,7 @@ impl Task {
 
                 if !actions.is_empty() {
                     let q = format!(
-                        "INSERT INTO actions_log (task_action_id, actions_log_id, inputs_log_id, payload, status)
+                        "INSERT INTO actions_log (task_id, task_action_local_id, actions_log_id, inputs_log_id, payload, status)
                         VALUES
                         {}
                         ",
@@ -139,7 +139,8 @@ impl Task {
 
                     for action in &actions {
                         log_query = log_query
-                            .bind(action.task_action_id)
+                            .bind(action.task_id)
+                            .bind(&action.task_action_local_id)
                             .bind(action.actions_log_id)
                             .bind(action.input_arrival_id)
                             .bind(&action.payload)
@@ -150,17 +151,18 @@ impl Task {
 
                     let q = format!(
                         r##"INSERT INTO action_queue
-                        (task_action_id, actions_log_id, input_arrival_id, payload)
+                        (task_id, task_action_id, actions_log_id, input_arrival_id, payload)
                         VALUES
                         {}
                         "##,
-                        sql_insert_parameters::<4>(actions.len())
+                        sql_insert_parameters::<5>(actions.len())
                     );
 
                     let mut query = sqlx::query(&q);
                     for action in actions {
                         query = query
-                            .bind(action.task_action_id)
+                            .bind(action.task_id)
+                            .bind(action.task_action_local_id)
                             .bind(action.actions_log_id)
                             .bind(action.input_arrival_id)
                             .bind(action.payload);

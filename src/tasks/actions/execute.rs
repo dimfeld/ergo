@@ -81,9 +81,10 @@ pub enum ExecutorError {
 }
 
 #[derive(Debug, Error)]
-#[error("Action {task_action_name} ({task_action_id}): {error}")]
+#[error("Action {task_action_name} ({task_id}:{task_action_local_id}): {error}")]
 pub struct ExecuteError {
-    task_action_id: i64,
+    task_id: i64,
+    task_action_local_id: String,
     task_action_name: String,
     error: ExecuteErrorSource,
 }
@@ -94,7 +95,8 @@ impl ExecuteError {
         error: impl Into<ExecuteErrorSource>,
     ) -> Self {
         ExecuteError {
-            task_action_id: action.task_action_id,
+            task_id: action.task_id,
+            task_action_local_id: action.task_action_local_id.clone(),
             task_action_name: action.task_action_name.clone(),
             error: error.into(),
         }
@@ -158,7 +160,8 @@ struct ExecuteActionData {
     action_executor_template: Json<ScriptOrTemplate>,
     action_template_fields: Json<TemplateFields>,
     account_required: bool,
-    task_action_id: i64,
+    task_id: i64,
+    task_action_local_id: String,
     task_action_name: String,
     task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
     account_id: Option<i64>,
@@ -174,7 +177,6 @@ pub async fn execute(
     event!(Level::DEBUG, ?invocation);
 
     let actions_log_id = invocation.actions_log_id.clone();
-    let task_action_id = invocation.task_action_id;
     sqlx::query!(
         "UPDATE actions_log SET status='running', updated=now() WHERE actions_log_id=$1",
         invocation.actions_log_id
@@ -182,7 +184,8 @@ pub async fn execute(
     .execute(pg_pool)
     .await
     .map_err(|e| ExecuteError {
-        task_action_id,
+        task_id: invocation.task_id,
+        task_action_local_id: invocation.task_action_local_id.clone(),
         // We don't actually know the task action name here, but that's ok.
         task_action_name: String::new(),
         error: e.into(),
@@ -212,7 +215,8 @@ pub async fn execute(
     .execute(pg_pool)
     .await
     .map_err(|e| ExecuteError {
-        task_action_id,
+        task_id: invocation.task_id,
+        task_action_local_id: invocation.task_action_local_id.clone(),
         // We don't actually know the task action name here, but that's ok.
         task_action_name: String::new(),
         error: e.into(),
@@ -225,7 +229,8 @@ async fn execute_action(
     pg_pool: &PostgresPool,
     invocation: &ActionInvocation,
 ) -> Result<serde_json::Value, ExecuteError> {
-    let task_action_id = invocation.task_action_id;
+    let task_id = invocation.task_id;
+    let task_action_local_id = &invocation.task_action_local_id;
     let mut action: ExecuteActionData = sqlx::query_as(
         r##"SELECT
         executor_id,
@@ -246,20 +251,23 @@ async fn execute_action(
         JOIN executors USING(executor_id)
         LEFT JOIN accounts USING(account_id)
 
-        WHERE task_action_id=$1"##,
+        WHERE task_id=$1 AND task_action_id=$2"##,
     )
-    .bind(task_action_id)
+    .bind(task_id)
+    .bind(&task_action_local_id)
     .fetch_one(pg_pool)
     .await
     .map_err(|e| ExecuteError {
-        task_action_id,
+        task_id,
+        task_action_local_id: invocation.task_action_local_id.clone(),
         task_action_name: String::new(),
         error: e.into(),
     })?;
 
     event!(Level::TRACE, ?action);
     event!(Level::INFO,
-        %action.task_action_id,
+        task_id,
+        %action.task_action_local_id,
         %action.action_id,
         %action.action_name,
         %action.task_action_name,
