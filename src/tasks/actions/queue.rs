@@ -21,7 +21,7 @@ impl Drainer for QueueDrainer {
         let results = sqlx::query!(
             r##"SELECT action_queue_id, actions_log_id, task_id, task_action_local_id, input_arrival_id, payload
             FROM action_queue ORDER BY action_queue_id LIMIT 50"##
-        ) 
+        )
         .fetch_all(&mut *tx)
         .await?;
 

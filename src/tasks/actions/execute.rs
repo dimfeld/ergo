@@ -239,7 +239,8 @@ async fn execute_action(
         actions.executor_template as action_executor_template,
         actions.template_fields as action_template_fields,
         actions.account_required,
-        task_actions.task_action_id,
+        task_id,
+        task_actions.task_action_local_id,
         task_actions.name as task_action_name,
         task_actions.action_template as task_action_template,
         task_actions.account_id,
@@ -248,10 +249,9 @@ async fn execute_action(
 
         FROM task_actions
         JOIN actions USING(action_id)
-        JOIN executors USING(executor_id)
         LEFT JOIN accounts USING(account_id)
 
-        WHERE task_id=$1 AND task_action_id=$2"##,
+        WHERE task_id=$1 AND task_action_local_id=$2"##,
     )
     .bind(task_id)
     .bind(&task_action_local_id)

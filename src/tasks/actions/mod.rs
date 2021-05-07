@@ -43,11 +43,10 @@ pub struct Action {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct TaskAction {
-    pub task_action_id: i64,
     pub action_id: i64,
+    pub task_local_id: String,
     pub task_id: i64,
     pub account_id: Option<i64>,
-    pub task_local_id: String,
     pub name: String,
     pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
