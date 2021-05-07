@@ -7,6 +7,7 @@ pub mod graceful_shutdown;
 pub mod queues;
 pub mod scripting;
 pub mod service_config;
+pub mod status_server;
 pub mod tasks;
 pub mod tracing_config;
 pub mod vault;

@@ -9,10 +9,6 @@ use serde::Serialize;
 use sqlx::query_as;
 use tracing_actix_web::TracingLogger;
 
-async fn health() -> impl Responder {
-    HttpResponse::Ok().finish()
-}
-
 #[derive(Serialize)]
 struct TestRow {
     id: i64,
@@ -30,9 +26,7 @@ pub fn app_data(pg: VaultPostgresPool) -> AppStateData {
 }
 
 pub fn scope(app_data: &AppStateData, root: &str) -> actix_web::Scope {
-    web::scope(root)
-        .app_data(app_data.clone())
-        .route("/healthz", web::get().to(health))
+    web::scope(root).app_data(app_data.clone())
 }
 
 pub fn new_server(

@@ -18,6 +18,7 @@ use ergo::{
     },
     database::VaultPostgresPoolAuth,
     graceful_shutdown::GracefulShutdown,
+    status_server,
     tasks::{
         self,
         actions::{
@@ -117,11 +118,12 @@ async fn main() -> Result<(), ergo::error::Error> {
         );
 
         App::new()
-            .wrap(TracingLogger::default())
-            .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
-            .wrap(identity)
+            .service(status_server::scope("/api"))
             .service(web_app_server::scope(&web_app_data, "/api/web"))
             .service(tasks::handlers::scope(&backend_app_data, "/api/tasks"))
+            .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
+            .wrap(identity)
+            .wrap(TracingLogger::default())
     })
     .bind(format!("{}:{}", address, port))?
     .run()
