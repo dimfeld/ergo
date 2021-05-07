@@ -1,0 +1,17 @@
+{
+  "action_id": {{BASE_ACTION_ID}}02,
+  "action_category_id": {{ACTION_CATEGORY_ID_GENERAL}},
+  "name": "Echo",
+  "description": "A simple command for testing",
+  "executor_id": "raw_command_executor",
+  "executor_template": {
+    "command": "echo",
+    "args": [
+      {{{{raw}}}}"{{string}}"{{{{/raw}}}}
+    ]
+  },
+  "template_fields": {
+    "string": { "format": { "type": "string" }, "optional": false }
+  },
+  "account_required": false
+}

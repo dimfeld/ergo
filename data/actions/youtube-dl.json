@@ -1,0 +1,18 @@
+{
+  "action_id": {{BASE_ACTION_ID}}01,
+  "action_category_id": {{ACTION_CATEGORY_ID_GENERAL}},
+  "name": "Youtube DL",
+  "executor_id": "raw_command_executor",
+  "executor_template": {
+    "command": "youtube-dl",
+    "args": [
+      "-o",
+      "{{YOUTUBE_DL_OUTPUT_DIR}}/%(title)s.%(ext)s",
+      {{{{raw}}}}"{{url}}"{{{{/raw}}}}
+    ]
+  },
+  "template_fields": {
+    "url": { "format": { "type": "string" }, "optional": false }
+  },
+  "account_required": false
+}
