@@ -6,7 +6,9 @@ use super::{
 use crate::{
     auth::{self, AuthData, Authenticated, MaybeAuthenticated},
     backend_data::BackendAppStateData,
-    database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
+    database::{
+        object_id::new_object_id, PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions,
+    },
     error::{Error, Result},
     queues::postgres_drain,
     vault::VaultClientTokenData,
@@ -44,7 +46,6 @@ struct TaskDescription {
 async fn list_tasks(
     data: BackendAppStateData,
     req: HttpRequest,
-
     auth: Authenticated,
 ) -> Result<impl Responder> {
     let user_ids = auth.user_entity_ids();
@@ -129,12 +130,7 @@ async fn new_task(
     let external_task_id =
         base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
 
-    let task_id = sqlx::query_scalar!(
-        "INSERT INTO object_ids (object_id) VALUES (DEFAULT) RETURNING object_id"
-    )
-    .fetch_one(&mut tx)
-    .await?;
-
+    let task_id = new_object_id(&mut tx).await?;
     sqlx::query!(
         "INSERT INTO tasks (task_id, external_task_id, org_id, name,
         description, enabled, state_machine_config, state_machine_states) VALUES

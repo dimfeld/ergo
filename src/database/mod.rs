@@ -11,7 +11,10 @@ use std::{env, fmt::Debug, sync::Arc};
 mod conn_executor;
 mod connection_manager;
 mod executor;
+pub mod object_id;
 pub mod transaction;
+
+pub use self::object_id::new_object_id;
 
 use connection_manager::{Manager, WrappedConnection};
 
