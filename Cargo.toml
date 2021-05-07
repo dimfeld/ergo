@@ -64,11 +64,11 @@ either = "1.6.1"
 envoption = "0.2.1"
 futures = "0.3.14"
 fxhash = "0.2.1"
-handlebars = "3.5.4"
+handlebars = "3.5.5"
 hashicorp_vault = { git="https://github.com/dimfeld/vault-rs", branch="async" }
 indicatif = "0.15.0"
 itertools = "0.10.0"
-jsonschema = "0.6.1"
+jsonschema = "0.9.0"
 lazy_static = "1.4.0"
 log = "0.4.14"
 num_cpus = "1.13.0"
@@ -76,7 +76,7 @@ rand = "0.8.3"
 rand_core = "0.6.2"
 redis = { version = "0.20.0", features = ["tokio-comp"] }
 reqwest = "0.11.3"
-rusty_v8 = "0.22.1"
+rusty_v8 = "0.22.2"
 serde = { version = "1.0.125", features = ["derive"] }
 serde_json = "1.0.64"
 serde_millis = "0.1.1"
@@ -91,7 +91,7 @@ tracing = "0.1.25"
 tracing-actix-web = "0.4.0-beta.4"
 tracing-futures = "0.2.5"
 tracing-log = "0.1.2"
-tracing-subscriber = { version = "0.2.17", features = ["registry", "env-filter"] }
+tracing-subscriber = { version = "0.2.18", features = ["registry", "env-filter"] }
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 
 [dev-dependencies]
