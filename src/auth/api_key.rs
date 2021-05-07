@@ -10,6 +10,8 @@ use sha3::Digest;
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
 use uuid::Uuid;
 
+use super::AuthData;
+
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ApiKey {
     pub api_key_id: Uuid,
@@ -82,7 +84,7 @@ struct ApiQueryString {
     api_key: String,
 }
 
-async fn handle_api_key(pg: &PostgresPool, key: &str) -> Result<super::AuthenticationInfo> {
+async fn handle_api_key(auth_data: &AuthData, key: &str) -> Result<super::AuthenticationInfo> {
     let (api_key_id, hash) = decode_key(key)?;
     let auth_key = sqlx::query_as!(
         ApiKeyAuth,
@@ -93,7 +95,7 @@ async fn handle_api_key(pg: &PostgresPool, key: &str) -> Result<super::Authentic
         api_key_id,
         hash
     )
-    .fetch_optional(pg)
+    .fetch_optional(&auth_data.pg)
     .await?
     .ok_or_else(|| Error::AuthenticationError)?;
 
@@ -101,7 +103,7 @@ async fn handle_api_key(pg: &PostgresPool, key: &str) -> Result<super::Authentic
         None => None,
         // This could be combined with the query above, but for simplicity we just keep it separate
         // for now.
-        Some(id) => Some(super::get_user_info(pg, id).await?),
+        Some(id) => Some(auth_data.get_user_info(id).await?),
     };
 
     Ok(super::AuthenticationInfo::ApiKey {
@@ -111,17 +113,17 @@ async fn handle_api_key(pg: &PostgresPool, key: &str) -> Result<super::Authentic
 }
 
 pub async fn get_api_key(
-    pg: &PostgresPool,
+    auth_data: &AuthData,
     req: &ServiceRequest,
 ) -> Result<Option<super::AuthenticationInfo>> {
     if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
-        let auth = handle_api_key(pg, &query.0.api_key).await?;
+        let auth = handle_api_key(auth_data, &query.0.api_key).await?;
         return Ok(Some(auth));
     }
 
     if let Ok(header) = Authorization::<Bearer>::parse(req) {
         let key = header.into_scheme();
-        let auth = handle_api_key(pg, key.token()).await?;
+        let auth = handle_api_key(auth_data, key.token()).await?;
         return Ok(Some(auth));
     }
 

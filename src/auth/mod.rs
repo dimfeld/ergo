@@ -60,6 +60,7 @@ pub struct RequestUser {
     pub name: String,
     pub email: String,
     pub user_entity_ids: UserEntityList,
+    pub is_admin: bool,
 }
 
 /// Extracts authentication information for routes that optionally require it.
@@ -165,55 +166,34 @@ impl AuthenticationInfo {
             },
         }
     }
-}
 
-async fn get_user_info(pg: &PostgresPool, user_id: &Uuid) -> Result<RequestUser> {
-    query!(
-        r##"SELECT user_id,
-            active_org_id AS org_id, users.name, email,
-            array_agg(role_id) AS roles
-        FROM users
-        JOIN orgs ON orgs.org_id = active_org_id
-        LEFT JOIN user_roles USING(user_id, org_id)
-        WHERE user_id = $1 AND users.active AND orgs.active
-        GROUP BY user_id"##,
-        user_id
-    )
-    .fetch_optional(pg)
-    .await?
-    .map(|user| {
-        let user_entity_ids = match user.roles {
-            Some(roles) => {
-                let mut ids = UserEntityList::from_vec(roles);
-                ids.push(user.user_id);
-                ids
-            }
-            None => UserEntityList::from_elem(user.user_id, 1),
+    pub fn expect_admin(&self) -> Result<()> {
+        let is_admin = match self {
+            Self::User(user) => user.is_admin,
+            Self::ApiKey { user, .. } => user.as_ref().map(|u| u.is_admin).unwrap_or(false),
         };
 
-        RequestUser {
-            user_id: user.user_id,
-            org_id: user.org_id,
-            name: user.name,
-            email: user.email,
-            user_entity_ids,
+        if is_admin {
+            Ok(())
+        } else {
+            Err(Error::AuthorizationError)
         }
-    })
-    .ok_or(Error::AuthenticationError)
+    }
 }
 
-#[derive(Debug)]
-pub struct AuthData(PostgresPool);
-
-impl Clone for AuthData {
-    fn clone(&self) -> Self {
-        AuthData(self.0.clone())
-    }
+#[derive(Clone, Debug)]
+pub struct AuthData {
+    pg: PostgresPool,
+    /// Temporary method of implementing admin user
+    admin_user: Option<Uuid>,
 }
 
 impl AuthData {
     pub fn new(pg_pool: PostgresPool) -> Result<AuthData> {
-        Ok(AuthData(pg_pool))
+        Ok(AuthData {
+            pg: pg_pool,
+            admin_user: envoption::optional("ADMIN_USER_ID")?,
+        })
     }
 
     // Authenticate via cookie or API key, depending on what's provided.
@@ -222,14 +202,54 @@ impl AuthData {
         identity: &str,
         req: &ServiceRequest,
     ) -> Result<AuthenticationInfo> {
-        if let Some(auth) = api_key::get_api_key(&self.0, req).await? {
+        if let Some(auth) = api_key::get_api_key(self, req).await? {
             return Ok(auth);
         }
 
         let user_id = Uuid::parse_str(identity)?;
 
-        let req_user = get_user_info(&self.0, &user_id).await?;
+        let req_user = self.get_user_info(&user_id).await?;
         Ok(AuthenticationInfo::User(req_user))
+    }
+
+    async fn get_user_info(&self, user_id: &Uuid) -> Result<RequestUser> {
+        query!(
+            r##"SELECT user_id,
+            active_org_id AS org_id, users.name, email,
+            array_agg(role_id) AS roles
+        FROM users
+        JOIN orgs ON orgs.org_id = active_org_id
+        LEFT JOIN user_roles USING(user_id, org_id)
+        WHERE user_id = $1 AND users.active AND orgs.active
+        GROUP BY user_id"##,
+            user_id
+        )
+        .fetch_optional(&self.pg)
+        .await?
+        .map(|user| {
+            let user_entity_ids = match user.roles {
+                Some(roles) => {
+                    let mut ids = UserEntityList::from_vec(roles);
+                    ids.push(user.user_id);
+                    ids
+                }
+                None => UserEntityList::from_elem(user.user_id, 1),
+            };
+
+            RequestUser {
+                user_id: user.user_id,
+                org_id: user.org_id,
+                name: user.name,
+                email: user.email,
+                user_entity_ids,
+                is_admin: self
+                    .admin_user
+                    .as_ref()
+                    .map(|u| u == user_id)
+                    .unwrap_or(false),
+            }
+        })
+        .ok_or(Error::AuthenticationError)
     }
 }
 
