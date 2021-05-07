@@ -8,6 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha3::Digest;
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
+use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
 use super::AuthData;
@@ -112,16 +113,20 @@ async fn handle_api_key(auth_data: &AuthData, key: &str) -> Result<super::Authen
     })
 }
 
+#[instrument(skip(auth_data))]
 pub async fn get_api_key(
     auth_data: &AuthData,
     req: &ServiceRequest,
 ) -> Result<Option<super::AuthenticationInfo>> {
+    event!(Level::DEBUG, "Fetching api key");
     if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
+        event!(Level::DEBUG, key=%query.0.api_key, "Got key from query string");
         let auth = handle_api_key(auth_data, &query.0.api_key).await?;
         return Ok(Some(auth));
     }
 
     if let Ok(header) = Authorization::<Bearer>::parse(req) {
+        event!(Level::DEBUG, key=%header, "Got key from auth header");
         let key = header.into_scheme();
         let auth = handle_api_key(auth_data, key.token()).await?;
         return Ok(Some(auth));

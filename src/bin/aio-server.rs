@@ -4,7 +4,7 @@
 //! Mostly useful for development or test purposes.
 
 use actix_identity::{CookieIdentityPolicy, IdentityService};
-use actix_web::{App, HttpServer};
+use actix_web::{web, App, HttpServer};
 use hashicorp_vault::client::VaultClient;
 use std::{env, sync::Arc};
 use structopt::StructOpt;
@@ -117,13 +117,17 @@ async fn main() -> Result<(), ergo::error::Error> {
                 .same_site(actix_web::cookie::SameSite::Strict),
         );
 
-        App::new()
-            .service(status_server::scope("/api"))
-            .service(web_app_server::scope(&web_app_data, "/api/web"))
-            .service(tasks::handlers::scope(&backend_app_data, "/api/tasks"))
-            .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
-            .wrap(identity)
-            .wrap(TracingLogger::default())
+        App::new().service(
+            web::scope("/api/")
+                .app_data(web_app_data.clone())
+                .app_data(backend_app_data.clone())
+                .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
+                .wrap(identity)
+                .wrap(TracingLogger::default())
+                .configure(web_app_server::config)
+                .configure(tasks::handlers::config)
+                .configure(status_server::config),
+        )
     })
     .bind(format!("{}:{}", address, port))?
     .run()

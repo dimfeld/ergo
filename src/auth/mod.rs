@@ -20,6 +20,7 @@ use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
+use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::Type)]
@@ -199,24 +200,31 @@ impl AuthData {
     // Authenticate via cookie or API key, depending on what's provided.
     pub async fn authenticate(
         &self,
-        identity: &str,
+        identity: Option<String>,
         req: &ServiceRequest,
-    ) -> Result<AuthenticationInfo> {
+    ) -> Result<Option<AuthenticationInfo>> {
         if let Some(auth) = api_key::get_api_key(self, req).await? {
-            return Ok(auth);
+            return Ok(Some(auth));
         }
 
-        let user_id = Uuid::parse_str(identity)?;
+        match identity {
+            Some(identity) => {
+                let user_id = Uuid::parse_str(&identity)?;
 
-        let req_user = self.get_user_info(&user_id).await?;
-        Ok(AuthenticationInfo::User(req_user))
+                let req_user = self.get_user_info(&user_id).await?;
+                Ok(Some(AuthenticationInfo::User(req_user)))
+            }
+            None => Ok(None),
+        }
     }
 
+    #[instrument(skip(self))]
     async fn get_user_info(&self, user_id: &Uuid) -> Result<RequestUser> {
+        event!(Level::DEBUG, "Fetching user");
         query!(
             r##"SELECT user_id,
             active_org_id AS org_id, users.name, email,
-            array_agg(role_id) AS roles
+            array_agg(role_id) FILTER(WHERE role_id IS NOT NULL) AS roles
         FROM users
         JOIN orgs ON orgs.org_id = active_org_id
         LEFT JOIN user_roles USING(user_id, org_id)
@@ -227,6 +235,7 @@ impl AuthData {
         .fetch_optional(&self.pg)
         .await?
         .map(|user| {
+            event!(Level::DEBUG, ?user);
             let user_entity_ids = match user.roles {
                 Some(roles) => {
                     let mut ids = UserEntityList::from_vec(roles);
@@ -236,7 +245,7 @@ impl AuthData {
                 None => UserEntityList::from_elem(user.user_id, 1),
             };
 
-            RequestUser {
+            let user = RequestUser {
                 user_id: user.user_id,
                 org_id: user.org_id,
                 name: user.name,
@@ -247,7 +256,11 @@ impl AuthData {
                     .as_ref()
                     .map(|u| u == user_id)
                     .unwrap_or(false),
-            }
+            };
+
+            event!(Level::DEBUG, ?user);
+
+            user
         })
         .ok_or(Error::AuthenticationError)
     }

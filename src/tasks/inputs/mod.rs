@@ -1,4 +1,5 @@
 pub mod dequeue;
+pub mod handlers;
 pub mod queue;
 
 use crate::{database::PostgresPool, error::Error};
@@ -16,7 +17,7 @@ pub struct InputCategory {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Input {
     pub input_id: i64,
-    pub input_category_id: i64,
+    pub input_category_id: Option<i64>,
     pub name: String,
     pub description: Option<String>,
     pub payload_schema: serde_json::Value, // TODO make this a JsonSchema

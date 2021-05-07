@@ -74,8 +74,9 @@ where
         let auth_data = self.auth_data.clone();
 
         async move {
-            if let Some(id) = req.get_identity() {
-                let auth = auth_data.authenticate(&id, &req).await?;
+            let id = req.get_identity();
+            let auth = auth_data.authenticate(id, &req).await?;
+            if let Some(auth) = auth {
                 req.extensions_mut().insert(Arc::new(auth));
             }
 

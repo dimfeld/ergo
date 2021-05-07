@@ -12,13 +12,14 @@ use crate::{
     error::{Error, Result},
     queues::postgres_drain,
     vault::VaultClientTokenData,
+    web_app_server::AppStateData,
 };
 
 use actix_identity::Identity;
 use actix_web::{
     delete, get, post, put, web,
     web::{Data, Path},
-    HttpRequest, HttpResponse, Responder,
+    HttpRequest, HttpResponse, Responder, Scope,
 };
 use chrono::{DateTime, Utc};
 use fxhash::FxHashMap;
@@ -44,7 +45,7 @@ struct TaskDescription {
 
 #[get("/tasks")]
 async fn list_tasks(
-    data: BackendAppStateData,
+    data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
 ) -> Result<impl Responder> {
@@ -70,7 +71,7 @@ async fn list_tasks(
 #[get("/tasks/{task_id}")]
 async fn get_task(
     task_id: Path<String>,
-    data: BackendAppStateData,
+    data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
 ) -> Result<impl Responder> {
@@ -80,7 +81,7 @@ async fn get_task(
 #[delete("/tasks/{task_id}")]
 async fn delete_task(
     task_id: Path<String>,
-    data: BackendAppStateData,
+    data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
 ) -> Result<impl Responder> {
@@ -109,7 +110,7 @@ pub struct TaskInput {
 #[put("/tasks/{task_id}")]
 async fn update_task(
     task_id: Path<String>,
-    data: BackendAppStateData,
+    data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
@@ -120,7 +121,7 @@ async fn update_task(
 #[post("/tasks")]
 async fn new_task(
     req: HttpRequest,
-    data: BackendAppStateData,
+    data: AppStateData,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<impl Responder> {
@@ -210,8 +211,14 @@ async fn post_task_trigger(
     Ok(HttpResponse::Accepted().finish())
 }
 
-pub fn scope(app_data: &BackendAppStateData, root: &str) -> actix_web::Scope {
-    web::scope(root)
-        .app_data(app_data.clone())
-        .service(post_task_trigger)
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(post_task_trigger)
+        .service(list_tasks)
+        .service(new_task)
+        .service(update_task)
+        .service(delete_task)
+        .service(super::inputs::handlers::list_inputs)
+        .service(super::inputs::handlers::new_input)
+        .service(super::inputs::handlers::write_input)
+        .service(super::inputs::handlers::delete_input);
 }
