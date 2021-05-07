@@ -30,6 +30,10 @@ path = "src/bin/erq-stress.rs"
 name = "hash_passwd"
 path = "src/bin/hash_passwd.rs"
 
+[[bin]]
+name = "make_api_key"
+path = "src/bin/make_api_key.rs"
+
 [features]
 test-redis = []
 test-all = ["test-redis"]

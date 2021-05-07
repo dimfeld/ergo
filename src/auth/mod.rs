@@ -1,4 +1,4 @@
-mod api_key;
+pub mod api_key;
 pub mod handlers;
 pub mod middleware;
 pub mod password;
