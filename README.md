@@ -25,8 +25,8 @@ This project is in very early stages right now with no current plans for proper 
   - [ ] Embedded scripting for actions
   - [ ] Return data for use by the next task in the chain
 - [ ] Data Schemas
-  - [ ] Each action can specify the types of data that it accepts
-  - [ ] Duck typing for events
+  - [X] Each action can specify the types of data that it accepts
+  - [X] Duck typing for events
 - [ ] State machines will take data from an event, modify it somehow, and pass it on
   - [ ] Embed JavaScript to write state machine logic
   - [ ] Persistent context for state machines
@@ -38,7 +38,7 @@ This project is in very early stages right now with no current plans for proper 
   - [X] Run state machines in response to events
   - [ ] Sequences - Tasks can be chained together and optionally pass information between them (file locations, etc.)
   - [ ] Tasks can clone themselves, and further inputs for that clone are routed to them. This will probably involve interaction with another process set up to be aware of how this works.
-- [ ] Templates for events, actions, and state machines
+- [X] Templates for events, actions, and state machines
 - [X] Extensive logging of events, actions, etc.
 
 # Roadmap
@@ -56,6 +56,8 @@ This project is in very early stages right now with no current plans for proper 
 
 ## 0.2
 
+- [ ] Add all missing tests
 - [ ] Simple Web UI
+- [ ] Scripting
 - [ ] Ability to run Nomad jobs as actions
 
