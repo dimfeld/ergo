@@ -36,7 +36,7 @@ use ergo::{
 #[derive(Debug, StructOpt)]
 struct Args {
     #[structopt(long, help = "Do not run the PostgreSQL queue stage drain tasks")]
-    no_drain_queue: bool,
+    no_drain_queues: bool,
 }
 
 #[actix_web::main]
@@ -72,7 +72,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         action_queue.clone(),
     )?;
 
-    let queue_drain = if args.no_drain_queue {
+    let queue_drain = if args.no_drain_queues {
         None
     } else {
         Some(ergo::tasks::queue_drain_runner::AllQueuesDrain::new(

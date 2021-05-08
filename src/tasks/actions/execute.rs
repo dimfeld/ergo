@@ -134,7 +134,7 @@ pub trait Executor: std::fmt::Debug + Send + Sync {
 }
 
 lazy_static! {
-    static ref EXECUTOR_REGISTRY: FxHashMap<String, Box<dyn Executor>> = {
+    pub static ref EXECUTOR_REGISTRY: FxHashMap<String, Box<dyn Executor>> = {
         vec![
             super::http_executor::HttpExecutor::new(),
             super::raw_command_executor::RawCommandExecutor::new(),

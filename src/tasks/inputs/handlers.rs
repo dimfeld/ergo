@@ -24,13 +24,14 @@ pub struct InputPayload {
 }
 
 #[get("/inputs")]
-pub async fn list_inputs(
-    data: AppStateData,
-    // _auth: Authenticated,
-) -> Result<impl Responder> {
-    let inputs = sqlx::query_as!(Input, "SELECT * FROM inputs")
-        .fetch_all(&data.pg)
-        .await?;
+pub async fn list_inputs(data: AppStateData) -> Result<impl Responder> {
+    let inputs = sqlx::query_as!(
+        Input,
+        "SELECT input_id, input_category_id, name, description, payload_schema
+        FROM inputs"
+    )
+    .fetch_all(&data.pg)
+    .await?;
     Ok(HttpResponse::Ok().json(inputs))
 }
 
@@ -90,9 +91,8 @@ pub async fn write_input(
     jsonschema::JSONSchema::compile(&payload.payload_schema)?;
 
     sqlx::query!(
-        "INSERT INTO inputs (input_id, input_category_id, name, description, payload_schema) VALUES
-        ($1, $2, $3, $4, $5)
-        ON CONFLICT(input_id) DO UPDATE SET input_category_id=$2, name=$3, description=$4, payload_schema=$5",
+        "UPDATE inputs SET input_category_id=$2, name=$3, description=$4, payload_schema=$5
+        WHERE input_id=$1",
         input_id,
         &payload.input_category_id as _,
         &payload.name,

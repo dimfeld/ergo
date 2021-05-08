@@ -77,6 +77,9 @@ pub enum Error {
     #[error("{0}")]
     StringError(String),
 
+    #[error("Unknown executor {0}")]
+    UnknownExecutor(String),
+
     #[error(transparent)]
     ExecuteError(#[from] ExecuteError),
 
@@ -123,6 +126,7 @@ impl actix_web::error::ResponseError for Error {
             Error::AuthenticationError => StatusCode::UNAUTHORIZED,
             Error::AuthorizationError => StatusCode::FORBIDDEN,
             Error::NotFound => StatusCode::NOT_FOUND,
+            Error::UnknownExecutor(_) => StatusCode::BAD_REQUEST,
             Error::ActixError { status_code, .. } => *status_code,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }

@@ -220,5 +220,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(super::inputs::handlers::list_inputs)
         .service(super::inputs::handlers::new_input)
         .service(super::inputs::handlers::write_input)
-        .service(super::inputs::handlers::delete_input);
+        .service(super::inputs::handlers::delete_input)
+        .service(super::actions::handlers::list_actions)
+        .service(super::actions::handlers::new_action)
+        .service(super::actions::handlers::write_action)
+        .service(super::actions::handlers::delete_action);
 }
