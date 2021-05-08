@@ -9,7 +9,6 @@ DROP TABLE allowed_action_account_types;
 DROP TABLE actions;
 DROP TYPE action_status;
 DROP TABLE action_categories;
-DROP TABLE executors;
 DROP TABLE inputs_log;
 DROP TYPE input_status;
 DROP TABLE inputs;

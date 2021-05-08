@@ -41,12 +41,6 @@ GRANT INSERT ON inputs_log TO ergo_enqueuer;
 GRANT SELECT, INSERT ON inputs_log TO ergo_backend;
 GRANT SELECT ON inputs_log TO ergo_web;
 
-CREATE TABLE executors (
-  executor_id text primary key,
-  name text not null,
-  description text
-);
-
 CREATE TABLE action_categories (
   action_category_id bigint primary key references object_ids(object_id),
   name text not null,
@@ -85,7 +79,7 @@ CREATE TABLE actions (
   action_category_id bigint not null references action_categories,
   name text not null,
   description text,
-  executor_id text not null references executors,
+  executor_id text not null,
   executor_template jsonb not null,
   template_fields jsonb not null,
   account_required boolean not null default false
