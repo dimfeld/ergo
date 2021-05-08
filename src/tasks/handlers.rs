@@ -30,7 +30,7 @@ use sqlx::Connection;
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
     task_id: String,
-    trigger_id: i64,
+    trigger_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -55,7 +55,7 @@ async fn list_tasks(
         "SELECT external_task_id AS id, name, description, enabled, created, modified
         FROM tasks
         JOIN user_entity_permissions ON
-            permissioned_object = tasks.task_id
+            permissioned_object IN (1, tasks.task_id)
             AND user_entity_id = ANY($1)
             AND permission_type = 'read'
         WHERE tasks.org_id = $2",
@@ -75,7 +75,63 @@ async fn get_task(
     req: HttpRequest,
     auth: Authenticated,
 ) -> Result<impl Responder> {
-    Ok(HttpResponse::NotImplemented().finish())
+    let task_id = task_id.into_inner();
+    let user_ids = auth.user_entity_ids();
+
+    #[derive(Debug, Serialize, sqlx::FromRow)]
+    struct TaskResult {
+        task_id: String,
+        name: String,
+        description: Option<String>,
+        enabled: bool,
+        state_machine_config: serde_json::Value,
+        state_machine_states: serde_json::Value,
+        created: DateTime<Utc>,
+        modified: DateTime<Utc>,
+        triggers: Option<serde_json::Value>,
+        actions: Option<serde_json::Value>,
+    }
+
+    let task = sqlx::query_as!(
+        TaskResult,
+        "SELECT external_task_id as task_id,
+        tasks.name, tasks.description, enabled,
+        state_machine_config, state_machine_states,
+        created, modified,
+
+        jsonb_object_agg(task_trigger_local_id, jsonb_build_object(
+            'input_id', input_id,
+            'name', task_triggers.name,
+            'description', task_triggers.description
+        )) as triggers,
+
+        jsonb_object_agg(task_action_local_id, jsonb_build_object(
+            'action_id', action_id,
+            'account_id', account_id,
+            'name', task_actions.name,
+            'action_template', task_actions.action_template
+        )) as actions
+
+        FROM tasks
+        JOIN user_entity_permissions ON
+            permissioned_object IN (1, task_id)
+            AND user_entity_id=ANY($2)
+            AND permission_type = 'read'
+        LEFT JOIN task_actions USING(task_id)
+        LEFT JOIN task_triggers USING(task_id)
+        WHERE external_task_id=$1 AND org_id=$3
+        GROUP BY tasks.task_id",
+        &task_id,
+        user_ids.as_slice(),
+        auth.org_id()
+    )
+    .fetch_optional(&data.pg)
+    .await?;
+
+    match task {
+        Some(task) => Ok(HttpResponse::Ok().json(task)),
+        None => Ok(HttpResponse::NotFound().finish()),
+    }
 }
 
 #[delete("/tasks/{task_id}")]
@@ -98,6 +154,13 @@ pub struct TaskActionInput {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct TaskTriggerInput {
+    pub input_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct TaskInput {
     pub name: String,
     pub description: Option<String>,
@@ -105,6 +168,7 @@ pub struct TaskInput {
     pub state_machine_config: state_machine::StateMachineConfig,
     pub state_machine_states: state_machine::StateMachineStates,
     pub actions: FxHashMap<String, TaskActionInput>,
+    pub triggers: FxHashMap<String, TaskTriggerInput>,
 }
 
 #[put("/tasks/{task_id}")]
@@ -165,6 +229,26 @@ async fn new_task(
         .await?;
     }
 
+    for (local_id, trigger) in &payload.triggers {
+        let trigger_id = new_object_id(&mut tx).await?;
+        sqlx::query!(
+            "INSERT INTO task_triggers (task_trigger_id, task_id, input_id, task_trigger_local_id,
+                name, description
+            ) VALUES
+            ($1, $2, $3, $4, $5, $6)",
+            trigger_id,
+            task_id,
+            trigger.input_id,
+            local_id,
+            trigger.name,
+            trigger.description as _
+        )
+        .execute(&mut tx)
+        .await?;
+    }
+
+    tx.commit().await?;
+
     Ok(HttpResponse::NotImplemented().finish())
 }
 
@@ -187,7 +271,7 @@ async fn post_task_trigger(
             AND permissioned_object IN(1, task_trigger_id)
         JOIN tasks USING(task_id)
         JOIN inputs USING(input_id)
-        WHERE org_id = $2 AND task_trigger_id = $3 AND external_task_id = $4
+        WHERE org_id = $2 AND task_trigger_local_id = $3 AND external_task_id = $4
         "##,
         ids.as_slice(),
         auth.org_id(),
