@@ -3,7 +3,7 @@
   "action_category_id": {{ACTION_CATEGORY_ID_GENERAL}},
   "name": "Echo",
   "description": "A simple command for testing",
-  "executor_id": "raw_command_executor",
+  "executor_id": "raw_command",
   "executor_template": {
     "command": "echo",
     "args": [
