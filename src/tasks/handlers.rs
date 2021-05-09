@@ -25,7 +25,7 @@ use chrono::{DateTime, Utc};
 use fxhash::FxHashMap;
 use postgres_drain::QueueStageDrain;
 use serde::{Deserialize, Serialize};
-use sqlx::Connection;
+use sqlx::{Connection, Postgres, Transaction};
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
@@ -184,7 +184,7 @@ pub struct TaskInput {
 
 #[put("/tasks/{task_id}")]
 async fn update_task(
-    task_id: Path<String>,
+    external_task_id: Path<String>,
     data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
@@ -192,11 +192,11 @@ async fn update_task(
 ) -> Result<impl Responder> {
     let payload = payload.into_inner();
     let user_ids = auth.user_entity_ids();
-    let task_id = task_id.into_inner();
+    let external_task_id = external_task_id.into_inner();
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let rows = sqlx::query!(
+    let task_id = sqlx::query!(
         "UPDATE TASKS SET
         name=$2, description=$3, enabled=$4, state_machine_config=$5, state_machine_states=$6
         WHERE external_task_id=$1 AND org_id=$7 AND EXISTS (
@@ -205,8 +205,9 @@ async fn update_task(
             AND user_entity_id=ANY($8)
             AND permission_type = 'write'
             )
+        RETURNING task_id
         ",
-        &task_id,
+        &external_task_id,
         &payload.name,
         &payload.description as _,
         payload.enabled,
@@ -215,17 +216,106 @@ async fn update_task(
         auth.org_id(),
         user_ids.as_slice()
     )
-    .execute(&mut tx)
-    .await?;
+    .fetch_optional(&mut tx)
+    .await?
+    .ok_or_else(|| Error::NotFound)?
+    .task_id;
 
-    if rows.rows_affected() != 1 {
-        return Ok(HttpResponse::NotFound().finish());
+    for (action_local_id, action) in &payload.actions {
+        sqlx::query!(
+            "INSERT INTO task_actions
+            (task_id, task_action_local_id, action_id, account_id, name, action_template)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (task_id, task_action_local_id) DO UPDATE SET
+                action_id=EXCLUDED.action_id, account_id=EXCLUDED.action_id,
+                name=EXCLUDED.name, action_template=EXCLUDED.action_template",
+            task_id,
+            action_local_id,
+            action.action_id,
+            action.account_id,
+            action.name,
+            sqlx::types::Json(&action.action_template) as _
+        )
+        .execute(&mut tx)
+        .await?;
     }
 
-    // TODO create update delete on actions and triggers
+    let action_local_ids = payload
+        .actions
+        .keys()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>();
+    if !action_local_ids.is_empty() {
+        sqlx::query!(
+            "DELETE FROM task_actions WHERE task_id=$1 AND task_action_local_id <> ALL($2)",
+            task_id,
+            action_local_ids.as_slice() as _
+        )
+        .execute(&mut tx)
+        .await?;
+    }
+
+    for (trigger_local_id, trigger) in &payload.triggers {
+        let updated = sqlx::query!(
+            "UPDATE task_triggers
+            SET input_id=$3, name=$4, description=$5
+            WHERE task_id=$1 and task_trigger_local_id=$2",
+            task_id,
+            &trigger_local_id,
+            trigger.input_id,
+            &trigger.name,
+            &trigger.description as _
+        )
+        .execute(&mut tx)
+        .await?;
+
+        if updated.rows_affected() == 0 {
+            // The object didn't exist, so update it here.
+            add_task_trigger(&mut tx, &trigger_local_id, task_id, trigger).await?;
+        }
+    }
+
+    let task_trigger_ids = payload
+        .triggers
+        .keys()
+        .map(|s| s.as_str())
+        .collect::<Vec<_>>();
+    if !task_trigger_ids.is_empty() {
+        sqlx::query!(
+            "DELETE FROM task_triggers WHERE task_id=$1 AND task_triggeR_local_id <> ALL($2)",
+            task_id,
+            &task_trigger_ids as _
+        )
+        .execute(&mut tx)
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(HttpResponse::NotImplemented().finish())
+}
+
+async fn add_task_trigger(
+    tx: &mut Transaction<'_, Postgres>,
+    local_id: &str,
+    task_id: i64,
+    trigger: &TaskTriggerInput,
+) -> Result<i64> {
+    let trigger_id = new_object_id(&mut *tx).await?;
+    sqlx::query!(
+        "INSERT INTO task_triggers (task_trigger_id, task_id, input_id, task_trigger_local_id,
+                name, description
+            ) VALUES
+            ($1, $2, $3, $4, $5, $6)",
+        trigger_id,
+        task_id,
+        trigger.input_id,
+        local_id,
+        trigger.name,
+        trigger.description as _
+    )
+    .execute(&mut *tx)
+    .await?;
+    Ok(trigger_id)
 }
 
 #[post("/tasks")]
@@ -288,21 +378,7 @@ async fn new_task(
     }
 
     for (local_id, trigger) in &payload.triggers {
-        let trigger_id = new_object_id(&mut tx).await?;
-        sqlx::query!(
-            "INSERT INTO task_triggers (task_trigger_id, task_id, input_id, task_trigger_local_id,
-                name, description
-            ) VALUES
-            ($1, $2, $3, $4, $5, $6)",
-            trigger_id,
-            task_id,
-            trigger.input_id,
-            local_id,
-            trigger.name,
-            trigger.description as _
-        )
-        .execute(&mut tx)
-        .await?;
+        add_task_trigger(&mut tx, &local_id, task_id, trigger).await?;
     }
 
     tx.commit().await?;
