@@ -94,33 +94,43 @@ async fn get_task(
 
     let task = sqlx::query_as!(
         TaskResult,
-        "SELECT external_task_id as task_id,
+        r##"SELECT external_task_id as task_id,
         tasks.name, tasks.description, enabled,
         state_machine_config, state_machine_states,
         created, modified,
-
-        jsonb_object_agg(task_trigger_local_id, jsonb_build_object(
-            'input_id', input_id,
-            'name', task_triggers.name,
-            'description', task_triggers.description
-        )) as triggers,
-
-        jsonb_object_agg(task_action_local_id, jsonb_build_object(
-            'action_id', action_id,
-            'account_id', account_id,
-            'name', task_actions.name,
-            'action_template', task_actions.action_template
-        )) as actions
-
+        task_triggers as triggers,
+        task_actions as actions
         FROM tasks
-        JOIN user_entity_permissions ON
+
+        LEFT JOIN LATERAL (
+            SELECT jsonb_object_agg(task_action_local_id, jsonb_build_object(
+                'action_id', action_id,
+                'account_id', account_id,
+                'name', task_actions.name,
+                'action_template', task_actions.action_template
+            )) AS task_actions
+
+            FROM task_actions WHERE task_actions.task_id = tasks.task_id
+            GROUP BY task_actions.task_id
+        ) ta ON true
+
+        LEFT JOIN LATERAL (
+            SELECT jsonb_object_agg(task_trigger_local_id, jsonb_build_object(
+                'input_id', input_id,
+                'name', task_triggers.name,
+                'description', task_triggers.description
+            )) task_triggers
+            FROM task_triggers WHERE task_triggers.task_id = tasks.task_id
+            GROUP BY task_triggers.task_id
+        ) tt ON true
+
+        WHERE external_task_id=$1 AND org_id=$3
+        AND EXISTS(SELECT 1 FROM user_entity_permissions
+            WHERE
             permissioned_object IN (1, task_id)
             AND user_entity_id=ANY($2)
             AND permission_type = 'read'
-        LEFT JOIN task_actions USING(task_id)
-        LEFT JOIN task_triggers USING(task_id)
-        WHERE external_task_id=$1 AND org_id=$3
-        GROUP BY tasks.task_id",
+        )"##,
         &task_id,
         user_ids.as_slice(),
         auth.org_id()
