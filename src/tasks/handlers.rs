@@ -26,6 +26,7 @@ use fxhash::FxHashMap;
 use postgres_drain::QueueStageDrain;
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, Postgres, Transaction};
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
@@ -255,6 +256,7 @@ async fn update_task(
         .await?;
     }
 
+    let user_id = auth.user_id();
     for (trigger_local_id, trigger) in &payload.triggers {
         let updated = sqlx::query!(
             "UPDATE task_triggers
@@ -271,7 +273,7 @@ async fn update_task(
 
         if updated.rows_affected() == 0 {
             // The object didn't exist, so update it here.
-            add_task_trigger(&mut tx, &trigger_local_id, task_id, trigger).await?;
+            add_task_trigger(&mut tx, &trigger_local_id, task_id, trigger, &user_id).await?;
         }
     }
 
@@ -299,6 +301,7 @@ async fn add_task_trigger(
     local_id: &str,
     task_id: i64,
     trigger: &TaskTriggerInput,
+    user_id: &Option<&Uuid>,
 ) -> Result<i64> {
     let trigger_id = new_object_id(&mut *tx).await?;
     sqlx::query!(
@@ -315,6 +318,15 @@ async fn add_task_trigger(
     )
     .execute(&mut *tx)
     .await?;
+
+    if let Some(user_id) = user_id {
+        sqlx::query!("INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
+        VALUES ($1, 'trigger_event', $2)",
+            user_id,
+            trigger_id
+        ).execute(&mut *tx).await?;
+    }
+
     Ok(trigger_id)
 }
 
@@ -327,6 +339,7 @@ async fn new_task(
 ) -> Result<impl Responder> {
     let external_task_id =
         base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
+    let user_id = auth.user_id();
 
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
@@ -378,7 +391,7 @@ async fn new_task(
     }
 
     for (local_id, trigger) in &payload.triggers {
-        add_task_trigger(&mut tx, &local_id, task_id, trigger).await?;
+        add_task_trigger(&mut tx, &local_id, task_id, trigger, &user_id).await?;
     }
 
     tx.commit().await?;
