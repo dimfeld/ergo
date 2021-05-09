@@ -3,6 +3,7 @@ use std::fmt::Display;
 use fxhash::FxHashMap;
 use handlebars::TemplateRenderError;
 use lazy_static::lazy_static;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -18,7 +19,7 @@ pub enum TemplateError {
     Render(#[from] handlebars::TemplateRenderError),
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum TemplateFieldFormat {
     String,
@@ -101,7 +102,7 @@ impl TemplateFieldFormat {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct TemplateField {
     pub format: TemplateFieldFormat,
     pub optional: bool,

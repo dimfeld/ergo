@@ -3,6 +3,7 @@ use actix_web::{
     web::{self, Data, Path},
     HttpRequest, HttpResponse, Responder,
 };
+use schemars::JsonSchema;
 use serde::Deserialize;
 use sqlx::Connection;
 
@@ -14,7 +15,7 @@ use crate::{
     web_app_server::AppStateData,
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct InputPayload {
     input_id: Option<i64>,
     input_category_id: Option<i64>,

@@ -4,6 +4,7 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use fxhash::FxHashMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 
@@ -20,7 +21,7 @@ use super::{
     template::{validate, TemplateFields},
 };
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct ActionPayload {
     action_id: Option<i64>,
     action_category_id: i64,

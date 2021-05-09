@@ -1,4 +1,5 @@
 use fxhash::FxHashMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use thiserror::Error;
@@ -18,13 +19,13 @@ pub enum StateMachineError {
 pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
 pub type StateMachineStates = SmallVec<[StateMachineData; 2]>;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct StateMachineData {
     state: String,
     context: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct StateMachine {
     name: String,
     description: Option<String>,
@@ -33,13 +34,13 @@ pub struct StateMachine {
     states: FxHashMap<String, StateDefinition>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct StateDefinition {
     description: String,
     on: SmallVec<[EventHandler; 4]>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct EventHandler {
     trigger_id: i64,
     target: Option<TransitionTarget>,
@@ -84,7 +85,7 @@ impl EventHandler {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum TransitionTarget {
     One(String),
@@ -92,13 +93,13 @@ pub enum TransitionTarget {
     // Script(String),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct TransitionCondition {
     target: String,
     cond: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionPayloadBuilder {
     FieldMap(FxHashMap<String, ActionInvokeDefDataField>),
@@ -147,13 +148,13 @@ impl ActionPayloadBuilder {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ActionInvokeDef {
     task_action_local_id: String,
     data: ActionPayloadBuilder,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionInvokeDefDataField {
     /// A path from the input that triggered the action.

@@ -24,6 +24,7 @@ use actix_web::{
 use chrono::{DateTime, Utc};
 use fxhash::FxHashMap;
 use postgres_drain::QueueStageDrain;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, Postgres, Transaction};
 use uuid::Uuid;
@@ -156,7 +157,7 @@ async fn delete_task(
     Ok(HttpResponse::NotImplemented().finish())
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskActionInput {
     pub task_local_id: String,
     pub name: String,
@@ -165,14 +166,14 @@ pub struct TaskActionInput {
     pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskTriggerInput {
     pub input_id: i64,
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskInput {
     pub name: String,
     pub description: Option<String>,
