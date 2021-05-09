@@ -148,6 +148,19 @@ impl AuthenticationInfo {
         }
     }
 
+    pub fn user_id(&self) -> Option<&Uuid> {
+        match self {
+            Self::User(user) => Some(&user.user_id),
+            Self::ApiKey { key, user } => {
+                if key.inherits_user_permissions {
+                    user.as_ref().map(|u| &u.user_id)
+                } else {
+                    Some(&key.api_key_id)
+                }
+            }
+        }
+    }
+
     pub fn user_entity_ids(&self) -> UserEntityList {
         match self {
             Self::User(user) => user.user_entity_ids.clone(),
@@ -263,5 +276,18 @@ impl AuthData {
             user
         })
         .ok_or(Error::AuthenticationError)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    mod authentication_info {
+        #[test]
+        #[ignore]
+        fn user_id() {}
+
+        #[test]
+        #[ignore]
+        fn user_entity_ids() {}
     }
 }

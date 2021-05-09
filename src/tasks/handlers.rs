@@ -54,10 +54,6 @@ async fn list_tasks(
         TaskDescription,
         "SELECT external_task_id AS id, name, description, enabled, created, modified
         FROM tasks
-        JOIN user_entity_permissions ON
-            permissioned_object IN (1, tasks.task_id)
-            AND user_entity_id = ANY($1)
-            AND permission_type = 'read'
         WHERE tasks.org_id = $2 AND
             EXISTS (SELECT 1 FROM user_entity_permissions
                 WHERE permissioned_object IN (1, tasks.task_id)
@@ -194,6 +190,41 @@ async fn update_task(
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<impl Responder> {
+    let payload = payload.into_inner();
+    let user_ids = auth.user_entity_ids();
+    let task_id = task_id.into_inner();
+    let mut conn = data.pg.acquire().await?;
+    let mut tx = conn.begin().await?;
+
+    let rows = sqlx::query!(
+        "UPDATE TASKS SET
+        name=$2, description=$3, enabled=$4, state_machine_config=$5, state_machine_states=$6
+        WHERE external_task_id=$1 AND org_id=$7 AND EXISTS (
+            SELECT 1 FROM user_entity_permissions
+            WHERE permissioned_object IN (1, tasks.task_id)
+            AND user_entity_id=ANY($8)
+            AND permission_type = 'write'
+            )
+        ",
+        &task_id,
+        &payload.name,
+        &payload.description as _,
+        payload.enabled,
+        sqlx::types::Json(&payload.state_machine_config) as _,
+        sqlx::types::Json(&payload.state_machine_states) as _,
+        auth.org_id(),
+        user_ids.as_slice()
+    )
+    .execute(&mut tx)
+    .await?;
+
+    if rows.rows_affected() != 1 {
+        return Ok(HttpResponse::NotFound().finish());
+    }
+
+    // TODO create update delete on actions and triggers
+
+    tx.commit().await?;
     Ok(HttpResponse::NotImplemented().finish())
 }
 
@@ -204,11 +235,11 @@ async fn new_task(
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<impl Responder> {
-    let mut conn = data.pg.acquire().await?;
-    let mut tx = conn.begin().await?;
-
     let external_task_id =
         base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
+
+    let mut conn = data.pg.acquire().await?;
+    let mut tx = conn.begin().await?;
 
     let task_id = new_object_id(&mut tx).await?;
     sqlx::query!(
@@ -226,6 +257,18 @@ async fn new_task(
     )
     .execute(&mut tx)
     .await?;
+
+    if let Some(user_id) = auth.user_id() {
+        sqlx::query!(
+            "INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
+            VALUES
+            ($1, 'read', $2),
+            ($1, 'write', $2)",
+            user_id, &task_id
+        )
+        .execute(&mut tx)
+        .await?;
+    }
 
     for (local_id, action) in &payload.actions {
         sqlx::query!(
