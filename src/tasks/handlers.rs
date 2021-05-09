@@ -58,7 +58,12 @@ async fn list_tasks(
             permissioned_object IN (1, tasks.task_id)
             AND user_entity_id = ANY($1)
             AND permission_type = 'read'
-        WHERE tasks.org_id = $2",
+        WHERE tasks.org_id = $2 AND
+            EXISTS (SELECT 1 FROM user_entity_permissions
+                WHERE permissioned_object IN (1, tasks.task_id)
+                AND user_entity_id = ANY($1)
+                AND permission_type = 'read'
+            )",
         user_ids.as_slice(),
         auth.org_id(),
     )
@@ -276,12 +281,15 @@ async fn post_task_trigger(
         r##"SELECT tasks.*, task_trigger_id, input_id,
             inputs.payload_schema as input_schema
         FROM task_triggers tt
-        JOIN user_entity_permissions p ON user_entity_id = ANY($1)
-            AND permission_type = 'trigger_event'
-            AND permissioned_object IN(1, task_trigger_id)
         JOIN tasks USING(task_id)
         JOIN inputs USING(input_id)
         WHERE org_id = $2 AND task_trigger_local_id = $3 AND external_task_id = $4
+            AND EXISTS(
+                SELECT 1 FROM user_entity_permissions
+                WHERE user_entity_id = ANY($1)
+                AND permission_type = 'trigger_event'
+                AND permissioned_object IN(1, task_trigger_id)
+            )
         "##,
         ids.as_slice(),
         auth.org_id(),
