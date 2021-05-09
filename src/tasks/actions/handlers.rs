@@ -64,7 +64,8 @@ pub struct ActionDescription {
 
 #[get("/actions")]
 pub async fn list_actions(data: AppStateData) -> Result<impl Responder> {
-    let actions: Vec<ActionDescription> = sqlx::query_as(
+    let actions = sqlx::query_as_unchecked!(
+        ActionDescription,
         "SELECT action_id, action_category_id, name, description,
         template_fields,
         account_required,

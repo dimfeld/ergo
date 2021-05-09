@@ -231,7 +231,8 @@ async fn execute_action(
 ) -> Result<serde_json::Value, ExecuteError> {
     let task_id = invocation.task_id;
     let task_action_local_id = &invocation.task_action_local_id;
-    let mut action: ExecuteActionData = sqlx::query_as(
+    let mut action: ExecuteActionData = sqlx::query_as_unchecked!(
+        ExecuteActionData,
         r##"SELECT
         executor_id,
         action_id,
@@ -252,9 +253,9 @@ async fn execute_action(
         LEFT JOIN accounts USING(account_id)
 
         WHERE task_id=$1 AND task_action_local_id=$2"##,
+        task_id,
+        &task_action_local_id
     )
-    .bind(task_id)
-    .bind(&task_action_local_id)
     .fetch_one(pg_pool)
     .await
     .map_err(|e| ExecuteError {
