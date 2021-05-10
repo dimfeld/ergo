@@ -194,8 +194,7 @@
           ]
         },
         "trigger_id": {
-          "type": "integer",
-          "format": "int64"
+          "type": "string"
         }
       }
     },
@@ -269,8 +268,7 @@
       "type": "object",
       "required": [
         "action_id",
-        "name",
-        "task_local_id"
+        "name"
       ],
       "properties": {
         "account_id": {
@@ -292,9 +290,6 @@
           "additionalProperties": true
         },
         "name": {
-          "type": "string"
-        },
-        "task_local_id": {
           "type": "string"
         }
       }

@@ -65,17 +65,29 @@ impl Task {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
             Box::pin(async move {
-                let task = sqlx::query_as::<Postgres, Task>(GET_TASK_QUERY)
-                    .bind(&task_id)
+                #[derive(Debug, FromRow)]
+                struct TaskInputData {
+                    task_trigger_local_id: String,
+                    state_machine_config: Json<state_machine::StateMachineConfig>,
+                    state_machine_states: Json<state_machine::StateMachineStates>,
+                }
+
+                let task = sqlx::query_as!(TaskInputData,
+                        r##"SELECT task_trigger_local_id,
+                        state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>" ,
+                        state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>"
+                        FROM tasks
+                        JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2"##,
+                        task_id,
+                        task_trigger_id
+                    )
                     .fetch_optional(&mut *tx)
                     .await?;
 
                 let task = task.ok_or(Error::NotFound)?;
 
-                let Task {
-                    state_machine_states,
-                    state_machine_config,
-                    ..
+                let TaskInputData {
+                    task_trigger_local_id, state_machine_config, state_machine_states
                 } = task;
 
                 let num_machines = state_machine_config.len();
@@ -94,7 +106,7 @@ impl Task {
                             let mut m = StateMachineWithData::new(task_id, idx, machine, state);
                             let actions = m
                                 .apply_trigger(
-                                    task_trigger_id,
+                                    &task_trigger_local_id,
                                     &Some(input_arrival_id),
                                     Some(&payload),
                                 )

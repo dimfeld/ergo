@@ -42,7 +42,7 @@ pub struct StateDefinition {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct EventHandler {
-    trigger_id: i64,
+    trigger_id: String,
     target: Option<TransitionTarget>,
     actions: Option<Vec<ActionInvokeDef>>,
 }
@@ -199,7 +199,7 @@ impl<'d> StateMachineWithData {
 
     pub fn apply_trigger(
         &mut self,
-        trigger_id: i64,
+        trigger_id: &str,
         input_arrival_id: &Option<uuid::Uuid>,
         payload: Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {

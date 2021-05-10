@@ -159,7 +159,6 @@ async fn delete_task(
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskActionInput {
-    pub task_local_id: String,
     pub name: String,
     pub action_id: i64,
     pub account_id: Option<i64>,
