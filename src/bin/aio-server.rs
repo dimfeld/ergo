@@ -118,7 +118,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         );
 
         App::new().service(
-            web::scope("/api/")
+            web::scope("/api")
                 .app_data(web_app_data.clone())
                 .app_data(backend_app_data.clone())
                 .wrap(AuthenticateService::new(backend_app_data.auth.clone()))

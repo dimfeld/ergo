@@ -113,7 +113,7 @@ async fn handle_api_key(auth_data: &AuthData, key: &str) -> Result<super::Authen
     })
 }
 
-#[instrument(skip(auth_data))]
+#[instrument(level = "DEBUG", skip(auth_data))]
 pub async fn get_api_key(
     auth_data: &AuthData,
     req: &ServiceRequest,
