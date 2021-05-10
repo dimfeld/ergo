@@ -36,7 +36,7 @@ pub struct StateMachine {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct StateDefinition {
-    description: String,
+    description: Option<String>,
     on: SmallVec<[EventHandler; 4]>,
 }
 
@@ -157,9 +157,9 @@ pub struct ActionInvokeDef {
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionInvokeDefDataField {
-    /// A path from the input that triggered the action.
+    /// A path from the input that triggered the action, and whether or not it's required.
     Input(String, bool),
-    /// A path from the state machine's context
+    /// A path from the state machine's context, and whether or not it's required.
     Context(String, bool),
     /// A constant value
     Constant(serde_json::Value),

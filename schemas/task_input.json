@@ -67,7 +67,7 @@
     "ActionInvokeDefDataField": {
       "anyOf": [
         {
-          "description": "A path from the input that triggered the action.",
+          "description": "A path from the input that triggered the action, and whether or not it's required.",
           "type": "object",
           "required": [
             "c",
@@ -96,7 +96,7 @@
           }
         },
         {
-          "description": "A path from the state machine's context",
+          "description": "A path from the state machine's context, and whether or not it's required.",
           "type": "object",
           "required": [
             "c",
@@ -201,12 +201,14 @@
     "StateDefinition": {
       "type": "object",
       "required": [
-        "description",
         "on"
       ],
       "properties": {
         "description": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "on": {
           "type": "array",
