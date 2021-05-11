@@ -26,7 +26,7 @@ impl Drainer for QueueDrainer {
         .await?;
 
         if let Some(max_id) = results.last().map(|r| r.event_queue_id) {
-            sqlx::query!("DELETE FROM event_queue WHERE event_queue_id < $1", max_id)
+            sqlx::query!("DELETE FROM event_queue WHERE event_queue_id <= $1", max_id)
                 .execute(&mut *tx)
                 .await?;
         }

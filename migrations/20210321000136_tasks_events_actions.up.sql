@@ -29,7 +29,7 @@ CREATE TYPE input_status AS ENUM (
 
 CREATE TABLE inputs_log (
   inputs_log_id uuid primary key,
-  task_trigger_id bigint references inputs,
+  task_trigger_id bigint references task_triggers,
   status input_status not null default 'pending',
   payload jsonb,
   error jsonb,
