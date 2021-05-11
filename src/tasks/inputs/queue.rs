@@ -17,6 +17,10 @@ struct QueueDrainer {}
 
 #[async_trait]
 impl Drainer for QueueDrainer {
+    fn lock_key(&self) -> i64 {
+        79034890
+    }
+
     async fn get(&self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job>, Error> {
         let results = sqlx::query!(
             r##"SELECT event_queue_id, task_id, task_trigger_id, input_id, inputs_log_id, payload

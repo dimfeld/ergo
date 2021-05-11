@@ -16,6 +16,9 @@ use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShu
 
 #[async_trait]
 pub trait Drainer: Send + Sync {
+    /// An advisory lock key to use when draining
+    fn lock_key(&self) -> i64;
+
     /// Retrieve and delete jobs from the table.
     async fn get(&'_ self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job<'_>>, Error>;
 }
@@ -162,9 +165,12 @@ impl<D: Drainer> StageDrainTask<D> {
     async fn try_drain(&mut self) -> Result<bool, Error> {
         let mut conn = self.db_pool.acquire().await?;
         let mut tx = conn.begin().await?;
-        let lock_result = sqlx::query("SELECT pg_try_advisory_xact_lock(7893478934)")
-            .fetch_one(&mut tx)
-            .await?;
+        let lock_result = sqlx::query(&format!(
+            "SELECT pg_try_advisory_xact_lock({})",
+            self.drainer.lock_key()
+        ))
+        .fetch_one(&mut tx)
+        .await?;
         let acquired_lock: bool = lock_result.get(0);
         if acquired_lock == false {
             // Something else has the lock, so just exit and try again after a sleep.
@@ -182,7 +188,11 @@ impl<D: Drainer> StageDrainTask<D> {
 
         self.stats.last_drain = now;
 
+        for job in &jobs {
+            event!(Level::INFO, queue=%self.queue.name(), ?job, "Enquueing job");
+        }
         self.queue.enqueue_multiple(jobs.as_slice()).await?;
+        tx.commit().await?;
 
         return Ok::<bool, Error>(true);
     }
