@@ -8,6 +8,7 @@ use std::{error::Error as StdError, pin::Pin, sync::Arc};
 
 use smallvec::SmallVec;
 pub use state_machine::StateMachineError;
+use tracing::{event, instrument, Level};
 
 use crate::{
     database::{sql_insert_parameters, transaction::serializable, PostgresPool},
@@ -53,6 +54,7 @@ impl Task {
     /// and applies the input inside a serializable transaction, to ensure that
     /// the applied input doesn't have a race condition with any other concurrent
     /// inputs to the same task.
+    #[instrument(skip(pool))]
     pub async fn apply_input(
         pool: &PostgresPool,
         task_id: i64,
@@ -139,7 +141,7 @@ impl Task {
                         VALUES
                         {}
                         ",
-                        sql_insert_parameters::<5>(actions.len())
+                        sql_insert_parameters::<6>(actions.len())
                     );
 
                     let mut log_query = sqlx::query(&q);
@@ -184,12 +186,16 @@ impl Task {
 
         let (log_error, status) = match &result {
             Ok(_) => (None, InputStatus::Success),
-            Err(e) => (
-                Some(serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) })),
-                InputStatus::Error,
-            ),
+            Err(e) => {
+                event!(Level::ERROR, err=?e, "Error applying input");
+                (
+                    Some(serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) })),
+                    InputStatus::Error,
+                )
+            }
         };
 
+        event!(Level::INFO, %input_arrival_id, ?status, ?log_error, "Updating input status");
         sqlx::query!(
             "UPDATE inputs_log SET status=$2, error=$3, updated=now() WHERE inputs_log_id=$1",
             input_arrival_id,
