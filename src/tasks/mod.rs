@@ -160,7 +160,7 @@ impl Task {
 
                     let q = format!(
                         r##"INSERT INTO action_queue
-                        (task_id, task_action_id, actions_log_id, input_arrival_id, payload)
+                        (task_id, task_action_local_id, actions_log_id, input_arrival_id, payload)
                         VALUES
                         {}
                         "##,

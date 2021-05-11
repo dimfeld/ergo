@@ -66,7 +66,7 @@ where
                         match job.process(|item| p.process(item)).await {
                             Ok(_) => {}
                             Err(e) => {
-                                event!(Level::ERROR, error=%e, job=%job.id, queue=%queue_name, "Job error");
+                                event!(Level::ERROR, error=?e, job=%job.id, queue=%queue_name, "Job error");
                             }
                         };
                     });

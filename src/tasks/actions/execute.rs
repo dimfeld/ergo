@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{types::Json, Postgres};
@@ -145,7 +146,7 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ScriptOrTemplate {
     Template(Vec<(String, serde_json::Value)>),
@@ -169,7 +170,7 @@ struct ExecuteActionData {
     account_expires: Option<DateTime<Utc>>,
 }
 
-#[instrument(name = "execute_action", level = "debug")]
+#[instrument(name = "execute_action", level = "debug", skip(pg_pool))]
 pub async fn execute(
     pg_pool: &PostgresPool,
     invocation: &ActionInvocation,
@@ -192,17 +193,20 @@ pub async fn execute(
     })?;
 
     let result = execute_action(pg_pool, invocation).await;
-    event!(Level::TRACE, ?result);
+    event!(Level::DEBUG, ?result);
 
     let (status, response) = match &result {
         Ok(r) => (ActionStatus::Success, json!({ "output": r })),
-        Err(e) => (
-            ActionStatus::Error,
-            json!({
-                "error": e.to_string(),
-                "info": format!("{:?}", e),
-            }),
-        ),
+        Err(e) => {
+            event!(Level::ERROR, err=?e, "Action error");
+            (
+                ActionStatus::Error,
+                json!({
+                    "error": e.to_string(),
+                    "info": format!("{:?}", e),
+                }),
+            )
+        }
     };
 
     sqlx::query!(
@@ -243,9 +247,9 @@ async fn execute_action(
         task_id,
         task_actions.task_action_local_id,
         task_actions.name as task_action_name,
-        task_actions.action_template as task_action_template,
+        NULLIF(task_actions.action_template, 'null'::jsonb) as task_action_template,
         task_actions.account_id,
-        accounts.fields as account_fields,
+        NULLIF(accounts.fields, 'null'::jsonb) as account_fields,
         accounts.expires as account_expires
 
         FROM task_actions

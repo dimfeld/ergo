@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::{borrow::Cow, time::Duration};
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Job<'a> {
     pub id: String,
     pub payload: Cow<'a, [u8]>,
@@ -10,6 +10,19 @@ pub struct Job<'a> {
     pub max_retries: Option<u32>,
     pub run_at: Option<DateTime<Utc>>,
     pub retry_backoff: Option<Duration>,
+}
+
+impl<'a> std::fmt::Debug for Job<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Job")
+            .field("id", &self.id)
+            .field("payload", &String::from_utf8_lossy(&self.payload))
+            .field("timeout", &self.timeout)
+            .field("max_retries", &self.max_retries)
+            .field("run_at", &self.run_at)
+            .field("retry_backoff", &self.retry_backoff)
+            .finish()
+    }
 }
 
 /// Determines how to generate a job ID

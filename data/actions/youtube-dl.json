@@ -4,11 +4,16 @@
   "name": "Youtube DL",
   "executor_id": "raw_command",
   "executor_template": {
-    "command": "youtube-dl",
-    "args": [
-      "-o",
-      "{{YOUTUBE_DL_OUTPUT_DIR}}/%(title)s.%(ext)s",
-      {{{{raw}}}}"{{url}}"{{{{/raw}}}}
+    "t": "Template",
+    "c": [
+      ["command", "youtube-dl"],
+      ["args",
+        [
+          "-o",
+          "{{YOUTUBE_DL_OUTPUT_DIR}}/%(title)s.%(ext)s",
+          {{{{raw}}}}"{{url}}"{{{{/raw}}}}
+        ]
+      ]
     ]
   },
   "template_fields": {

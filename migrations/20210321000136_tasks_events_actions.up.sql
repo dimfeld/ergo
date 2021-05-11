@@ -38,7 +38,7 @@ CREATE TABLE inputs_log (
 );
 
 GRANT INSERT ON inputs_log TO ergo_enqueuer;
-GRANT SELECT, INSERT ON inputs_log TO ergo_backend;
+GRANT SELECT, INSERT, UPDATE ON inputs_log TO ergo_backend;
 GRANT SELECT ON inputs_log TO ergo_web;
 
 CREATE TABLE action_categories (
@@ -96,7 +96,7 @@ CREATE TABLE allowed_action_account_types (
 COMMENT ON TABLE allowed_action_account_types IS 'The types of accounts that are allowed to be linked to an action';
 
 GRANT SELECT ON allowed_action_account_types TO ergo_backend;
-GRANT SELECT ON allowed_action_account_types TO ergo_web;
+GRANT SELECT, INSERT, UPDATE, DELETE ON allowed_action_account_types TO ergo_web;
 
 CREATE TYPE action_status AS ENUM (
   'pending',

@@ -171,7 +171,7 @@ pub struct TaskActionInput {
     pub name: String,
     pub action_id: i64,
     pub account_id: Option<i64>,
-    pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
+    pub action_template: Option<Vec<(String, serde_json::Value)>>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]

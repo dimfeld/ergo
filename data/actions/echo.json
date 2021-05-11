@@ -5,9 +5,14 @@
   "description": "A simple command for testing",
   "executor_id": "raw_command",
   "executor_template": {
-    "command": "echo",
-    "args": [
-      {{{{raw}}}}"{{string}}"{{{{/raw}}}}
+    "t": "Template",
+    "c": [
+      ["command", "echo"],
+      ["args",
+        [
+          {{{{raw}}}}"{{string}}"{{{{/raw}}}}
+        ]
+      ]
     ]
   },
   "template_fields": {

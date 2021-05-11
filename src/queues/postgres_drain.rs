@@ -189,7 +189,7 @@ impl<D: Drainer> StageDrainTask<D> {
         self.stats.last_drain = now;
 
         for job in &jobs {
-            event!(Level::INFO, queue=%self.queue.name(), ?job, "Enquueing job");
+            event!(Level::INFO, queue=%self.queue.name(), ?job, "Enqueueing job");
         }
         self.queue.enqueue_multiple(jobs.as_slice()).await?;
         tx.commit().await?;

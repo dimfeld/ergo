@@ -28,7 +28,7 @@ pub struct ActionPayload {
     name: String,
     description: Option<String>,
     executor_id: String,
-    executor_template: FxHashMap<String, serde_json::Value>,
+    executor_template: ScriptOrTemplate,
     template_fields: TemplateFields,
     account_required: bool,
     account_types: Option<Vec<String>>,
@@ -36,18 +36,22 @@ pub struct ActionPayload {
 
 impl ActionPayload {
     fn validate(&self) -> Result<()> {
-        match super::execute::EXECUTOR_REGISTRY.get(&self.executor_id) {
-            Some(executor) => {
+        match (
+            super::execute::EXECUTOR_REGISTRY.get(&self.executor_id),
+            &self.executor_template,
+        ) {
+            (Some(executor), ScriptOrTemplate::Template(values)) => {
+                let values_map = values.iter().cloned().collect::<FxHashMap<_, _>>();
                 validate(
                     "action",
                     &self.action_id.unwrap_or(-1),
                     executor.template_fields(),
-                    &self.executor_template,
+                    &values_map,
                 )?;
 
                 Ok(())
             }
-            None => Err(Error::UnknownExecutor(self.executor_id.clone())),
+            (None, _) => Err(Error::UnknownExecutor(self.executor_id.clone())),
         }
     }
 }
