@@ -223,7 +223,6 @@
       "required": [
         "initial",
         "name",
-        "on",
         "states"
       ],
       "properties": {
@@ -240,7 +239,10 @@
           "type": "string"
         },
         "on": {
-          "type": "array",
+          "type": [
+            "array",
+            "null"
+          ],
           "items": {
             "$ref": "#/definitions/EventHandler"
           }
