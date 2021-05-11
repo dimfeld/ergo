@@ -27,6 +27,7 @@ use postgres_drain::QueueStageDrain;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{Connection, Postgres, Transaction};
+use tracing::{event, field, instrument, Level};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -43,6 +44,11 @@ struct TaskDescription {
     enabled: bool,
     created: DateTime<Utc>,
     modified: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TaskId {
+    task_id: String,
 }
 
 #[get("/tasks")]
@@ -72,6 +78,7 @@ async fn list_tasks(
 }
 
 #[get("/tasks/{task_id}")]
+#[instrument(skip(data), fields(task))]
 async fn get_task(
     task_id: Path<String>,
     data: AppStateData,
@@ -141,6 +148,8 @@ async fn get_task(
     .fetch_optional(&data.pg)
     .await?;
 
+    tracing::Span::current().record("task", &field::debug(&task));
+
     match task {
         Some(task) => Ok(HttpResponse::Ok().json(task)),
         None => Ok(HttpResponse::NotFound().finish()),
@@ -185,7 +194,7 @@ pub struct TaskInput {
 
 #[put("/tasks/{task_id}")]
 async fn update_task(
-    external_task_id: Path<String>,
+    external_task_id: Path<TaskId>,
     data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
@@ -193,7 +202,9 @@ async fn update_task(
 ) -> Result<impl Responder> {
     let payload = payload.into_inner();
     let user_ids = auth.user_entity_ids();
-    let external_task_id = external_task_id.into_inner();
+    let TaskId {
+        task_id: external_task_id,
+    } = external_task_id.into_inner();
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
@@ -293,7 +304,7 @@ async fn update_task(
     }
 
     tx.commit().await?;
-    Ok(HttpResponse::NotImplemented().finish())
+    Ok(HttpResponse::Ok().finish())
 }
 
 async fn add_task_trigger(
@@ -396,7 +407,7 @@ async fn new_task(
 
     tx.commit().await?;
 
-    Ok(HttpResponse::NotImplemented().finish())
+    Ok(HttpResponse::Created().finish())
 }
 
 #[post("/tasks/{task_id}/trigger/{trigger_id}")]
@@ -448,6 +459,7 @@ async fn post_task_trigger(
 pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(post_task_trigger)
         .service(list_tasks)
+        .service(get_task)
         .service(new_task)
         .service(update_task)
         .service(delete_task)

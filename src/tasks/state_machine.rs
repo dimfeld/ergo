@@ -30,7 +30,7 @@ pub struct StateMachine {
     name: String,
     description: Option<String>,
     initial: String,
-    on: SmallVec<[EventHandler; 4]>,
+    on: Option<SmallVec<[EventHandler; 4]>>,
     states: FxHashMap<String, StateDefinition>,
 }
 
@@ -216,7 +216,10 @@ impl<'d> StateMachineWithData {
                 .find(|o| o.trigger_id == trigger_id)
                 .or_else(|| {
                     // Look it up in the global event handlers
-                    self.machine.on.iter().find(|o| o.trigger_id == trigger_id)
+                    self.machine
+                        .on
+                        .as_ref()
+                        .and_then(|on| on.iter().find(|o| o.trigger_id == trigger_id))
                 })
         };
 

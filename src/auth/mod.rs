@@ -20,7 +20,7 @@ use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
-use tracing::{event, instrument, Level};
+use tracing::{event, field, instrument, Level};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize, sqlx::Type)]
@@ -98,6 +98,7 @@ impl std::ops::Deref for MaybeAuthenticated {
 
 /// Extracts authentication information for routes that must be authenticated.
 /// Returns an Error::AuthenticationError if the user is not authenticated.
+#[derive(Debug)]
 pub struct Authenticated(Arc<AuthenticationInfo>);
 
 impl Authenticated {
@@ -231,7 +232,7 @@ impl AuthData {
         }
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self), fields(user))]
     async fn get_user_info(&self, user_id: &Uuid) -> Result<RequestUser> {
         event!(Level::DEBUG, "Fetching user");
         query!(
@@ -248,7 +249,6 @@ impl AuthData {
         .fetch_optional(&self.pg)
         .await?
         .map(|user| {
-            event!(Level::DEBUG, ?user);
             let user_entity_ids = match user.roles {
                 Some(roles) => {
                     let mut ids = UserEntityList::from_vec(roles);
@@ -271,7 +271,7 @@ impl AuthData {
                     .unwrap_or(false),
             };
 
-            event!(Level::DEBUG, ?user);
+            tracing::Span::current().record("user", &field::debug(&user));
 
             user
         })

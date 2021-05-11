@@ -4,7 +4,11 @@ use tracing_log::LogTracer;
 use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 
 pub fn configure(name: impl Into<String>) {
-    LogTracer::init().expect("Failed to create logger");
+    LogTracer::builder()
+        .ignore_crate("rustls")
+        .with_max_level(log::LevelFilter::Debug)
+        .init()
+        .expect("Failed to create logger");
 
     let env_filter = EnvFilter::try_from_env("LOG").unwrap_or(EnvFilter::new("info"));
 

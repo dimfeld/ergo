@@ -4,7 +4,10 @@
 //! Mostly useful for development or test purposes.
 
 use actix_identity::{CookieIdentityPolicy, IdentityService};
-use actix_web::{web, App, HttpServer};
+use actix_web::{
+    web::{self, PathConfig},
+    App, HttpServer,
+};
 use hashicorp_vault::client::VaultClient;
 use std::{env, sync::Arc};
 use structopt::StructOpt;
@@ -119,6 +122,11 @@ async fn main() -> Result<(), ergo::error::Error> {
 
         App::new().service(
             web::scope("/api")
+                .app_data(PathConfig::default().error_handler(|err, req| {
+                    event!(Level::ERROR, ?err, ?req);
+                    eprintln!("{}", err);
+                    actix_web::error::ErrorNotFound(err)
+                }))
                 .app_data(web_app_data.clone())
                 .app_data(backend_app_data.clone())
                 .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
