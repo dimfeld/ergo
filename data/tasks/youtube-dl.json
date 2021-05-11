@@ -20,7 +20,7 @@
                     "c": {
                       "url": {
                         "t": "Input",
-                        "c": ["url", true]
+                        "c": ["/url", true]
                       }
                     }
                   }
