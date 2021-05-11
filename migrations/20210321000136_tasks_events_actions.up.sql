@@ -148,6 +148,10 @@ CREATE TABLE task_actions (
   PRIMARY KEY(task_id, task_action_local_id)
 );
 
+GRANT SELECT ON task_actions TO ergo_backend;
+GRANT SELECT ON task_actions TO ergo_enqueuer;
+GRANT SELECT, UPDATE, DELETE, INSERT ON task_actions TO ergo_web;
+
 CREATE INDEX task_actions_task_id ON task_actions(task_id);
 COMMENT ON COLUMN task_actions.task_action_local_id IS 'The ID of the task action within the task';
 
