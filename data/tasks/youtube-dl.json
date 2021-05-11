@@ -1,0 +1,53 @@
+{
+  "$schema": "../../schemas/task_input.json",
+  "task_id": "KhEz6o1LSSq15p7vgPc17g",
+  "name": "Youtube DL",
+  "enabled": true,
+  "state_machine_config": [
+    {
+      "name": "Handle URL",
+      "initial": "handler",
+      "states": {
+        "handler": {
+          "on": [
+            {
+              "trigger_id": "url",
+              "actions": [
+                {
+                  "task_action_local_id": "run",
+                  "data": {
+                    "t": "FieldMap",
+                    "c": {
+                      "url": {
+                        "t": "Input",
+                        "c": ["url", true]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "state_machine_states": [
+    {
+      "state": "handler",
+      "context": {}
+    }
+  ],
+  "triggers":{
+    "url": {
+      "name": "URL",
+      "input_id": {{BASE_INPUT_ID}}01
+    }
+  },
+  "actions": {
+    "run": {
+      "name": "Download",
+      "action_id": {{BASE_ACTION_ID}}01
+    }
+  }
+}
