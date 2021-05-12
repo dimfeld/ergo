@@ -6,7 +6,7 @@
   "executor_template": {
     "t": "Template",
     "c": [
-      ["command", "youtube-dl"],
+      ["command", "/usr/local/bin/youtube-dl"],
       ["args",
         [
           "-o",

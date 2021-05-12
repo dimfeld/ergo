@@ -99,7 +99,8 @@ pub async fn new_action(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let action_id = new_object_id_with_value(&mut tx, payload.action_id.as_ref()).await?;
+    let action_id =
+        new_object_id_with_value(&mut tx, payload.action_id.as_ref(), "action", false).await?;
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
         executor_id, executor_template, template_fields, account_required) VALUES
@@ -164,10 +165,15 @@ pub async fn write_action(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
+    new_object_id_with_value(&mut tx, Some(&action_id), "action", true).await?;
+
     sqlx::query!(
-        "UPDATE actions SET action_category_id=$2, name=$3, description=$4,
-        executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8
-        WHERE action_id=$1",
+        "INSERT INTO actions (action_id, action_category_id, name, description,
+            executor_id, executor_template, template_fields, account_required)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT(action_id) DO UPDATE
+        SET action_category_id=$2, name=$3, description=$4,
+        executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8",
         action_id,
         &payload.action_category_id,
         &payload.name,

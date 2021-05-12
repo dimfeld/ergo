@@ -52,7 +52,8 @@ pub async fn new_input(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let input_id = new_object_id_with_value(&mut tx, payload.input_id.as_ref()).await?;
+    let input_id =
+        new_object_id_with_value(&mut tx, payload.input_id.as_ref(), "input", false).await?;
     sqlx::query!(
         "INSERT INTO inputs (input_id, input_category_id, name, description, payload_schema) VALUES
         ($1, $2, $3, $4, $5)",
@@ -91,17 +92,26 @@ pub async fn write_input(
     // Make sure the schema is valid.
     jsonschema::JSONSchema::compile(&payload.payload_schema)?;
 
+    let mut conn = data.pg.acquire().await?;
+    let mut tx = conn.begin().await?;
+
+    new_object_id_with_value(&mut tx, Some(&input_id), "input", true).await?;
+
     sqlx::query!(
-        "UPDATE inputs SET input_category_id=$2, name=$3, description=$4, payload_schema=$5
-        WHERE input_id=$1",
+        "INSERT INTO inputs (input_id, input_category_id, name, description, payload_schema)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT(input_id) DO UPDATE
+        SET input_category_id=$2, name=$3, description=$4, payload_schema=$5",
         input_id,
         &payload.input_category_id as _,
         &payload.name,
         &payload.description as _,
         &payload.payload_schema
     )
-    .execute(&data.pg)
+    .execute(&mut tx)
     .await?;
+
+    tx.commit().await?;
 
     Ok(HttpResponse::Ok().json(Input {
         input_id,

@@ -7,7 +7,7 @@
   "executor_template": {
     "t": "Template",
     "c": [
-      ["command", "echo"],
+      ["command", "/bin/echo"],
       ["args",
         [
           {{{{raw}}}}"{{string}}"{{{{/raw}}}}

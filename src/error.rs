@@ -91,6 +91,13 @@ pub enum Error {
 
     #[error("Password hasher error: {0}")]
     PasswordHasherError(String),
+
+    #[error("Tried to create object ID {id} with type {wanted} but it has type {saw}")]
+    ObjectIdTypeMismatch {
+        id: i64,
+        wanted: String,
+        saw: String,
+    },
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {

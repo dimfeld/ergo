@@ -183,6 +183,8 @@ pub struct TaskTriggerInput {
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskInput {
+    /// Only used internally
+    pub external_task_id: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
@@ -194,23 +196,21 @@ pub struct TaskInput {
 
 #[put("/tasks/{task_id}")]
 async fn update_task(
-    external_task_id: Path<TaskId>,
+    external_task_id: Path<String>,
     data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
-) -> Result<impl Responder> {
-    let payload = payload.into_inner();
+) -> Result<HttpResponse> {
+    let mut payload = payload.into_inner();
     let user_ids = auth.user_entity_ids();
-    let TaskId {
-        task_id: external_task_id,
-    } = external_task_id.into_inner();
+    let external_task_id = external_task_id.into_inner();
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
     let task_id = sqlx::query!(
         "UPDATE TASKS SET
-        name=$2, description=$3, enabled=$4, state_machine_config=$5, state_machine_states=$6
+        name=$2, description=$3, enabled=$4, state_machine_config=$5, state_machine_states=$6, modified=now()
         WHERE external_task_id=$1 AND org_id=$7 AND EXISTS (
             SELECT 1 FROM user_entity_permissions
             WHERE permissioned_object IN (1, tasks.task_id)
@@ -229,9 +229,17 @@ async fn update_task(
         user_ids.as_slice()
     )
     .fetch_optional(&mut tx)
-    .await?
-    .ok_or_else(|| Error::NotFound)?
-    .task_id;
+    .await?;
+
+    let task_id = match task_id {
+        Some(t) => t.task_id,
+        None => {
+            payload.external_task_id = Some(external_task_id);
+            drop(tx);
+            drop(conn);
+            return new_task(req, data, auth, web::Json(payload)).await;
+        }
+    };
 
     for (action_local_id, action) in &payload.actions {
         sqlx::query!(
@@ -239,7 +247,7 @@ async fn update_task(
             (task_id, task_action_local_id, action_id, account_id, name, action_template)
             VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (task_id, task_action_local_id) DO UPDATE SET
-                action_id=EXCLUDED.action_id, account_id=EXCLUDED.action_id,
+                action_id=EXCLUDED.action_id, account_id=EXCLUDED.account_id,
                 name=EXCLUDED.name, action_template=EXCLUDED.action_template",
             task_id,
             action_local_id,
@@ -314,7 +322,7 @@ async fn add_task_trigger(
     trigger: &TaskTriggerInput,
     user_id: &Option<&Uuid>,
 ) -> Result<i64> {
-    let trigger_id = new_object_id(&mut *tx).await?;
+    let trigger_id = new_object_id(&mut *tx, "task_trigger").await?;
     sqlx::query!(
         "INSERT INTO task_triggers (task_trigger_id, task_id, input_id, task_trigger_local_id,
                 name, description
@@ -342,20 +350,31 @@ async fn add_task_trigger(
 }
 
 #[post("/tasks")]
+async fn new_task_handler(
+    req: HttpRequest,
+    data: AppStateData,
+    auth: Authenticated,
+    payload: web::Json<TaskInput>,
+) -> Result<HttpResponse> {
+    new_task(req, data, auth, payload).await
+}
+
 async fn new_task(
     req: HttpRequest,
     data: AppStateData,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
-) -> Result<impl Responder> {
-    let external_task_id =
-        base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD);
+) -> Result<HttpResponse> {
+    let payload = payload.into_inner();
+    let external_task_id = payload.external_task_id.unwrap_or_else(|| {
+        base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD)
+    });
     let user_id = auth.user_id();
 
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let task_id = new_object_id(&mut tx).await?;
+    let task_id = new_object_id(&mut tx, "task").await?;
     sqlx::query!(
         "INSERT INTO tasks (task_id, external_task_id, org_id, name,
         description, enabled, state_machine_config, state_machine_states) VALUES
@@ -460,7 +479,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(post_task_trigger)
         .service(list_tasks)
         .service(get_task)
-        .service(new_task)
+        .service(new_task_handler)
         .service(update_task)
         .service(delete_task)
         .service(super::inputs::handlers::list_inputs)

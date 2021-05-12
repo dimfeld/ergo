@@ -5,5 +5,7 @@ set -euo pipefail
 
 for file in "$@"; do
   echo $file
-  env-template "$file" | http POST ${HOST:-http://localhost:6543}/api/actions\?api_key=${API_KEY}
+  object=$(env-template "$file")
+  id=$(jq -r .action_id <<< "$object")
+  http PUT ${HOST:-http://localhost:6543}/api/actions/$id\?api_key=${API_KEY} <<<"$object"
 done
