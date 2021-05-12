@@ -10,6 +10,7 @@ This project is in very early stages right now with no current plans for proper 
 - Some sort of Twitter list archiving?
 - Scrape websites and populate a local database
 - Fetch filled brokerage orders
+- Interactive Slack/Discord bots
 
 # Anticipated Features
 
