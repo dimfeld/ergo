@@ -10,13 +10,13 @@
       ["command", "/bin/echo"],
       ["args",
         [
-          {{{{raw}}}}"{{string}}"{{{{/raw}}}}
+          {{{{raw}}}}"{{text}}"{{{{/raw}}}}
         ]
       ]
     ]
   },
   "template_fields": {
-    "string": { "format": { "type": "string" }, "optional": false }
+    "text": { "format": { "type": "string" }, "optional": false }
   },
   "account_required": false
 }
