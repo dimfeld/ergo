@@ -242,7 +242,7 @@ impl AuthData {
         FROM users
         JOIN orgs ON orgs.org_id = active_org_id
         LEFT JOIN user_roles USING(user_id, org_id)
-        WHERE user_id = $1 AND users.active AND orgs.active
+        WHERE user_id = $1 AND NOT users.deleted AND NOT orgs.deleted
         GROUP BY user_id"##,
             user_id
         )

@@ -62,7 +62,7 @@ async fn list_tasks(
         TaskDescription,
         "SELECT external_task_id AS id, name, description, enabled, created, modified
         FROM tasks
-        WHERE tasks.org_id = $2 AND
+        WHERE tasks.org_id = $2 AND NOT deleted AND
             EXISTS (SELECT 1 FROM user_entity_permissions
                 WHERE permissioned_object IN (1, tasks.task_id)
                 AND user_entity_id = ANY($1)
@@ -134,7 +134,7 @@ async fn get_task(
             GROUP BY task_triggers.task_id
         ) tt ON true
 
-        WHERE external_task_id=$1 AND org_id=$3
+        WHERE external_task_id=$1 AND org_id=$3 AND NOT DELETED
         AND EXISTS(SELECT 1 FROM user_entity_permissions
             WHERE
             permissioned_object IN (1, task_id)
@@ -163,7 +163,23 @@ async fn delete_task(
     req: HttpRequest,
     auth: Authenticated,
 ) -> Result<impl Responder> {
-    Ok(HttpResponse::NotImplemented().finish())
+    let user_entity_ids = auth.user_entity_ids();
+    let task_id = task_id.into_inner();
+
+    let deleted = sqlx::query_scalar!("UPDATE tasks SET deleted=true WHERE external_task_id=$1 AND org_id=$2
+        AND NOT deleted AND
+        EXISTS(SELECT 1 FROM user_entity_permissions
+            WHERE permissioned_object IN (1, task_id) AND user_entity_id=ANY($3) AND permission_type='write'
+        )
+        RETURNING task_id",
+        task_id, auth.org_id(), user_entity_ids.as_slice())
+        .fetch_optional(&data.pg)
+        .await?;
+
+    match deleted {
+        Some(_) => Ok(HttpResponse::Ok().finish()),
+        None => Ok(HttpResponse::NotFound().finish()),
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]

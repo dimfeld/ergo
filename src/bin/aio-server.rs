@@ -54,7 +54,13 @@ async fn main() -> Result<(), ergo::error::Error> {
     let shutdown = GracefulShutdown::new();
 
     let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown).await;
-    tracing::info!("{:?}", vault_client);
+    tracing::info!(
+        "Vault mode {}",
+        vault_client
+            .as_ref()
+            .map(|_| "enabled")
+            .unwrap_or("disabled")
+    );
 
     let address: String = envoption::with_default("BIND_ADDRESS", "127.0.0.1")?;
     let port: u16 = envoption::with_default("BIND_PORT", 6543 as u16)?;
