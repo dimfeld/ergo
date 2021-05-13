@@ -79,7 +79,8 @@ impl Task {
                         state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>" ,
                         state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>"
                         FROM tasks
-                        JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2"##,
+                        JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
+                        WHERE tasks.task_id=$1"##,
                         task_id,
                         task_trigger_id
                     )
@@ -123,6 +124,7 @@ impl Task {
                     )?;
 
                 if changed {
+                    event!(Level::INFO, state=?new_data, "New state");
                     sqlx::query!(
                         r##"UPDATE tasks
                         SET state_machine_states = $1::jsonb
@@ -136,6 +138,7 @@ impl Task {
                 }
 
                 if !actions.is_empty() {
+                    event!(Level::INFO, ?actions, "Enqueueing actions");
                     let q = format!(
                         "INSERT INTO actions_log (task_id, task_action_local_id, actions_log_id, inputs_log_id, payload, status)
                         VALUES
