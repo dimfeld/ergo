@@ -65,6 +65,7 @@ pub async fn enqueue_input(
     task_id: i64,
     input_id: i64,
     task_trigger_id: i64,
+    task_trigger_local_id: String,
     payload_schema: &serde_json::Value,
     payload: serde_json::Value,
 ) -> Result<Uuid, Error> {
@@ -90,11 +91,13 @@ pub async fn enqueue_input(
 
             sqlx::query!(
                 r##"INSERT INTO inputs_log
-        (inputs_log_id, task_trigger_id, status, payload)
+        (inputs_log_id, task_trigger_id, task_id, task_trigger_local_id, status, payload)
         VALUES
-        ($1, $2, 'pending', $3)"##,
+        ($1, $2, $3, $4, 'pending', $5)"##,
                 input_arrival_id,
                 task_trigger_id,
+                task_id,
+                task_trigger_local_id,
                 payload
             )
             .execute(&mut *tx)

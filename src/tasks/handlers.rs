@@ -199,7 +199,7 @@ pub struct TaskTriggerInput {
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskInput {
-    /// Only used internally
+    /// Only used internally when PUTting a task that doesn't exist yet.
     pub external_task_id: Option<String>,
     pub name: String,
     pub description: Option<String>,
@@ -223,6 +223,8 @@ async fn update_task(
     let external_task_id = external_task_id.into_inner();
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
+
+    // TODO Validate task actions against action templates.
 
     let task_id = sqlx::query!(
         "UPDATE TASKS SET
@@ -387,6 +389,8 @@ async fn new_task(
     });
     let user_id = auth.user_id();
 
+    // TODO Validate task actions against action templates.
+
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
@@ -455,6 +459,11 @@ async fn post_task_trigger(
 ) -> Result<impl Responder> {
     let ids = auth.user_entity_ids();
 
+    let TaskAndTriggerPath {
+        task_id,
+        trigger_id,
+    } = path.into_inner();
+
     let trigger = sqlx::query!(
         r##"SELECT tasks.*, task_trigger_id, input_id,
             inputs.payload_schema as input_schema
@@ -471,18 +480,19 @@ async fn post_task_trigger(
         "##,
         ids.as_slice(),
         auth.org_id(),
-        path.trigger_id,
-        path.task_id
+        &trigger_id,
+        &task_id
     )
     .fetch_optional(&data.pg)
     .await?
-    .ok_or(Error::AuthorizationError)?;
+    .ok_or(Error::NotFound)?;
 
     super::inputs::enqueue_input(
         &data.pg,
         trigger.task_id,
         trigger.input_id,
         trigger.task_trigger_id,
+        trigger_id,
         &trigger.input_schema,
         payload.into_inner(),
     )
