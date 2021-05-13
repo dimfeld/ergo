@@ -35,7 +35,7 @@ This project is in very early stages right now with no current plans for proper 
   - [ ] Optional type checking on state machine return value
 - [ ] Tasks
   - [X] Trigger a task based on events
-  - [ ] Run actions
+  - [X] Run actions
   - [X] Run state machines in response to events
   - [ ] Sequences - Tasks can be chained together and optionally pass information between them (file locations, etc.)
   - [ ] Tasks can clone themselves, and further inputs for that clone are routed to them. This will probably involve interaction with another process set up to be aware of how this works.
@@ -47,7 +47,7 @@ This project is in very early stages right now with no current plans for proper 
 ## 0.1
 
 - [X] Events can be triggered by REST endpoint
-- [ ] Tasks consists of one event that triggers one or more actions
+- [X] Tasks consists of one event that triggers one or more actions
 - [X] Actions can run local scripts
 - [ ] Log everything that happens
     - [X] Log inputs and actions to Postgres tables
