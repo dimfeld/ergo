@@ -3,6 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use thiserror::Error;
+use tracing::{event, instrument, Level};
 
 use super::actions::ActionInvocation;
 
@@ -169,6 +170,7 @@ pub enum ActionInvokeDefDataField {
 
 pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;
 
+#[derive(Debug)]
 pub struct StateMachineWithData {
     task_id: i64,
     idx: usize,
@@ -197,6 +199,7 @@ impl<'d> StateMachineWithData {
         (self.data, self.changed)
     }
 
+    #[instrument(fields(actions))]
     pub fn apply_trigger(
         &mut self,
         trigger_id: &str,
@@ -225,6 +228,7 @@ impl<'d> StateMachineWithData {
 
         match handler {
             Some(h) => {
+                event!(Level::DEBUG, handler=?h, "Running event handler");
                 let next_state = h.next_state(&self.data.context, &payload)?;
                 let actions = h.resolve_actions(
                     self.task_id,
@@ -242,7 +246,10 @@ impl<'d> StateMachineWithData {
 
                 Ok(actions)
             }
-            None => Ok(ActionInvocations::new()),
+            None => {
+                event!(Level::DEBUG, "No handler");
+                Ok(ActionInvocations::new())
+            }
         }
     }
 }
