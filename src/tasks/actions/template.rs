@@ -8,7 +8,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 lazy_static! {
-    static ref HANDLEBARS: handlebars::Handlebars<'static> = handlebars::Handlebars::new();
+    static ref HANDLEBARS: handlebars::Handlebars<'static> = {
+        let mut h = handlebars::Handlebars::new();
+        h.strict_mode();
+        h.register_escape_fn(|s| s.to_string());
+        h
+    };
 }
 
 #[derive(Debug, Error)]
