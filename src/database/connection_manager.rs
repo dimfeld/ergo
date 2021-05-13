@@ -44,10 +44,18 @@ impl<T: 'static + DeserializeOwned + Send + Sync + Debug> PostgresAuthRenewer
 
 /// An auth manager that only ever returns the same auth info that it was intialized with.
 /// Used when running a system without Vault.
-#[derive(Clone, Debug)]
 struct FixedAuth {
     username: String,
     password: String,
+}
+
+impl std::fmt::Debug for FixedAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Skip password
+        f.debug_struct("FixedAuth")
+            .field("username", &self.username)
+            .finish()
+    }
 }
 
 #[async_trait]
