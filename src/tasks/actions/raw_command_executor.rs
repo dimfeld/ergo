@@ -56,7 +56,7 @@ impl RawCommandExecutor {
 
 #[async_trait]
 impl Executor for RawCommandExecutor {
-    #[instrument(level = "debug", name = "RawCommandExecutor::execute")]
+    #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(pg_pool))]
     async fn execute(
         &self,
         pg_pool: PostgresPool,
@@ -105,13 +105,14 @@ impl Executor for RawCommandExecutor {
                 result: json!(null),
             })?;
 
-        let exitcode = output.status.to_string();
-        event!(Level::DEBUG, exitcode = %exitcode);
+        let exitcode = output.status.code();
+        event!(Level::DEBUG, exitcode = ?exitcode);
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         event!(Level::TRACE, %stdout, %stderr);
 
+        // TODO Return an error if exitcode is non-zero, and let the invoking action override this.
         Ok(json!({
             "exitcode": exitcode,
             "stdout": stdout,
