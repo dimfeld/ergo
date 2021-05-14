@@ -2,6 +2,7 @@ use std::{borrow::Cow, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use fxhash::FxHashMap;
 use rand::Rng;
 use serde::Serialize;
 use sqlx::{Connection, Postgres, Row, Transaction};
@@ -20,7 +21,10 @@ pub trait Drainer: Send + Sync {
     fn lock_key(&self) -> i64;
 
     /// Retrieve and delete jobs from the table.
-    async fn get(&'_ self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job<'_>>, Error>;
+    async fn get(
+        &'_ self,
+        tx: &mut Transaction<Postgres>,
+    ) -> Result<Vec<(Cow<'static, str>, Job<'_>)>, Error>;
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -32,9 +36,11 @@ pub struct QueueStageDrainStats {
 
 pub struct QueueStageDrainConfig<D: Drainer + 'static> {
     pub db_pool: PostgresPool,
+    pub redis_pool: deadpool_redis::Pool,
     pub drainer: D,
 
-    pub queue: Queue,
+    /// Preinitialize with a queue when you already have the queue object.
+    pub queue: Option<Queue>,
     pub shutdown: GracefulShutdownConsumer,
 }
 
@@ -53,6 +59,7 @@ impl QueueStageDrain {
 
         let QueueStageDrainConfig {
             db_pool,
+            redis_pool,
             queue,
             shutdown,
             drainer,
@@ -69,7 +76,11 @@ impl QueueStageDrain {
 
         let drain = StageDrainTask {
             db_pool,
-            queue,
+            redis_pool,
+            queues: queue
+                .into_iter()
+                .map(|q| (q.name().to_string(), q))
+                .collect::<_>(),
             drainer,
             close: close_rx,
             stats_tx,
@@ -112,7 +123,8 @@ impl Drop for QueueStageDrain {
 
 struct StageDrainTask<D: Drainer> {
     db_pool: PostgresPool,
-    queue: Queue,
+    redis_pool: deadpool_redis::Pool,
+    queues: FxHashMap<String, Queue>,
     drainer: D,
     close: oneshot::Receiver<()>,
     stats_tx: watch::Sender<QueueStageDrainStats>,
@@ -188,10 +200,22 @@ impl<D: Drainer> StageDrainTask<D> {
 
         self.stats.last_drain = now;
 
-        for job in &jobs {
-            event!(Level::INFO, queue=%self.queue.name(), ?job, "Enqueueing job");
+        for (queue_name, job) in &jobs {
+            event!(Level::INFO, queue=%queue_name, ?job, "Enqueueing job");
+            let queue = match self.queues.get(queue_name.as_ref()) {
+                Some(q) => q,
+                None => {
+                    self.queues.insert(
+                        queue_name.to_string(),
+                        Queue::new(self.redis_pool.clone(), queue_name, None, None, None),
+                    );
+
+                    self.queues.get(queue_name.as_ref()).unwrap()
+                }
+            };
+
+            queue.enqueue(job).await?;
         }
-        self.queue.enqueue_multiple(jobs.as_slice()).await?;
         tx.commit().await?;
 
         return Ok::<bool, Error>(true);

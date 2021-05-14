@@ -4,6 +4,7 @@ pub mod postgres_drain;
 pub mod work_item;
 
 mod enqueue_scheduled;
+mod generic_stage;
 mod get_job;
 mod job_cancel;
 mod job_done;

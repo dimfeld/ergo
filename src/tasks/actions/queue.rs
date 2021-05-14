@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use crate::{
     database::{PostgresPool, VaultPostgresPool},
@@ -21,7 +21,10 @@ impl Drainer for QueueDrainer {
         67982349
     }
 
-    async fn get(&self, tx: &mut Transaction<Postgres>) -> Result<Vec<Job>, Error> {
+    async fn get(
+        &self,
+        tx: &mut Transaction<Postgres>,
+    ) -> Result<Vec<(Cow<'static, str>, Job)>, Error> {
         let results = sqlx::query!(
             r##"SELECT action_queue_id, actions_log_id, task_id, task_action_local_id, input_arrival_id, payload
             FROM action_queue ORDER BY action_queue_id LIMIT 50"##
@@ -49,10 +52,14 @@ impl Drainer for QueueDrainer {
                     payload: row.payload.unwrap_or(serde_json::Value::Null),
                 };
 
-                Job::from_json_payload(JobId::Value(&row.action_queue_id.to_string()), &payload)
+                let job = Job::from_json_payload(
+                    JobId::Value(&row.action_queue_id.to_string()),
+                    &payload,
+                )?;
+
+                Ok::<_, Error>((Cow::Borrowed(QUEUE_NAME), job))
             })
-            .collect::<Result<Vec<Job>, serde_json::Error>>()
-            .map_err(Error::from)
+            .collect::<Result<Vec<_>, Error>>()
     }
 }
 
@@ -78,12 +85,14 @@ impl ActionQueue {
 pub fn new_drain(
     queue: ActionQueue,
     db_pool: PostgresPool,
+    redis_pool: deadpool_redis::Pool,
     shutdown: GracefulShutdownConsumer,
 ) -> Result<QueueStageDrain, Error> {
     let config = QueueStageDrainConfig {
         db_pool,
+        redis_pool,
         drainer: QueueDrainer {},
-        queue: queue.0,
+        queue: Some(queue.0),
         shutdown,
     };
 

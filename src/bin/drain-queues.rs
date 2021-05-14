@@ -26,6 +26,7 @@ async fn main() -> Result<()> {
         input_queue,
         action_queue,
         backend_pg_pool.clone(),
+        redis_pool.clone(),
         shutdown.consumer(),
     )?;
 

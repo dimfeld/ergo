@@ -88,6 +88,7 @@ async fn main() -> Result<(), ergo::error::Error> {
             input_queue.clone(),
             action_queue.clone(),
             backend_pg_pool.clone(),
+            redis_pool.clone(),
             shutdown.consumer(),
         )?)
     };

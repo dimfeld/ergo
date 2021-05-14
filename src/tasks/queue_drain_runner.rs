@@ -28,13 +28,18 @@ impl AllQueuesDrain {
         input_queue: InputQueue,
         action_queue: ActionQueue,
         pg_pool: VaultPostgresPool,
+        redis_pool: deadpool_redis::Pool,
         shutdown: GracefulShutdownConsumer,
     ) -> Result<AllQueuesDrain, Error> {
-        let action_drain =
-            super::actions::queue::new_drain(action_queue, pg_pool.clone(), shutdown.clone())?;
+        let action_drain = super::actions::queue::new_drain(
+            action_queue,
+            pg_pool.clone(),
+            redis_pool.clone(),
+            shutdown.clone(),
+        )?;
 
         let input_drain =
-            super::inputs::queue::new_drain(input_queue, pg_pool.clone(), shutdown.clone())?;
+            super::inputs::queue::new_drain(input_queue, pg_pool, redis_pool, shutdown.clone())?;
 
         Ok(AllQueuesDrain {
             action_drain,
