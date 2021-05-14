@@ -98,6 +98,9 @@ pub enum Error {
         wanted: String,
         saw: String,
     },
+
+    #[error(transparent)]
+    ReqwestError(#[from] reqwest::Error),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {

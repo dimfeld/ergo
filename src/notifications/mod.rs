@@ -1,3 +1,4 @@
+mod discord_webhook;
 mod notification;
 
 use std::borrow::Cow;
@@ -15,6 +16,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+use self::discord_webhook::send_discord_webhook;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -118,21 +121,27 @@ impl NotificationManager {
         Ok(())
     }
 
-    pub fn start_dequeuer_loop(&mut self) {
+    pub fn start_dequeuer_loop(&mut self) -> Result<(), Error> {
         self.queue.start_dequeuer_loop(
             self.shutdown.clone(),
             None,
             None,
             NotifyExecutor {
                 pg_pool: self.pg_pool.clone(),
+                http_client: reqwest::ClientBuilder::new()
+                    .timeout(std::time::Duration::from_secs(30))
+                    .build()?,
             },
         );
+
+        Ok(())
     }
 }
 
 #[derive(Clone)]
 struct NotifyExecutor {
     pg_pool: PostgresPool,
+    http_client: reqwest::Client,
 }
 
 #[async_trait]
@@ -143,7 +152,17 @@ impl QueueJobProcessor for NotifyExecutor {
         &self,
         item: &crate::queues::QueueWorkItem<Self::Payload>,
     ) -> Result<(), Error> {
-        let notification = &item.data;
-        Ok(())
+        let NotificationJob {
+            service,
+            destination,
+            notification,
+        } = &item.data;
+        match service {
+            NotifyService::Email => Ok(()),
+            NotifyService::SlackIncomingWebhook => Ok(()),
+            NotifyService::DiscordIncomingWebhook => {
+                send_discord_webhook(&self.http_client, destination, notification.as_ref()).await
+            }
+        }
     }
 }
