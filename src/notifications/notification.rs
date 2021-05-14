@@ -1,7 +1,9 @@
-use super::Level;
+use super::{Level, NotifyEvent};
 use crate::error::Error;
 
-#[derive(Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Notification {
     InputArrived {
         task_id: i64,
@@ -13,7 +15,7 @@ pub enum Notification {
         task_id: i64,
         task_trigger_local_id: String,
         payload: serde_json::Value,
-        error: Option<Error>,
+        error: Option<String>,
     },
 
     ActionStarted {
@@ -32,7 +34,7 @@ pub enum Notification {
         task_id: i64,
         task_action_local_id: String,
         payload: serde_json::Value,
-        error: Error,
+        error: String,
     },
 }
 
@@ -44,6 +46,26 @@ impl Notification {
             Self::ActionStarted { .. } => Level::Debug,
             Self::ActionSuccess { .. } => Level::Info,
             Self::ActionError { .. } => Level::Error,
+        }
+    }
+
+    pub(super) fn notify_event(&self) -> NotifyEvent {
+        match self {
+            Self::InputArrived { .. } => NotifyEvent::InputArrived,
+            Self::InputProcessed { .. } => NotifyEvent::InputProcessed,
+            Self::ActionStarted { .. } => NotifyEvent::ActionStarted,
+            Self::ActionSuccess { .. } => NotifyEvent::ActionSuccess,
+            Self::ActionError { .. } => NotifyEvent::ActionError,
+        }
+    }
+
+    pub fn object_id(&self) -> i64 {
+        match self {
+            Self::InputArrived { task_id, .. } => *task_id,
+            Self::InputProcessed { task_id, .. } => *task_id,
+            Self::ActionStarted { task_id, .. } => *task_id,
+            Self::ActionSuccess { task_id, .. } => *task_id,
+            Self::ActionError { task_id, .. } => *task_id,
         }
     }
 }

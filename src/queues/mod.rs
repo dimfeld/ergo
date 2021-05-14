@@ -1,10 +1,10 @@
-mod dequeuer_loop;
+pub mod generic_stage;
 pub mod job;
 pub mod postgres_drain;
 pub mod work_item;
 
+mod dequeuer_loop;
 mod enqueue_scheduled;
-mod generic_stage;
 mod get_job;
 mod job_cancel;
 mod job_done;
