@@ -1,44 +1,76 @@
-use super::{Level, NotifyEvent};
+use std::borrow::Cow;
+
+use super::Level;
 use crate::error::Error;
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum Notification {
-    InputArrived {
-        task_id: i64,
-        task_trigger_local_id: String,
-        payload: serde_json::Value,
-    },
-
-    InputProcessed {
-        task_id: i64,
-        task_trigger_local_id: String,
-        payload: serde_json::Value,
-        error: Option<String>,
-    },
-
-    ActionStarted {
-        task_id: i64,
-        task_action_local_id: String,
-        payload: serde_json::Value,
-    },
-
-    ActionSuccess {
-        task_id: i64,
-        task_action_local_id: String,
-        payload: serde_json::Value,
-    },
-
-    ActionError {
-        task_id: i64,
-        task_action_local_id: String,
-        payload: serde_json::Value,
-        error: String,
-    },
+pub struct Notification {
+    pub event: NotifyEvent,
+    pub task_id: i64,
+    pub task_name: String,
+    pub local_id: String,
+    pub local_object_name: String,
+    pub local_object_id: Option<i64>,
+    pub payload: Option<serde_json::Value>,
+    pub error: Option<String>,
+    pub log_id: Option<Uuid>,
 }
 
 impl Notification {
+    pub fn fields<'a>(&'a self) -> Vec<(&'static str, Cow<'a, str>, bool)> {
+        let mut output = Vec::with_capacity(8);
+
+        output.push(("Task", Cow::from(&self.task_name), true));
+        output.push((
+            self.event.local_object_type(),
+            Cow::from(&self.task_name),
+            true,
+        ));
+
+        output.push(("Task", Cow::from(&self.task_name), true));
+        output.push(("Task", Cow::from(&self.task_name), true));
+
+        if let Some(e) = self.error.as_ref() {
+            output.push(("Error", Cow::from(e.as_str()), true));
+        }
+
+        if let Some(p) = self.payload.as_ref() {
+            let payload = serde_json::to_string(p).unwrap_or(String::new());
+            output.push(("Payload", Cow::from(payload), false));
+        }
+
+        if let Some(id) = self.log_id.as_ref() {
+            output.push(("Log ID", Cow::from(id.to_string()), true));
+        }
+
+        output
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "notify_service", rename_all = "snake_case")]
+pub enum NotifyService {
+    Email,
+    DiscordIncomingWebhook,
+    SlackIncomingWebhook,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "notify_event", rename_all = "snake_case")]
+pub enum NotifyEvent {
+    InputArrived,
+    InputProcessed,
+    ActionStarted,
+    ActionSuccess,
+    ActionError,
+}
+
+impl NotifyEvent {
     pub fn level(&self) -> Level {
         match self {
             Self::InputArrived { .. } => Level::Debug,
@@ -49,23 +81,10 @@ impl Notification {
         }
     }
 
-    pub(super) fn notify_event(&self) -> NotifyEvent {
+    pub fn local_object_type(&self) -> &'static str {
         match self {
-            Self::InputArrived { .. } => NotifyEvent::InputArrived,
-            Self::InputProcessed { .. } => NotifyEvent::InputProcessed,
-            Self::ActionStarted { .. } => NotifyEvent::ActionStarted,
-            Self::ActionSuccess { .. } => NotifyEvent::ActionSuccess,
-            Self::ActionError { .. } => NotifyEvent::ActionError,
-        }
-    }
-
-    pub fn object_id(&self) -> i64 {
-        match self {
-            Self::InputArrived { task_id, .. } => *task_id,
-            Self::InputProcessed { task_id, .. } => *task_id,
-            Self::ActionStarted { task_id, .. } => *task_id,
-            Self::ActionSuccess { task_id, .. } => *task_id,
-            Self::ActionError { task_id, .. } => *task_id,
+            Self::InputArrived | Self::InputProcessed => "Input",
+            Self::ActionStarted | Self::ActionSuccess | Self::ActionError => "Action",
         }
     }
 }

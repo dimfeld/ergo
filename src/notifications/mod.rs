@@ -4,7 +4,8 @@ mod notification;
 use std::borrow::Cow;
 
 use futures::stream::{FuturesUnordered, Stream, StreamExt};
-pub use notification::Notification;
+pub use notification::*;
+use smallvec::SmallVec;
 use sqlx::{Postgres, Transaction};
 use tokio::task::JoinHandle;
 
@@ -41,26 +42,6 @@ pub struct NotificationManager {
     queue: Queue,
 }
 
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
-#[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "notify_service", rename_all = "snake_case")]
-enum NotifyService {
-    Email,
-    DiscordIncomingWebhook,
-    SlackIncomingWebhook,
-}
-
-#[derive(Debug, Serialize, Deserialize, sqlx::Type)]
-#[serde(rename_all = "snake_case")]
-#[sqlx(type_name = "notify_event", rename_all = "snake_case")]
-enum NotifyEvent {
-    InputArrived,
-    InputProcessed,
-    ActionStarted,
-    ActionSuccess,
-    ActionError,
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 struct NotificationJob<'a> {
     service: NotifyService,
@@ -95,16 +76,23 @@ impl NotificationManager {
             destination: String,
         }
 
+        let mut object_ids = SmallVec::<[i64; 3]>::new();
+        object_ids.push(1);
+        object_ids.push(notification.task_id);
+        if let Some(object_id) = notification.local_object_id {
+            object_ids.push(object_id);
+        }
+
         let notifications = sqlx::query_as!(
             ServiceAndDestination,
             r##"SELECT
           service AS "service: NotifyService", destination
           FROM notify_listeners
-          JOIN notify_endpoints USING(notify_endpoint_id)
-          WHERE org_id=$1 AND object_id IN(1, $2) AND event=$3"##,
+          JOIN notify_endpoints USING(notify_endpoint_id, org_id)
+          WHERE org_id=$1 AND object_id = ANY($2) AND event=$3"##,
             org_id,
-            notification.object_id(),
-            notification.notify_event() as _,
+            object_ids.as_slice(),
+            notification.event as _,
         )
         .fetch_all(&mut *tx)
         .await?;
