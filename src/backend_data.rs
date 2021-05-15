@@ -10,6 +10,7 @@ use crate::{
 pub struct BackendAppState {
     pub pg: PostgresPool,
     pub auth: AuthData,
+    pub notifications: crate::notifications::NotificationManager,
     action_queue: ActionQueue,
     input_queue: InputQueue,
 }
@@ -18,12 +19,14 @@ pub type BackendAppStateData = Data<BackendAppState>;
 
 pub fn app_data(
     pg_pool: PostgresPool,
+    notifications: crate::notifications::NotificationManager,
     input_queue: InputQueue,
     action_queue: ActionQueue,
 ) -> Result<BackendAppStateData> {
     Ok(Data::new(BackendAppState {
         auth: AuthData::new(pg_pool.clone())?,
         pg: pg_pool,
+        notifications,
         action_queue,
         input_queue,
     }))

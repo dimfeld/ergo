@@ -2,7 +2,11 @@ pub mod dequeue;
 pub mod handlers;
 pub mod queue;
 
-use crate::{database::PostgresPool, error::Error};
+use crate::{
+    database::PostgresPool,
+    error::Error,
+    notifications::{Notification, NotifyEvent},
+};
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 use uuid::Uuid;
@@ -60,15 +64,35 @@ pub fn validate_input_payload(
     Ok(())
 }
 
-pub async fn enqueue_input(
-    pg: &PostgresPool,
-    task_id: i64,
-    input_id: i64,
-    task_trigger_id: i64,
-    task_trigger_local_id: String,
-    payload_schema: &serde_json::Value,
-    payload: serde_json::Value,
-) -> Result<Uuid, Error> {
+pub struct EnqueueInputOptions<'a> {
+    pub pg: &'a PostgresPool,
+    pub notifications: Option<crate::notifications::NotificationManager>,
+    pub org_id: Uuid,
+    pub task_id: i64,
+    pub task_name: String,
+    pub input_id: i64,
+    pub task_trigger_id: i64,
+    pub task_trigger_local_id: String,
+    pub task_trigger_name: String,
+    pub payload_schema: &'a serde_json::Value,
+    pub payload: serde_json::Value,
+}
+
+pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Error> {
+    let EnqueueInputOptions {
+        pg,
+        notifications,
+        org_id,
+        task_id,
+        task_name,
+        input_id,
+        task_trigger_id,
+        task_trigger_local_id,
+        task_trigger_name,
+        payload_schema,
+        payload,
+    } = options;
+
     validate_input_payload(input_id, payload_schema, &payload)?;
 
     let input_arrival_id = Uuid::new_v4();
@@ -94,14 +118,29 @@ pub async fn enqueue_input(
         (inputs_log_id, task_trigger_id, task_id, task_trigger_local_id, status, payload)
         VALUES
         ($1, $2, $3, $4, 'pending', $5)"##,
-                input_arrival_id,
+                &input_arrival_id,
                 task_trigger_id,
                 task_id,
-                task_trigger_local_id,
-                payload
+                &task_trigger_local_id,
+                &payload
             )
             .execute(&mut *tx)
             .await?;
+
+            if let Some(notify) = &notifications {
+                let notification = Notification {
+                    task_id,
+                    local_id: task_trigger_local_id,
+                    local_object_id: Some(task_trigger_id),
+                    local_object_name: task_trigger_name,
+                    error: None,
+                    event: NotifyEvent::InputArrived,
+                    task_name,
+                    log_id: Some(input_arrival_id),
+                    payload: Some(payload),
+                };
+                notify.notify(&mut *tx, &org_id, notification).await?;
+            }
 
             Ok::<(), Error>(())
         })

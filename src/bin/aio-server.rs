@@ -74,9 +74,16 @@ async fn main() -> Result<(), ergo::error::Error> {
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
+    let notifications = ergo::notifications::NotificationManager::new(
+        backend_pg_pool.clone(),
+        redis_pool.clone(),
+        shutdown.consumer(),
+    )?;
+
     let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = ergo::backend_data::app_data(
         backend_pg_pool.clone(),
+        notifications,
         input_queue.clone(),
         action_queue.clone(),
     )?;

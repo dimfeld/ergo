@@ -1,10 +1,10 @@
 mod discord_webhook;
 mod notification;
+pub use notification::*;
 
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Arc};
 
 use futures::stream::{FuturesUnordered, Stream, StreamExt};
-pub use notification::*;
 use smallvec::SmallVec;
 use sqlx::{Postgres, Transaction};
 use tokio::task::JoinHandle;
@@ -36,7 +36,15 @@ trait Notifier {
 
 const QUEUE_NAME: &'static str = "notifications";
 
-pub struct NotificationManager {
+pub struct NotificationManager(Arc<NotificationManagerInner>);
+
+impl Clone for NotificationManager {
+    fn clone(&self) -> Self {
+        NotificationManager(self.0.clone())
+    }
+}
+
+pub struct NotificationManagerInner {
     pg_pool: PostgresPool,
     shutdown: GracefulShutdownConsumer,
     queue: Queue,
@@ -56,11 +64,11 @@ impl NotificationManager {
         shutdown: GracefulShutdownConsumer,
     ) -> Result<NotificationManager> {
         let queue = Queue::new(redis_pool, QUEUE_NAME, None, None, None);
-        Ok(NotificationManager {
+        Ok(NotificationManager(Arc::new(NotificationManagerInner {
             pg_pool,
             shutdown,
             queue,
-        })
+        })))
     }
 
     // Enqueue a notification to be sent
@@ -110,12 +118,12 @@ impl NotificationManager {
     }
 
     pub fn start_dequeuer_loop(&mut self) -> Result<(), Error> {
-        self.queue.start_dequeuer_loop(
-            self.shutdown.clone(),
+        self.0.queue.start_dequeuer_loop(
+            self.0.shutdown.clone(),
             None,
             None,
             NotifyExecutor {
-                pg_pool: self.pg_pool.clone(),
+                pg_pool: self.0.pg_pool.clone(),
                 http_client: reqwest::ClientBuilder::new()
                     .timeout(std::time::Duration::from_secs(30))
                     .build()?,

@@ -11,6 +11,7 @@ use crate::{
     },
     error::{Error, Result},
     queues::postgres_drain,
+    tasks::inputs::EnqueueInputOptions,
     vault::VaultClientTokenData,
     web_app_server::AppStateData,
 };
@@ -458,6 +459,7 @@ async fn post_task_trigger(
     payload: web::Json<serde_json::Value>,
 ) -> Result<impl Responder> {
     let ids = auth.user_entity_ids();
+    let org_id = auth.org_id();
 
     let TaskAndTriggerPath {
         task_id,
@@ -465,7 +467,7 @@ async fn post_task_trigger(
     } = path.into_inner();
 
     let trigger = sqlx::query!(
-        r##"SELECT tasks.*, task_trigger_id, input_id,
+        r##"SELECT tasks.*, tt.name as task_trigger_name, task_trigger_id, input_id,
             inputs.payload_schema as input_schema
         FROM task_triggers tt
         JOIN tasks USING(task_id)
@@ -479,7 +481,7 @@ async fn post_task_trigger(
             )
         "##,
         ids.as_slice(),
-        auth.org_id(),
+        org_id,
         &trigger_id,
         &task_id
     )
@@ -487,15 +489,19 @@ async fn post_task_trigger(
     .await?
     .ok_or(Error::NotFound)?;
 
-    super::inputs::enqueue_input(
-        &data.pg,
-        trigger.task_id,
-        trigger.input_id,
-        trigger.task_trigger_id,
-        trigger_id,
-        &trigger.input_schema,
-        payload.into_inner(),
-    )
+    super::inputs::enqueue_input(EnqueueInputOptions {
+        pg: &data.pg,
+        notifications: Some(data.notifications.clone()),
+        org_id: org_id.clone(),
+        task_id: trigger.task_id,
+        input_id: trigger.input_id,
+        task_trigger_id: trigger.task_trigger_id,
+        task_trigger_local_id: trigger_id,
+        task_trigger_name: trigger.task_trigger_name,
+        task_name: trigger.name,
+        payload_schema: &trigger.input_schema,
+        payload: payload.into_inner(),
+    })
     .await?;
 
     Ok(HttpResponse::Accepted().finish())
