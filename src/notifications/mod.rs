@@ -6,7 +6,7 @@ use std::{borrow::Cow, sync::Arc};
 
 use futures::stream::{FuturesUnordered, Stream, StreamExt};
 use smallvec::SmallVec;
-use sqlx::{Postgres, Transaction};
+use sqlx::{PgConnection, Postgres, Transaction};
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -74,7 +74,7 @@ impl NotificationManager {
     // Enqueue a notification to be sent
     pub async fn notify(
         &self,
-        tx: &mut Transaction<'_, Postgres>,
+        tx: &mut PgConnection,
         org_id: &uuid::Uuid,
         notification: Notification,
     ) -> Result<()> {

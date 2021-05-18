@@ -112,6 +112,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
+        notifications: Some(notifications.clone()),
         max_concurrent_jobs: None,
     })?;
 

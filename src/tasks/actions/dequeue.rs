@@ -14,6 +14,7 @@ pub struct ActionExecutorConfig {
     pub pg_pool: PostgresPool,
     pub redis_pool: deadpool_redis::Pool,
     pub shutdown: GracefulShutdownConsumer,
+    pub notifications: Option<crate::notifications::NotificationManager>,
     /// The highest number of concurrent jobs to run. Defaults to twice the number of CPUs.
     pub max_concurrent_jobs: Option<usize>,
 }
@@ -28,6 +29,7 @@ impl ActionExecutor {
         let executor = ActionExecutor { queue };
         let processor = ActionExecutorJobProcessor {
             pg_pool: config.pg_pool,
+            notifications: config.notifications,
         };
 
         executor.queue.start_dequeuer_loop(
@@ -46,6 +48,7 @@ impl ActionExecutor {
 #[derive(Clone)]
 struct ActionExecutorJobProcessor {
     pg_pool: PostgresPool,
+    notifications: Option<crate::notifications::NotificationManager>,
 }
 
 #[async_trait]
@@ -54,7 +57,7 @@ impl QueueJobProcessor for ActionExecutorJobProcessor {
 
     async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error> {
         let invocation = &item.data;
-        execute(&self.pg_pool, &item.data).await?;
+        execute(&self.pg_pool, self.notifications.as_ref(), &item.data).await?;
         Ok(())
     }
 }

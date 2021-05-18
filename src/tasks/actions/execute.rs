@@ -10,8 +10,14 @@ use serde_json::json;
 use sqlx::{types::Json, Postgres};
 use thiserror::Error;
 use tracing::{event, instrument, span, Instrument, Level};
+use uuid::Uuid;
 
-use crate::{database::PostgresPool, tasks::actions::ActionStatus};
+use crate::{
+    database::PostgresPool,
+    error::{Error, Result},
+    notifications::{Notification, NotificationManager, NotifyEvent},
+    tasks::actions::ActionStatus,
+};
 
 use super::{
     template::{self, TemplateFields},
@@ -153,28 +159,12 @@ pub enum ScriptOrTemplate {
     // Script(String),
 }
 
-#[derive(Debug, sqlx::FromRow)]
-struct ExecuteActionData {
-    executor_id: String,
-    action_id: i64,
-    action_name: String,
-    action_executor_template: Json<ScriptOrTemplate>,
-    action_template_fields: Json<TemplateFields>,
-    account_required: bool,
-    task_id: i64,
-    task_action_local_id: String,
-    task_action_name: String,
-    task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
-    account_id: Option<i64>,
-    account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
-    account_expires: Option<DateTime<Utc>>,
-}
-
-#[instrument(name = "execute_action", level = "debug", skip(pg_pool))]
+#[instrument(name = "execute_action", level = "debug", skip(pg_pool, notifications))]
 pub async fn execute(
     pg_pool: &PostgresPool,
+    notifications: Option<&crate::notifications::NotificationManager>,
     invocation: &ActionInvocation,
-) -> Result<serde_json::Value, ExecuteError> {
+) -> Result<serde_json::Value> {
     event!(Level::DEBUG, ?invocation);
 
     let actions_log_id = invocation.actions_log_id.clone();
@@ -192,7 +182,7 @@ pub async fn execute(
         error: e.into(),
     })?;
 
-    let result = execute_action(pg_pool, invocation).await;
+    let result = execute_action(pg_pool, notifications, invocation).await;
     event!(Level::DEBUG, ?result);
 
     let (status, response) = match &result {
@@ -229,10 +219,30 @@ pub async fn execute(
     result
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct ExecuteActionData {
+    executor_id: String,
+    action_id: i64,
+    action_name: String,
+    action_executor_template: Json<ScriptOrTemplate>,
+    action_template_fields: Json<TemplateFields>,
+    account_required: bool,
+    task_id: i64,
+    task_name: String,
+    task_action_local_id: String,
+    task_action_name: String,
+    task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
+    account_id: Option<i64>,
+    account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
+    account_expires: Option<DateTime<Utc>>,
+    org_id: Uuid,
+}
+
 async fn execute_action(
     pg_pool: &PostgresPool,
+    notifications: Option<&crate::notifications::NotificationManager>,
     invocation: &ActionInvocation,
-) -> Result<serde_json::Value, ExecuteError> {
+) -> Result<serde_json::Value, Error> {
     let task_id = invocation.task_id;
     let task_action_local_id = &invocation.task_action_local_id;
     let mut action: ExecuteActionData = sqlx::query_as_unchecked!(
@@ -245,14 +255,17 @@ async fn execute_action(
         actions.template_fields as action_template_fields,
         actions.account_required,
         task_id,
+        tasks.name AS task_name,
         task_actions.task_action_local_id,
         task_actions.name as task_action_name,
         NULLIF(task_actions.action_template, 'null'::jsonb) as task_action_template,
         task_actions.account_id,
         NULLIF(accounts.fields, 'null'::jsonb) as account_fields,
-        accounts.expires as account_expires
+        accounts.expires as account_expires,
+        tasks.org_id
 
         FROM task_actions
+        JOIN tasks USING (task_id)
         JOIN actions USING(action_id)
         LEFT JOIN accounts USING(account_id)
 
@@ -279,25 +292,111 @@ async fn execute_action(
         "executing action"
     );
 
-    let executor = EXECUTOR_REGISTRY.get(&action.executor_id).ok_or_else(|| {
-        ExecuteError::from_action_and_error(
-            &action,
-            ExecuteErrorSource::MissingExecutor(action.executor_id.clone()),
-        )
-    })?;
+    if let Some(notifications) = &notifications {
+        let mut conn = pg_pool.acquire().await?;
+        let notification = Notification {
+            task_id: action.task_id,
+            event: NotifyEvent::ActionStarted,
+            payload: Some(invocation.payload.clone()),
+            error: None,
+            task_name: action.task_name.clone(),
+            log_id: Some(invocation.actions_log_id.clone()),
+            local_id: action.task_action_local_id.clone(),
+            local_object_id: None,
+            local_object_name: action.task_action_name.clone(),
+        };
 
-    let action_template_values = prepare_invocation(executor, &invocation.payload, &mut action)
-        .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
+        notifications
+            .notify(&mut conn, &action.org_id, notification)
+            .await?;
+    }
+
+    let prepare_result = EXECUTOR_REGISTRY
+        .get(&action.executor_id)
+        .ok_or_else(|| {
+            ExecuteError::from_action_and_error(
+                &action,
+                ExecuteErrorSource::MissingExecutor(action.executor_id.clone()),
+            )
+        })
+        .and_then(|executor| {
+            prepare_invocation(executor, &invocation.payload, &mut action)
+                .map(|values| (executor, values))
+                .map_err(|e| ExecuteError::from_action_and_error(&action, e))
+        });
+
+    let (executor, action_template_values) = match prepare_result {
+        Ok(v) => v,
+        Err(e) => {
+            notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
+            return Err(e.into());
+        }
+    };
 
     event!(Level::TRACE, ?action_template_values);
 
-    // 4. Send the executor payload to the executor to actually run it.
+    // Send the executor payload to the executor to actually run it.
     let results = executor
         .execute(pg_pool.clone(), action_template_values)
         .await
-        .map_err(|e| ExecuteError::from_action_and_error(&action, e))?;
+        .map_err(|e| ExecuteError::from_action_and_error(&action, e));
 
-    Ok(results)
+    match results {
+        Ok(results) => {
+            if let Some(notifications) = notifications {
+                let notification = Notification {
+                    task_id: invocation.task_id,
+                    event: NotifyEvent::ActionError,
+                    payload: Some(invocation.payload.clone()),
+                    error: None,
+                    task_name: action.task_name.clone(),
+                    log_id: Some(invocation.actions_log_id.clone()),
+                    local_id: action.task_action_local_id.clone(),
+                    local_object_id: None,
+                    local_object_name: action.task_action_name.clone(),
+                };
+                let mut conn = pg_pool.acquire().await?;
+                notifications
+                    .notify(&mut conn, &action.org_id, notification)
+                    .await?;
+            }
+
+            Ok(results)
+        }
+        Err(e) => {
+            notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
+            Err(e.into())
+        }
+    }
+}
+
+async fn notify_action_error(
+    pool: &PostgresPool,
+    notifications: Option<&NotificationManager>,
+    invocation: &ActionInvocation,
+    action: ExecuteActionData,
+    error: &ExecuteError,
+) -> Result<()> {
+    if let Some(notifications) = notifications {
+        let notification = Notification {
+            task_id: invocation.task_id,
+            event: NotifyEvent::ActionError,
+            payload: Some(invocation.payload.clone()),
+            error: Some(error.to_string()),
+            task_name: action.task_name.clone(),
+            log_id: Some(invocation.actions_log_id.clone()),
+            local_id: action.task_action_local_id.clone(),
+            local_object_id: None,
+            local_object_name: action.task_action_name.clone(),
+        };
+
+        let mut conn = pool.acquire().await?;
+        notifications
+            .notify(&mut conn, &action.org_id, notification)
+            .await?;
+    }
+
+    Ok(())
 }
 
 fn prepare_invocation(

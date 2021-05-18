@@ -8,7 +8,7 @@ use crate::{
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::Serialize;
-use sqlx::{Postgres, Transaction};
+use sqlx::{PgConnection, Postgres, Transaction};
 use std::{borrow::Cow, time::Duration};
 
 pub struct QueueJob<'a, T: Serialize + Send + Sync> {
@@ -65,7 +65,7 @@ impl<'a, T: Serialize + Send + Sync> QueueJob<'a, T> {
         self
     }
 
-    pub async fn enqueue(self, tx: &'_ mut Transaction<'_, Postgres>) -> Result<i64> {
+    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<i64> {
         let id = self
             .id
             .map(|s| Cow::Borrowed(s))
