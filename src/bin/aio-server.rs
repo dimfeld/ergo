@@ -83,7 +83,7 @@ async fn main() -> Result<(), ergo::error::Error> {
     let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = ergo::backend_data::app_data(
         backend_pg_pool.clone(),
-        notifications,
+        notifications.clone(),
         input_queue.clone(),
         action_queue.clone(),
     )?;
@@ -104,6 +104,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
+        notifications: Some(notifications.clone()),
         max_concurrent_jobs: None,
     })?;
 

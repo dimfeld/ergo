@@ -13,6 +13,7 @@ use tracing::{event, instrument, Level};
 use crate::{
     database::{sql_insert_parameters, transaction::serializable, PostgresPool},
     error::Error,
+    notifications::{Notification, NotifyEvent},
     tasks::{actions::ActionStatus, inputs::InputStatus},
 };
 use chrono::{DateTime, Utc};
@@ -54,9 +55,10 @@ impl Task {
     /// and applies the input inside a serializable transaction, to ensure that
     /// the applied input doesn't have a race condition with any other concurrent
     /// inputs to the same task.
-    #[instrument(skip(pool))]
+    #[instrument(skip(pool, notifications))]
     pub async fn apply_input(
         pool: &PostgresPool,
+        notifications: Option<crate::notifications::NotificationManager>,
         task_id: i64,
         input_id: i64,
         task_trigger_id: i64,
@@ -66,18 +68,23 @@ impl Task {
         let result = serializable(pool, 5, move |tx| {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
+            let notifications = notifications.clone();
             Box::pin(async move {
                 #[derive(Debug, FromRow)]
                 struct TaskInputData {
                     task_trigger_local_id: String,
                     state_machine_config: Json<state_machine::StateMachineConfig>,
                     state_machine_states: Json<state_machine::StateMachineStates>,
+                    org_id: Uuid,
+                    task_name: String,
+                    task_trigger_name: String,
                 }
 
                 let task = sqlx::query_as!(TaskInputData,
                         r##"SELECT task_trigger_local_id,
                         state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>" ,
-                        state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>"
+                        state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>",
+                        tasks.org_id, tasks.name as task_name, tt.name as task_trigger_name
                         FROM tasks
                         JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
                         WHERE tasks.task_id=$1"##,
@@ -90,7 +97,7 @@ impl Task {
                 let task = task.ok_or(Error::NotFound)?;
 
                 let TaskInputData {
-                    task_trigger_local_id, state_machine_config, state_machine_states
+                    task_trigger_local_id, state_machine_config, state_machine_states, org_id, task_name, task_trigger_name
                 } = task;
 
                 let num_machines = state_machine_config.len();
@@ -181,6 +188,21 @@ impl Task {
                     }
 
                     query.execute(&mut *tx).await?;
+                }
+
+                if let Some(notifications) = notifications {
+                    let input_notification = Notification{
+                        event: NotifyEvent::InputProcessed,
+                        payload: Some(payload),
+                        task_id,
+                        task_name,
+                        local_id: task_trigger_local_id,
+                        local_object_name: task_trigger_name,
+                        local_object_id: Some(task_trigger_id),
+                        error: None,
+                        log_id: Some(input_arrival_id),
+                    };
+                    notifications.notify(tx, &org_id, input_notification).await?;
                 }
                 Ok::<(), Error>(())
             })
