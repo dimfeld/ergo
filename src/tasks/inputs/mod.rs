@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 use uuid::Uuid;
 
+use super::Task;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct InputCategory {
     pub input_category_id: i64,
@@ -65,6 +67,8 @@ pub fn validate_input_payload(
 }
 
 pub struct EnqueueInputOptions<'a> {
+    /// If true, apply the input immediately instead of adding it to the queue.
+    pub run_immediately: bool,
     pub pg: &'a PostgresPool,
     pub notifications: Option<crate::notifications::NotificationManager>,
     pub org_id: Uuid,
@@ -80,6 +84,7 @@ pub struct EnqueueInputOptions<'a> {
 
 pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Error> {
     let EnqueueInputOptions {
+        run_immediately,
         pg,
         notifications,
         org_id,
@@ -97,21 +102,29 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
 
     let input_arrival_id = Uuid::new_v4();
 
+    let immediate_data = if run_immediately {
+        Some((notifications.clone(), payload.clone()))
+    } else {
+        None
+    };
+
     let mut conn = pg.acquire().await?;
     conn.transaction(|tx| {
         Box::pin(async move {
-            sqlx::query!(
-                r##"INSERT INTO event_queue
-        (task_id, input_id, task_trigger_id, inputs_log_id, payload) VALUES
-        ($1, $2, $3, $4, $5)"##,
-                task_id,
-                input_id,
-                task_trigger_id,
-                &input_arrival_id,
-                payload
-            )
-            .execute(&mut *tx)
-            .await?;
+            if !run_immediately {
+                sqlx::query!(
+                    r##"INSERT INTO event_queue
+            (task_id, input_id, task_trigger_id, inputs_log_id, payload) VALUES
+            ($1, $2, $3, $4, $5)"##,
+                    task_id,
+                    input_id,
+                    task_trigger_id,
+                    &input_arrival_id,
+                    payload
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
 
             sqlx::query!(
                 r##"INSERT INTO inputs_log
@@ -127,7 +140,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
             .execute(&mut *tx)
             .await?;
 
-            if let Some(notify) = &notifications {
+            if let Some(notify) = notifications {
                 let notification = Notification {
                     task_id,
                     local_id: task_trigger_local_id,
@@ -146,6 +159,19 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         })
     })
     .await?;
+
+    if let Some((notifications, payload)) = immediate_data {
+        Task::apply_input(
+            pg,
+            notifications,
+            task_id,
+            input_id,
+            task_trigger_id,
+            input_arrival_id,
+            payload,
+        )
+        .await?;
+    }
 
     Ok(input_arrival_id)
 }

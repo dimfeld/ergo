@@ -86,6 +86,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         notifications.clone(),
         input_queue.clone(),
         action_queue.clone(),
+        envoption::with_default("IMMEDIATE_INPUTS", false)?,
     )?;
 
     let queue_drain = if args.no_drain_queues {

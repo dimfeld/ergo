@@ -27,6 +27,7 @@ use fxhash::FxHashMap;
 use postgres_drain::QueueStageDrain;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::{Connection, Postgres, Transaction};
 use tracing::{event, field, instrument, Level};
 use uuid::Uuid;
@@ -489,7 +490,8 @@ async fn post_task_trigger(
     .await?
     .ok_or(Error::NotFound)?;
 
-    super::inputs::enqueue_input(EnqueueInputOptions {
+    let input_arrival_id = super::inputs::enqueue_input(EnqueueInputOptions {
+        run_immediately: data.immediate_inputs,
         pg: &data.pg,
         notifications: Some(data.notifications.clone()),
         org_id: org_id.clone(),
@@ -504,7 +506,7 @@ async fn post_task_trigger(
     })
     .await?;
 
-    Ok(HttpResponse::Accepted().finish())
+    Ok(HttpResponse::Accepted().json(json!({ "log_id": input_arrival_id })))
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {
