@@ -17,31 +17,23 @@ pub async fn send_discord_webhook(
     hook: &str,
     notification: &Notification,
 ) -> Result<()> {
-    // TODO Real formatting
+    let fields = notification
+        .fields()
+        .into_iter()
+        .map(|(name, value, inline)| {
+            json!({
+                "name": name,
+                "value": value,
+                "inline": inline,
+            })
+        })
+        .collect::<Vec<_>>();
+
     let payload = json!({
         "embeds": [
             {
                 "color": color(notification.event.level()),
-                "fields": [
-                    {
-                        "name": "Task",
-                        "value": &notification.task_name,
-                        "inline": true
-                    },
-                    {
-                        "name": notification.event.local_object_type(),
-                        "value": &notification.local_object_name,
-                        "inline": true
-                    },
-                    {
-                        "name": "Message",
-                        "value": format!("{:?}", notification),
-                    },
-                    {
-                        "name": "Log ID",
-                        "value": notification.log_id.map(|u| u.to_string()),
-                    }
-                ]
+                "fields": fields,
             }
         ]
     });

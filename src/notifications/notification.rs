@@ -26,15 +26,12 @@ impl Notification {
         output.push(("Task", Cow::from(&self.task_name), true));
         output.push((
             self.event.local_object_type(),
-            Cow::from(&self.task_name),
+            Cow::from(&self.local_object_name),
             true,
         ));
 
-        output.push(("Task", Cow::from(&self.task_name), true));
-        output.push(("Task", Cow::from(&self.task_name), true));
-
         if let Some(e) = self.error.as_ref() {
-            output.push(("Error", Cow::from(e.as_str()), true));
+            output.push(("Error", Cow::from(e.as_str()), false));
         }
 
         if let Some(p) = self.payload.as_ref() {
