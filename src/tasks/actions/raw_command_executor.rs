@@ -4,11 +4,15 @@ use super::{
     execute::{get_primitive_payload_value, json_primitive_as_string, Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
+use anyhow::anyhow;
 use async_trait::async_trait;
 use fxhash::FxHashMap;
 use serde_json::json;
 use std::process::Stdio;
 use tracing::{event, instrument, span, Level};
+
+#[cfg(target_family = "unix")]
+use std::os::unix::process::ExitStatusExt;
 
 #[derive(Debug)]
 pub struct RawCommandExecutor {
@@ -42,6 +46,14 @@ impl RawCommandExecutor {
                     description: Some("Environment variables to set".to_string()),
                 },
             ),
+            (
+                "allow_failure",
+                TemplateField{
+                    format: TemplateFieldFormat::Boolean,
+                    optional: true,
+                    description: Some("If true, ignore the process exit code. By default, a nonzero exit code counts as failure".to_string()),
+                }
+            )
         ]
         .into_iter()
         .map(|(key, val)| (key.to_string(), val))
@@ -95,6 +107,11 @@ impl Executor for RawCommandExecutor {
             }
         }
 
+        let allow_failure = match payload.get("allow_failure") {
+            Some(serde_json::Value::Bool(b)) => *b,
+            _ => false,
+        };
+
         event!(Level::DEBUG, ?cmd);
 
         let output = cmd
@@ -112,12 +129,26 @@ impl Executor for RawCommandExecutor {
         let stderr = String::from_utf8_lossy(&output.stderr);
         event!(Level::TRACE, %stdout, %stderr);
 
-        // TODO Return an error if exitcode is non-zero, and let the invoking action override this.
-        Ok(json!({
+        let result = json!({
             "exitcode": exitcode,
             "stdout": stdout,
             "stderr": stderr,
-        }))
+        });
+
+        if !output.status.success() && !allow_failure {
+            let msg = match (exit_status_message(&output.status), exitcode) {
+                (Some(m), _) => m,
+                (None, Some(code)) => format!("Exited with code {}", code),
+                (None, None) => "Exited with unknown error".to_string(),
+            };
+
+            return Err(ExecutorError::CommandError {
+                source: anyhow!(msg),
+                result,
+            });
+        }
+
+        Ok(result)
     }
 
     fn template_fields(&self) -> &TemplateFields {
@@ -125,6 +156,21 @@ impl Executor for RawCommandExecutor {
     }
 }
 
+#[cfg(unix)]
+fn exit_status_message(e: &std::process::ExitStatus) -> Option<String> {
+    if let Some(signal) = e.signal() {
+        return Some(format!("Exited with signal {}", signal));
+    }
+
+    None
+}
+
+#[cfg(not(unix))]
+fn exit_status_message(e: &std::process::ExitStatus) -> Option<String> {
+    None
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
