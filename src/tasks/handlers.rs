@@ -492,6 +492,7 @@ async fn post_task_trigger(
 
     let input_arrival_id = super::inputs::enqueue_input(EnqueueInputOptions {
         run_immediately: data.immediate_inputs,
+        immediate_actions: data.immediate_actions,
         pg: &data.pg,
         notifications: Some(data.notifications.clone()),
         org_id: org_id.clone(),

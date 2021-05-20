@@ -25,6 +25,7 @@ pub struct TaskExecutorConfig {
     pub notifications: Option<crate::notifications::NotificationManager>,
     /// The highest number of concurrent jobs to run. Defaults to twice the number of CPUs.
     pub max_concurrent_jobs: Option<usize>,
+    pub immediate_actions: bool,
 }
 
 impl TaskExecutor {
@@ -37,6 +38,7 @@ impl TaskExecutor {
         let processor = TaskExecutorJobProcessor {
             pg_pool: config.pg_pool,
             notifications: config.notifications,
+            immediate_actions: config.immediate_actions,
         };
 
         executor.queue.start_dequeuer_loop(
@@ -56,6 +58,7 @@ impl TaskExecutor {
 struct TaskExecutorJobProcessor {
     pg_pool: PostgresPool,
     notifications: Option<crate::notifications::NotificationManager>,
+    immediate_actions: bool,
 }
 
 #[async_trait]
@@ -71,6 +74,7 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
             invocation.task_trigger_id,
             invocation.inputs_log_id,
             invocation.payload.clone(),
+            self.immediate_actions,
         )
         .await?;
         Ok(())

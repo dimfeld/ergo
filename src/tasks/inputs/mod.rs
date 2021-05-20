@@ -69,6 +69,9 @@ pub fn validate_input_payload(
 pub struct EnqueueInputOptions<'a> {
     /// If true, apply the input immediately instead of adding it to the queue.
     pub run_immediately: bool,
+    /// If both `run_immediately` and `immediate_actions` are true, then run actions immediately
+    /// instead of enqueueing them.
+    pub immediate_actions: bool,
     pub pg: &'a PostgresPool,
     pub notifications: Option<crate::notifications::NotificationManager>,
     pub org_id: Uuid,
@@ -85,6 +88,7 @@ pub struct EnqueueInputOptions<'a> {
 pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Error> {
     let EnqueueInputOptions {
         run_immediately,
+        immediate_actions,
         pg,
         notifications,
         org_id,
@@ -169,6 +173,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
             task_trigger_id,
             input_arrival_id,
             payload,
+            immediate_actions,
         )
         .await?;
     }

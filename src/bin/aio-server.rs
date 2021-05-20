@@ -80,13 +80,17 @@ async fn main() -> Result<(), ergo::error::Error> {
         shutdown.consumer(),
     )?;
 
+    let immediate_actions = envoption::with_default("IMMEDIATE_ACTIONS", false)?;
+    let immediate_inputs = envoption::with_default("IMMEDIATE_INPUTS", false)?;
+
     let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = ergo::backend_data::app_data(
         backend_pg_pool.clone(),
         notifications.clone(),
         input_queue.clone(),
         action_queue.clone(),
-        envoption::with_default("IMMEDIATE_INPUTS", false)?,
+        immediate_inputs,
+        immediate_actions,
     )?;
 
     let queue_drain = if args.no_drain_queues {
@@ -107,6 +111,7 @@ async fn main() -> Result<(), ergo::error::Error> {
         shutdown: shutdown.consumer(),
         notifications: Some(notifications.clone()),
         max_concurrent_jobs: None,
+        immediate_actions,
     })?;
 
     let action_runner = ActionExecutor::new(ActionExecutorConfig {

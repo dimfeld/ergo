@@ -14,7 +14,10 @@ use crate::{
     database::{sql_insert_parameters, transaction::serializable, PostgresPool},
     error::Error,
     notifications::{Notification, NotifyEvent},
-    tasks::{actions::ActionStatus, inputs::InputStatus},
+    tasks::{
+        actions::{execute::execute, ActionInvocation, ActionStatus},
+        inputs::InputStatus,
+    },
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -64,7 +67,14 @@ impl Task {
         task_trigger_id: i64,
         input_arrival_id: uuid::Uuid,
         payload: serde_json::Value,
+        immediate_actions: bool,
     ) -> Result<(), Error> {
+        let immediate_data = if immediate_actions {
+            Some(notifications.clone())
+        } else {
+            None
+        };
+
         let result = serializable(pool, 5, move |tx| {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
@@ -168,26 +178,28 @@ impl Task {
 
                     let action_log_ids = log_query.fetch_all(&mut *tx).await?;
 
-                    let q = format!(
-                        r##"INSERT INTO action_queue
-                        (task_id, task_action_local_id, actions_log_id, input_arrival_id, payload)
-                        VALUES
-                        {}
-                        "##,
-                        sql_insert_parameters::<5>(actions.len())
-                    );
+                    if !immediate_actions {
+                        let q = format!(
+                            r##"INSERT INTO action_queue
+                            (task_id, task_action_local_id, actions_log_id, input_arrival_id, payload)
+                            VALUES
+                            {}
+                            "##,
+                            sql_insert_parameters::<5>(actions.len())
+                        );
 
-                    let mut query = sqlx::query(&q);
-                    for action in actions {
-                        query = query
-                            .bind(action.task_id)
-                            .bind(action.task_action_local_id)
-                            .bind(action.actions_log_id)
-                            .bind(action.input_arrival_id)
-                            .bind(action.payload);
+                        let mut query = sqlx::query(&q);
+                        for action in &actions {
+                            query = query
+                                .bind(action.task_id)
+                                .bind(&action.task_action_local_id)
+                                .bind(action.actions_log_id)
+                                .bind(action.input_arrival_id)
+                                .bind(&action.payload);
+                        }
+
+                        query.execute(&mut *tx).await?;
                     }
-
-                    query.execute(&mut *tx).await?;
                 }
 
                 if let Some(notifications) = notifications {
@@ -204,18 +216,30 @@ impl Task {
                     };
                     notifications.notify(tx, &org_id, input_notification).await?;
                 }
-                Ok::<(), Error>(())
+                Ok::<_, Error>(actions)
             })
         })
         .await;
 
-        let (log_error, status) = match &result {
-            Ok(_) => (None, InputStatus::Success),
+        let (log_error, status, retval) = match result {
+            Ok(actions) => {
+                if let Some(notifications) = immediate_data {
+                    for action in actions {
+                        let pool = pool.clone();
+                        let notifications = notifications.clone();
+                        tokio::task::spawn(async move {
+                            execute(&pool, notifications.as_ref(), &action).await
+                        });
+                    }
+                }
+                (None, InputStatus::Success, Ok(()))
+            }
             Err(e) => {
                 event!(Level::ERROR, err=?e, "Error applying input");
                 (
                     Some(serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) })),
                     InputStatus::Error,
+                    Err(e),
                 )
             }
         };
@@ -230,7 +254,7 @@ impl Task {
         .execute(pool)
         .await?;
 
-        result
+        retval
     }
 }
 
