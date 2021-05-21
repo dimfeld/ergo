@@ -114,6 +114,20 @@ pub struct TemplateField {
     pub description: Option<String>,
 }
 
+impl TemplateField {
+    pub fn from_static(
+        format: TemplateFieldFormat,
+        optional: bool,
+        description: &'static str,
+    ) -> TemplateField {
+        TemplateField {
+            format,
+            optional,
+            description: Some(description.to_string()),
+        }
+    }
+}
+
 pub type TemplateFields = FxHashMap<String, TemplateField>;
 
 #[derive(Debug)]

@@ -6,6 +6,7 @@ use super::{
     execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
+use anyhow::anyhow;
 use async_trait::async_trait;
 use fxhash::FxHashMap;
 use serde_json::json;
@@ -20,79 +21,75 @@ impl HttpExecutor {
         let template_fields = vec![
             (
                 "url",
-                TemplateField {
-                    format: TemplateFieldFormat::String,
-                    optional: false,
-                    description: Some("The URL to request".to_string()),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::String,
+                    false,
+                    "The URL to request",
+                ),
             ),
             (
                 "method",
-                TemplateField {
-                    format: TemplateFieldFormat::String,
-                    optional: true,
-                    description: Some("The HTTP method to use. Defaults to GET".to_string()),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::String,
+                    true,
+                    "The HTTP method to use. Defaults to GET",
+                ),
             ),
             (
                 "user_agent",
-                TemplateField {
-                    format: TemplateFieldFormat::String,
-                    optional: true,
-                    description: Some(
-                        "Use a custom user agent string (default is 'Ergo')".to_string(),
-                    ),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::String,
+                    true,
+                    "Use a custom user agent string (default is 'Ergo')",
+                ),
             ),
             (
                 "timeout",
-                TemplateField {
-                    format: TemplateFieldFormat::Integer,
-                    optional: true,
-                    description: Some(
-                        "The request timeout, in seconds. Default is 30 seconds".to_string(),
-                    ),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::Integer,
+                    true,
+                    "The request timeout, in seconds. Default is 30 seconds",
+                ),
             ),
             (
                 "json",
-                TemplateField {
-                    format: TemplateFieldFormat::Object,
-                    optional: true,
-                    description: Some("A JSON body to send with the request".to_string()),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::Object,
+                    true,
+                    "A JSON body to send with the request",
+                ),
             ),
             (
                 "body",
-                TemplateField {
-                    format: TemplateFieldFormat::String,
-                    optional: true,
-                    description: Some("A raw string body to send with the request".to_string()),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::String,
+                    true,
+                    "A raw string body to send with the request",
+                ),
             ),
             (
                 "query",
-                TemplateField {
-                    format: TemplateFieldFormat::Object,
-                    optional: true,
-                    description: Some("Query string to send"),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::Object,
+                    true,
+                    "Query string to send",
+                ),
             ),
             (
                 "headers",
-                TemplateField {
-                    format: TemplateFieldFormat::Object,
-                    optional: true,
-                    description: Some("HTTP header values for the request".to_string()),
-                },
+                TemplateField::from_static(
+                    TemplateFieldFormat::Object,
+                    true,
+                    "HTTP header values for the request",
+                ),
             ),
             (
-                "cookies",
-                TemplateField {
-                    format: TemplateFieldFormat::Object,
-                    optional: true,
-                    description: Some("HTTP cookies to send with the request".to_string()),
-                },
+                "result_as_bytes",
+                TemplateField::from_static(
+                    TemplateFieldFormat::Boolean,
+                    true,
+                    "Treat the result as raw bytes instead of JSON",
+                ),
             ),
         ]
         .into_iter()
@@ -128,7 +125,7 @@ impl Executor for HttpExecutor {
             .timeout(std::time::Duration::from_secs(timeout))
             .build()
             .map_err(|e| ExecutorError::CommandError {
-                source: e,
+                source: anyhow!(e),
                 result: serde_json::Value::Null,
             })?;
 
@@ -154,13 +151,30 @@ impl Executor for HttpExecutor {
 
         let req = match payload.get("headers") {
             Some(serde_json::Value::Object(o)) => {
-                let mut header_map = reqwest::header::HeaderMap::try_from(o).map_err(|e| {
-                    ExecutorError::FieldFormatError {
-                        field: "headers".to_string(),
-                        subfield: None,
-                        expected: e.to_string(),
-                    }
-                })?;
+                let header_map = o
+                    .iter()
+                    .map(|(k, v)| {
+                        let name = reqwest::header::HeaderName::try_from(k).map_err(|e| {
+                            ExecutorError::FieldFormatError {
+                                field: "headers".to_string(),
+                                subfield: Some(k.to_string()),
+                                expected: "Valid HTTP header name".to_string(),
+                            }
+                        })?;
+
+                        let value = v
+                            .as_str()
+                            .and_then(|s| reqwest::header::HeaderValue::from_str(s).ok())
+                            .ok_or_else(|| ExecutorError::FieldFormatError {
+                                field: "headers".to_string(),
+                                subfield: Some(k.to_string()),
+                                expected: "Valid HTTP header string value".to_string(),
+                            })?;
+
+                        Ok((name, value))
+                    })
+                    .collect::<Result<reqwest::header::HeaderMap, ExecutorError>>()?;
+
                 req.headers(header_map)
             }
             _ => req,
@@ -171,17 +185,50 @@ impl Executor for HttpExecutor {
             _ => req,
         };
 
-        let req = match (payload.get("json"), payload.get("body")) {
+        let body = payload
+            .get("body")
+            .and_then(|s| s.as_str())
+            .map(|s| s.to_string());
+        let req = match (payload.get("json"), body) {
             (Some(json), _) => req.json(json),
-            (None, Some(serde_json::Value::String(body))) => req.body(body),
+            (None, Some(body)) => req.body(body),
             _ => req,
         };
 
-        let result = req.send().await;
+        let result = req
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| ExecutorError::CommandError {
+                source: anyhow!(e),
+                result: json!(null),
+            })?;
 
-        // TODO Add cookies, basic/bearer auth
+        let output = if payload
+            .get("result_as_bytes")
+            .and_then(|b| b.as_bool())
+            .unwrap_or(false)
+        {
+            let r = result
+                .json()
+                .await
+                .map_err(|e| ExecutorError::CommandError {
+                    source: anyhow!(e),
+                    result: json!(null),
+                })?;
+            json!({ "response": r })
+        } else {
+            let r = result
+                .text()
+                .await
+                .map_err(|e| ExecutorError::CommandError {
+                    source: anyhow!(e),
+                    result: json!(null),
+                })?;
+            json!({ "response": r })
+        };
 
-        Ok(json!(null))
+        Ok(output)
     }
 
     fn template_fields(&self) -> &TemplateFields {
