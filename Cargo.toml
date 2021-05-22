@@ -5,39 +5,6 @@ authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"
 resolver = "2"
 
-default-run = "aio-server"
-
-[lib]
-name = "ergo"
-
-[[bin]]
-name = "aio-server"
-path = "src/bin/aio-server.rs"
-
-[[bin]]
-name = "drain-queues"
-path = "src/bin/drain-queues.rs"
-
-[[bin]]
-name = "erq"
-path = "src/bin/erq.rs"
-
-[[bin]]
-name = "erq-stress"
-path = "src/bin/erq-stress.rs"
-
-[[bin]]
-name = "hash_passwd"
-path = "src/bin/hash_passwd.rs"
-
-[[bin]]
-name = "make_api_key"
-path = "src/bin/make_api_key.rs"
-
-[[bin]]
-name = "make_json_schema"
-path = "src/bin/make_json_schema.rs"
-
 [features]
 test-redis = []
 test-all = ["test-redis"]

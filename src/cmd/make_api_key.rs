@@ -1,10 +1,10 @@
-use ergo::error::Result;
+use crate::error::Result;
 use sqlx::Connection;
 use structopt::StructOpt;
 use uuid::Uuid;
 
 #[derive(Debug, StructOpt)]
-struct Args {
+pub struct Args {
     #[structopt(
         short,
         long,
@@ -22,17 +22,13 @@ struct Args {
     description: Option<String>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    dotenv::dotenv().ok();
-    let args = Args::from_args();
-
+pub async fn main(args: Args) -> Result<()> {
     let mut conn = sqlx::PgConnection::connect(&args.database).await?;
     let mut tx = conn.begin().await?;
 
     // Eventually all this code will be integrated into the ergo library itself.
 
-    let key = ergo::auth::api_key::ApiKeyData::new();
+    let key = crate::auth::api_key::ApiKeyData::new();
 
     sqlx::query!(
         "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",
