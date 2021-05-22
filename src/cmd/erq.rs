@@ -3,13 +3,13 @@ use std::{borrow::Cow, time::Duration};
 use dotenv::dotenv;
 use structopt::StructOpt;
 
-use ergo::{
+use crate::{
     error::Error,
     queues::{Job, Queue},
 };
 
 #[derive(Debug, StructOpt)]
-struct Args {
+pub struct Args {
     queue: String,
     #[structopt(subcommand)]
     cmd: QueueCmd,
@@ -24,7 +24,7 @@ enum QueueCmd {
     #[structopt(name = "show-job", about = "Show information about a job")]
     ShowJob { id: String },
     #[structopt(
-        about = "Get and acknowledge the next job on the queue. (Don't use this for production)"
+        about = "Get and acknowledge the next job on the queue. (Don't use this in production)"
     )]
     Run {
         #[structopt(
@@ -42,12 +42,11 @@ enum QueueCmd {
     },
     #[structopt(about = "Cancel a job")]
     Cancel { id: String },
+    #[structopt(about = "Run a stress test on the queue system")]
+    Stress(super::erq_stress::Args),
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    dotenv().ok();
-    let args = Args::from_args();
+pub async fn main(args: Args) -> Result<(), Error> {
     let redis_database = std::env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_pool = deadpool_redis::Config {
         url: Some(redis_database),
@@ -82,6 +81,7 @@ async fn main() -> Result<(), Error> {
             Some(job) => println!("{:?}", job),
             None => println!("Job not found"),
         },
+        QueueCmd::Stress(stress_args) => super::erq_stress::main(args.queue, stress_args).await?,
     }
     Ok(())
 }

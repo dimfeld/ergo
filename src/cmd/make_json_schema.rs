@@ -1,4 +1,4 @@
-use ergo::tasks::{
+use crate::tasks::{
     actions::handlers::ActionPayload, handlers::TaskInput, inputs::handlers::InputPayload,
 };
 
@@ -14,7 +14,7 @@ fn write(name: &str, schema: &RootSchema) -> std::io::Result<()> {
     Ok(())
 }
 
-fn main() -> std::io::Result<()> {
+pub fn main() -> crate::error::Result<()> {
     let task_input = schema_for!(TaskInput);
     write("task_input", &task_input)?;
 

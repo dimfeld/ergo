@@ -1,8 +1,3 @@
-#![allow(dead_code, unused_imports, unused_variables)] // Remove this once the basic application is up and working
-
-//! A server that includes all the functionality in one executable.
-//! Mostly useful for development or test purposes.
-
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{
     web::{self, PathConfig},
@@ -14,7 +9,7 @@ use structopt::StructOpt;
 use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
-use ergo::{
+use crate::{
     auth::{
         middleware::{AuthenticateMiddleware, AuthenticateService},
         AuthData,
@@ -37,23 +32,16 @@ use ergo::{
 };
 
 #[derive(Debug, StructOpt)]
-struct Args {
+pub struct Args {
     #[structopt(long, help = "Do not run the PostgreSQL queue stage drain tasks")]
     no_drain_queues: bool,
 }
 
-#[actix_web::main]
-async fn main() -> Result<(), ergo::error::Error> {
-    dotenv::dotenv().ok();
-    dotenv::from_filename("vault_dev_roles.env").ok();
-
-    let args = Args::from_args();
-
-    ergo::tracing_config::configure("ergo-server");
-
+pub async fn main(args: Args) -> Result<(), crate::error::Error> {
+    crate::tracing_config::configure("ergo");
     let shutdown = GracefulShutdown::new();
 
-    let vault_client = ergo::vault::from_env("AIO_SERVER", &shutdown).await;
+    let vault_client = crate::vault::from_env("AIO_SERVER", &shutdown).await;
     tracing::info!(
         "Vault mode {}",
         vault_client
@@ -65,16 +53,17 @@ async fn main() -> Result<(), ergo::error::Error> {
     let address: String = envoption::with_default("BIND_ADDRESS", "127.0.0.1")?;
     let port: u16 = envoption::with_default("BIND_PORT", 6543 as u16)?;
 
-    let web_pg_pool = ergo::service_config::web_pg_pool(shutdown.consumer(), &vault_client).await?;
+    let web_pg_pool =
+        crate::service_config::web_pg_pool(shutdown.consumer(), &vault_client).await?;
     let backend_pg_pool =
-        ergo::service_config::backend_pg_pool(shutdown.consumer(), &vault_client).await?;
+        crate::service_config::backend_pg_pool(shutdown.consumer(), &vault_client).await?;
 
-    let redis_pool = ergo::service_config::redis_pool()?;
+    let redis_pool = crate::service_config::redis_pool()?;
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
-    let notifications = ergo::notifications::NotificationManager::new(
+    let notifications = crate::notifications::NotificationManager::new(
         backend_pg_pool.clone(),
         redis_pool.clone(),
         shutdown.consumer(),
@@ -83,8 +72,8 @@ async fn main() -> Result<(), ergo::error::Error> {
     let immediate_actions = envoption::with_default("IMMEDIATE_ACTIONS", false)?;
     let immediate_inputs = envoption::with_default("IMMEDIATE_INPUTS", false)?;
 
-    let web_app_data = ergo::web_app_server::app_data(web_pg_pool.clone());
-    let backend_app_data = ergo::backend_data::app_data(
+    let web_app_data = crate::web_app_server::app_data(web_pg_pool.clone());
+    let backend_app_data = crate::backend_data::app_data(
         backend_pg_pool.clone(),
         notifications.clone(),
         input_queue.clone(),
@@ -96,7 +85,7 @@ async fn main() -> Result<(), ergo::error::Error> {
     let queue_drain = if args.no_drain_queues {
         None
     } else {
-        Some(ergo::tasks::queue_drain_runner::AllQueuesDrain::new(
+        Some(crate::tasks::queue_drain_runner::AllQueuesDrain::new(
             input_queue.clone(),
             action_queue.clone(),
             backend_pg_pool.clone(),

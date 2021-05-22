@@ -7,14 +7,14 @@ use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 
-use ergo::{
+use crate::{
     error::Error,
     graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
     queues::{Job, JobId, Queue},
 };
 
 #[derive(Debug, StructOpt)]
-struct Args {
+pub struct Args {
     #[structopt(
         long,
         required_unless = "num-jobs",
@@ -39,11 +39,6 @@ struct Args {
         help = "Produce all the jobs first and then consume them, instead of doing them concurrently"
     )]
     staged: bool,
-    #[structopt(
-        long,
-        help = "The queue to run against. Normally you should omit this and let the tool generate its own queue id"
-    )]
-    queue: Option<String>,
 }
 
 enum JobLimit {
@@ -51,10 +46,7 @@ enum JobLimit {
     Time(Duration),
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Error> {
-    dotenv().ok();
-    let args = Args::from_args();
+pub async fn main(queue_name: String, args: Args) -> Result<(), Error> {
     let redis_database = std::env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_pool = deadpool_redis::Config {
         url: Some(redis_database),
@@ -65,9 +57,6 @@ async fn main() -> Result<(), Error> {
     .create_pool()
     .expect("Creating redis pool");
 
-    let queue_name = args
-        .queue
-        .unwrap_or_else(|| format!("stress-{}", uuid::Uuid::new_v4()));
     let queue = Queue::new(redis_pool.clone(), &queue_name, None, None, None);
 
     let job_limit = match (args.num_jobs, args.time) {
