@@ -20,7 +20,7 @@ This project is in very early stages right now with no current plans for proper 
   - [ ] trigger events unconditionally on a schedule
 - [ ] Actions
   - [ ] Spawn docker containers (and/or Nomad jobs?)
-  - [ ] Query HTTP endpoints
+  - [X] Query HTTP endpoints
   - [X] Run some local command
   - [X] Link actions to accounts when required
   - [ ] Embedded scripting for actions
@@ -44,21 +44,21 @@ This project is in very early stages right now with no current plans for proper 
 
 # Roadmap
 
-## 0.1
-
-- [X] Events can be triggered by REST endpoint
-- [X] Tasks consists of one event that triggers one or more actions
-- [X] Actions can run local scripts
-- [ ] Log everything that happens
-    - [X] Log inputs and actions to Postgres tables
-    - [ ] Trigger Discord webhooks
-- [X] Events go into a queue for processing
-- [X] Actions are triggered from a queue
-
 ## 0.2
 
 - [ ] Add all missing tests
 - [ ] Simple Web UI
 - [ ] Scripting
 - [ ] Ability to run Nomad jobs as actions
+
+## 0.1
+
+- [X] Events can be triggered by REST endpoint
+- [X] Tasks consists of one event that triggers one or more actions
+- [X] Actions can run local scripts
+- [X] Log everything that happens
+    - [X] Log inputs and actions to Postgres tables
+    - [X] Trigger Discord webhooks
+- [X] Events go into a queue for processing
+- [X] Actions are triggered from a queue
 
