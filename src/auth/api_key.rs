@@ -185,4 +185,12 @@ mod tests {
         key.pop();
         decode_key(&key).expect_err("length too low");
     }
+
+    #[test]
+    #[ignore]
+    fn key_from_query_string() {}
+
+    #[test]
+    #[ignore]
+    fn key_from_bearer() {}
 }

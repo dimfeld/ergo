@@ -223,6 +223,7 @@ impl AuthData {
 
         match identity {
             Some(identity) => {
+                // TODO This should be a session ID, not a user ID.
                 let user_id = Uuid::parse_str(&identity)?;
 
                 let req_user = self.get_user_info(&user_id).await?;
@@ -289,5 +290,29 @@ mod tests {
         #[test]
         #[ignore]
         fn user_entity_ids() {}
+
+        #[test]
+        #[ignore]
+        fn auth_by_api_key() {}
+
+        #[test]
+        #[ignore]
+        fn auth_by_identity() {}
+
+        #[test]
+        #[ignore]
+        fn unknown_user() {}
+
+        #[test]
+        #[ignore]
+        fn deleted_user() {}
+
+        #[test]
+        #[ignore]
+        fn deleted_org() {}
+
+        #[test]
+        #[ignore]
+        fn admin_user_flag() {}
     }
 }

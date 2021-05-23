@@ -54,4 +54,11 @@ mod tests {
         verify_password("abcdefg", &hash).expect_err("non-matching password");
         Ok(())
     }
+
+    #[test]
+    fn unique_password_salt() {
+        let p1 = new_hash("abc").unwrap();
+        let p2 = new_hash("abc").unwrap();
+        assert_ne!(p1, p2);
+    }
 }

@@ -61,3 +61,14 @@ where
         Err(Error::SerializationFailure)
     })
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn handles_serialization_error() {}
+
+    #[test]
+    #[ignore]
+    fn bails_on_error() {}
+}

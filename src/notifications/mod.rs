@@ -6,7 +6,7 @@ use std::{borrow::Cow, sync::Arc};
 
 use futures::stream::{FuturesUnordered, Stream, StreamExt};
 use smallvec::SmallVec;
-use sqlx::{PgConnection, Postgres, Transaction};
+use sqlx::{Acquire, Connection, PgConnection, Postgres, Transaction};
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -57,6 +57,12 @@ struct NotificationJob<'a> {
     notification: Cow<'a, Notification>,
 }
 
+#[derive(sqlx::FromRow)]
+struct ServiceAndDestination {
+    service: NotifyService,
+    destination: String,
+}
+
 impl NotificationManager {
     pub fn new(
         pg_pool: PostgresPool,
@@ -78,12 +84,26 @@ impl NotificationManager {
         org_id: &uuid::Uuid,
         notification: Notification,
     ) -> Result<()> {
-        #[derive(sqlx::FromRow)]
-        struct ServiceAndDestination {
-            service: NotifyService,
-            destination: String,
-        }
+        let notifications = self.get_notifiers(tx, org_id, &notification).await?;
 
+        for sd in notifications {
+            let payload = NotificationJob {
+                service: sd.service,
+                destination: sd.destination,
+                notification: Cow::Borrowed(&notification),
+            };
+
+            QueueJob::new(QUEUE_NAME, &payload).enqueue(tx).await?;
+        }
+        Ok(())
+    }
+
+    async fn get_notifiers(
+        &self,
+        tx: &mut PgConnection,
+        org_id: &uuid::Uuid,
+        notification: &Notification,
+    ) -> Result<Vec<ServiceAndDestination>> {
         let mut object_ids = SmallVec::<[i64; 3]>::new();
         object_ids.push(1);
         object_ids.push(notification.task_id);
@@ -102,19 +122,10 @@ impl NotificationManager {
             object_ids.as_slice(),
             notification.event as _,
         )
-        .fetch_all(&mut *tx)
+        .fetch_all(tx)
         .await?;
 
-        for sd in notifications {
-            let payload = NotificationJob {
-                service: sd.service,
-                destination: sd.destination,
-                notification: Cow::Borrowed(&notification),
-            };
-
-            QueueJob::new(QUEUE_NAME, &payload).enqueue(tx).await?;
-        }
-        Ok(())
+        Ok(notifications)
     }
 
     pub fn start_dequeuer_loop(&mut self) -> Result<(), Error> {
@@ -161,4 +172,11 @@ impl QueueJobProcessor for NotifyExecutor {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn runs_all_notifiers() {}
 }

@@ -65,3 +65,18 @@ pub async fn new_object_id_with_value(
 
     Ok(result)
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn new_value() {}
+
+    #[test]
+    #[ignore]
+    fn with_existing_value_of_same_type() {}
+
+    #[test]
+    #[ignore]
+    fn with_existing_value_of_different_type() {}
+}

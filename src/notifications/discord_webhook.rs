@@ -42,3 +42,10 @@ pub async fn send_discord_webhook(
     client.post(&url).json(&payload).send().await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn sends_notification() {}
+}
