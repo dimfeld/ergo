@@ -1073,7 +1073,7 @@ checksum = "9a0d00a04f5ad3a7097409ea66cecf267fd7bbac98e66bc97614e14fe32b4e35"
 
 [[package]]
 name = "ergo"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "actix-identity",
  "actix-service",
