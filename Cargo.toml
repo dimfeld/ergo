@@ -5,6 +5,13 @@ authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"
 resolver = "2"
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+path = "src/main.rs"
+name = "ergo"
+
 [features]
 test-redis = []
 test-all = ["test-redis"]
