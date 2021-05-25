@@ -11,6 +11,7 @@ This project is in very early stages right now with no current plans for proper 
 - Scrape websites and populate a local database
 - Fetch filled brokerage orders
 - Interactive Slack/Discord bots
+- Multi-stage ETL pipelines
 
 # Anticipated Features
 
