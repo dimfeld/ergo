@@ -235,3 +235,30 @@ impl Executor for HttpExecutor {
         &self.template_fields
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    #[ignore]
+    fn simple_request() {}
+
+    #[test]
+    #[ignore]
+    fn complex_request() {}
+
+    #[test]
+    #[ignore]
+    fn string_body() {}
+
+    #[test]
+    #[ignore]
+    fn json_body() {}
+
+    #[test]
+    #[ignore]
+    fn string_result() {}
+
+    #[test]
+    #[ignore]
+    fn json_result() {}
+}

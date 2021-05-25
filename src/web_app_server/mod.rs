@@ -43,11 +43,3 @@ pub fn config(cfg: &mut web::ServiceConfig) {}
 //
 //     Ok(server)
 // }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}

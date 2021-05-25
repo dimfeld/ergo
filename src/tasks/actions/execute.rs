@@ -452,8 +452,6 @@ fn prepare_invocation(
         &action_template_values,
     )?;
 
-    // 5. Write results to the action log. Retry on failure.
-
     Ok(action_template_values)
 }
 
@@ -485,5 +483,18 @@ mod tests {
     }
 
     #[test]
-    fn test_simple() {}
+    #[ignore]
+    fn json_primitive_as_string() {}
+
+    #[test]
+    #[ignore]
+    fn get_primitive_payload_value() {}
+
+    #[test]
+    #[ignore]
+    fn passing_action() {}
+
+    #[test]
+    #[ignore]
+    fn failing_action() {}
 }
