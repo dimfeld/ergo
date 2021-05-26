@@ -14,3 +14,6 @@ pub mod tasks;
 pub mod tracing_config;
 pub mod vault;
 pub mod web_app_server;
+
+#[cfg(test)]
+pub mod test;
