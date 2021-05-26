@@ -16,19 +16,19 @@ use futures::{
 
 use super::AuthData;
 
-pub struct AuthenticateService {
+pub struct AuthenticateMiddlewareFactory {
     auth_data: Rc<AuthData>,
 }
 
-impl AuthenticateService {
+impl AuthenticateMiddlewareFactory {
     pub fn new(auth_data: AuthData) -> Self {
-        AuthenticateService {
+        AuthenticateMiddlewareFactory {
             auth_data: Rc::new(auth_data),
         }
     }
 }
 
-impl<S, B> Transform<S, ServiceRequest> for AuthenticateService
+impl<S, B> Transform<S, ServiceRequest> for AuthenticateMiddlewareFactory
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
     S::Future: 'static,

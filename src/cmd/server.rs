@@ -11,7 +11,7 @@ use tracing_actix_web::TracingLogger;
 
 use crate::{
     auth::{
-        middleware::{AuthenticateMiddleware, AuthenticateService},
+        middleware::{AuthenticateMiddleware, AuthenticateMiddlewareFactory},
         AuthData,
     },
     database::VaultPostgresPoolAuth,
@@ -140,7 +140,9 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
                 }))
                 .app_data(web_app_data.clone())
                 .app_data(backend_app_data.clone())
-                .wrap(AuthenticateService::new(backend_app_data.auth.clone()))
+                .wrap(AuthenticateMiddlewareFactory::new(
+                    backend_app_data.auth.clone(),
+                ))
                 .wrap(identity)
                 .wrap(TracingLogger::default())
                 .configure(web_app_server::config)
