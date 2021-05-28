@@ -14,7 +14,7 @@ use futures::{
     ready, Future, FutureExt,
 };
 
-use super::AuthData;
+use super::{AuthData, AuthenticationInfo};
 
 pub struct AuthenticateMiddlewareFactory {
     auth_data: Rc<AuthData>,
@@ -77,7 +77,8 @@ where
             let id = req.get_identity();
             let auth = auth_data.authenticate(id, &req).await?;
             if let Some(auth) = auth {
-                req.extensions_mut().insert(Arc::new(auth));
+                req.extensions_mut()
+                    .insert::<Rc<AuthenticationInfo>>(Rc::new(auth));
             }
 
             let res = srv.call(req).await?;

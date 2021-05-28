@@ -5,7 +5,7 @@ pub mod password;
 
 use std::{
     future::{ready, Ready},
-    sync::Arc,
+    rc::Rc,
 };
 
 use api_key::get_api_key;
@@ -65,14 +65,14 @@ pub struct RequestUser {
 }
 
 /// Extracts authentication information for routes that optionally require it.
-pub struct MaybeAuthenticated(Option<Arc<AuthenticationInfo>>);
+pub struct MaybeAuthenticated(Option<Rc<AuthenticationInfo>>);
 
 impl MaybeAuthenticated {
-    pub fn into_inner(self) -> Option<Arc<AuthenticationInfo>> {
+    pub fn into_inner(self) -> Option<Rc<AuthenticationInfo>> {
         self.0
     }
 
-    pub fn expect_authed(self) -> Result<Arc<AuthenticationInfo>> {
+    pub fn expect_authed(self) -> Result<Rc<AuthenticationInfo>> {
         self.0.ok_or(Error::AuthenticationError)
     }
 }
@@ -82,14 +82,14 @@ impl FromRequest for MaybeAuthenticated {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut actix_web::dev::Payload) -> Self::Future {
-        let value = req.extensions().get::<Arc<AuthenticationInfo>>().cloned();
+    fn from_request(req: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
+        let value = req.extensions().get::<Rc<AuthenticationInfo>>().cloned();
         ready(Ok(MaybeAuthenticated(value)))
     }
 }
 
 impl std::ops::Deref for MaybeAuthenticated {
-    type Target = Option<Arc<AuthenticationInfo>>;
+    type Target = Option<Rc<AuthenticationInfo>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -99,10 +99,10 @@ impl std::ops::Deref for MaybeAuthenticated {
 /// Extracts authentication information for routes that must be authenticated.
 /// Returns an Error::AuthenticationError if the user is not authenticated.
 #[derive(Debug)]
-pub struct Authenticated(Arc<AuthenticationInfo>);
+pub struct Authenticated(Rc<AuthenticationInfo>);
 
 impl Authenticated {
-    pub fn into_inner(self) -> Arc<AuthenticationInfo> {
+    pub fn into_inner(self) -> Rc<AuthenticationInfo> {
         self.0
     }
 }
@@ -112,8 +112,8 @@ impl FromRequest for Authenticated {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut actix_web::dev::Payload) -> Self::Future {
-        let value = req.extensions().get::<Arc<AuthenticationInfo>>().cloned();
+    fn from_request(req: &HttpRequest, _payload: &mut actix_web::dev::Payload) -> Self::Future {
+        let value = req.extensions().get::<Rc<AuthenticationInfo>>().cloned();
         let result = match value {
             Some(v) => Ok(Authenticated(v)),
             None => Err(Error::AuthenticationError),
@@ -123,7 +123,7 @@ impl FromRequest for Authenticated {
 }
 
 impl std::ops::Deref for Authenticated {
-    type Target = Arc<AuthenticationInfo>;
+    type Target = Rc<AuthenticationInfo>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
