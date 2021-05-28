@@ -1,9 +1,8 @@
 //! Read events from the queues and execute tasks
 
-use std::{num::NonZeroU32, sync::Arc};
+use std::num::NonZeroU32;
 
 use async_trait::async_trait;
-use tokio::task::JoinHandle;
 
 use crate::{
     database::PostgresPool,

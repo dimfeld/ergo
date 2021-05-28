@@ -17,7 +17,6 @@ pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
 use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 use std::{
-    borrow::Cow,
     num::NonZeroU32,
     sync::{Arc, Mutex},
     time::Duration,
@@ -25,11 +24,6 @@ use std::{
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono::{DateTime, TimeZone, Utc};
-use futures::{
-    stream::{FuturesUnordered, Stream, StreamExt},
-    Future, FutureExt,
-};
-use redis::{AsyncCommands, RedisError};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
@@ -287,7 +281,6 @@ impl Queue {
             return;
         }
 
-        let pool = self.0.pool.clone();
         let queue = self.clone();
         let (closer_tx, closer_rx) = oneshot::channel::<()>();
         let task = tokio::spawn(async move {
@@ -362,7 +355,6 @@ impl Queue {
         let max_jobs = max_jobs
             .map(|n| n.get() as usize)
             .unwrap_or_else(|| num_cpus::get() * 2);
-        let pool = self.0.pool.clone();
         let queue = self.clone();
         let (closer_tx, closer_rx) = oneshot::channel::<()>();
 
@@ -388,7 +380,6 @@ impl Queue {
         job_id: &str,
         job_id_key: &str,
         now: &DateTime<Utc>,
-        now_millis: i64,
     ) -> Result<QueueWorkItem<T>, Error> {
         let (payload, expiration) = self
             .0
@@ -418,7 +409,7 @@ impl Queue {
             timeout,
             current_retries,
             max_retries,
-            retry_backoff,
+            _retry_backoff,
             run_at,
             enqueued_at,
             started_at,
@@ -482,7 +473,6 @@ impl Queue {
     ) -> Result<Option<QueueWorkItem<T>>, Error> {
         // 1. Run dequeue script
         let now = Utc::now();
-        let now_millis = now.timestamp_millis();
         let mut conn = self.0.pool.get().await?;
         let result: Option<String> = self
             .0
@@ -498,7 +488,7 @@ impl Queue {
             }
         };
         let job_id_key = self.job_data_key(&job_id);
-        self.start_working(&mut conn, &job_id, &job_id_key, &now, now_millis)
+        self.start_working(&mut conn, &job_id, &job_id_key, &now)
             .await
             .map(Some)
     }
@@ -541,8 +531,7 @@ impl Queue {
         let now = Utc::now();
 
         let mut conn = self.0.pool.get().await?;
-        let (retry_count, next_run) = self
-            .0
+        self.0
             .error_script
             .run(
                 self,
@@ -577,7 +566,8 @@ impl Clone for Queue {
 mod tests {
     use super::*;
     use crate::error::Error;
-    use futures::stream::StreamExt;
+    use futures::{Future, FutureExt};
+    use std::borrow::Cow;
 
     #[derive(Serialize, Deserialize)]
     struct SimplePayload {

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::hash_map::RandomState};
+use std::borrow::Cow;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -7,9 +7,9 @@ use lazy_static::lazy_static;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sqlx::{types::Json, Postgres};
+use sqlx::types::Json;
 use thiserror::Error;
-use tracing::{event, instrument, span, Instrument, Level};
+use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
 use crate::{
@@ -459,7 +459,7 @@ fn prepare_invocation(
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use serde_json::{json, Value};
+    use serde_json::Value;
 
     #[derive(Debug)]
     struct MockExecutor {
@@ -471,7 +471,7 @@ mod tests {
     impl Executor for MockExecutor {
         async fn execute(
             &self,
-            pg_pool: PostgresPool,
+            _pg_pool: PostgresPool,
             template_values: FxHashMap<String, Value>,
         ) -> Result<Value, ExecutorError> {
             todo!()

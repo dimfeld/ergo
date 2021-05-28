@@ -56,7 +56,6 @@ impl QueueJobProcessor for ActionExecutorJobProcessor {
     type Payload = ActionInvocation;
 
     async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error> {
-        let invocation = &item.data;
         execute(&self.pg_pool, self.notifications.as_ref(), &item.data).await?;
         Ok(())
     }

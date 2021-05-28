@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports, unused_variables)] // Remove this once the basic application is up and working
+#![allow(dead_code)] // Remove this once the basic application is up and working
 pub mod auth;
 pub mod backend_data;
 pub mod cmd;

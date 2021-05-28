@@ -1,7 +1,7 @@
 use actix_web::{
     delete, get, post, put,
-    web::{self, Data, Path},
-    HttpRequest, HttpResponse, Responder,
+    web::{self, Path},
+    HttpResponse, Responder,
 };
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -12,7 +12,6 @@ use crate::{
     auth::Authenticated,
     database::{object_id::new_object_id_with_value, sql_insert_parameters},
     error::{Error, Result},
-    tasks::inputs::Input,
     web_app_server::AppStateData,
 };
 
@@ -218,6 +217,7 @@ pub async fn delete_action(
     auth: Authenticated,
     action_id: Path<i64>,
 ) -> Result<impl Responder> {
+    auth.expect_admin()?;
     sqlx::query!(
         "DELETE FROM actions WHERE action_id=$1",
         action_id.into_inner()

@@ -4,9 +4,6 @@ pub mod inputs;
 pub mod queue_drain_runner;
 mod state_machine;
 
-use std::{error::Error as StdError, pin::Pin, sync::Arc};
-
-use smallvec::SmallVec;
 pub use state_machine::StateMachineError;
 use tracing::{event, instrument, Level};
 
@@ -15,21 +12,16 @@ use crate::{
     error::Error,
     notifications::{Notification, NotifyEvent},
     tasks::{
-        actions::{execute::execute, ActionInvocation, ActionStatus},
+        actions::{execute::execute, ActionStatus},
         inputs::InputStatus,
     },
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{types::Json, Executor, FromRow, Postgres, Row, Transaction};
+use sqlx::{types::Json, FromRow};
 use uuid::Uuid;
 
-use self::{
-    actions::TaskAction,
-    state_machine::{
-        ActionInvocations, StateMachineData, StateMachineStates, StateMachineWithData,
-    },
-};
+use self::state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData};
 
 #[derive(Serialize, Deserialize, FromRow)]
 pub struct Task {
@@ -176,7 +168,7 @@ impl Task {
                             .bind(ActionStatus::Pending);
                     }
 
-                    let action_log_ids = log_query.fetch_all(&mut *tx).await?;
+                    log_query.fetch_all(&mut *tx).await?;
 
                     if !immediate_actions {
                         let q = format!(

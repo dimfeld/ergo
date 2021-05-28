@@ -1,35 +1,21 @@
-use super::{
-    actions::{self, queue::ActionQueue, TaskAction},
-    inputs::{self, queue::InputQueue},
-    state_machine, Task,
-};
+use super::state_machine;
 use crate::{
-    auth::{self, AuthData, Authenticated, MaybeAuthenticated},
+    auth::Authenticated,
     backend_data::BackendAppStateData,
-    database::{
-        object_id::new_object_id, PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions,
-    },
+    database::object_id::new_object_id,
     error::{Error, Result},
-    queues::postgres_drain,
     tasks::inputs::EnqueueInputOptions,
-    vault::VaultClientTokenData,
     web_app_server::AppStateData,
 };
 
-use actix_identity::Identity;
-use actix_web::{
-    delete, get, post, put, web,
-    web::{Data, Path},
-    HttpRequest, HttpResponse, Responder, Scope,
-};
+use actix_web::{delete, get, post, put, web, web::Path, HttpRequest, HttpResponse, Responder};
 use chrono::{DateTime, Utc};
 use fxhash::FxHashMap;
-use postgres_drain::QueueStageDrain;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{Connection, Postgres, Transaction};
-use tracing::{event, field, instrument, Level};
+use tracing::{field, instrument};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
@@ -54,11 +40,7 @@ struct TaskId {
 }
 
 #[get("/tasks")]
-async fn list_tasks(
-    data: AppStateData,
-    req: HttpRequest,
-    auth: Authenticated,
-) -> Result<impl Responder> {
+async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Responder> {
     let user_ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
@@ -162,7 +144,6 @@ async fn get_task(
 async fn delete_task(
     task_id: Path<String>,
     data: AppStateData,
-    req: HttpRequest,
     auth: Authenticated,
 ) -> Result<impl Responder> {
     let user_entity_ids = auth.user_entity_ids();
@@ -216,7 +197,6 @@ pub struct TaskInput {
 async fn update_task(
     external_task_id: Path<String>,
     data: AppStateData,
-    req: HttpRequest,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
@@ -257,7 +237,7 @@ async fn update_task(
             payload.external_task_id = Some(external_task_id);
             drop(tx);
             drop(conn);
-            return new_task(req, data, auth, web::Json(payload)).await;
+            return new_task(data, auth, web::Json(payload)).await;
         }
     };
 
@@ -371,16 +351,14 @@ async fn add_task_trigger(
 
 #[post("/tasks")]
 async fn new_task_handler(
-    req: HttpRequest,
     data: AppStateData,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
-    new_task(req, data, auth, payload).await
+    new_task(data, auth, payload).await
 }
 
 async fn new_task(
-    req: HttpRequest,
     data: AppStateData,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
@@ -455,7 +433,6 @@ async fn new_task(
 async fn post_task_trigger(
     path: Path<TaskAndTriggerPath>,
     data: BackendAppStateData,
-    req: HttpRequest,
     auth: Authenticated,
     payload: web::Json<serde_json::Value>,
 ) -> Result<impl Responder> {

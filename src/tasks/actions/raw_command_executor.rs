@@ -1,4 +1,4 @@
-use crate::{database::PostgresPool, error::Error};
+use crate::database::PostgresPool;
 
 use super::{
     execute::{get_primitive_payload_value, json_primitive_as_string, Executor, ExecutorError},
@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use fxhash::FxHashMap;
 use serde_json::json;
 use std::process::Stdio;
-use tracing::{event, instrument, span, Level};
+use tracing::{event, instrument, Level};
 
 #[cfg(target_family = "unix")]
 use std::os::unix::process::ExitStatusExt;
@@ -68,10 +68,10 @@ impl RawCommandExecutor {
 
 #[async_trait]
 impl Executor for RawCommandExecutor {
-    #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(pg_pool))]
+    #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(_pg_pool))]
     async fn execute(
         &self,
-        pg_pool: PostgresPool,
+        _pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
         let command = get_primitive_payload_value(&payload, "command", false)?;

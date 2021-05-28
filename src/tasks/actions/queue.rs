@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Deref};
 
 use crate::{
-    database::{PostgresPool, VaultPostgresPool},
+    database::PostgresPool,
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::{
@@ -11,7 +11,7 @@ use crate::{
 };
 
 use async_trait::async_trait;
-use sqlx::{query_as, Postgres, Transaction};
+use sqlx::{Postgres, Transaction};
 
 struct QueueDrainer {}
 

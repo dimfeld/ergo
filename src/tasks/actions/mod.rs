@@ -8,8 +8,6 @@ pub mod template;
 mod http_executor;
 mod raw_command_executor;
 
-use fxhash::FxHashMap;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

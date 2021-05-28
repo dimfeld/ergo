@@ -1,6 +1,4 @@
 use crate::error::{Error, Result};
-use sqlx::Executor;
-use std::future::Future;
 
 pub async fn new_object_id(
     tx: &'_ mut sqlx::Transaction<'_, sqlx::Postgres>,

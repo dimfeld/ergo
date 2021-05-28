@@ -1,6 +1,6 @@
-use std::{convert::TryFrom, str::FromStr};
+use std::convert::TryFrom;
 
-use crate::{database::PostgresPool, error::Error};
+use crate::database::PostgresPool;
 
 use super::{
     execute::{Executor, ExecutorError},
@@ -10,6 +10,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use fxhash::FxHashMap;
 use serde_json::json;
+use tracing::instrument;
 
 #[derive(Debug)]
 pub struct HttpExecutor {
@@ -105,9 +106,10 @@ impl HttpExecutor {
 
 #[async_trait]
 impl Executor for HttpExecutor {
+    #[instrument(level = "debug", name = "HttpExecutor::execute", skip(_pg_pool))]
     async fn execute(
         &self,
-        pg_pool: PostgresPool,
+        _pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
         let user_agent = match payload.get("user_agent") {
@@ -154,7 +156,7 @@ impl Executor for HttpExecutor {
                 let header_map = o
                     .iter()
                     .map(|(k, v)| {
-                        let name = reqwest::header::HeaderName::try_from(k).map_err(|e| {
+                        let name = reqwest::header::HeaderName::try_from(k).map_err(|_| {
                             ExecutorError::FieldFormatError {
                                 field: "headers".to_string(),
                                 subfield: Some(k.to_string()),

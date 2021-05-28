@@ -3,18 +3,13 @@ use actix_web::{
     web::{self, PathConfig},
     App, HttpServer,
 };
-use hashicorp_vault::client::VaultClient;
-use std::{env, sync::Arc};
+use std::env;
 use structopt::StructOpt;
 use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 
 use crate::{
-    auth::{
-        middleware::{AuthenticateMiddleware, AuthenticateMiddlewareFactory},
-        AuthData,
-    },
-    database::VaultPostgresPoolAuth,
+    auth::middleware::AuthenticateMiddlewareFactory,
     graceful_shutdown::GracefulShutdown,
     status_server,
     tasks::{
@@ -82,7 +77,7 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
         immediate_actions,
     )?;
 
-    let queue_drain = if args.no_drain_queues {
+    let _queue_drain = if args.no_drain_queues {
         None
     } else {
         Some(crate::tasks::queue_drain_runner::AllQueuesDrain::new(
@@ -94,7 +89,7 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
         )?)
     };
 
-    let input_runner = TaskExecutor::new(TaskExecutorConfig {
+    let _input_runner = TaskExecutor::new(TaskExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),
@@ -103,7 +98,7 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
         immediate_actions,
     })?;
 
-    let action_runner = ActionExecutor::new(ActionExecutorConfig {
+    let _action_runner = ActionExecutor::new(ActionExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.consumer(),

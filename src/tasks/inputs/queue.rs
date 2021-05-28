@@ -11,7 +11,7 @@ use crate::{
 };
 
 use async_trait::async_trait;
-use sqlx::{query_as, Postgres, Transaction};
+use sqlx::{Postgres, Transaction};
 
 struct QueueDrainer {}
 

@@ -10,10 +10,10 @@ use std::{
     sync::Arc,
 };
 use tokio::sync::RwLock;
-use tracing::{event, instrument, span, Level};
+use tracing::{event, instrument, Level};
 
 use super::{Error, VaultPostgresPoolAuth};
-use crate::{graceful_shutdown::GracefulShutdownConsumer, vault::VaultClientTokenData};
+use crate::graceful_shutdown::GracefulShutdownConsumer;
 
 #[async_trait]
 pub trait PostgresAuthRenewer: 'static + Send + Sync + Debug {
@@ -60,7 +60,7 @@ impl std::fmt::Debug for FixedAuth {
 
 #[async_trait]
 impl PostgresAuthRenewer for FixedAuth {
-    async fn renew_lease(&self, lease_id: &str) -> Result<VaultResponse<()>, Error> {
+    async fn renew_lease(&self, _lease_id: &str) -> Result<VaultResponse<()>, Error> {
         Ok(VaultResponse {
             request_id: String::new(),
             lease_id: None,
@@ -73,7 +73,7 @@ impl PostgresAuthRenewer for FixedAuth {
         })
     }
 
-    async fn get_lease(&self, role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
+    async fn get_lease(&self, _role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
         Ok(VaultResponse {
             request_id: String::new(),
             lease_id: None,

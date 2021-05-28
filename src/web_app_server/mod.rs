@@ -1,3 +1,4 @@
+#![allow(dead_code, unused_imports, unused_variables)] // Remove this once the basic application is up and working
 use crate::{
     database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
     error::Error,

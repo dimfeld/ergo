@@ -2,11 +2,10 @@
 
 use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 use crate::{
-    database::{VaultPostgresPool, VaultPostgresPoolOptions},
+    database::VaultPostgresPool,
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
-    vault::VaultClientTokenData,
 };
 
 use serde::Serialize;

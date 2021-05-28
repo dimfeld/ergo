@@ -1,7 +1,6 @@
 use chrono::{DateTime, TimeZone, Utc};
 use deadpool_redis::ConnectionWrapper;
 use lazy_static::lazy_static;
-use redis::Script;
 
 use crate::error::Error;
 

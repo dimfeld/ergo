@@ -1,18 +1,15 @@
 use actix_web::{
     delete, get, post, put,
-    web::{self, Data, Path},
-    HttpRequest, HttpResponse, Responder,
+    web::{self, Path},
+    HttpResponse, Responder,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sqlx::Connection;
 
 use crate::{
-    auth::Authenticated,
-    database::object_id::new_object_id_with_value,
-    error::{Error, Result},
-    tasks::inputs::Input,
-    web_app_server::AppStateData,
+    auth::Authenticated, database::object_id::new_object_id_with_value, error::Result,
+    tasks::inputs::Input, web_app_server::AppStateData,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]

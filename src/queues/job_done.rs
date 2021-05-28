@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
-use redis::Script;
 
 use crate::error::Error;
 
@@ -50,7 +49,7 @@ impl JobDoneScript {
         now: &DateTime<Utc>,
         expected_expiration: &DateTime<Utc>,
     ) -> Result<bool, Error> {
-        let (found_score, marked_done): (String, bool) = self
+        let (_found_score, marked_done): (String, bool) = self
             .0
             .key(job_data_key)
             .key(&queue.0.processing_list)
