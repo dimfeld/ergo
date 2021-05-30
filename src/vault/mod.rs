@@ -1,7 +1,4 @@
-use crate::{
-    database::PostgresAuthRenewer,
-    graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
-};
+use crate::{database::PostgresAuthRenewer, graceful_shutdown::GracefulShutdownConsumer};
 use hashicorp_vault::client::{TokenData, VaultClient};
 use serde::de::DeserializeOwned;
 use std::{env, sync::Arc, time::Duration};
@@ -69,7 +66,7 @@ fn refresh_vault_client<T: 'static + DeserializeOwned + Send + Sync>(
 
 pub async fn from_env(
     env_name: &str,
-    shutdown: &GracefulShutdown,
+    shutdown: GracefulShutdownConsumer,
 ) -> Option<Arc<dyn PostgresAuthRenewer>> {
     let vault_address =
         env::var("VAULT_ADDR").unwrap_or_else(|_| "http://localhost:8200".to_string());
@@ -86,7 +83,7 @@ pub async fn from_env(
                     .await
                     .expect("Creating vault client");
             let client = Arc::new(RwLock::new(client));
-            refresh_vault_client(client.clone(), shutdown.consumer());
+            refresh_vault_client(client.clone(), shutdown);
             Some(client as Arc<dyn PostgresAuthRenewer>)
         }
         _ => None,

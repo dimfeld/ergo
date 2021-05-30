@@ -62,9 +62,10 @@ serde_millis = "0.1.1"
 serde_v8 = "0.3.0"
 sha3 = "0.9.1"
 smallvec = { version = "1.6.1", features = ["serde", "union"] }
+snafu = "0.6.10"
 sqlx = { version = "0.5.2", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
 structopt = "0.3.21"
-thiserror = "1.0.24"
+thiserror = "1.0.25"
 tokio = { version = "1.5.0", features = ["full", "test-util"] }
 tracing = "0.1.26"
 tracing-actix-web = { version="0.4.0-beta.4", default-features=false, features=["emit_event_on_error"] }
