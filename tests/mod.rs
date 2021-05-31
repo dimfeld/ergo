@@ -1,13 +1,10 @@
 use anyhow::{anyhow, Error, Result};
 use futures::Future;
-use sqlx::{postgres::PgConnectOptions, ConnectOptions, Executor};
-use uuid::Uuid;
 
-use std::env;
-
-use ergo::service_config::DatabaseConfiguration;
-
+mod database;
 mod tasks;
+
+use database::{create_database, TestDatabase};
 
 #[actix_rt::test]
 async fn smoke_test() {
@@ -23,105 +20,10 @@ async fn smoke_test() {
     .await;
 }
 
-pub struct TestDatabase {
-    pub config: DatabaseConfiguration,
-    pub name: String,
-}
-
 pub struct TestApp {
     pub database: TestDatabase,
     pub address: String,
     pub base_url: String,
-}
-
-fn password_sql(role: &str) -> String {
-    if let Ok(pwd) = std::env::var(&format!("DATABASE_ROLE_{}_PASSWORD", role)) {
-        let pwd = pwd.replace('\\', r##"\\"##).replace('\'', r##"\'"##);
-        format!("LOGIN PASSWORD '{}'", pwd)
-    } else {
-        String::new()
-    }
-}
-
-async fn create_database() -> Result<TestDatabase> {
-    dotenv::dotenv().ok();
-    let host = std::env::var("TEST_DATABASE_HOST")
-        .or_else(|_| env::var("DATABASE_HOST"))
-        .unwrap_or_else(|_| "localhost".to_string());
-    let port = std::env::var("TEST_DATABASE_PORT")
-        .or_else(|_| env::var("DATABASE_PORT"))
-        .map_err(|e| anyhow!(e))
-        .and_then(|val| val.parse::<u16>().map_err(|e| anyhow!(e)))
-        .unwrap_or(5432);
-    let user = env::var("TEST_DATABASE_USER").unwrap_or_else(|_| "postgres".to_string());
-    let password = env::var("TEST_DATABASE_PASSWORD").unwrap_or_else(|_| "".to_string());
-
-    let config = DatabaseConfiguration {
-        database: format!("ergo-test-{}", Uuid::new_v4()),
-        host,
-        port,
-    };
-
-    let mut global_conn = PgConnectOptions::new()
-        .port(port)
-        .host(&config.host)
-        .username(&user)
-        .password(&password)
-        .connect()
-        .await?;
-
-    sqlx::query(&format!(r##"CREATE DATABASE "{}""##, config.database))
-        .execute(&mut global_conn)
-        .await?;
-
-    // The roles are global, but need to be set up. The migrations normally handle this but for
-    // tests we need to make sure that the passwords are set.
-    let roles_query = format!(
-        r##"
-DO $$BEGIN
-  CREATE ROLE ergo_user INHERIT;
-  EXCEPTION WHEN duplicate_object THEN NULL;
-END; $$;
-
-DO $$BEGIN
-  CREATE ROLE ergo_web NOINHERIT IN ROLE ergo_user {web_password};
-  EXCEPTION WHEN duplicate_object THEN NULL;
-END; $$;
-
-DO $$BEGIN
-  CREATE ROLE ergo_backend NOINHERIT IN ROLE ergo_user {backend_password};
-  EXCEPTION WHEN duplicate_object THEN NULL;
-END; $$;
-
-DO $$BEGIN
-  CREATE ROLE ergo_enqueuer NOINHERIT IN ROLE ergo_user {enqueuer_password};
-  EXCEPTION WHEN duplicate_object THEN NULL;
-END; $$;
-            "##,
-        web_password = password_sql("WEB"),
-        backend_password = password_sql("BACKEND"),
-        enqueuer_password = password_sql("ENQUEUER"),
-    );
-
-    global_conn.execute(roles_query.as_str()).await?;
-    drop(global_conn);
-
-    let mut database_conn = PgConnectOptions::new()
-        .port(port)
-        .host(&config.host)
-        .database(&config.database)
-        .username(&user)
-        .password(&password)
-        .connect()
-        .await?;
-    sqlx::migrate!("./migrations")
-        .run(&mut database_conn)
-        .await?;
-
-    Ok(TestDatabase {
-        name: config.database.clone(),
-        config,
-    })
 }
 
 async fn start_app(database: TestDatabase) -> Result<TestApp> {

@@ -1,5 +1,5 @@
 use crate::error::Result;
-use sqlx::Connection;
+use sqlx::{Connection, PgConnection};
 use structopt::StructOpt;
 use uuid::Uuid;
 
@@ -22,10 +22,13 @@ pub struct Args {
     description: Option<String>,
 }
 
-pub async fn main(args: Args) -> Result<()> {
-    let mut conn = sqlx::PgConnection::connect(&args.database).await?;
-    let mut tx = conn.begin().await?;
-
+pub async fn make_key(
+    conn: &mut PgConnection,
+    org: &Uuid,
+    user: Option<&Uuid>,
+    no_inherit_user_permissions: bool,
+    description: Option<&str>,
+) -> Result<String> {
     // Eventually all this code will be integrated into the ergo library itself.
 
     let key = crate::auth::api_key::ApiKeyData::new();
@@ -34,7 +37,7 @@ pub async fn main(args: Args) -> Result<()> {
         "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",
         &key.api_key_id
     )
-    .execute(&mut tx)
+    .execute(&mut *conn)
     .await?;
 
     sqlx::query!("INSERT INTO api_keys (api_key_id, prefix, hash, org_id, user_id, inherits_user_permissions,
@@ -44,16 +47,29 @@ pub async fn main(args: Args) -> Result<()> {
         &key.api_key_id,
         &key.key[0..16],
         &key.hash,
-        &args.org,
-        args.user.as_ref(),
-        !args.no_inherit_user_permissions,
-        args.description.as_ref()
-    ).execute(&mut tx).await?;
-
-    tx.commit().await?;
+        org,
+        user,
+        !no_inherit_user_permissions,
+        description
+    ).execute(&mut *conn).await?;
 
     println!("Key ID: {}", key.api_key_id);
     println!("Key: {}", key.key);
 
+    Ok(key.key)
+}
+
+pub async fn main(args: Args) -> Result<()> {
+    let mut conn = sqlx::PgConnection::connect(&args.database).await?;
+    let mut tx = conn.begin().await?;
+    make_key(
+        &mut tx,
+        &args.org,
+        args.user.as_ref(),
+        args.no_inherit_user_permissions,
+        args.description.as_ref().map(|s| s.as_str()),
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
 }

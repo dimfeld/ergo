@@ -87,12 +87,6 @@ impl std::fmt::Debug for VaultPostgresPool {
     }
 }
 
-// impl Clone for VaultPostgresPool {
-//     fn clone(&self) -> Self {
-//         Self(self.0.clone())
-//     }
-// }
-
 fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
     match e {
         deadpool::managed::PoolError::Timeout(_) => Error::TimeoutError,
