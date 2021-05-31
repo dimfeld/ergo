@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use std::env;
 
-use ergo::{database::PostgresPool, service_config::DatabaseConfiguration};
+use ergo::service_config::DatabaseConfiguration;
 
 mod tasks;
 
@@ -157,23 +157,25 @@ async fn start_app(database: TestDatabase) -> Result<TestApp> {
     })
 }
 
-pub async fn run_database_test<F, R, RT>(f: F) -> RT
+pub async fn run_database_test<F, R, RV, RE>(f: F) -> ()
 where
     F: FnOnce(TestDatabase) -> R,
-    R: Future<Output = RT>,
-    RT: Send,
+    R: Future<Output = Result<RV, RE>>,
+    RV: Send,
+    RE: Send + std::fmt::Debug,
 {
     let database = create_database().await.expect("Creating database");
-    f(database).await
+    f(database).await.unwrap();
 }
 
-pub async fn run_app_test<F, R, RT>(f: F) -> ()
+pub async fn run_app_test<F, R, RV, RE>(f: F) -> ()
 where
     F: FnOnce(TestApp) -> R,
-    R: Future<Output = Result<(), RT>>,
-    RT: Send + std::fmt::Debug,
+    R: Future<Output = Result<RV, RE>>,
+    RV: Send,
+    RE: Send + std::fmt::Debug,
 {
     let database = create_database().await.expect("Creating database");
     let app = start_app(database).await.expect("Starting app");
-    f(app).await.unwrap()
+    f(app).await.unwrap();
 }

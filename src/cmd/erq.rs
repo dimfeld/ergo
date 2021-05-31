@@ -50,6 +50,7 @@ pub async fn main(args: Args) -> Result<(), Error> {
     let redis_database = std::env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_pool = deadpool_redis::Config {
         url: Some(redis_database),
+        connection: None,
         pool: None,
     }
     .create_pool()

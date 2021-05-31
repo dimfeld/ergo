@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
 use fxhash::FxHashMap;
-use handlebars::TemplateRenderError;
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -21,7 +20,7 @@ pub enum TemplateError {
     #[error("{0}")]
     Validation(#[from] TemplateValidationError),
     #[error("{0}")]
-    Render(#[from] handlebars::TemplateRenderError),
+    Render(#[from] handlebars::RenderError),
 }
 
 #[derive(Clone, Debug, JsonSchema, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,7 +230,7 @@ pub fn validate(
 pub fn apply_field(
     template: &serde_json::Value,
     values: &FxHashMap<String, serde_json::Value>,
-) -> Result<serde_json::Value, handlebars::TemplateRenderError> {
+) -> Result<serde_json::Value, handlebars::RenderError> {
     let result = match template {
         serde_json::Value::String(template) => {
             let rendered = HANDLEBARS.render_template(template, values)?;
@@ -257,7 +256,7 @@ pub fn apply_field(
                 .iter()
                 .map(|(k, v)| {
                     let mapped_value = apply_field(v, values)?;
-                    Ok::<_, handlebars::TemplateRenderError>((k.clone(), mapped_value))
+                    Ok::<_, handlebars::RenderError>((k.clone(), mapped_value))
                 })
                 .collect::<Result<serde_json::Map<String, _>, _>>()?;
             serde_json::Value::Object(output_object)
@@ -271,7 +270,7 @@ pub fn apply_field(
 fn apply(
     template: &Vec<(String, serde_json::Value)>,
     values: &FxHashMap<String, serde_json::Value>,
-) -> Result<FxHashMap<String, serde_json::Value>, TemplateRenderError> {
+) -> Result<FxHashMap<String, serde_json::Value>, handlebars::RenderError> {
     template
         .iter()
         .map(|(name, field_template)| {

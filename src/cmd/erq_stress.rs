@@ -50,6 +50,7 @@ pub async fn main(queue_name: String, args: Args) -> Result<(), Error> {
     let redis_database = std::env::var("REDIS_URL").expect("REDIS_URL is required");
     let redis_pool = deadpool_redis::Config {
         url: Some(redis_database),
+        connection: None,
         pool: Some(deadpool_redis::PoolConfig::new(
             args.consumers + args.producers + 1,
         )),
@@ -129,7 +130,7 @@ pub async fn main(queue_name: String, args: Args) -> Result<(), Error> {
 async fn cleanup(pool: deadpool_redis::Pool, queue_name: &str) -> Result<(), Error> {
     let mut conn = pool.get().await.expect("Cleanup: Acquiring connection");
     let key_pattern = format!("erq:{}:*", queue_name);
-    let mut cmd = deadpool_redis::cmd("SCAN");
+    let mut cmd = redis::cmd("SCAN");
     let mut iter: redis::AsyncIter<String> = cmd
         .cursor_arg(0)
         .arg("MATCH")
@@ -137,15 +138,15 @@ async fn cleanup(pool: deadpool_redis::Pool, queue_name: &str) -> Result<(), Err
         .arg("COUNT")
         .arg(100)
         .clone()
-        .iter_async(&mut **conn)
+        .iter_async(&mut *conn)
         .await?;
 
-    let mut del_cmd = deadpool_redis::cmd("DEL");
+    let mut del_cmd = redis::cmd("DEL");
     while let Some(key) = iter.next_item().await {
         del_cmd.arg(&key);
     }
 
-    del_cmd.execute_async(&mut conn).await?;
+    del_cmd.query_async(&mut conn).await?;
 
     Ok(())
 }

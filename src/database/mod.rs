@@ -20,7 +20,7 @@ use connection_manager::{Manager, WrappedConnection};
 
 pub use self::connection_manager::PostgresAuthRenewer;
 
-pub type ConnectionObject = deadpool::managed::Object<WrappedConnection, Error>;
+pub type ConnectionObject = deadpool::managed::Object<Manager>;
 pub type PostgresPool = VaultPostgresPool;
 
 #[derive(Clone, Debug)]
@@ -75,32 +75,32 @@ pub struct VaultPostgresPoolOptions {
     pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
 }
 
-pub struct VaultPostgresPool(Arc<VaultPostgresPoolInner>);
+#[derive(Clone)]
+pub struct VaultPostgresPool(Pool<Manager>);
 
 impl std::fmt::Debug for VaultPostgresPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PostgresPool")
-            .field("pool", &self.0.pool.status())
-            .field("manager", &self.0.manager)
+            .field("pool", &self.0.status())
+            .field("manager", &self.0.manager())
             .finish()
     }
 }
 
-impl Clone for VaultPostgresPool {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-struct VaultPostgresPoolInner {
-    manager: Arc<Manager>,
-    pool: Pool<WrappedConnection, Error>,
-}
+// impl Clone for VaultPostgresPool {
+//     fn clone(&self) -> Self {
+//         Self(self.0.clone())
+//     }
+// }
 
 fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
     match e {
         deadpool::managed::PoolError::Timeout(_) => Error::TimeoutError,
         deadpool::managed::PoolError::Backend(e) => e,
+        deadpool::managed::PoolError::Closed => Error::PoolClosed,
+        deadpool::managed::PoolError::NoRuntimeSpecified => {
+            Error::StringError("no runtime specified".to_string())
+        }
     }
 }
 
@@ -116,28 +116,25 @@ impl VaultPostgresPool {
         } = config;
         let manager = Manager::new(auth, shutdown, host, port, database).await?;
 
-        let pool = VaultPostgresPoolInner {
-            manager: manager.clone(),
-            pool: Pool::new(manager, max_connections),
-        };
+        let pool = Pool::new(manager, max_connections);
 
-        Ok(VaultPostgresPool(Arc::new(pool)))
+        Ok(VaultPostgresPool(pool))
     }
 
     pub fn stats(&self) -> connection_manager::ManagerStats {
-        self.0.manager.stats.borrow().clone()
+        self.0.manager().0.stats.borrow().clone()
     }
 
     pub fn stats_receiver(&self) -> tokio::sync::watch::Receiver<connection_manager::ManagerStats> {
-        self.0.manager.stats.clone()
+        self.0.manager().0.stats.clone()
     }
 
     pub async fn acquire(&self) -> Result<ConnectionObject, Error> {
-        self.0.pool.get().await.map_err(unwrap_pool_error)
+        self.0.get().await.map_err(unwrap_pool_error)
     }
 
     pub async fn try_acquire(&self) -> Result<ConnectionObject, Error> {
-        self.0.pool.try_get().await.map_err(unwrap_pool_error)
+        self.0.try_get().await.map_err(unwrap_pool_error)
     }
 }
 

@@ -138,7 +138,7 @@ impl Queue {
         self.0.name.as_str()
     }
 
-    fn add_id_to_queue(&self, pipe: &mut deadpool_redis::Pipeline, job: &'_ Job<'_>) {
+    fn add_id_to_queue(&self, pipe: &mut redis::Pipeline, job: &'_ Job<'_>) {
         if let Some(timestamp) = job.run_at {
             pipe.zadd(
                 &self.0.scheduled_list,
@@ -160,7 +160,7 @@ impl Queue {
         cmd
     }
 
-    fn initial_job_data_cmd(&self, job: &Job) -> deadpool_redis::Cmd {
+    fn initial_job_data_cmd(&self, job: &Job) -> redis::Cmd {
         let key = self.job_data_key(job.id.as_str());
         let mut cmd = RedisJobSetCmd::new(&key)
             .payload(job.payload.as_ref())
@@ -203,7 +203,7 @@ impl Queue {
                 Option<usize>,
                 Option<usize>,
             ),
-        ) = deadpool_redis::Pipeline::with_capacity(4)
+        ) = redis::Pipeline::with_capacity(4)
             .cmd("ZCARD")
             .arg(&self.0.scheduled_list)
             .cmd("ZCARD")
@@ -237,7 +237,7 @@ impl Queue {
     }
 
     pub async fn enqueue(&self, item: &'_ Job<'_>) -> Result<(), Error> {
-        let mut pipe = deadpool_redis::Pipeline::with_capacity(2);
+        let mut pipe = redis::Pipeline::with_capacity(2);
 
         pipe.add_command(self.initial_job_data_cmd(item));
         self.add_id_to_queue(&mut pipe, item);
@@ -245,12 +245,12 @@ impl Queue {
             .arg(&[&self.0.stats_hash, "enqueued", "1"]);
 
         let mut conn = self.0.pool.get().await?;
-        pipe.execute_async(&mut conn).await?;
+        pipe.query_async(&mut conn).await?;
         Ok(())
     }
 
     pub async fn enqueue_multiple(&self, items: &'_ [Job<'_>]) -> Result<(), Error> {
-        let mut pipe = deadpool_redis::Pipeline::with_capacity(items.len() * 2);
+        let mut pipe = redis::Pipeline::with_capacity(items.len() * 2);
 
         for item in items {
             pipe.add_command(self.initial_job_data_cmd(item));
@@ -258,7 +258,7 @@ impl Queue {
         }
 
         let mut conn = self.0.pool.get().await?;
-        pipe.execute_async(&mut conn).await?;
+        pipe.query_async(&mut conn).await?;
 
         Ok(())
     }
@@ -428,7 +428,7 @@ impl Queue {
             Option<i64>,
             Option<String>,
             Option<String>,
-        ) = deadpool_redis::cmd("HMGET")
+        ) = redis::cmd("HMGET")
             .arg(&job_data_key)
             .arg(RedisJobField::Payload)
             .arg(RedisJobField::Timeout)
@@ -548,10 +548,7 @@ impl Queue {
 
     pub async fn job_expires_at(&self, id: &str) -> Result<Option<DateTime<Utc>>, Error> {
         let mut conn = self.0.pool.get().await?;
-        let score: Option<i64> = deadpool_redis::cmd("ZSCORE")
-            .arg(id)
-            .query_async(&mut conn)
-            .await?;
+        let score: Option<i64> = redis::cmd("ZSCORE").arg(id).query_async(&mut conn).await?;
         Ok(score.map(|s| Utc.timestamp_millis(s)))
     }
 }
@@ -593,6 +590,7 @@ mod tests {
         let queue_name = format!("test-{}", uuid::Uuid::new_v4());
         let pool = deadpool_redis::Config {
             url: Some(std::env::var("REDIS_URL").expect("REDIS_URL must be set")),
+            connection: None,
             pool: None,
         }
         .create_pool()
@@ -608,7 +606,7 @@ mod tests {
         let mut conn = pool.get().await.expect("Cleanup: Acquiring connection");
 
         let key_pattern = format!("erq:{}:*", queue_name);
-        let mut cmd = deadpool_redis::cmd("SCAN");
+        let mut cmd = redis::cmd("SCAN");
         let mut iter: redis::AsyncIter<String> = cmd
             .cursor_arg(0)
             .arg("MATCH")
@@ -616,17 +614,17 @@ mod tests {
             .arg("COUNT")
             .arg(100)
             .clone()
-            .iter_async(&mut **conn)
+            .iter_async(&mut *conn)
             .await
             .expect("Cleanup: Scanning keyspace");
 
-        let mut del_cmd = deadpool_redis::cmd("DEL");
+        let mut del_cmd = redis::cmd("DEL");
         while let Some(key) = iter.next_item().await {
             del_cmd.arg(&key);
         }
 
         del_cmd
-            .execute_async(&mut conn)
+            .query_async::<_, ()>(&mut conn)
             .await
             .expect("Cleanup: deleting keys");
 

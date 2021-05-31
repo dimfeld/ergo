@@ -6,6 +6,7 @@ use crate::tasks::{
 };
 use actix_web::{http::StatusCode, HttpResponse};
 use envoption::EnvOptionError;
+use redis::RedisError;
 use thiserror::Error;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -51,7 +52,14 @@ pub enum Error {
     RedisError(#[from] redis::RedisError),
 
     #[error("Redis connection error {0}")]
-    RedisPoolError(#[from] deadpool::managed::PoolError<redis::RedisError>),
+    RedisPoolError(#[from] deadpool::managed::PoolError<RedisError>),
+
+    // deadpool_redis 0.8 doesn't expose this error so we have to wrap it.
+    #[error("Redis pool creation error {0}")]
+    RedisPoolCreationError(anyhow::Error),
+
+    #[error("Connection pool closed")]
+    PoolClosed,
 
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),

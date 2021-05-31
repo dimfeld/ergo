@@ -42,21 +42,21 @@ impl redis::ToRedisArgs for RedisJobField {
     }
 }
 
-pub(super) struct RedisJobSetCmd(deadpool_redis::Cmd);
+pub(super) struct RedisJobSetCmd(redis::Cmd);
 
 impl RedisJobSetCmd {
     pub fn new(job_key: &str) -> Self {
-        let mut cmd = deadpool_redis::cmd("HSET");
+        let mut cmd = redis::cmd("HSET");
         cmd.arg(job_key);
         RedisJobSetCmd(cmd)
     }
 
-    pub fn build(self) -> deadpool_redis::Cmd {
+    pub fn build(self) -> redis::Cmd {
         self.0
     }
 
-    pub fn increment_current_retries(job_key: &str) -> deadpool_redis::Cmd {
-        let mut cmd = deadpool_redis::cmd("hincrby");
+    pub fn increment_current_retries(job_key: &str) -> redis::Cmd {
+        let mut cmd = redis::cmd("hincrby");
         cmd.arg(job_key).arg(RedisJobField::CurrentRetries).arg(1);
         cmd
     }

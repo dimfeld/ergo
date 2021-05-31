@@ -94,7 +94,7 @@ impl PostgresAuthRenewer for FixedAuth {
 pub type SharedRenewer<T> = Arc<RwLock<T>>;
 
 async fn refresh_loop(
-    manager: Arc<Manager>,
+    manager: Arc<ManagerInner>,
     mut shutdown: GracefulShutdownConsumer,
     initial_renewable: Option<String>,
     initial_lease_duration: std::time::Duration,
@@ -138,7 +138,10 @@ pub struct ManagerStats {
 }
 
 #[derive(Debug)]
-pub(crate) struct Manager {
+pub struct Manager(pub(super) Arc<ManagerInner>);
+
+#[derive(Debug)]
+pub(crate) struct ManagerInner {
     creds: std::sync::RwLock<(String, String)>,
     renewer: Arc<dyn PostgresAuthRenewer>,
 
@@ -158,7 +161,7 @@ impl Manager {
         host: String,
         port: u16,
         database: String,
-    ) -> Result<Arc<Manager>, Error> {
+    ) -> Result<Manager, Error> {
         let (stats_sender, stats_receiver) = tokio::sync::watch::channel(ManagerStats {
             update_successes: 0,
             update_failures: 0,
@@ -173,7 +176,7 @@ impl Manager {
             }
         };
 
-        let manager = Manager {
+        let manager = ManagerInner {
             creds: std::sync::RwLock::new((String::new(), String::new())),
             renewer,
             host,
@@ -196,9 +199,11 @@ impl Manager {
             duration,
         ));
 
-        Ok(manager_ptr)
+        Ok(Manager(manager_ptr))
     }
+}
 
+impl ManagerInner {
     #[instrument(level="info", name="refreshing Postgres auth", fields(role=%self.role), skip(self))]
     pub async fn refresh_auth(
         &self,
@@ -303,15 +308,18 @@ impl DerefMut for WrappedConnection {
 // }
 
 #[async_trait]
-impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
+impl deadpool::managed::Manager for Manager {
+    type Type = WrappedConnection;
+    type Error = Error;
+
     async fn create(&self) -> Result<WrappedConnection, Error> {
-        let (username, password) = { self.creds.read().unwrap().clone() };
+        let (username, password) = { self.0.creds.read().unwrap().clone() };
         let conn = PgConnectOptions::new()
             .username(&username)
             .password(&password)
-            .host(&self.host)
-            .port(self.port)
-            .database(&self.database)
+            .host(&self.0.host)
+            .port(self.0.port)
+            .database(&self.0.database)
             .log_statements(LevelFilter::Debug)
             .connect()
             .await?;
@@ -323,7 +331,7 @@ impl deadpool::managed::Manager<WrappedConnection, Error> for Arc<Manager> {
         &self,
         connection: &mut WrappedConnection,
     ) -> deadpool::managed::RecycleResult<Error> {
-        let stale = { connection.username != *self.creds.read().unwrap().0 };
+        let stale = { connection.username != *self.0.creds.read().unwrap().0 };
         if stale {
             return Err(RecycleError::Message("expired user".to_string()));
         }
@@ -466,7 +474,7 @@ mod tests {
 
         vault_client.read().await.check_counts(1, 0);
 
-        let mut stats_receiver = m.stats.clone();
+        let mut stats_receiver = m.0.stats.clone();
         // Clear the changed flag since it's set by default
         assert!(stats_receiver.changed().await.is_ok());
 
@@ -475,7 +483,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(20)).await;
 
         assert!(stats_receiver.changed().await.is_ok());
-        let stats = m.stats.borrow();
+        let stats = m.0.stats.borrow();
         assert_eq!(
             *stats,
             ManagerStats {
@@ -516,7 +524,7 @@ mod tests {
 
         vault_client.read().await.check_counts(1, 0);
 
-        let mut stats_receiver = m.stats.clone();
+        let mut stats_receiver = m.0.stats.clone();
         // Clear the changed flag since it's set by default
         assert!(stats_receiver.changed().await.is_ok());
 
@@ -525,7 +533,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(20)).await;
 
         assert!(stats_receiver.changed().await.is_ok());
-        let stats = m.stats.borrow();
+        let stats = m.0.stats.borrow();
         assert_eq!(
             *stats,
             ManagerStats {
