@@ -37,7 +37,7 @@ pub fn verify_password(password: &str, hash_str: &str) -> Result<()> {
         .map_err(|_| Error::AuthenticationError)
 }
 
-#[cfg(test)]
+#[cfg(all(test, any(test_slow, test_password)))]
 mod tests {
     use super::*;
     use crate::error::Result;

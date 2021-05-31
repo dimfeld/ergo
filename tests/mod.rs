@@ -12,8 +12,12 @@ mod tasks;
 #[actix_rt::test]
 async fn smoke_test() {
     run_app_test(|app| async move {
-        let response = reqwest::get(format!("http://{}/api/healthz", app.address)).await?;
-        assert_eq!(200, response.status().as_u16());
+        let response = reqwest::get(format!("{}/healthz", app.base_url)).await?;
+        assert_eq!(
+            response.status().as_u16(),
+            200,
+            "response status code should be 200"
+        );
         Ok::<(), Error>(())
     })
     .await;
@@ -27,6 +31,7 @@ pub struct TestDatabase {
 pub struct TestApp {
     pub database: TestDatabase,
     pub address: String,
+    pub base_url: String,
 }
 
 fn password_sql(role: &str) -> String {
@@ -148,6 +153,7 @@ async fn start_app(database: TestDatabase) -> Result<TestApp> {
     Ok(TestApp {
         database,
         address: format!("{}:{}", addr, port),
+        base_url: format!("http://{}:{}/api", addr, port),
     })
 }
 
