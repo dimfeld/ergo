@@ -5,11 +5,17 @@ mod database;
 mod tasks;
 
 use database::{create_database, TestDatabase};
+use reqwest::header::HeaderMap;
 
 #[actix_rt::test]
 async fn smoke_test() {
     run_app_test(|app| async move {
-        let response = reqwest::get(format!("{}/healthz", app.base_url)).await?;
+        let response = app
+            .admin_user_client
+            .get(format!("{}/tasks", app.base_url))
+            .send()
+            .await?;
+
         assert_eq!(
             response.status().as_u16(),
             200,
@@ -22,6 +28,7 @@ async fn smoke_test() {
 
 pub struct TestApp {
     pub database: TestDatabase,
+    pub admin_user_client: reqwest::Client,
     pub address: String,
     pub base_url: String,
 }
@@ -52,8 +59,18 @@ async fn start_app(database: TestDatabase) -> Result<TestApp> {
         }
     });
 
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", database.user_api_key).parse().unwrap(),
+    );
+
     Ok(TestApp {
         database,
+        admin_user_client: reqwest::ClientBuilder::new()
+            .default_headers(headers)
+            .build()
+            .expect("Building client"),
         address: format!("{}:{}", addr, port),
         base_url: format!("http://{}:{}/api", addr, port),
     })
