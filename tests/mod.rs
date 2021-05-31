@@ -1,6 +1,6 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Error, Result};
 use futures::Future;
-use sqlx::{postgres::PgConnectOptions, ConnectOptions};
+use sqlx::{postgres::PgConnectOptions, ConnectOptions, Executor};
 use uuid::Uuid;
 
 use std::env;
@@ -11,7 +11,12 @@ mod tasks;
 
 #[actix_rt::test]
 async fn smoke_test() {
-    run_app_test(|_app| async { Ok::<(), ()>(()) }).await;
+    run_app_test(|app| async move {
+        let response = reqwest::get(format!("http://{}/api/healthz", app.address)).await?;
+        assert_eq!(200, response.status().as_u16());
+        Ok::<(), Error>(())
+    })
+    .await;
 }
 
 pub struct TestDatabase {
@@ -22,6 +27,15 @@ pub struct TestDatabase {
 pub struct TestApp {
     pub database: TestDatabase,
     pub address: String,
+}
+
+fn password_sql(role: &str) -> String {
+    if let Ok(pwd) = std::env::var(&format!("DATABASE_ROLE_{}_PASSWORD", role)) {
+        let pwd = pwd.replace('\\', r##"\\"##).replace('\'', r##"\'"##);
+        format!("LOGIN PASSWORD '{}'", pwd)
+    } else {
+        String::new()
+    }
 }
 
 async fn create_database() -> Result<TestDatabase> {
@@ -51,9 +65,40 @@ async fn create_database() -> Result<TestDatabase> {
         .connect()
         .await?;
 
-    sqlx::query(&format!(r##"CREATE DATABASE "{}";"##, config.database))
+    sqlx::query(&format!(r##"CREATE DATABASE "{}""##, config.database))
         .execute(&mut global_conn)
         .await?;
+
+    // The roles are global, but need to be set up. The migrations normally handle this but for
+    // tests we need to make sure that the passwords are set.
+    let roles_query = format!(
+        r##"
+DO $$BEGIN
+  CREATE ROLE ergo_user INHERIT;
+  EXCEPTION WHEN duplicate_object THEN NULL;
+END; $$;
+
+DO $$BEGIN
+  CREATE ROLE ergo_web NOINHERIT IN ROLE ergo_user {web_password};
+  EXCEPTION WHEN duplicate_object THEN NULL;
+END; $$;
+
+DO $$BEGIN
+  CREATE ROLE ergo_backend NOINHERIT IN ROLE ergo_user {backend_password};
+  EXCEPTION WHEN duplicate_object THEN NULL;
+END; $$;
+
+DO $$BEGIN
+  CREATE ROLE ergo_enqueuer NOINHERIT IN ROLE ergo_user {enqueuer_password};
+  EXCEPTION WHEN duplicate_object THEN NULL;
+END; $$;
+            "##,
+        web_password = password_sql("WEB"),
+        backend_password = password_sql("BACKEND"),
+        enqueuer_password = password_sql("ENQUEUER"),
+    );
+
+    global_conn.execute(roles_query.as_str()).await?;
     drop(global_conn);
 
     let mut database_conn = PgConnectOptions::new()
