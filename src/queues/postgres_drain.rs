@@ -1,9 +1,8 @@
-use std::{borrow::Cow, pin::Pin, sync::Arc, time::Duration};
+use std::{borrow::Cow, time::Duration};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use fxhash::FxHashMap;
-use rand::Rng;
 use serde::Serialize;
 use sqlx::{Connection, Postgres, Row, Transaction};
 use tokio::{
@@ -12,7 +11,7 @@ use tokio::{
 };
 use tracing::{event, Level};
 
-use super::{Job, JobId, Queue};
+use super::{Job, Queue};
 use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 #[async_trait]

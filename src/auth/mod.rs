@@ -8,18 +8,16 @@ use std::{
     rc::Rc,
 };
 
-use api_key::get_api_key;
 pub use api_key::ApiKey;
 
 use crate::{
     database::PostgresPool,
     error::{Error, Result},
 };
-use actix_identity::Identity;
 use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
+use sqlx::query;
 use tracing::{event, field, instrument, Level};
 use uuid::Uuid;
 

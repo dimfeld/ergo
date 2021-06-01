@@ -1,5 +1,4 @@
 use deno_core::{JsRuntime, RuntimeOptions};
-use rusty_v8::StartupData;
 
 pub struct Snapshot(Box<[u8]>);
 

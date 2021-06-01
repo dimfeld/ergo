@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use dotenv::dotenv;
 use futures::future::try_join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};

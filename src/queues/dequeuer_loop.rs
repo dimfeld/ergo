@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use backoff::{backoff::Backoff, ExponentialBackoff};
-use futures::stream::{FuturesUnordered, Stream, StreamExt};
+use backoff::backoff::Backoff;
+use futures::stream::{FuturesUnordered, StreamExt};
 use serde::de::DeserializeOwned;
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};

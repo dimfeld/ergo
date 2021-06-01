@@ -1,8 +1,8 @@
 use crate::{
     auth::middleware::AuthenticateMiddlewareFactory,
     error::Result,
-    graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
-    service_config::{database_configuration_from_env, DatabaseConfiguration},
+    graceful_shutdown::GracefulShutdownConsumer,
+    service_config::DatabaseConfiguration,
     status_server,
     tasks::{
         self,

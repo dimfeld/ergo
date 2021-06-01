@@ -4,10 +4,8 @@ pub use notification::*;
 
 use std::{borrow::Cow, sync::Arc};
 
-use futures::stream::{FuturesUnordered, Stream, StreamExt};
 use smallvec::SmallVec;
-use sqlx::{Acquire, Connection, PgConnection, Postgres, Transaction};
-use tokio::task::JoinHandle;
+use sqlx::PgConnection;
 
 use crate::{
     database::PostgresPool,

@@ -1,11 +1,6 @@
-use crate::{
-    error::Error,
-    vault::{SharedVaultClient, VaultClientTokenData},
-};
+use crate::error::Error;
 use deadpool::managed::Pool;
-use hashicorp_vault::client::VaultClient;
 use itertools::Itertools;
-use serde::de::DeserializeOwned;
 use std::{env, fmt::Debug, sync::Arc};
 
 mod conn_executor;

@@ -1,5 +1,5 @@
 use futures::future::BoxFuture;
-use std::{borrow::Cow, future::Future, pin::Pin, time::Duration};
+use std::{borrow::Cow, time::Duration};
 
 use sqlx::{Connection, Postgres};
 

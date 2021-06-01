@@ -1,5 +1,4 @@
 use actix_web::{web, HttpResponse, Responder};
-use tracing::{event, instrument, Level};
 
 async fn health() -> impl Responder {
     HttpResponse::Ok().finish()

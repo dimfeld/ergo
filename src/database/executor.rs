@@ -4,7 +4,6 @@ use futures::{
     future::BoxFuture,
     stream::{BoxStream, TryStreamExt},
 };
-use serde::de::DeserializeOwned;
 use sqlx::{
     database::HasStatement,
     postgres::{PgQueryResult, PgRow},

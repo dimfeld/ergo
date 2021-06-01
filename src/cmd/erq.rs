@@ -1,6 +1,5 @@
 use std::{borrow::Cow, time::Duration};
 
-use dotenv::dotenv;
 use structopt::StructOpt;
 
 use crate::{

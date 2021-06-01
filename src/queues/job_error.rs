@@ -1,6 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
 use lazy_static::lazy_static;
-use redis::{Script, ToRedisArgs};
 
 use crate::error::Error;
 

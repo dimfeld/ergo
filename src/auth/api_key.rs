@@ -1,13 +1,9 @@
-use crate::{
-    database::PostgresPool,
-    error::{Error, Result},
-};
-use actix_web::{dev::ServiceRequest, http::header::Header, HttpRequest};
+use crate::error::{Error, Result};
+use actix_web::{dev::ServiceRequest, http::header::Header};
 use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha3::Digest;
-use sqlx::{postgres::PgRow, query, query::Query, Encode, FromRow, Postgres};
 use tracing::{event, instrument, Level};
 use uuid::Uuid;
 

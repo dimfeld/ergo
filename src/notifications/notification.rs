@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use super::Level;
-use crate::error::Error;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

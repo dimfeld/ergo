@@ -2,16 +2,16 @@
 //! Session cookie
 //! API Key
 
-use std::{rc::Rc, sync::Arc};
+use std::rc::Rc;
 
-use actix_identity::{Identity, RequestIdentity};
+use actix_identity::RequestIdentity;
 use actix_web::{
-    dev::{Extensions, Service, ServiceRequest, ServiceResponse, Transform},
-    Error, FromRequest, HttpMessage,
+    dev::{Service, ServiceRequest, ServiceResponse, Transform},
+    Error, HttpMessage,
 };
 use futures::{
-    future::{ok, ready, LocalBoxFuture, Ready},
-    ready, Future, FutureExt,
+    future::{ready, LocalBoxFuture, Ready},
+    FutureExt,
 };
 
 use super::{AuthData, AuthenticationInfo};

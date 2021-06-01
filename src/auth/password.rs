@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use argon2::{
-    password_hash::{Output, PasswordHash, PasswordHasher, PasswordVerifier, Salt, SaltString},
-    Argon2, Params, Version,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2, Params,
 };
 use uuid::Uuid;
 
