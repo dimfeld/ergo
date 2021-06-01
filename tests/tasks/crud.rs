@@ -1,3 +1,5 @@
+use serde_json::json;
+
 #[test]
 #[ignore]
 fn list_tasks() {}
@@ -21,6 +23,10 @@ fn put_existing_task() {}
 #[test]
 #[ignore]
 fn put_new_task() {}
+
+#[test]
+#[ignore]
+fn put_task_without_write_permission() {}
 
 #[test]
 #[ignore]

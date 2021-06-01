@@ -8,14 +8,14 @@ use ergo::{cmd::make_api_key, service_config::DatabaseConfiguration};
 pub struct TestDatabase {
     pub config: DatabaseConfiguration,
     pub name: String,
-    /// The ID of the precreated organization.
+    pub pool: sqlx::postgres::PgPool,
+}
+
+pub struct TestUser {
     pub org_id: Uuid,
-    /// The ID of the precreated admin user.
     pub user_id: Uuid,
-    /// The password for the precreated user.
-    pub user_password: &'static str,
-    /// An API key for the precreated user.
-    pub user_api_key: String,
+    pub password: Option<String>,
+    pub api_key: String,
 }
 
 fn escape(s: &str) -> String {
@@ -30,7 +30,7 @@ fn password_sql(role: &str) -> String {
     }
 }
 
-pub async fn create_database() -> Result<TestDatabase> {
+pub async fn create_database() -> Result<(TestDatabase, Uuid, TestUser)> {
     dotenv::dotenv().ok();
     let host = std::env::var("TEST_DATABASE_HOST")
         .or_else(|_| std::env::var("DATABASE_HOST"))
@@ -93,28 +93,29 @@ END; $$;
     global_conn.execute(roles_query.as_str()).await?;
     drop(global_conn);
 
-    let mut database_conn = PgConnectOptions::new()
+    let pool_options = PgConnectOptions::new()
         .port(port)
         .host(&config.host)
         .database(&config.database)
         .username(&user)
-        .password(&password)
-        .connect()
-        .await?;
-    sqlx::migrate!("./migrations")
-        .run(&mut database_conn)
-        .await?;
+        .password(&password);
+    let pool = sqlx::PgPool::connect_with(pool_options).await?;
 
-    let (user_id, org_id, user_api_key) = populate_database(&mut database_conn).await?;
+    sqlx::migrate!("./migrations").run(&pool).await?;
 
-    Ok(TestDatabase {
-        name: config.database.clone(),
-        config,
-        user_id,
-        user_password: PASSWORD,
-        user_api_key,
-        org_id,
-    })
+    let mut conn = pool.acquire().await?;
+    let admin_user = populate_database(&mut conn).await?;
+    drop(conn);
+
+    Ok((
+        TestDatabase {
+            pool,
+            name: config.database.clone(),
+            config,
+        },
+        admin_user.org_id.clone(),
+        admin_user,
+    ))
 }
 
 pub const PASSWORD: &'static str = "test password";
@@ -125,7 +126,7 @@ lazy_static! {
         Uuid::parse_str(std::env::var("ADMIN_USER_ID").unwrap().as_str()).unwrap();
 }
 
-async fn populate_database(conn: &mut PgConnection) -> Result<(Uuid, Uuid, String)> {
+async fn populate_database(conn: &mut PgConnection) -> Result<TestUser> {
     let user_id = ADMIN_USER_ID.clone();
     let org_id = Uuid::new_v4();
 
@@ -151,5 +152,10 @@ async fn populate_database(conn: &mut PgConnection) -> Result<(Uuid, Uuid, Strin
 
     let key = make_api_key::make_key(conn, &org_id, Some(&user_id), false, None).await?;
 
-    Ok((user_id, org_id, key))
+    Ok(TestUser {
+        user_id,
+        org_id,
+        password: Some(PASSWORD.to_string()),
+        api_key: key,
+    })
 }
