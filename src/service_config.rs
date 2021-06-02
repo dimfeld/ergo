@@ -1,5 +1,3 @@
-use anyhow::anyhow;
-
 use crate::{
     database::{
         PostgresAuthRenewer, VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions,
@@ -58,7 +56,7 @@ pub fn redis_pool(connection: Option<&str>) -> Result<deadpool_redis::Pool, Erro
         pool: None,
     }
     .create_pool()
-    .map_err(|e| Error::RedisPoolCreationError(anyhow!(e)))
+    .map_err(|e| e.into())
 }
 
 pub async fn backend_pg_pool(

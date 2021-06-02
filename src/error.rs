@@ -56,7 +56,7 @@ pub enum Error {
 
     // deadpool_redis 0.8 doesn't expose this error so we have to wrap it.
     #[error("Redis pool creation error {0}")]
-    RedisPoolCreationError(anyhow::Error),
+    RedisPoolCreationError(#[from] deadpool_redis::CreatePoolError),
 
     #[error("Connection pool closed")]
     PoolClosed,

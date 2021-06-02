@@ -944,9 +944,9 @@ dependencies = [
 
 [[package]]
 name = "deadpool-redis"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b0879c291510f6ca4218972d7f67e23b44798db22844f1054d60f7240a5c925"
+checksum = "637b3ef314fe3393113b2fbf2c98eb557aad7110dcf6b1a7e9b40bdd2589abc0"
 dependencies = [
  "async-trait",
  "config 0.11.0",
