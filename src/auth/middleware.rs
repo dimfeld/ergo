@@ -31,8 +31,6 @@ impl AuthenticateMiddlewareFactory {
 impl<S, B> Transform<S, ServiceRequest> for AuthenticateMiddlewareFactory
 where
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    S::Future: 'static,
-    B: 'static,
 {
     type Response = ServiceResponse<B>;
 
@@ -59,9 +57,7 @@ pub struct AuthenticateMiddleware<S> {
 
 impl<S, B> Service<ServiceRequest> for AuthenticateMiddleware<S>
 where
-    B: 'static,
     S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error> + 'static,
-    S::Future: 'static,
 {
     type Response = ServiceResponse<B>;
     type Error = Error;
