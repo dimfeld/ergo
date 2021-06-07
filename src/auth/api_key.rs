@@ -4,6 +4,7 @@ use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha3::Digest;
+use std::borrow::{Borrow, Cow};
 use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
@@ -109,22 +110,29 @@ async fn handle_api_key(auth_data: &AuthData, key: &str) -> Result<super::Authen
     })
 }
 
+fn extract_api_key<'a>(req: &'a ServiceRequest) -> Option<String> {
+    if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
+        event!(Level::DEBUG, key=%query.0.api_key, "Got key from query string");
+        return Some(query.0.api_key);
+    }
+
+    if let Ok(header) = Authorization::<Bearer>::parse(req) {
+        let key = header.into_scheme();
+        event!(Level::DEBUG, key=%key, "Got key from auth header");
+        return Some(key.token().to_string());
+    }
+
+    None
+}
+
 #[instrument(level = "DEBUG", skip(auth_data))]
 pub async fn get_api_key(
     auth_data: &AuthData,
     req: &ServiceRequest,
 ) -> Result<Option<super::AuthenticationInfo>> {
     event!(Level::DEBUG, "Fetching api key");
-    if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
-        event!(Level::DEBUG, key=%query.0.api_key, "Got key from query string");
-        let auth = handle_api_key(auth_data, &query.0.api_key).await?;
-        return Ok(Some(auth));
-    }
-
-    if let Ok(header) = Authorization::<Bearer>::parse(req) {
-        event!(Level::DEBUG, key=%header, "Got key from auth header");
-        let key = header.into_scheme();
-        let auth = handle_api_key(auth_data, key.token()).await?;
+    if let Some(key) = extract_api_key(req) {
+        let auth = handle_api_key(auth_data, &key.borrow()).await?;
         return Ok(Some(auth));
     }
 
@@ -133,9 +141,11 @@ pub async fn get_api_key(
 
 #[cfg(test)]
 mod tests {
+    #![allow(unused_variables)]
+    use assert_matches::assert_matches;
+
     use super::{decode_key, ApiKeyData};
     use crate::error::Result;
-    use assert_matches::assert_matches;
 
     #[test]
     fn valid_key() -> Result<()> {
@@ -183,10 +193,23 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn key_from_query_string() {}
+    fn key_from_query_string() {
+        let key = "er1.njklsefnjksed";
+        let req = actix_web::test::TestRequest::get()
+            .uri(&format!("http://localhost/api/tasks?api_key={}", key))
+            .to_srv_request();
+        let found = super::extract_api_key(&req);
+        assert_matches!(found, Some(key));
+    }
 
     #[test]
-    #[ignore]
-    fn key_from_bearer() {}
+    fn key_from_bearer() {
+        let key = "er1.njklsefnjksed";
+        let req = actix_web::test::TestRequest::get()
+            .uri("http://localhost/api/tasks")
+            .insert_header(("authorization", format!("Bearer {}", key)))
+            .to_srv_request();
+        let found = super::extract_api_key(&req);
+        assert_matches!(found, Some(key));
+    }
 }
