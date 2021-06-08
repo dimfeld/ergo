@@ -4,7 +4,7 @@ use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha3::Digest;
-use std::borrow::{Borrow, Cow};
+use std::borrow::Borrow;
 use tracing::{event, instrument, Level};
 use uuid::Uuid;
 

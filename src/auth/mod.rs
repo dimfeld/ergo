@@ -150,13 +150,7 @@ impl AuthenticationInfo {
     pub fn user_id(&self) -> Option<&Uuid> {
         match self {
             Self::User(user) => Some(&user.user_id),
-            Self::ApiKey { key, user } => {
-                if key.inherits_user_permissions {
-                    user.as_ref().map(|u| &u.user_id)
-                } else {
-                    Some(&key.api_key_id)
-                }
-            }
+            Self::ApiKey { user, .. } => user.as_ref().map(|u| &u.user_id),
         }
     }
 
@@ -169,7 +163,11 @@ impl AuthenticationInfo {
                     list.push(key.api_key_id.clone());
                     list
                 }
-                (true, Some(user)) => user.user_entity_ids.clone(),
+                (true, Some(user)) => {
+                    let mut ids = user.user_entity_ids.clone();
+                    ids.push(key.api_key_id.clone());
+                    ids
+                }
                 (true, None) => {
                     let mut list = UserEntityList::new();
                     list.push(key.api_key_id.clone());
@@ -281,13 +279,184 @@ impl AuthData {
 #[cfg(test)]
 mod tests {
     mod authentication_info {
-        #[test]
-        #[ignore]
-        fn user_id() {}
+        use smallvec::smallvec;
+        use std::str::FromStr;
+        use uuid::Uuid;
+
+        use crate::auth::{api_key::ApiKeyAuth, AuthenticationInfo, RequestUser, UserEntityList};
+
+        fn user_id() -> Uuid {
+            Uuid::from_str("e1ecedb3-10a5-4fa5-ae8d-edb383aac701").unwrap()
+        }
+
+        fn org_id() -> Uuid {
+            Uuid::from_str("622217aa-6a58-45ea-812f-749b8ad462bf").unwrap()
+        }
+
+        fn api_key_id() -> Uuid {
+            Uuid::from_str("353d3c01-d0ea-46ea-95e4-3a07d0ce9116").unwrap()
+        }
+
+        fn role_id() -> Uuid {
+            Uuid::from_str("27849616-d3a4-43c6-995d-143cf1c8de98").unwrap()
+        }
+
+        fn request_user() -> RequestUser {
+            let user = user_id();
+            let org = org_id();
+            let ids = smallvec![user.clone(), org.clone(), role_id()];
+            RequestUser {
+                user_id: user,
+                org_id: org,
+                user_entity_ids: ids,
+                is_admin: false,
+                email: "a@example.com".to_string(),
+                name: "Test User".to_string(),
+            }
+        }
+
+        fn user_key_with_inherit() -> AuthenticationInfo {
+            let user = request_user();
+            AuthenticationInfo::ApiKey {
+                key: ApiKeyAuth {
+                    api_key_id: api_key_id(),
+                    org_id: user.org_id.clone(),
+                    user_id: Some(user.user_id.clone()),
+                    inherits_user_permissions: true,
+                },
+                user: Some(user),
+            }
+        }
+
+        fn user_key_without_inherit() -> AuthenticationInfo {
+            let user = request_user();
+            AuthenticationInfo::ApiKey {
+                key: ApiKeyAuth {
+                    api_key_id: api_key_id(),
+                    org_id: user.org_id.clone(),
+                    user_id: Some(user.user_id.clone()),
+                    inherits_user_permissions: false,
+                },
+                user: Some(user),
+            }
+        }
+
+        fn org_key_with_inherit() -> AuthenticationInfo {
+            AuthenticationInfo::ApiKey {
+                user: None,
+                key: ApiKeyAuth {
+                    api_key_id: api_key_id(),
+                    org_id: org_id(),
+                    user_id: None,
+                    inherits_user_permissions: true,
+                },
+            }
+        }
+
+        fn org_key_without_inherit() -> AuthenticationInfo {
+            AuthenticationInfo::ApiKey {
+                user: None,
+                key: ApiKeyAuth {
+                    api_key_id: api_key_id(),
+                    org_id: org_id(),
+                    user_id: None,
+                    inherits_user_permissions: false,
+                },
+            }
+        }
+
+        fn user_auth() -> AuthenticationInfo {
+            AuthenticationInfo::User(request_user())
+        }
 
         #[test]
-        #[ignore]
-        fn user_entity_ids() {}
+        fn get_user_id() {
+            assert_eq!(
+                user_key_with_inherit().user_id(),
+                Some(&user_id()),
+                "key with inherit"
+            );
+            assert_eq!(
+                user_key_without_inherit().user_id(),
+                Some(&user_id()),
+                "key without inherit"
+            );
+            assert_eq!(
+                org_key_with_inherit().user_id(),
+                None,
+                "org key with inherit"
+            );
+            assert_eq!(
+                org_key_without_inherit().user_id(),
+                None,
+                "org key without inherit"
+            );
+            assert_eq!(user_auth().user_id(), Some(&user_id()), "user auth");
+        }
+
+        #[test]
+        fn get_org_id() {
+            assert_eq!(
+                user_key_with_inherit().org_id(),
+                &org_id(),
+                "key with inherit"
+            );
+            assert_eq!(
+                user_key_without_inherit().org_id(),
+                &org_id(),
+                "key without inherit"
+            );
+            assert_eq!(
+                org_key_with_inherit().org_id(),
+                &org_id(),
+                "org key with inherit"
+            );
+            assert_eq!(
+                org_key_without_inherit().org_id(),
+                &org_id(),
+                "org key without inherit"
+            );
+            assert_eq!(user_auth().org_id(), &org_id(), "user auth");
+        }
+
+        #[test]
+        fn user_entity_ids() {
+            let mut ids = user_key_with_inherit().user_entity_ids();
+            ids.sort();
+            let mut s: UserEntityList = smallvec![user_id(), org_id(), api_key_id(), role_id()];
+            s.sort();
+            assert_eq!(
+                ids, s,
+                "key with inherit should have API key, user, org, and role"
+            );
+
+            let mut ids = user_key_without_inherit().user_entity_ids();
+            ids.sort();
+            let mut s: UserEntityList = smallvec![api_key_id()];
+            s.sort();
+            assert_eq!(ids, s, "key without inherit should only have API key");
+
+            let mut ids = org_key_with_inherit().user_entity_ids();
+            ids.sort();
+            let mut s: UserEntityList = smallvec![org_id(), api_key_id()];
+            s.sort();
+            assert_eq!(ids, s, "org key with inherit should have API key and org");
+
+            let mut ids = org_key_without_inherit().user_entity_ids();
+            ids.sort();
+            let mut s: UserEntityList = smallvec![api_key_id()];
+            s.sort();
+            assert_eq!(
+                ids, s,
+                "org key without inherit should have API key and org"
+            );
+
+            let mut ids = user_auth().user_entity_ids();
+            ids.sort();
+            let mut s: UserEntityList = smallvec![org_id(), user_id(), role_id()];
+            s.sort();
+            assert_eq!(ids, s, "user auth should have user, org, and roles");
+        }
 
         #[test]
         #[ignore]
@@ -308,9 +477,5 @@ mod tests {
         #[test]
         #[ignore]
         fn deleted_org() {}
-
-        #[test]
-        #[ignore]
-        fn admin_user_flag() {}
     }
 }
