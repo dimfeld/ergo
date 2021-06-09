@@ -2,31 +2,11 @@ use anyhow::{anyhow, Error, Result};
 use ergo::cmd::make_api_key;
 use futures::Future;
 
-mod database;
-mod tasks;
+pub mod database;
 
 use database::{create_database, TestDatabase, TestUser};
 use reqwest::header::HeaderMap;
 use uuid::Uuid;
-
-#[actix_rt::test]
-async fn smoke_test() {
-    run_app_test(|app| async move {
-        let response = app
-            .admin_user_client
-            .get(format!("{}/tasks", app.base_url))
-            .send()
-            .await?;
-
-        assert_eq!(
-            response.status().as_u16(),
-            200,
-            "response status code should be 200"
-        );
-        Ok::<(), Error>(())
-    })
-    .await;
-}
 
 pub struct TestApp {
     pub database: TestDatabase,
@@ -34,9 +14,44 @@ pub struct TestApp {
     pub org_id: Uuid,
     pub admin_user: TestUser,
     /// A client that automatically authenticates as the admin user.
-    pub admin_user_client: reqwest::Client,
+    pub admin_user_client: TestClient,
+    /// A client set to the base url of the server.
+    pub client: TestClient,
     pub address: String,
     pub base_url: String,
+}
+
+pub struct TestClient {
+    base: String,
+    client: reqwest::Client,
+}
+
+impl TestClient {
+    pub fn get(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
+        self.client.get(format!("{}/{}", self.base, url.as_ref()))
+    }
+
+    pub fn post(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
+        self.client.get(format!("{}/{}", self.base, url.as_ref()))
+    }
+
+    pub fn put(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
+        self.client.put(format!("{}/{}", self.base, url.as_ref()))
+    }
+
+    pub fn delete(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
+        self.client
+            .delete(format!("{}/{}", self.base, url.as_ref()))
+    }
+
+    pub fn request(
+        &self,
+        method: reqwest::Method,
+        url: impl AsRef<str>,
+    ) -> reqwest::RequestBuilder {
+        self.client
+            .request(method, format!("{}/{}", self.base, url.as_ref()))
+    }
 }
 
 async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -> Result<TestApp> {
@@ -71,36 +86,45 @@ async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -
         format!("Bearer {}", admin_user.api_key).parse().unwrap(),
     );
 
+    let base_url = format!("http://{}:{}/api", addr, port);
+
     Ok(TestApp {
         database,
         org_id,
         admin_user,
-        admin_user_client: reqwest::ClientBuilder::new()
-            .default_headers(headers)
-            .build()
-            .expect("Building client"),
+        admin_user_client: TestClient {
+            base: base_url.clone(),
+            client: reqwest::ClientBuilder::new()
+                .default_headers(headers)
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("Building admin_user_client"),
+        },
+        client: TestClient {
+            base: base_url.clone(),
+            client: reqwest::ClientBuilder::new()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("Building client"),
+        },
         address: format!("{}:{}", addr, port),
-        base_url: format!("http://{}:{}/api", addr, port),
+        base_url,
     })
 }
 
-pub async fn run_database_test<F, R, RV, RE>(f: F) -> ()
+pub async fn run_database_test<F, R>(f: F) -> ()
 where
     F: FnOnce(TestDatabase) -> R,
-    R: Future<Output = Result<RV, RE>>,
-    RV: Send,
-    RE: Send + std::fmt::Debug,
+    R: Future<Output = Result<(), anyhow::Error>>,
 {
     let (database, _, _) = create_database().await.expect("Creating database");
     f(database).await.unwrap();
 }
 
-pub async fn run_app_test<F, R, RV, RE>(f: F) -> ()
+pub async fn run_app_test<F, R>(f: F) -> ()
 where
     F: FnOnce(TestApp) -> R,
-    R: Future<Output = Result<RV, RE>>,
-    RV: Send,
-    RE: Send + std::fmt::Debug,
+    R: Future<Output = Result<(), anyhow::Error>>,
 {
     let (database, org_id, admin_user) = create_database().await.expect("Creating database");
     let app = start_app(database, org_id, admin_user)

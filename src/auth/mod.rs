@@ -457,25 +457,5 @@ mod tests {
             s.sort();
             assert_eq!(ids, s, "user auth should have user, org, and roles");
         }
-
-        #[test]
-        #[ignore]
-        fn auth_by_api_key() {}
-
-        #[test]
-        #[ignore]
-        fn auth_by_identity() {}
-
-        #[test]
-        #[ignore]
-        fn unknown_user() {}
-
-        #[test]
-        #[ignore]
-        fn deleted_user() {}
-
-        #[test]
-        #[ignore]
-        fn deleted_org() {}
     }
 }
