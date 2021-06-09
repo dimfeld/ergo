@@ -98,8 +98,7 @@ pub async fn new_action(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let action_id =
-        new_object_id_with_value(&mut tx, payload.action_id.as_ref(), "action", false).await?;
+    let action_id = new_object_id_with_value(&mut tx, payload.action_id, "action", false).await?;
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
         executor_id, executor_template, template_fields, account_required) VALUES
@@ -164,7 +163,7 @@ pub async fn write_action(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    new_object_id_with_value(&mut tx, Some(&action_id), "action", true).await?;
+    new_object_id_with_value(&mut tx, Some(action_id), "action", true).await?;
 
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,

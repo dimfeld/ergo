@@ -1,9 +1,8 @@
+use sqlx::PgConnection;
+
 use crate::error::{Error, Result};
 
-pub async fn new_object_id(
-    tx: &'_ mut sqlx::Transaction<'_, sqlx::Postgres>,
-    object_type: &str,
-) -> Result<i64, sqlx::Error> {
+pub async fn new_object_id(tx: &mut PgConnection, object_type: &str) -> Result<i64, sqlx::Error> {
     let id = sqlx::query_scalar!(
         "INSERT INTO object_ids (object_id, type) VALUES (DEFAULT, $1::object_type) RETURNING object_id",
         object_type as _
@@ -14,8 +13,8 @@ pub async fn new_object_id(
 }
 
 pub async fn new_object_id_with_value(
-    tx: &'_ mut sqlx::Transaction<'_, sqlx::Postgres>,
-    id: Option<&i64>,
+    tx: &mut PgConnection,
+    id: Option<i64>,
     object_type: &str,
     allow_existing: bool,
 ) -> Result<i64> {
@@ -28,7 +27,7 @@ pub async fn new_object_id_with_value(
             )
             .execute(&mut *tx)
             .await?;
-            *id
+            id
         }
         (Some(id), true) => {
             let result = sqlx::query_scalar!(
@@ -49,32 +48,17 @@ pub async fn new_object_id_with_value(
                         .unwrap_or_else(String::new);
                 if existing_type != object_type {
                     return Err(Error::ObjectIdTypeMismatch {
-                        id: *id,
+                        id,
                         wanted: object_type.to_string(),
                         saw: existing_type,
                     });
                 }
             }
 
-            *id
+            id
         }
         (None, _) => new_object_id(tx, object_type).await?,
     };
 
     Ok(result)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    #[ignore]
-    fn new_value() {}
-
-    #[test]
-    #[ignore]
-    fn with_existing_value_of_same_type() {}
-
-    #[test]
-    #[ignore]
-    fn with_existing_value_of_different_type() {}
 }

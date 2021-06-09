@@ -49,8 +49,7 @@ pub async fn new_input(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let input_id =
-        new_object_id_with_value(&mut tx, payload.input_id.as_ref(), "input", false).await?;
+    let input_id = new_object_id_with_value(&mut tx, payload.input_id, "input", false).await?;
     sqlx::query!(
         "INSERT INTO inputs (input_id, input_category_id, name, description, payload_schema) VALUES
         ($1, $2, $3, $4, $5)",
@@ -92,7 +91,7 @@ pub async fn write_input(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    new_object_id_with_value(&mut tx, Some(&input_id), "input", true).await?;
+    new_object_id_with_value(&mut tx, Some(input_id), "input", true).await?;
 
     sqlx::query!(
         "INSERT INTO inputs (input_id, input_category_id, name, description, payload_schema)

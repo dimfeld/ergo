@@ -27,6 +27,23 @@ pub struct TestClient {
 }
 
 impl TestClient {
+    pub fn clone_with_api_key(&self, api_key: String) -> TestClient {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            reqwest::header::AUTHORIZATION,
+            format!("Bearer {}", api_key).parse().unwrap(),
+        );
+
+        TestClient {
+            base: self.base.clone(),
+            client: reqwest::ClientBuilder::new()
+                .default_headers(headers)
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .expect("Building client"),
+        }
+    }
+
     pub fn get(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
         self.client.get(format!("{}/{}", self.base, url.as_ref()))
     }
@@ -80,33 +97,21 @@ async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -
         }
     });
 
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        reqwest::header::AUTHORIZATION,
-        format!("Bearer {}", admin_user.api_key).parse().unwrap(),
-    );
-
     let base_url = format!("http://{}:{}/api", addr, port);
+    let client = TestClient {
+        base: base_url.clone(),
+        client: reqwest::ClientBuilder::new()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Building client"),
+    };
 
     Ok(TestApp {
         database,
         org_id,
+        admin_user_client: client.clone_with_api_key(admin_user.api_key.clone()),
+        client,
         admin_user,
-        admin_user_client: TestClient {
-            base: base_url.clone(),
-            client: reqwest::ClientBuilder::new()
-                .default_headers(headers)
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("Building admin_user_client"),
-        },
-        client: TestClient {
-            base: base_url.clone(),
-            client: reqwest::ClientBuilder::new()
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("Building client"),
-        },
         address: format!("{}:{}", addr, port),
         base_url,
     })
