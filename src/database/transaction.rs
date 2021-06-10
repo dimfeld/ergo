@@ -1,13 +1,12 @@
 use futures::future::BoxFuture;
 use std::{borrow::Cow, time::Duration};
 
-use sqlx::{Connection, Postgres};
+use sqlx::{Connection, PgConnection, Postgres};
 
-use super::PostgresPool;
 use crate::error::Error;
 
 pub fn serializable<F, T, E>(
-    pool: &PostgresPool,
+    conn: &mut PgConnection,
     retries: usize,
     run: F,
 ) -> BoxFuture<'_, Result<T, Error>>
@@ -24,7 +23,6 @@ where
         let mut sleep = Duration::from_millis(10);
 
         while retried <= retries {
-            let mut conn = pool.acquire().await?;
             let mut tx = conn.begin().await?;
             sqlx::query!("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
                 .execute(&mut tx)
@@ -33,7 +31,8 @@ where
 
             let is_serialization_error = {
                 if let Err(Error::SqlError(sqlx::Error::Database(e))) = &r {
-                    e.code().unwrap_or_else(|| Cow::from("")) == "serialization_failure"
+                    // Check for serialization error code
+                    e.code().unwrap_or_else(|| Cow::from("")) == "40001"
                 } else {
                     false
                 }
@@ -60,15 +59,4 @@ where
 
         Err(Error::SerializationFailure)
     })
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    #[ignore]
-    fn handles_serialization_error() {}
-
-    #[test]
-    #[ignore]
-    fn bails_on_error() {}
 }

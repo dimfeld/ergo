@@ -67,7 +67,8 @@ impl Task {
             None
         };
 
-        let result = serializable(pool, 5, move |tx| {
+        let mut conn = pool.acquire().await?;
+        let result = serializable(&mut conn, 5, move |tx| {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
             let notifications = notifications.clone();
