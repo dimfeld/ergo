@@ -45,7 +45,31 @@ pub async fn send_discord_webhook(
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    #[ignore]
-    fn sends_notification() {}
+    use crate::notifications::NotifyEvent;
+
+    #[actix_rt::test]
+    async fn sends_notification() {
+        dotenv::dotenv().ok();
+
+        let hook = std::env::var("TEST_DISCORD_WEBHOOK_URL").unwrap_or_else(|_| String::new());
+        if hook.is_empty() {
+            return;
+        }
+
+        let notification = super::Notification {
+            event: NotifyEvent::ActionSuccess,
+            task_id: 1,
+            task_name: "a test task".to_string(),
+            local_id: "the local id".to_string(),
+            local_object_name: "the local object name".to_string(),
+            local_object_id: Some(1),
+            payload: Some(serde_json::json!({ "payload_value": 5})),
+            error: None,
+            log_id: Some(uuid::Uuid::new_v4()),
+        };
+
+        super::send_discord_webhook(&reqwest::Client::new(), hook.as_str(), &notification)
+            .await
+            .expect("Sending notification");
+    }
 }
