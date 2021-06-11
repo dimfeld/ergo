@@ -55,7 +55,7 @@ async fn handles_serialization_error() {
 async fn bails_on_error() {
     common::run_database_test(|db| async move {
         let mut conn = db.pool.acquire().await?;
-        let result = transaction::serializable(&mut conn, 1, |tx| {
+        let result = transaction::serializable(&mut conn, 1, |_| {
             async move { Err::<(), _>(ergo::error::Error::StringError("An error".to_string())) }
                 .boxed()
         })
