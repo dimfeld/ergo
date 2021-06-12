@@ -7,6 +7,7 @@ use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 
 use crate::{
+    database::RedisPool,
     error::Error,
     graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
     queues::{Job, JobId, Queue},
@@ -46,18 +47,9 @@ enum JobLimit {
 }
 
 pub async fn main(queue_name: String, args: Args) -> Result<(), Error> {
-    let redis_database = std::env::var("REDIS_URL").expect("REDIS_URL is required");
-    let redis_pool = deadpool_redis::Config {
-        url: Some(redis_database),
-        connection: None,
-        pool: Some(deadpool_redis::PoolConfig::new(
-            args.consumers + args.producers + 1,
-        )),
-    }
-    .create_pool()
-    .expect("Creating redis pool");
+    let redis_pool = crate::database::RedisPool::new(None, None).expect("Creating redis pool");
 
-    let queue = Queue::new(redis_pool.clone(), &queue_name, None, None, None);
+    let queue = Queue::new(redis_pool.clone(), queue_name.clone(), None, None, None);
 
     let job_limit = match (args.num_jobs, args.time) {
         (Some(n), _) => JobLimit::Num(n),
@@ -126,7 +118,7 @@ pub async fn main(queue_name: String, args: Args) -> Result<(), Error> {
     Ok(())
 }
 
-async fn cleanup(pool: deadpool_redis::Pool, queue_name: &str) -> Result<(), Error> {
+async fn cleanup(pool: RedisPool, queue_name: &str) -> Result<(), Error> {
     let mut conn = pool.get().await.expect("Cleanup: Acquiring connection");
     let key_pattern = format!("erq:{}:*", queue_name);
     let mut cmd = redis::cmd("SCAN");

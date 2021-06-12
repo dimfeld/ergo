@@ -20,7 +20,7 @@ pub async fn main() -> Result<()> {
     let backend_pg_pool =
         crate::service_config::backend_pg_pool(shutdown.consumer(), &vault_client, database_config)
             .await?;
-    let redis_pool = crate::service_config::redis_pool(None)?;
+    let redis_pool = crate::database::RedisPool::new(None, None)?;
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());

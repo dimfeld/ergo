@@ -8,7 +8,7 @@ use smallvec::SmallVec;
 use sqlx::PgConnection;
 
 use crate::{
-    database::PostgresPool,
+    database::{PostgresPool, RedisPool},
     error::{Error, Result},
     graceful_shutdown::GracefulShutdownConsumer,
     queues::{generic_stage::QueueJob, Queue, QueueJobProcessor},
@@ -46,6 +46,7 @@ pub struct NotificationManagerInner {
     pg_pool: PostgresPool,
     shutdown: GracefulShutdownConsumer,
     queue: Queue,
+    queue_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -64,14 +65,20 @@ struct ServiceAndDestination {
 impl NotificationManager {
     pub fn new(
         pg_pool: PostgresPool,
-        redis_pool: deadpool_redis::Pool,
+        redis_pool: RedisPool,
         shutdown: GracefulShutdownConsumer,
     ) -> Result<NotificationManager> {
-        let queue = Queue::new(redis_pool, QUEUE_NAME, None, None, None);
+        let queue_name = match redis_pool.key_prefix() {
+            Some(prefix) => format!("{}-{}", prefix, QUEUE_NAME),
+            None => QUEUE_NAME.to_string(),
+        };
+
+        let queue = Queue::new(redis_pool, queue_name.clone(), None, None, None);
         Ok(NotificationManager(Arc::new(NotificationManagerInner {
             pg_pool,
             shutdown,
             queue,
+            queue_name,
         })))
     }
 
@@ -91,7 +98,9 @@ impl NotificationManager {
                 notification: Cow::Borrowed(&notification),
             };
 
-            QueueJob::new(QUEUE_NAME, &payload).enqueue(tx).await?;
+            QueueJob::new(self.0.queue_name.as_str(), &payload)
+                .enqueue(tx)
+                .await?;
         }
         Ok(())
     }

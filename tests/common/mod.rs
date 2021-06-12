@@ -73,13 +73,14 @@ impl TestClient {
 
 async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -> Result<TestApp> {
     let shutdown = ergo::graceful_shutdown::GracefulShutdown::new();
+    let redis_key_prefix = Uuid::new_v4();
     let config = ergo::server::Config {
         database: database.config.clone(),
         bind_port: 0, // Bind to random port
         bind_address: Some("127.0.0.1".to_string()),
-        redis_url: None,
+        redis_url: std::env::var("TEST_REDIS_URL").ok(),
+        redis_queue_prefix: Some(redis_key_prefix.to_string()),
         vault_approle: None,
-
         immediate_inputs: false,
         immediate_actions: false,
         no_drain_queues: false,

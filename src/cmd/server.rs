@@ -16,6 +16,7 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
         bind_port: envoption::with_default("BIND_PORT", 6543 as u16)?,
         database: database_configuration_from_env()?,
         redis_url: None,
+        redis_queue_prefix: None,
         immediate_actions: envoption::with_default("IMMEDIATE_ACTIONS", false)?,
         immediate_inputs: envoption::with_default("IMMEDIATE_INPUTS", false)?,
         vault_approle: Some("SERVER"),

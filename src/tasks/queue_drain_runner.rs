@@ -2,7 +2,7 @@
 
 use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 use crate::{
-    database::VaultPostgresPool,
+    database::{RedisPool, VaultPostgresPool},
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
@@ -27,7 +27,7 @@ impl AllQueuesDrain {
         input_queue: InputQueue,
         action_queue: ActionQueue,
         pg_pool: VaultPostgresPool,
-        redis_pool: deadpool_redis::Pool,
+        redis_pool: RedisPool,
         shutdown: GracefulShutdownConsumer,
     ) -> Result<AllQueuesDrain, Error> {
         let action_drain = super::actions::queue::new_drain(

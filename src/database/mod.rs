@@ -7,9 +7,10 @@ mod conn_executor;
 mod connection_manager;
 mod executor;
 pub mod object_id;
+pub mod redis;
 pub mod transaction;
 
-pub use self::object_id::new_object_id;
+pub use self::{object_id::new_object_id, redis::RedisPool};
 
 use connection_manager::{Manager, WrappedConnection};
 

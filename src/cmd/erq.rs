@@ -46,16 +46,9 @@ enum QueueCmd {
 }
 
 pub async fn main(args: Args) -> Result<(), Error> {
-    let redis_database = std::env::var("REDIS_URL").expect("REDIS_URL is required");
-    let redis_pool = deadpool_redis::Config {
-        url: Some(redis_database),
-        connection: None,
-        pool: None,
-    }
-    .create_pool()
-    .expect("Creating redis pool");
+    let redis_pool = crate::database::RedisPool::new(None, None).expect("Creating redis pool");
 
-    let queue = Queue::new(redis_pool, &args.queue, None, None, None);
+    let queue = Queue::new(redis_pool, args.queue.clone(), None, None, None);
 
     match args.cmd {
         QueueCmd::Add { id, data } => {

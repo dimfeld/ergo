@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Deref};
 
 use crate::{
-    database::PostgresPool,
+    database::{PostgresPool, RedisPool},
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::{
@@ -73,8 +73,13 @@ impl Deref for InputQueue {
 }
 
 impl InputQueue {
-    pub fn new(redis_pool: deadpool_redis::Pool) -> InputQueue {
-        InputQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+    pub fn new(redis_pool: RedisPool) -> InputQueue {
+        let queue_name = match redis_pool.key_prefix() {
+            Some(prefix) => format!("{}-{}", prefix, QUEUE_NAME),
+            None => QUEUE_NAME.to_string(),
+        };
+
+        InputQueue(Queue::new(redis_pool, queue_name, None, None, None))
     }
 }
 
@@ -82,7 +87,7 @@ impl InputQueue {
 pub fn new_drain(
     input_queue: InputQueue,
     db_pool: PostgresPool,
-    redis_pool: deadpool_redis::Pool,
+    redis_pool: RedisPool,
     shutdown: GracefulShutdownConsumer,
 ) -> Result<QueueStageDrain, Error> {
     let config = QueueStageDrainConfig {

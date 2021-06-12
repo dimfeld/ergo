@@ -1,7 +1,7 @@
 use std::{borrow::Cow, ops::Deref};
 
 use crate::{
-    database::PostgresPool,
+    database::{PostgresPool, RedisPool},
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::{
@@ -76,8 +76,13 @@ impl Deref for ActionQueue {
 }
 
 impl ActionQueue {
-    pub fn new(redis_pool: deadpool_redis::Pool) -> ActionQueue {
-        ActionQueue(Queue::new(redis_pool, QUEUE_NAME, None, None, None))
+    pub fn new(redis_pool: RedisPool) -> ActionQueue {
+        let queue_name = match redis_pool.key_prefix() {
+            Some(prefix) => format!("{}-{}", prefix, QUEUE_NAME),
+            None => QUEUE_NAME.to_string(),
+        };
+
+        ActionQueue(Queue::new(redis_pool, queue_name, None, None, None))
     }
 }
 
@@ -85,7 +90,7 @@ impl ActionQueue {
 pub fn new_drain(
     queue: ActionQueue,
     db_pool: PostgresPool,
-    redis_pool: deadpool_redis::Pool,
+    redis_pool: RedisPool,
     shutdown: GracefulShutdownConsumer,
 ) -> Result<QueueStageDrain, Error> {
     let config = QueueStageDrainConfig {

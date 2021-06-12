@@ -44,21 +44,6 @@ async fn pg_pool(
     .await
 }
 
-pub fn redis_pool(connection: Option<&str>) -> Result<deadpool_redis::Pool, Error> {
-    let redis_host = match connection {
-        Some(c) => c.to_string(),
-        None => env::var("REDIS_URL").expect("REDIS_URL is required"),
-    };
-
-    deadpool_redis::Config {
-        url: Some(redis_host),
-        connection: None,
-        pool: None,
-    }
-    .create_pool()
-    .map_err(|e| e.into())
-}
-
 pub async fn backend_pg_pool(
     shutdown: GracefulShutdownConsumer,
     vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,

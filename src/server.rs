@@ -34,6 +34,7 @@ pub struct Config<'a> {
     pub bind_port: u16,
     pub database: DatabaseConfiguration,
     pub redis_url: Option<String>,
+    pub redis_queue_prefix: Option<String>,
     pub vault_approle: Option<&'a str>,
 
     pub immediate_actions: bool,
@@ -48,6 +49,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
         bind_address,
         database,
         redis_url,
+        redis_queue_prefix,
         vault_approle,
         immediate_inputs,
         immediate_actions,
@@ -77,7 +79,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     let backend_pg_pool =
         crate::service_config::backend_pg_pool(shutdown.clone(), &vault_client, database).await?;
 
-    let redis_pool = crate::service_config::redis_pool(redis_url.as_ref().map(|s| s.as_str()))?;
+    let redis_pool = crate::database::RedisPool::new(redis_url, redis_queue_prefix)?;
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());

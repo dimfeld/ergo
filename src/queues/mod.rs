@@ -14,7 +14,7 @@ mod start_work;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
 pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
-use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
+use crate::{database::RedisPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
 
 use std::{
     num::NonZeroU32,
@@ -42,7 +42,7 @@ impl std::fmt::Debug for Queue {
 }
 
 struct QueueInner {
-    pool: deadpool_redis::Pool,
+    pool: RedisPool,
     name: String,
     pending_list: String,
     scheduled_list: String,
@@ -105,15 +105,14 @@ pub struct QueueStatus {
 
 impl Queue {
     pub fn new(
-        pool: deadpool_redis::Pool,
-        queue_name: &str,
+        pool: RedisPool,
+        queue_name: String,
         default_timeout: Option<Duration>,
         default_max_retries: Option<u32>,
         default_retry_backoff: Option<Duration>,
     ) -> Queue {
         Queue(Arc::new(QueueInner {
             pool,
-            name: queue_name.to_string(),
             pending_list: format!("erq:{}:pending", queue_name),
             scheduled_list: format!("erq:{}:scheduled", queue_name),
             processing_list: format!("erq:{}:processing", queue_name),
@@ -131,6 +130,7 @@ impl Queue {
             cancel_script: job_cancel::JobCancelScript::new(),
             scheduled_job_enqueuer_task: Mutex::new(None),
             job_dequeuer_task: Mutex::new(None),
+            name: queue_name,
         }))
     }
 
@@ -588,15 +588,8 @@ mod tests {
     {
         dotenv::dotenv().ok();
         let queue_name = format!("test-{}", uuid::Uuid::new_v4());
-        let pool = deadpool_redis::Config {
-            url: Some(std::env::var("REDIS_URL").expect("REDIS_URL must be set")),
-            connection: None,
-            pool: None,
-        }
-        .create_pool()
-        .expect("Creating connection pool");
-
-        let queue = Queue::new(pool.clone(), &queue_name, None, None, None);
+        let pool = crate::database::RedisPool::new(None, None).expect("Creating connection pool");
+        let queue = Queue::new(pool.clone(), queue_name.clone(), None, None, None);
 
         let result = std::panic::AssertUnwindSafe(test(queue))
             .catch_unwind()

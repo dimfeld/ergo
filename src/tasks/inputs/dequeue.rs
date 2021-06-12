@@ -5,7 +5,7 @@ use std::num::NonZeroU32;
 use async_trait::async_trait;
 
 use crate::{
-    database::PostgresPool,
+    database::{PostgresPool, RedisPool},
     error::Error,
     graceful_shutdown::GracefulShutdownConsumer,
     queues::{QueueJobProcessor, QueueWorkItem},
@@ -19,7 +19,7 @@ pub struct TaskExecutor {
 
 pub struct TaskExecutorConfig {
     pub pg_pool: PostgresPool,
-    pub redis_pool: deadpool_redis::Pool,
+    pub redis_pool: RedisPool,
     pub shutdown: GracefulShutdownConsumer,
     pub notifications: Option<crate::notifications::NotificationManager>,
     /// The highest number of concurrent jobs to run. Defaults to twice the number of CPUs.

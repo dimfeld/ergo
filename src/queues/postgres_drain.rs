@@ -12,7 +12,11 @@ use tokio::{
 use tracing::{event, Level};
 
 use super::{Job, Queue};
-use crate::{database::PostgresPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
+use crate::{
+    database::{PostgresPool, RedisPool},
+    error::Error,
+    graceful_shutdown::GracefulShutdownConsumer,
+};
 
 #[async_trait]
 pub trait Drainer: Send + Sync {
@@ -35,7 +39,7 @@ pub struct QueueStageDrainStats {
 
 pub struct QueueStageDrainConfig<D: Drainer + 'static> {
     pub db_pool: PostgresPool,
-    pub redis_pool: deadpool_redis::Pool,
+    pub redis_pool: RedisPool,
     pub drainer: D,
 
     /// Preinitialize with a queue when you already have the queue object.
@@ -122,7 +126,7 @@ impl Drop for QueueStageDrain {
 
 struct StageDrainTask<D: Drainer> {
     db_pool: PostgresPool,
-    redis_pool: deadpool_redis::Pool,
+    redis_pool: RedisPool,
     queues: FxHashMap<String, Queue>,
     drainer: D,
     close: oneshot::Receiver<()>,
@@ -206,7 +210,13 @@ impl<D: Drainer> StageDrainTask<D> {
                 None => {
                     self.queues.insert(
                         queue_name.to_string(),
-                        Queue::new(self.redis_pool.clone(), queue_name, None, None, None),
+                        Queue::new(
+                            self.redis_pool.clone(),
+                            queue_name.to_string(),
+                            None,
+                            None,
+                            None,
+                        ),
                     );
 
                     self.queues.get(queue_name.as_ref()).unwrap()
