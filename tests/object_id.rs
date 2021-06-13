@@ -1,7 +1,4 @@
-mod common;
-
-use assert_matches::assert_matches;
-use common::run_database_test;
+use crate::common::run_database_test;
 use ergo::database::object_id;
 
 #[actix_rt::test]

@@ -1,6 +1,4 @@
-mod common;
-
-use anyhow::anyhow;
+use crate::common;
 use ergo::database::transaction;
 use futures::future::FutureExt;
 use sqlx::Row;

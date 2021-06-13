@@ -4,6 +4,7 @@ version = "0.2.0"
 authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
 edition = "2018"
 resolver = "2"
+autotests = false
 
 [lib]
 path = "src/lib.rs"
@@ -11,6 +12,10 @@ path = "src/lib.rs"
 [[bin]]
 path = "src/main.rs"
 name = "ergo"
+
+[[test]]
+name = "test"
+path = "tests/main.rs"
 
 [features]
 test_redis = []

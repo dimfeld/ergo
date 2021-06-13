@@ -1,6 +1,4 @@
-mod common;
-
-use common::run_app_test;
+use crate::common::run_app_test;
 
 #[actix_rt::test]
 async fn anonymous_unauthenticated_endpoint() {
