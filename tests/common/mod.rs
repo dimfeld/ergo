@@ -5,6 +5,8 @@ use futures::Future;
 pub mod database;
 
 use database::{create_database, TestDatabase, TestUser};
+// use proc_macro::TokenStream;
+// use quote::quote;
 use reqwest::header::HeaderMap;
 use uuid::Uuid;
 
@@ -186,3 +188,77 @@ impl TestApp {
         self.add_user_with_password(org_id, name, None).await
     }
 }
+
+// #[proc_macro_attribute]
+// pub fn app_test(_: TokenStream, item: TokenStream) -> TokenStream {
+//     let mut input = syn::parse_macro_input!(item as syn::ItemFn);
+//     let attrs = &input.attrs;
+//     let vis = &input.vis;
+//     let sig = &mut input.sig;
+//     let body = &input.block;
+//     let mut has_test_attr = false;
+//
+//     for attr in attrs {
+//         if attr.path.is_ident("test") {
+//             has_test_attr = true;
+//         }
+//     }
+//
+//     if sig.asyncness.is_none() {
+//         return syn::Error::new_spanned(
+//             input.sig.fn_token,
+//             "the async keyword is missing from the function declaration",
+//         )
+//         .to_compile_error()
+//         .into();
+//     }
+//
+//     sig.asyncness = None;
+//
+//     let missing_test_attr = if has_test_attr {
+//         quote!()
+//     } else {
+//         quote!(#[test])
+//     };
+//
+//     let appname = match sig.inputs.first() {
+//         Some(syn::FnArg::Typed(syn::PatType { pat: p, .. })) => match &**p {
+//             syn::Pat::Ident(p) => p.clone(),
+//             _ => {
+//                 return syn::Error::new_spanned(
+//                     input.sig.fn_token,
+//                     "first argument must be a TestApp",
+//                 )
+//                 .to_compile_error()
+//                 .into()
+//             }
+//         },
+//         _ => {
+//             return syn::Error::new_spanned(input.sig.fn_token, "first argument must be a TestApp")
+//                 .to_compile_error()
+//                 .into();
+//         }
+//     };
+//
+//     // Remove all the arguments.
+//     sig.inputs = syn::punctuated::Punctuated::new();
+//
+//     (quote! {
+//         #missing_test_attr
+//         #(#attrs)*
+//         #vis #sig {
+//             actix_rt::System::new()
+//                 .block_on(async {
+//                     let #appname = {
+//                         let (database, org_id, admin_user) = crate::common::database::create_database().await.expect("Creating database");
+//                         crate::common::start_app(database, org_id, admin_user)
+//                             .await
+//                             .expect("Starting app");
+//                     };
+//
+//                     #body
+//                 })
+//         }
+//     })
+//     .into()
+// }

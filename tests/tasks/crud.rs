@@ -1,8 +1,9 @@
+use crate::common::run_app_test;
 use serde_json::json;
 
-#[test]
+#[actix_rt::test]
 #[ignore]
-fn list_tasks() {}
+async fn list_tasks() {}
 
 #[test]
 #[ignore]
