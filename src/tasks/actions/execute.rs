@@ -29,7 +29,7 @@ pub fn json_primitive_as_string<'a>(
     subfield: Option<&str>,
     value: &'a serde_json::Value,
     allow_missing: bool,
-) -> Result<Cow<'a, String>, ExecutorError> {
+) -> Result<Cow<'a, str>, ExecutorError> {
     match value {
         serde_json::Value::String(s) => Ok(Cow::Borrowed(s)),
         serde_json::Value::Number(n) => Ok(Cow::Owned(n.to_string())),
@@ -53,7 +53,7 @@ pub fn get_primitive_payload_value<'a>(
     values: &'a FxHashMap<String, serde_json::Value>,
     name: &str,
     allow_missing: bool,
-) -> Result<Cow<'a, String>, ExecutorError> {
+) -> Result<Cow<'a, str>, ExecutorError> {
     match values.get(name) {
         Some(n) => json_primitive_as_string(name, None, n, allow_missing),
         None => {
@@ -483,12 +483,91 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn json_primitive_as_string() {}
+    fn json_primitive_as_string() {
+        assert_eq!(
+            super::json_primitive_as_string("a", None, &json!("abc"), false).expect("string"),
+            "abc",
+            "string"
+        );
+        assert_eq!(
+            super::json_primitive_as_string("a", None, &json!(3), false).expect("number"),
+            "3",
+            "number"
+        );
+        assert_eq!(
+            super::json_primitive_as_string("a", None, &json!(true), false).expect("boolean"),
+            "true",
+            "boolean"
+        );
+        assert_eq!(
+            super::json_primitive_as_string("a", None, &json!(null), true)
+                .expect("allow_missing=true: null converts to empty string"),
+            "",
+            "allow_missing=true: null convers to empty string"
+        );
+
+        super::json_primitive_as_string("a", None, &json!(null), false)
+            .expect_err("allow_missing=false: null throws error");
+        super::json_primitive_as_string("a", None, &json!({"abc": 5}), false)
+            .expect_err("object throws error");
+        super::json_primitive_as_string("a", None, &json!([1, 2, 3]), false)
+            .expect_err("array throws error");
+    }
 
     #[test]
-    #[ignore]
-    fn get_primitive_payload_value() {}
+    fn get_primitive_payload_value() {
+        let values = std::array::IntoIter::new([
+            ("string_field", json!("a string")),
+            ("number_field", json!(3)),
+            ("bool_field", json!(true)),
+            ("null_field", json!(null)),
+            ("object_field", json!({ "d": 4 })),
+            ("array_field", json!([1, 2, 3])),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<String, serde_json::Value>>();
+
+        assert_eq!(
+            super::get_primitive_payload_value(&values, "string_field", false)
+                .expect("string field"),
+            "a string",
+            "string field"
+        );
+        assert_eq!(
+            super::get_primitive_payload_value(&values, "number_field", false)
+                .expect("number field"),
+            "3",
+            "number field"
+        );
+        assert_eq!(
+            super::get_primitive_payload_value(&values, "bool_field", false).expect("bool field"),
+            "true",
+            "bool field"
+        );
+
+        super::get_primitive_payload_value(&values, "object_field", false)
+            .expect_err("object field throws error");
+        super::get_primitive_payload_value(&values, "array_field", false)
+            .expect_err("array field throws error");
+
+        super::get_primitive_payload_value(&values, "null_field", false)
+            .expect_err("allow_missing=false: null value should return error");
+        super::get_primitive_payload_value(&values, "missing", false)
+            .expect_err("allow_missing=false: missing field should return error");
+
+        assert_eq!(
+            super::get_primitive_payload_value(&values, "null_field", true)
+                .expect("allow_missing=true: null value converts to empty string"),
+            "",
+            "allow_missing=true: null value converts to empty string"
+        );
+        assert_eq!(
+            super::get_primitive_payload_value(&values, "missing", true)
+                .expect("allow_missing=true: missing field converts to empty string"),
+            "",
+            "allow_missing=true: null value converts to empty string"
+        );
+    }
 
     #[test]
     #[ignore]
