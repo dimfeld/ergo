@@ -169,12 +169,15 @@ impl Manager {
             renew_failures: 0,
         });
 
-        let (renewer, role): (Arc<dyn PostgresAuthRenewer>, String) = match auth_method {
-            VaultPostgresPoolAuth::Vault { client, role } => (client, role),
-            VaultPostgresPoolAuth::Password { username, password } => {
-                (Arc::new(FixedAuth { username, password }), String::new())
-            }
-        };
+        let (run_refresh_loop, renewer, role): (bool, Arc<dyn PostgresAuthRenewer>, String) =
+            match auth_method {
+                VaultPostgresPoolAuth::Vault { client, role } => (true, client, role),
+                VaultPostgresPoolAuth::Password { username, password } => (
+                    false,
+                    Arc::new(FixedAuth { username, password }),
+                    String::new(),
+                ),
+            };
 
         let manager = ManagerInner {
             creds: std::sync::RwLock::new((String::new(), String::new())),
@@ -192,12 +195,14 @@ impl Manager {
 
         let manager_ptr = Arc::new(manager);
 
-        tokio::task::spawn(refresh_loop(
-            manager_ptr.clone(),
-            shutdown,
-            renewable,
-            duration,
-        ));
+        if run_refresh_loop {
+            tokio::task::spawn(refresh_loop(
+                manager_ptr.clone(),
+                shutdown,
+                renewable,
+                duration,
+            ));
+        }
 
         Ok(Manager(manager_ptr))
     }
