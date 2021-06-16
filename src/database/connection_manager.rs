@@ -42,55 +42,6 @@ impl<T: 'static + DeserializeOwned + Send + Sync + Debug> PostgresAuthRenewer
     }
 }
 
-/// An auth manager that only ever returns the same auth info that it was intialized with.
-/// Used when running a system without Vault.
-struct FixedAuth {
-    username: String,
-    password: String,
-}
-
-impl std::fmt::Debug for FixedAuth {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Skip password
-        f.debug_struct("FixedAuth")
-            .field("username", &self.username)
-            .finish()
-    }
-}
-
-#[async_trait]
-impl PostgresAuthRenewer for FixedAuth {
-    async fn renew_lease(&self, _lease_id: &str) -> Result<VaultResponse<()>, Error> {
-        Ok(VaultResponse {
-            request_id: String::new(),
-            lease_id: None,
-            renewable: Some(false),
-            lease_duration: Some(VaultDuration::days(10000000)),
-            data: None,
-            warnings: None,
-            auth: None,
-            wrap_info: None,
-        })
-    }
-
-    async fn get_lease(&self, _role: &str) -> Result<VaultResponse<PostgresqlLogin>, Error> {
-        Ok(VaultResponse {
-            request_id: String::new(),
-            lease_id: None,
-            renewable: Some(false),
-            // Never expires
-            lease_duration: Some(VaultDuration::days(10000000)),
-            data: Some(PostgresqlLogin {
-                username: self.username.clone(),
-                password: self.password.clone(),
-            }),
-            warnings: None,
-            auth: None,
-            wrap_info: None,
-        })
-    }
-}
-
 pub type SharedRenewer<T> = Arc<RwLock<T>>;
 
 async fn refresh_loop(
@@ -99,6 +50,10 @@ async fn refresh_loop(
     initial_renewable: Option<String>,
     initial_lease_duration: std::time::Duration,
 ) {
+    if manager.renewer.is_none() {
+        panic!("refresh_loop started but renewer is None");
+    }
+
     let mut renew_lease_id = initial_renewable;
     let mut wait_time = tokio::time::Instant::now() + initial_lease_duration.div_f32(2.0);
     loop {
@@ -143,7 +98,7 @@ pub struct Manager(pub(super) Arc<ManagerInner>);
 #[derive(Debug)]
 pub(crate) struct ManagerInner {
     creds: std::sync::RwLock<(String, String)>,
-    renewer: Arc<dyn PostgresAuthRenewer>,
+    renewer: Option<Arc<dyn PostgresAuthRenewer>>,
 
     host: String,
     port: u16,
@@ -169,18 +124,21 @@ impl Manager {
             renew_failures: 0,
         });
 
-        let (run_refresh_loop, renewer, role): (bool, Arc<dyn PostgresAuthRenewer>, String) =
-            match auth_method {
-                VaultPostgresPoolAuth::Vault { client, role } => (true, client, role),
-                VaultPostgresPoolAuth::Password { username, password } => (
-                    false,
-                    Arc::new(FixedAuth { username, password }),
-                    String::new(),
-                ),
-            };
+        let (initial_credentials, renewer, role): (
+            (String, String),
+            Option<Arc<dyn PostgresAuthRenewer>>,
+            String,
+        ) = match auth_method {
+            VaultPostgresPoolAuth::Vault { client, role } => {
+                ((String::new(), String::new()), Some(client), role)
+            }
+            VaultPostgresPoolAuth::Password { username, password } => {
+                ((username, password), None, String::new())
+            }
+        };
 
-        let manager = ManagerInner {
-            creds: std::sync::RwLock::new((String::new(), String::new())),
+        let manager = Arc::new(ManagerInner {
+            creds: std::sync::RwLock::new(initial_credentials),
             renewer,
             host,
             port,
@@ -189,39 +147,32 @@ impl Manager {
 
             stats_sender,
             stats: stats_receiver,
-        };
+        });
 
-        let (renewable, duration) = manager.refresh_auth(None).await?;
-
-        let manager_ptr = Arc::new(manager);
-
-        if run_refresh_loop {
-            tokio::task::spawn(refresh_loop(
-                manager_ptr.clone(),
-                shutdown,
-                renewable,
-                duration,
-            ));
+        if manager.renewer.is_some() {
+            let (renewable, duration) = manager.refresh_auth(None).await?;
+            tokio::task::spawn(refresh_loop(manager.clone(), shutdown, renewable, duration));
         }
 
-        Ok(Manager(manager_ptr))
+        Ok(Manager(manager))
     }
 }
 
 impl ManagerInner {
     #[instrument(level="info", name="refreshing Postgres auth", fields(role=%self.role), skip(self))]
-    pub async fn refresh_auth(
+    async fn refresh_auth(
         &self,
         renew_lease_id: Option<&str>,
     ) -> Result<(Option<String>, std::time::Duration), Error> {
-        // If the lease is renewable, then try that first.
-        // let span = span!(Level::INFO, "refreshing Postgres auth", role=%self.role ).entered();
-
         let mut stats = { self.stats_sender.borrow().clone() };
+        let renewer = self
+            .renewer
+            .as_ref()
+            .expect("refresh_auth called without renewer");
 
         if let Some(lease_id) = renew_lease_id {
             event!(Level::INFO, "Refreshing renewable lease");
-            match self.renewer.renew_lease(lease_id).await {
+            match renewer.renew_lease(lease_id).await {
                 Ok(auth) => {
                     stats.renew_successes += 1;
                     self.stats_sender.send(stats).ok();
@@ -248,7 +199,7 @@ impl ManagerInner {
         }
 
         event!(Level::INFO, "Fetching new credentials");
-        let mut auth = match self.renewer.get_lease(&self.role).await {
+        let mut auth = match renewer.get_lease(&self.role).await {
             Ok(data) => {
                 stats.update_successes += 1;
                 self.stats_sender.send(stats).ok();
