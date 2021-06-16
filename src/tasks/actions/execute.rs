@@ -136,19 +136,20 @@ pub trait Executor: std::fmt::Debug + Send + Sync {
         template_values: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError>;
 
+    fn name(&self) -> &'static str;
+
     /// Returns the template fields for the executor
     fn template_fields(&self) -> &TemplateFields;
 }
 
 lazy_static! {
-    pub static ref EXECUTOR_REGISTRY: FxHashMap<String, Box<dyn Executor>> = {
-        vec![
-            super::http_executor::HttpExecutor::new(),
-            super::raw_command_executor::RawCommandExecutor::new(),
-        ]
-        .into_iter()
-        .map(|(name, ex)| (name.to_string(), ex))
-        .collect::<FxHashMap<String, Box<dyn Executor>>>()
+    pub static ref EXECUTOR_REGISTRY: FxHashMap<&'static str, Box<dyn Executor>> = {
+        std::array::IntoIter::new([
+            Box::new(super::http_executor::HttpExecutor::new()) as Box<dyn Executor>,
+            Box::new(super::raw_command_executor::RawCommandExecutor::new()) as Box<dyn Executor>,
+        ])
+        .map(|e| (e.name(), e))
+        .collect::<FxHashMap<&'static str, Box<dyn Executor>>>()
     };
 }
 
@@ -312,7 +313,7 @@ async fn execute_action(
     }
 
     let prepare_result = EXECUTOR_REGISTRY
-        .get(&action.executor_id)
+        .get(action.executor_id.as_str())
         .ok_or_else(|| {
             ExecuteError::from_action_and_error(
                 &action,
@@ -469,6 +470,10 @@ mod tests {
 
     #[async_trait]
     impl Executor for MockExecutor {
+        fn name(&self) -> &'static str {
+            "mock"
+        }
+
         async fn execute(
             &self,
             _pg_pool: PostgresPool,

@@ -20,7 +20,7 @@ pub struct RawCommandExecutor {
 }
 
 impl RawCommandExecutor {
-    pub fn new() -> (String, Box<dyn Executor>) {
+    pub fn new() -> RawCommandExecutor {
         let template_fields = vec![
             (
                 "command",
@@ -59,15 +59,16 @@ impl RawCommandExecutor {
         .map(|(key, val)| (key.to_string(), val))
         .collect::<TemplateFields>();
 
-        (
-            "raw_command".to_string(),
-            Box::new(RawCommandExecutor { template_fields }),
-        )
+        RawCommandExecutor { template_fields }
     }
 }
 
 #[async_trait]
 impl Executor for RawCommandExecutor {
+    fn name(&self) -> &'static str {
+        "raw_command"
+    }
+
     #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(_pg_pool))]
     async fn execute(
         &self,

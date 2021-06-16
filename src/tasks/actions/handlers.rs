@@ -36,7 +36,7 @@ pub struct ActionPayload {
 impl ActionPayload {
     fn validate(&self) -> Result<()> {
         match (
-            super::execute::EXECUTOR_REGISTRY.get(&self.executor_id),
+            super::execute::EXECUTOR_REGISTRY.get(self.executor_id.as_str()),
             &self.executor_template,
         ) {
             (Some(executor), ScriptOrTemplate::Template(values)) => {

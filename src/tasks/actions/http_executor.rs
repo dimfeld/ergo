@@ -18,7 +18,7 @@ pub struct HttpExecutor {
 }
 
 impl HttpExecutor {
-    pub fn new() -> (String, Box<dyn Executor>) {
+    pub fn new() -> HttpExecutor {
         let template_fields = vec![
             (
                 "url",
@@ -97,19 +97,11 @@ impl HttpExecutor {
         .map(|(key, val)| (key.to_string(), val))
         .collect::<TemplateFields>();
 
-        (
-            "http".to_string(),
-            Box::new(HttpExecutor { template_fields }),
-        )
+        HttpExecutor { template_fields }
     }
-}
 
-#[async_trait]
-impl Executor for HttpExecutor {
-    #[instrument(level = "debug", name = "HttpExecutor::execute", skip(_pg_pool))]
-    async fn execute(
+    async fn execute_internal(
         &self,
-        _pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
         let user_agent = match payload.get("user_agent") {
@@ -232,6 +224,22 @@ impl Executor for HttpExecutor {
 
         Ok(output)
     }
+}
+
+#[async_trait]
+impl Executor for HttpExecutor {
+    fn name(&self) -> &'static str {
+        "http"
+    }
+
+    #[instrument(level = "debug", name = "HttpExecutor::execute", skip(_pg_pool))]
+    async fn execute(
+        &self,
+        _pg_pool: PostgresPool,
+        payload: FxHashMap<String, serde_json::Value>,
+    ) -> Result<serde_json::Value, ExecutorError> {
+        self.execute_internal(payload).await
+    }
 
     fn template_fields(&self) -> &TemplateFields {
         &self.template_fields
@@ -240,9 +248,35 @@ impl Executor for HttpExecutor {
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    #[ignore]
-    fn simple_request() {}
+    use super::*;
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    #[actix_rt::test]
+    async fn simple_request() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/a_url"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("the response"))
+            .mount(&mock_server)
+            .await;
+
+        let payload =
+            std::array::IntoIter::new([("url", json!(format!("{}/a_url", mock_server.uri())))])
+                .map(|(k, v)| (k.to_string(), v))
+                .collect::<FxHashMap<String, serde_json::Value>>();
+        let exec = HttpExecutor::new();
+
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect("Running action");
+
+        assert_eq!(result, json!({"response": "the response"}));
+    }
 
     #[test]
     #[ignore]
