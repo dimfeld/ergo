@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Error, Result};
 use ergo::cmd::make_api_key;
 use futures::Future;
+use once_cell::sync::Lazy;
 
 pub mod database;
 
@@ -9,6 +10,14 @@ use database::{create_database, TestDatabase, TestUser};
 // use quote::quote;
 use reqwest::header::HeaderMap;
 use uuid::Uuid;
+
+static TRACING: Lazy<()> = Lazy::new(|| {
+    if std::env::var("TEST_LOG").is_ok() {
+        ergo::tracing_config::configure("test", std::io::stdout);
+    } else {
+        ergo::tracing_config::configure("test", std::io::sink);
+    }
+});
 
 pub struct TestApp {
     pub database: TestDatabase,
@@ -88,6 +97,7 @@ async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -
         no_drain_queues: false,
         shutdown: shutdown.consumer(),
     };
+    Lazy::force(&TRACING);
     let (server, addr, port) = ergo::server::start(config).await?;
 
     tokio::task::spawn(async move {

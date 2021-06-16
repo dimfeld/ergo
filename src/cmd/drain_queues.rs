@@ -9,7 +9,7 @@ pub async fn main() -> Result<()> {
     dotenv::dotenv().ok();
     dotenv::from_filename("vault_dev_roles.env").ok();
 
-    crate::tracing_config::configure("drain-queues");
+    crate::tracing_config::configure("drain-queues", std::io::stdout);
 
     let shutdown = GracefulShutdown::new();
 

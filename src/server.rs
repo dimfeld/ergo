@@ -57,8 +57,6 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
         shutdown,
     } = config;
 
-    crate::tracing_config::configure("ergo");
-
     let bind_address = bind_address.unwrap_or_else(|| "127.0.0.1".to_string());
     let listener = TcpListener::bind(&format!("{}:{}", bind_address, bind_port))?;
     let bound_port = listener.local_addr()?.port();
