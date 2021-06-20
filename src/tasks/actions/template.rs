@@ -659,7 +659,7 @@ mod tests {
         use super::super::apply;
         use assert_matches::assert_matches;
         use fxhash::FxHashMap;
-        use serde_json::{value, Value};
+        use serde_json::{json, value, Value};
         use std::{array::IntoIter, error::Error, iter::FromIterator};
 
         #[test]
@@ -708,15 +708,74 @@ mod tests {
         }
 
         #[test]
-        #[ignore]
-        fn object_template() {
-            todo!()
-        }
+        fn complex_template() -> Result<(), anyhow::Error> {
+            let template = vec![
+                (
+                    "body".to_string(),
+                    json!({
+                        "message": "{{method}}",
+                        "options": {
+                            "a": "{{a_value}}",
+                            "b": "{{b_value}}"
+                        },
+                        "scopes": [
+                            "general",
+                            "{{scopes/a}}",
+                            "{{scopes/b}}"
+                        ]
+                    }),
+                ),
+                (
+                    "output".to_string(),
+                    json!(["{{outputs/a}}", "{{outputs/b}}"]),
+                ),
+            ];
 
-        #[test]
-        #[ignore]
-        fn array_template() {
-            todo!()
+            let values = FxHashMap::<String, serde_json::Value>::from_iter(IntoIter::new([
+                (
+                    "outputs".to_string(),
+                    json!({
+                        "a": "output a",
+                        "b": "output b",
+                    }),
+                ),
+                (
+                    "scopes".to_string(),
+                    json!({
+                        "a": "scope a",
+                        "b" : "another scope"
+                    }),
+                ),
+                (
+                    "method".to_string(),
+                    serde_json::Value::String("the method".to_string()),
+                ),
+                ("a_value".to_string(), json!("option a value")),
+                ("b_value".to_string(), json!("option b value")),
+            ]));
+
+            let output = apply(&template, &values)?;
+
+            assert_matches!(output.get("body"), Some(o) => {
+                assert_eq!(o, &json!({
+                    "message": "the method",
+                    "options": {
+                        "a": "option a value",
+                        "b": "option b value"
+                    },
+                    "scopes": ["general", "scope a", "another scope"],
+                }));
+            });
+
+            assert_matches!(output.get("output"), Some(o) => {
+                assert_eq!(o, &json!(["output a", "output b"]));
+            });
+
+            let mut keys = output.keys().collect::<Vec<_>>();
+            keys.sort();
+            assert_eq!(keys, ["body", "output"]);
+
+            Ok(())
         }
     }
 }
