@@ -85,11 +85,15 @@ impl HttpExecutor {
                 ),
             ),
             (
-                "result_as_bytes",
+                "result_format",
                 TemplateField::from_static(
-                    TemplateFieldFormat::Boolean,
+                    TemplateFieldFormat::Choice {
+                        choices: vec!["json".to_string(), "string".to_string()],
+                        min: Some(1),
+                        max: Some(1),
+                    },
                     true,
-                    "Treat the result as raw bytes instead of JSON",
+                    "How to process the result. Defaults to JSON",
                 ),
             ),
         ]
@@ -198,28 +202,31 @@ impl HttpExecutor {
                 result: json!(null),
             })?;
 
-        let output = if payload
-            .get("result_as_bytes")
-            .and_then(|b| b.as_bool())
-            .unwrap_or(false)
+        let output = match payload
+            .get("result_format")
+            .and_then(|v| v.as_array())
+            .and_then(|v| v.get(0))
+            .and_then(|b| b.as_str())
         {
-            let r = result
-                .json()
-                .await
-                .map_err(|e| ExecutorError::CommandError {
-                    source: anyhow!(e),
-                    result: json!(null),
+            Some("string") => {
+                let r = result
+                    .text()
+                    .await
+                    .map_err(|e| ExecutorError::CommandError {
+                        source: anyhow!(e),
+                        result: json!(null),
+                    })?;
+                json!({ "response": r })
+            }
+            _ => {
+                let r = result.json::<serde_json::Value>().await.map_err(|e| {
+                    ExecutorError::CommandError {
+                        source: anyhow!(e),
+                        result: json!(null),
+                    }
                 })?;
-            json!({ "response": r })
-        } else {
-            let r = result
-                .text()
-                .await
-                .map_err(|e| ExecutorError::CommandError {
-                    source: anyhow!(e),
-                    result: json!(null),
-                })?;
-            json!({ "response": r })
+                json!({ "response": r })
+            }
         };
 
         Ok(output)
@@ -250,7 +257,7 @@ impl Executor for HttpExecutor {
 mod tests {
     use super::*;
     use wiremock::{
-        matchers::{method, path},
+        matchers::{self, method, path},
         Mock, MockServer, ResponseTemplate,
     };
 
@@ -260,7 +267,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/a_url"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("the response"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!("the response")))
             .mount(&mock_server)
             .await;
 
@@ -278,23 +285,172 @@ mod tests {
         assert_eq!(result, json!({"response": "the response"}));
     }
 
-    #[test]
-    #[ignore]
-    fn complex_request() {}
+    #[actix_rt::test]
+    async fn complex_request() {
+        let mock_server = MockServer::start().await;
 
-    #[test]
-    #[ignore]
-    fn string_body() {}
+        Mock::given(method("POST"))
+            .and(path("/a_url"))
+            .and(matchers::query_param("qq", "rr"))
+            .and(matchers::header("a-custom-header", "abc"))
+            .and(matchers::header("user-agent", "a custom user agent"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!("the response")))
+            .mount(&mock_server)
+            .await;
 
-    #[test]
-    #[ignore]
-    fn json_body() {}
+        let payload = std::array::IntoIter::new([
+            ("url", json!(format!("{}/a_url", mock_server.uri()))),
+            ("method", json!("POST")),
+            ("query", json!({ "qq": "rr" })),
+            ("headers", json!({"a-custom-header": "abc"})),
+            ("user_agent", json!("a custom user agent")),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<_, _>>();
+        let exec = HttpExecutor::new();
 
-    #[test]
-    #[ignore]
-    fn string_result() {}
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect("Running action");
 
-    #[test]
-    #[ignore]
-    fn json_result() {}
+        assert_eq!(result, json!({"response": "the response"}));
+    }
+
+    #[actix_rt::test]
+    async fn string_body() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/a_url"))
+            .and(matchers::body_string("this is a string body"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!("the response")))
+            .mount(&mock_server)
+            .await;
+
+        let payload = std::array::IntoIter::new([
+            ("url", json!(format!("{}/a_url", mock_server.uri()))),
+            ("method", json!("POST")),
+            ("body", json!("this is a string body")),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<_, _>>();
+        let exec = HttpExecutor::new();
+
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect("Running action");
+
+        assert_eq!(result, json!({"response": "the response"}));
+    }
+
+    #[actix_rt::test]
+    async fn json_body() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/a_url"))
+            .and(matchers::body_json(json!({"a": 4, "b": "c"})))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!("the response")))
+            .mount(&mock_server)
+            .await;
+
+        let payload = std::array::IntoIter::new([
+            ("url", json!(format!("{}/a_url", mock_server.uri()))),
+            ("method", json!("POST")),
+            ("json", json!({"a": 4, "b": "c"})),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<_, _>>();
+        let exec = HttpExecutor::new();
+
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect("Running action");
+
+        assert_eq!(result, json!({"response": "the response"}));
+    }
+
+    #[actix_rt::test]
+    async fn string_result() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/a_url"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("a string response"))
+            .mount(&mock_server)
+            .await;
+
+        let payload = std::array::IntoIter::new([
+            ("url", json!(format!("{}/a_url", mock_server.uri()))),
+            ("method", json!("GET")),
+            ("result_format", json!(["string"])),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<_, _>>();
+        let exec = HttpExecutor::new();
+
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect("Running action");
+
+        assert_eq!(result, json!({"response": "a string response"}));
+    }
+
+    #[actix_rt::test]
+    async fn json_result() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/a_url"))
+            .and(matchers::body_json(json!({"a": 4, "b": "c"})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"response_json": 5, "another_key": 6})),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let payload = std::array::IntoIter::new([
+            ("url", json!(format!("{}/a_url", mock_server.uri()))),
+            ("method", json!("POST")),
+            ("json", json!({"a": 4, "b": "c"})),
+            ("result_format", json!(["json"])),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<_, _>>();
+        let exec = HttpExecutor::new();
+
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect("Running action");
+
+        assert_eq!(
+            result,
+            json!({"response": { "response_json": 5, "another_key": 6} })
+        );
+    }
+
+    #[actix_rt::test]
+    async fn error_result() {
+        // Start a server that doesn't match on anything.
+        let mock_server = MockServer::start().await;
+
+        let payload = std::array::IntoIter::new([
+            ("url", json!(format!("{}/a_url", mock_server.uri()))),
+            ("method", json!("POST")),
+        ])
+        .map(|(k, v)| (k.to_string(), v))
+        .collect::<FxHashMap<_, _>>();
+        let exec = HttpExecutor::new();
+
+        let result = exec
+            .execute_internal(payload)
+            .await
+            .expect_err("Running action");
+    }
 }
