@@ -3,12 +3,14 @@ use ergo::cmd::make_api_key;
 use futures::Future;
 use once_cell::sync::Lazy;
 
+mod client;
 pub mod database;
 
-use database::{create_database, TestDatabase, TestUser};
+pub use client::*;
+
+use database::{create_database, DatabaseUser, TestDatabase};
 // use proc_macro::TokenStream;
 // use quote::quote;
-use reqwest::header::HeaderMap;
 use uuid::Uuid;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
@@ -19,70 +21,30 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     }
 });
 
+pub struct TestUser {
+    pub org_id: Uuid,
+    pub user_id: Uuid,
+    pub password: Option<String>,
+    pub api_key: String,
+    pub client: TestClient,
+}
+
 pub struct TestApp {
     pub database: TestDatabase,
     /// The ID of the precreated organization.
     pub org_id: Uuid,
     pub admin_user: TestUser,
-    /// A client that automatically authenticates as the admin user.
-    pub admin_user_client: TestClient,
     /// A client set to the base url of the server.
     pub client: TestClient,
     pub address: String,
     pub base_url: String,
 }
 
-pub struct TestClient {
-    base: String,
-    client: reqwest::Client,
-}
-
-impl TestClient {
-    pub fn clone_with_api_key(&self, api_key: String) -> TestClient {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            reqwest::header::AUTHORIZATION,
-            format!("Bearer {}", api_key).parse().unwrap(),
-        );
-
-        TestClient {
-            base: self.base.clone(),
-            client: reqwest::ClientBuilder::new()
-                .default_headers(headers)
-                .timeout(std::time::Duration::from_secs(30))
-                .build()
-                .expect("Building client"),
-        }
-    }
-
-    pub fn get(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
-        self.client.get(format!("{}/{}", self.base, url.as_ref()))
-    }
-
-    pub fn post(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
-        self.client.get(format!("{}/{}", self.base, url.as_ref()))
-    }
-
-    pub fn put(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
-        self.client.put(format!("{}/{}", self.base, url.as_ref()))
-    }
-
-    pub fn delete(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
-        self.client
-            .delete(format!("{}/{}", self.base, url.as_ref()))
-    }
-
-    pub fn request(
-        &self,
-        method: reqwest::Method,
-        url: impl AsRef<str>,
-    ) -> reqwest::RequestBuilder {
-        self.client
-            .request(method, format!("{}/{}", self.base, url.as_ref()))
-    }
-}
-
-async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -> Result<TestApp> {
+async fn start_app(
+    database: TestDatabase,
+    org_id: Uuid,
+    admin_user: DatabaseUser,
+) -> Result<TestApp> {
     let shutdown = ergo::graceful_shutdown::GracefulShutdown::new();
     let redis_key_prefix = Uuid::new_v4();
     let config = ergo::server::Config {
@@ -122,9 +84,14 @@ async fn start_app(database: TestDatabase, org_id: Uuid, admin_user: TestUser) -
     Ok(TestApp {
         database,
         org_id,
-        admin_user_client: client.clone_with_api_key(admin_user.api_key.clone()),
+        admin_user: TestUser {
+            org_id: admin_user.org_id,
+            user_id: admin_user.user_id,
+            password: admin_user.password,
+            client: client.clone_with_api_key(admin_user.api_key.clone()),
+            api_key: admin_user.api_key,
+        },
         client,
-        admin_user,
         address: format!("{}:{}", addr, port),
         base_url,
     })
@@ -190,6 +157,7 @@ impl TestApp {
             user_id,
             org_id: org_id.clone(),
             password: None,
+            client: self.client.clone_with_api_key(key.clone()),
             api_key: key,
         })
     }

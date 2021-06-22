@@ -11,7 +11,7 @@ pub struct TestDatabase {
     pub pool: sqlx::postgres::PgPool,
 }
 
-pub struct TestUser {
+pub struct DatabaseUser {
     pub org_id: Uuid,
     pub user_id: Uuid,
     pub password: Option<String>,
@@ -30,7 +30,7 @@ fn password_sql(role: &str) -> String {
     }
 }
 
-pub async fn create_database() -> Result<(TestDatabase, Uuid, TestUser)> {
+pub async fn create_database() -> Result<(TestDatabase, Uuid, DatabaseUser)> {
     dotenv::dotenv().ok();
     let host = std::env::var("TEST_DATABASE_HOST")
         .or_else(|_| std::env::var("DATABASE_HOST"))
@@ -126,7 +126,7 @@ lazy_static! {
         Uuid::parse_str(std::env::var("ADMIN_USER_ID").unwrap().as_str()).unwrap();
 }
 
-async fn populate_database(conn: &mut PgConnection) -> Result<TestUser> {
+async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
     let user_id = ADMIN_USER_ID.clone();
     let org_id = Uuid::new_v4();
 
@@ -152,7 +152,7 @@ async fn populate_database(conn: &mut PgConnection) -> Result<TestUser> {
 
     let key = make_api_key::make_key(conn, &org_id, Some(&user_id), false, None).await?;
 
-    Ok(TestUser {
+    Ok(DatabaseUser {
         user_id,
         org_id,
         password: Some(PASSWORD.to_string()),
