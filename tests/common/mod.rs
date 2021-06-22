@@ -5,8 +5,10 @@ use once_cell::sync::Lazy;
 
 mod client;
 pub mod database;
+mod tasks;
 
 pub use client::*;
+pub use tasks::*;
 
 use database::{create_database, DatabaseUser, TestDatabase};
 // use proc_macro::TokenStream;

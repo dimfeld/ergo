@@ -24,8 +24,8 @@ struct TaskAndTriggerPath {
     trigger_id: String,
 }
 
-#[derive(Debug, Serialize)]
-struct TaskDescription {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TaskDescription {
     id: String,
     name: String,
     description: Option<String>,
@@ -61,6 +61,20 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
     Ok(HttpResponse::Ok().json(tasks))
 }
 
+#[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
+pub struct TaskResult {
+    task_id: String,
+    name: String,
+    description: Option<String>,
+    enabled: bool,
+    state_machine_config: serde_json::Value,
+    state_machine_states: serde_json::Value,
+    created: DateTime<Utc>,
+    modified: DateTime<Utc>,
+    triggers: Option<serde_json::Value>,
+    actions: Option<serde_json::Value>,
+}
+
 #[get("/tasks/{task_id}")]
 #[instrument(skip(data), fields(task))]
 async fn get_task(
@@ -71,20 +85,6 @@ async fn get_task(
 ) -> Result<impl Responder> {
     let task_id = task_id.into_inner();
     let user_ids = auth.user_entity_ids();
-
-    #[derive(Debug, Serialize, sqlx::FromRow)]
-    struct TaskResult {
-        task_id: String,
-        name: String,
-        description: Option<String>,
-        enabled: bool,
-        state_machine_config: serde_json::Value,
-        state_machine_states: serde_json::Value,
-        created: DateTime<Utc>,
-        modified: DateTime<Utc>,
-        triggers: Option<serde_json::Value>,
-        actions: Option<serde_json::Value>,
-    }
 
     let task = sqlx::query_as!(
         TaskResult,

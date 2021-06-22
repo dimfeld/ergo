@@ -20,7 +20,7 @@ use super::{
     template::{validate, TemplateFields},
 };
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ActionPayload {
     action_id: Option<i64>,
     action_category_id: i64,
@@ -55,7 +55,7 @@ impl ActionPayload {
     }
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
 pub struct ActionDescription {
     action_id: i64,
     action_category_id: i64,
