@@ -182,8 +182,6 @@ pub struct TaskTriggerInput {
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskInput {
-    /// Only used internally when PUTting a task that doesn't exist yet.
-    pub external_task_id: Option<String>,
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
@@ -200,7 +198,6 @@ async fn update_task(
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
-    let mut payload = payload.into_inner();
     let user_ids = auth.user_entity_ids();
     let external_task_id = external_task_id.into_inner();
     let mut conn = data.pg.acquire().await?;
@@ -234,10 +231,9 @@ async fn update_task(
     let task_id = match task_id {
         Some(t) => t.task_id,
         None => {
-            payload.external_task_id = Some(external_task_id);
             drop(tx);
             drop(conn);
-            return new_task(data, auth, web::Json(payload)).await;
+            return new_task(data, auth, Some(external_task_id), payload).await;
         }
     };
 
@@ -355,16 +351,17 @@ async fn new_task_handler(
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
-    new_task(data, auth, payload).await
+    new_task(data, auth, None, payload).await
 }
 
 async fn new_task(
     data: AppStateData,
     auth: Authenticated,
+    external_task_id: Option<String>,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
     let payload = payload.into_inner();
-    let external_task_id = payload.external_task_id.unwrap_or_else(|| {
+    let external_task_id = external_task_id.unwrap_or_else(|| {
         base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD)
     });
     let user_id = auth.user_id();

@@ -17,13 +17,8 @@ impl TestClient {
             .error_for_status()
     }
 
-    pub async fn update_task(&self, task: &TaskInput) -> Result<Response> {
-        let url = format!(
-            "/tasks/{}",
-            task.external_task_id
-                .as_ref()
-                .expect("update_task requires an external_task_id")
-        );
+    pub async fn update_task(&self, id: &str, task: &TaskInput) -> Result<Response> {
+        let url = format!("/tasks/{}", id);
 
         self.client
             .post(url)
