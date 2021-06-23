@@ -26,12 +26,12 @@ struct TaskAndTriggerPath {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TaskDescription {
-    id: String,
-    name: String,
-    description: Option<String>,
-    enabled: bool,
-    created: DateTime<Utc>,
-    modified: DateTime<Utc>,
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub enabled: bool,
+    pub created: DateTime<Utc>,
+    pub modified: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -354,6 +354,7 @@ async fn new_task_handler(
     new_task(data, auth, None, payload).await
 }
 
+#[instrument(skip(data))]
 async fn new_task(
     data: AppStateData,
     auth: Authenticated,

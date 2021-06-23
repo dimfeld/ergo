@@ -28,7 +28,7 @@ impl TestClient {
     }
 
     pub fn post(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {
-        self.client.get(format!("{}/{}", self.base, url.as_ref()))
+        self.client.post(format!("{}/{}", self.base, url.as_ref()))
     }
 
     pub fn put(&self, url: impl AsRef<str>) -> reqwest::RequestBuilder {

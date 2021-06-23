@@ -105,7 +105,8 @@ where
     R: Future<Output = Result<(), anyhow::Error>>,
 {
     let (database, _, _) = create_database().await.expect("Creating database");
-    f(database).await.unwrap();
+    f(database.clone()).await.unwrap();
+    database.drop_db().await.expect("Cleaning up");
 }
 
 pub async fn run_app_test<F, R>(f: F) -> ()
@@ -114,10 +115,11 @@ where
     R: Future<Output = Result<(), anyhow::Error>>,
 {
     let (database, org_id, admin_user) = create_database().await.expect("Creating database");
-    let app = start_app(database, org_id, admin_user)
+    let app = start_app(database.clone(), org_id, admin_user)
         .await
         .expect("Starting app");
     f(app).await.unwrap();
+    database.drop_db().await.expect("Cleaning up");
 }
 
 impl TestApp {

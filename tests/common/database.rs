@@ -5,10 +5,22 @@ use uuid::Uuid;
 
 use ergo::{cmd::make_api_key, service_config::DatabaseConfiguration};
 
+#[derive(Clone)]
 pub struct TestDatabase {
     pub config: DatabaseConfiguration,
     pub name: String,
     pub pool: sqlx::postgres::PgPool,
+    global_connect_options: PgConnectOptions,
+}
+
+impl TestDatabase {
+    pub async fn drop_db(&self) -> Result<()> {
+        let mut conn = self.global_connect_options.connect().await?;
+        sqlx::query(&format!(r##"DROP DATABASE "{}" (FORCE)"##, self.name))
+            .execute(&mut conn)
+            .await?;
+        Ok(())
+    }
 }
 
 pub struct DatabaseUser {
@@ -44,18 +56,20 @@ pub async fn create_database() -> Result<(TestDatabase, Uuid, DatabaseUser)> {
     let password = std::env::var("TEST_DATABASE_PASSWORD").unwrap_or_else(|_| "".to_string());
 
     let config = DatabaseConfiguration {
-        database: format!("ergo-test-{}", Uuid::new_v4()),
+        database: format!("ergo_test_{}", Uuid::new_v4().to_simple()),
         host,
         port,
     };
 
-    let mut global_conn = PgConnectOptions::new()
+    println!("Database name: {}", config.database);
+
+    let global_connect_options = PgConnectOptions::new()
         .port(port)
         .host(&config.host)
         .username(&user)
-        .password(&password)
-        .connect()
-        .await?;
+        .password(&password);
+
+    let mut global_conn = global_connect_options.connect().await?;
 
     sqlx::query(&format!(r##"CREATE DATABASE "{}""##, config.database))
         .execute(&mut global_conn)
@@ -111,6 +125,7 @@ END; $$;
         TestDatabase {
             pool,
             name: config.database.clone(),
+            global_connect_options,
             config,
         },
         admin_user.org_id.clone(),

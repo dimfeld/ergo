@@ -12,5 +12,5 @@ async fn smoke_test() {
         );
         Ok(())
     })
-    .await;
+    .await
 }

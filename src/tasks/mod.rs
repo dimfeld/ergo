@@ -2,7 +2,7 @@ pub mod actions;
 pub mod handlers;
 pub mod inputs;
 pub mod queue_drain_runner;
-mod state_machine;
+pub mod state_machine;
 
 pub use state_machine::StateMachineError;
 use tracing::{event, instrument, Level};
