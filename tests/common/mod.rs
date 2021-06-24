@@ -123,6 +123,28 @@ where
 }
 
 impl TestApp {
+    pub async fn add_org(&self, name: &str) -> Result<Uuid> {
+        let mut conn = self.database.pool.acquire().await?;
+        let org_id = Uuid::new_v4();
+
+        sqlx::query!(
+            "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",
+            org_id
+        )
+        .execute(&mut conn)
+        .await?;
+
+        sqlx::query!(
+            r##"INSERT INTO orgs (org_id, name) VALUES ($1, $2)"##,
+            org_id,
+            name
+        )
+        .execute(&mut conn)
+        .await?;
+        println!("Created org {}", org_id);
+        Ok(org_id)
+    }
+
     pub async fn add_user_with_password(
         &self,
         org_id: &Uuid,
@@ -149,7 +171,7 @@ impl TestApp {
             user_id,
             org_id,
             name,
-            "test_user@example.com",
+            format!("test_user_{}@example.com", user_id),
             ""
         )
         .execute(&mut conn)
@@ -157,6 +179,7 @@ impl TestApp {
 
         let key = make_api_key::make_key(&mut conn, org_id, Some(&user_id), false, None).await?;
 
+        println!("Org {} added user {}: {}", org_id, name, user_id);
         Ok(TestUser {
             user_id,
             org_id: org_id.clone(),

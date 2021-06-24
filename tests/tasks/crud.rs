@@ -12,6 +12,10 @@ use serde_json::json;
 #[actix_rt::test]
 async fn list_tasks() {
     run_app_test(|app| async move {
+        let org_id = app.add_org("user org").await?;
+        let user1 = app.add_user(&org_id, "User 1").await?;
+        let user2 = app.add_user(&org_id, "User 2").await?;
+
         let new_tasks = vec![
             TaskInput {
                 name: "task 1".to_string(),
@@ -42,18 +46,27 @@ async fn list_tasks() {
             },
         ];
 
+        let user2_task = TaskInput {
+            name: "user2 task".to_string(),
+            description: None,
+            enabled: true,
+            state_machine_config: state_machine::StateMachineConfig::new(),
+            state_machine_states: state_machine::StateMachineStates::new(),
+            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+        };
+
         let reference_time = Utc::now();
         join_all(
             new_tasks
                 .iter()
-                .map(|task| app.admin_user.client.new_task(task))
+                .map(|task| user1.client.new_task(task))
+                .chain(vec![user2.client.new_task(&user2_task)])
                 .collect::<Vec<_>>(),
         )
         .await
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
-
-        let task_list = app.admin_user.client.list_tasks().await?;
 
         let expected_tasks = new_tasks
             .iter()
@@ -72,6 +85,8 @@ async fn list_tasks() {
             })
             .collect::<FxHashMap<_, _>>();
 
+        // We should see user 1's tasks, but not user 2's tasks.
+        let task_list = user1.client.list_tasks().await?;
         for task in &task_list {
             let expected = expected_tasks
                 .get(task.name.as_str())
