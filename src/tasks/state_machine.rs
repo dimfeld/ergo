@@ -26,7 +26,7 @@ pub struct StateMachineData {
     context: serde_json::Value,
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct StateMachine {
     name: String,
     description: Option<String>,
@@ -35,13 +35,13 @@ pub struct StateMachine {
     states: FxHashMap<String, StateDefinition>,
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct StateDefinition {
     description: Option<String>,
     on: SmallVec<[EventHandler; 4]>,
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct EventHandler {
     trigger_id: String,
     target: Option<TransitionTarget>,
@@ -86,7 +86,7 @@ impl EventHandler {
     }
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum TransitionTarget {
     One(String),
@@ -94,13 +94,13 @@ pub enum TransitionTarget {
     // Script(String),
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct TransitionCondition {
     target: String,
     cond: String,
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionPayloadBuilder {
     FieldMap(FxHashMap<String, ActionInvokeDefDataField>),
@@ -149,13 +149,13 @@ impl ActionPayloadBuilder {
     }
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ActionInvokeDef {
     task_action_local_id: String,
     data: ActionPayloadBuilder,
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionInvokeDefDataField {
     /// A path from the input that triggered the action, and whether or not it's required.

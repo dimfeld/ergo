@@ -63,16 +63,16 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
 
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
 pub struct TaskResult {
-    task_id: String,
-    name: String,
-    description: Option<String>,
-    enabled: bool,
-    state_machine_config: serde_json::Value,
-    state_machine_states: serde_json::Value,
-    created: DateTime<Utc>,
-    modified: DateTime<Utc>,
-    triggers: Option<serde_json::Value>,
-    actions: Option<serde_json::Value>,
+    pub task_id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub enabled: bool,
+    pub state_machine_config: serde_json::Value,
+    pub state_machine_states: serde_json::Value,
+    pub created: DateTime<Utc>,
+    pub modified: DateTime<Utc>,
+    pub triggers: serde_json::Value,
+    pub actions: serde_json::Value,
 }
 
 #[get("/tasks/{task_id}")]
@@ -92,8 +92,8 @@ async fn get_task(
         tasks.name, tasks.description, enabled,
         state_machine_config, state_machine_states,
         created, modified,
-        task_triggers as triggers,
-        task_actions as actions
+        COALESCE(task_triggers, '[]'::jsonb) as "triggers!",
+        COALESCE(task_actions, '[]'::jsonb) as "actions!"
         FROM tasks
 
         LEFT JOIN LATERAL (
@@ -118,7 +118,7 @@ async fn get_task(
             GROUP BY task_triggers.task_id
         ) tt ON true
 
-        WHERE external_task_id=$1 AND org_id=$3 AND NOT DELETED
+        WHERE external_task_id=$1 AND org_id=$3 AND NOT deleted
         AND EXISTS(SELECT 1 FROM user_entity_permissions
             WHERE
             permissioned_object IN (1, task_id)
@@ -165,7 +165,7 @@ async fn delete_task(
     }
 }
 
-#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskActionInput {
     pub name: String,
     pub action_id: i64,
@@ -173,14 +173,14 @@ pub struct TaskActionInput {
     pub action_template: Option<Vec<(String, serde_json::Value)>>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskTriggerInput {
     pub input_id: i64,
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
 pub struct TaskInput {
     pub name: String,
     pub description: Option<String>,
@@ -345,6 +345,11 @@ async fn add_task_trigger(
     Ok(trigger_id)
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct NewTaskResult {
+    pub task_id: String,
+}
+
 #[post("/tasks")]
 async fn new_task_handler(
     data: AppStateData,
@@ -424,7 +429,9 @@ async fn new_task(
 
     tx.commit().await?;
 
-    Ok(HttpResponse::Created().finish())
+    Ok(HttpResponse::Created().json(NewTaskResult {
+        task_id: external_task_id,
+    }))
 }
 
 #[post("/tasks/{task_id}/trigger/{trigger_id}")]

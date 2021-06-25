@@ -1,6 +1,6 @@
 use ergo::tasks::{
     actions::handlers::{ActionDescription, ActionPayload},
-    handlers::{TaskDescription, TaskInput, TaskResult},
+    handlers::{NewTaskResult, TaskDescription, TaskInput, TaskResult},
     inputs::{handlers::InputPayload, Input},
 };
 
@@ -8,12 +8,14 @@ use super::TestClient;
 use reqwest::{Response, Result};
 
 impl TestClient {
-    pub async fn new_task(&self, task: &TaskInput) -> Result<Response> {
+    pub async fn new_task(&self, task: &TaskInput) -> Result<NewTaskResult> {
         self.post("tasks")
             .json(task)
             .send()
             .await?
-            .error_for_status()
+            .error_for_status()?
+            .json::<_>()
+            .await
     }
 
     pub async fn update_task(&self, id: &str, task: &TaskInput) -> Result<Response> {
