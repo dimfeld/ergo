@@ -296,9 +296,60 @@ async fn delete_task() {
     .await
 }
 
-#[test]
-#[ignore]
-fn put_existing_task() {}
+#[actix_rt::test]
+async fn put_existing_task() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            user1,
+            user2,
+            user1_tasks,
+            user2_task,
+            ..
+        } = bootstrap_data(&app).await?;
+
+        let task_id = user1_tasks[0].0.task_id.as_str();
+
+        user2
+            .client
+            .put_task(task_id, &user2_task.1)
+            .await
+            .expect_err("User 2 can not update user 1's task");
+
+        let task = user1.client.get_task(task_id).await?;
+        assert_eq!(
+            task.name, user1_tasks[0].1.name,
+            "Task was not changed by disallowed update"
+        );
+
+        let updated = TaskInput {
+            name: "new name".to_string(),
+            description: Some("a new description".to_string()),
+            enabled: false,
+            state_machine_config: state_machine::StateMachineConfig::new(),
+            state_machine_states: state_machine::StateMachineStates::new(),
+            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+        };
+
+        user1
+            .client
+            .put_task(task_id, &updated)
+            .await
+            .expect("Updating task");
+
+        let result = user1
+            .client
+            .get_task(task_id)
+            .await
+            .expect("Retrieving updated task");
+        assert_eq!(result.name, updated.name);
+        assert_eq!(result.description, updated.description);
+        assert_eq!(result.enabled, updated.enabled);
+
+        Ok(())
+    })
+    .await
+}
 
 #[test]
 #[ignore]

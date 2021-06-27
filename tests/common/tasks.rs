@@ -18,10 +18,10 @@ impl TestClient {
             .await
     }
 
-    pub async fn update_task(&self, id: &str, task: &TaskInput) -> Result<Response> {
+    pub async fn put_task(&self, id: &str, task: &TaskInput) -> Result<Response> {
         let url = format!("tasks/{}", id);
 
-        self.post(url).json(task).send().await?.error_for_status()
+        self.put(url).json(task).send().await?.error_for_status()
     }
 
     pub async fn list_tasks(&self) -> Result<Vec<TaskDescription>> {
@@ -66,7 +66,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn update_input(&self, input_id: i64, input: &InputPayload) -> Result<Input> {
+    pub async fn put_input(&self, input_id: i64, input: &InputPayload) -> Result<Input> {
         let url = format!("inputs/{}", input_id);
         self.put(url)
             .send()
@@ -99,7 +99,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn update_action(&self, action_id: i64, action: &ActionPayload) -> Result<Response> {
+    pub async fn put_action(&self, action_id: i64, action: &ActionPayload) -> Result<Response> {
         let url = format!("actions/{}", action_id);
         self.put(url).send().await?.error_for_status()
     }
