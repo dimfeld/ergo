@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::common::{run_app_test, TestApp, TestUser};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
@@ -237,13 +239,62 @@ async fn get_task_without_permission() {
     .await
 }
 
-#[test]
-#[ignore]
-fn delete_task() {}
+#[actix_rt::test]
+async fn delete_task() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            user1,
+            user2,
+            user1_tasks,
+            ..
+        } = bootstrap_data(&app).await?;
 
-#[test]
-#[ignore]
-fn post_new_task() {}
+        assert_eq!(
+            user1.client.list_tasks().await?.len(),
+            3,
+            "3 tasks to start"
+        );
+
+        let deleted_task = user1_tasks[2].0.task_id.as_str();
+
+        // First try to delete it from a user that doesn't have permissions.
+        user2
+            .client
+            .delete_task(deleted_task)
+            .await
+            .expect_err("User 2 should fail to delete user 1's task");
+
+        assert_eq!(
+            user1.client.list_tasks().await?.len(),
+            3,
+            "User 2's attempt to delete the task should not work"
+        );
+
+        user1.client.delete_task(deleted_task).await?;
+
+        let remaining_tasks = user1.client.list_tasks().await?;
+        let remaining_task_ids = remaining_tasks
+            .into_iter()
+            .map(|t| t.id)
+            .collect::<HashSet<_>>();
+
+        assert!(
+            remaining_task_ids.get(&user1_tasks[0].0.task_id).is_some(),
+            "task 0 remains"
+        );
+        assert!(
+            remaining_task_ids.get(&user1_tasks[1].0.task_id).is_some(),
+            "task 1 remains"
+        );
+        assert!(
+            remaining_task_ids.get(&user1_tasks[2].0.task_id).is_none(),
+            "task 2 was deleted"
+        );
+
+        Ok(())
+    })
+    .await
+}
 
 #[test]
 #[ignore]
