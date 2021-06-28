@@ -318,7 +318,7 @@ async fn put_existing_task() {
         let task = user1.client.get_task(task_id).await?;
         assert_eq!(
             task.name, user1_tasks[0].1.name,
-            "Task was not changed by disallowed update"
+            "Task should not be changed by disallowed update"
         );
 
         let updated = TaskInput {
@@ -351,13 +351,53 @@ async fn put_existing_task() {
     .await
 }
 
-#[test]
-#[ignore]
-fn put_new_task() {}
+#[actix_rt::test]
+async fn put_new_task_with_id() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            user1, user1_tasks, ..
+        } = bootstrap_data(&app).await?;
+        let new_task_id = "a_new_test_task_id";
+        let task = TaskInput {
+            name: "new name".to_string(),
+            description: Some("a new description".to_string()),
+            enabled: false,
+            state_machine_config: state_machine::StateMachineConfig::new(),
+            state_machine_states: state_machine::StateMachineStates::new(),
+            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+        };
 
-#[test]
-#[ignore]
-fn put_task_without_write_permission() {}
+        user1
+            .client
+            .put_task(new_task_id, &task)
+            .await
+            .expect("Writing new task");
+
+        let task_list = user1.client.list_tasks().await.expect("Listing tasks");
+        let task_ids = task_list
+            .iter()
+            .map(|t| t.id.clone())
+            .collect::<HashSet<_>>();
+        assert!(task_ids.get(new_task_id).is_some(), "new task is in list");
+        assert_eq!(
+            task_list.len(),
+            4,
+            "Task list contains original tasks and the new one"
+        );
+
+        let result = user1
+            .client
+            .get_task(new_task_id)
+            .await
+            .expect("Retrieving new task");
+        assert_eq!(result.name, task.name);
+        assert_eq!(result.description, task.description);
+        assert_eq!(result.enabled, task.enabled);
+        Ok(())
+    })
+    .await
+}
 
 #[test]
 #[ignore]
