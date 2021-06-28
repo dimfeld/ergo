@@ -4,13 +4,27 @@ use crate::common::{run_app_test, TestApp, TestUser};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use ergo::tasks::{
+    actions::{
+        execute::ScriptOrTemplate,
+        handlers::{ActionDescription, ActionPayload},
+        template::{TemplateField, TemplateFields},
+    },
     handlers::{NewTaskResult, TaskDescription, TaskInput},
+    inputs::{handlers::InputPayload, Input},
     state_machine,
 };
-use futures::future::join_all;
+use futures::future::{join, join_all};
 use fxhash::FxHashMap;
 use serde_json::json;
 use uuid::Uuid;
+
+struct BootstrappedInputs {
+    url: Input,
+}
+
+struct BootstrappedActions {
+    echo: ActionDescription,
+}
 
 struct BootstrappedData {
     org_id: Uuid,
@@ -19,12 +33,68 @@ struct BootstrappedData {
     user1_tasks: Vec<(NewTaskResult, TaskInput)>,
     user2_task: (NewTaskResult, TaskInput),
     reference_time: DateTime<Utc>,
+    inputs: BootstrappedInputs,
+    actions: BootstrappedActions,
 }
 
 async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
     let org_id = app.add_org("user org").await?;
     let user1 = app.add_user(&org_id, "User 1").await?;
     let user2 = app.add_user(&org_id, "User 2").await?;
+
+    let url_input = InputPayload {
+        input_id: None,
+        input_category_id: None,
+        name: "URL".to_string(),
+        description: None,
+        payload_schema: json!({
+          "$schema": "http://json-schema.org/draft-07/schema",
+          "$id": "http://ergo.dev/inputs/url.json",
+          "type": "object",
+          "required": [
+              "url"
+          ],
+          "properties": {
+              "url": {
+                  "type": "string",
+                  "format": "url"
+              }
+          },
+          "additionalProperties": true
+        }),
+    };
+
+    let echo_action = ActionPayload {
+        action_id: None,
+        action_category_id: 1000000000,
+        name: "Echo".to_string(),
+        description: Some("Echo the input".to_string()),
+        executor_id: "raw_command".to_string(),
+        executor_template: ScriptOrTemplate::Template(vec![
+            ("command".to_string(), json!("/bin/echo")),
+            ("args".to_string(), json!(["{{text}}"])),
+        ]),
+        template_fields: std::array::IntoIter::new([(
+            "text".to_string(),
+            TemplateField {
+                format: ergo::tasks::actions::template::TemplateFieldFormat::String,
+                optional: false,
+                description: None,
+            },
+        )])
+        .collect::<FxHashMap<_, _>>(),
+        account_required: false,
+        account_types: None,
+    };
+
+    let (url_input_result, echo_action_result) = join(
+        app.admin_user.client.new_input(&url_input),
+        app.admin_user.client.new_action(&echo_action),
+    )
+    .await;
+
+    let url_input_result = url_input_result.expect("Creating url input");
+    let echo_action_result = echo_action_result.expect("Creating echo action");
 
     let user1_tasks = vec![
         TaskInput {
@@ -87,6 +157,12 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         user1_tasks: user1_task_results,
         user2_task: (user2_task_result, user2_task),
         reference_time,
+        inputs: BootstrappedInputs {
+            url: url_input_result,
+        },
+        actions: BootstrappedActions {
+            echo: echo_action_result,
+        },
     })
 }
 
@@ -354,9 +430,17 @@ async fn put_existing_task() {
 #[actix_rt::test]
 async fn put_new_task_with_id() {
     run_app_test(|app| async move {
-        let BootstrappedData {
-            user1, user1_tasks, ..
-        } = bootstrap_data(&app).await?;
+        let BootstrappedData { user1, .. } = bootstrap_data(&app).await?;
+
+        let other_org = app
+            .add_org("other test org")
+            .await
+            .expect("Creating new org");
+        let other_org_user = app
+            .add_user(&other_org, "other org test user")
+            .await
+            .expect("Creating new org user");
+
         let new_task_id = "a_new_test_task_id";
         let task = TaskInput {
             name: "new name".to_string(),
@@ -368,11 +452,27 @@ async fn put_new_task_with_id() {
             triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
         };
 
+        let other_org_task = TaskInput {
+            name: "other org task name".to_string(),
+            description: Some("another new description".to_string()),
+            enabled: true,
+            state_machine_config: state_machine::StateMachineConfig::new(),
+            state_machine_states: state_machine::StateMachineStates::new(),
+            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+        };
+
         user1
             .client
             .put_task(new_task_id, &task)
             .await
             .expect("Writing new task");
+
+        other_org_user
+            .client
+            .put_task(new_task_id, &other_org_task)
+            .await
+            .expect("Writing other org task");
 
         let task_list = user1.client.list_tasks().await.expect("Listing tasks");
         let task_ids = task_list
@@ -394,6 +494,27 @@ async fn put_new_task_with_id() {
         assert_eq!(result.name, task.name);
         assert_eq!(result.description, task.description);
         assert_eq!(result.enabled, task.enabled);
+
+        let other_org_tasks = other_org_user
+            .client
+            .list_tasks()
+            .await
+            .expect("Other org listing tasks");
+        assert_eq!(other_org_tasks.len(), 1, "Other org has only one task");
+        assert_eq!(
+            other_org_tasks[0].id, new_task_id,
+            "other org task has expected ID"
+        );
+
+        let other_org_result = other_org_user
+            .client
+            .get_task(new_task_id)
+            .await
+            .expect("Retrieving other org task");
+        assert_eq!(other_org_result.name, other_org_task.name);
+        assert_eq!(other_org_result.description, other_org_task.description);
+        assert_eq!(other_org_result.enabled, other_org_task.enabled);
+
         Ok(())
     })
     .await

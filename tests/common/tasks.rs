@@ -59,6 +59,7 @@ impl TestClient {
 
     pub async fn new_input(&self, input: &InputPayload) -> Result<Input> {
         self.post("inputs")
+            .json(input)
             .send()
             .await?
             .error_for_status()?
@@ -69,6 +70,7 @@ impl TestClient {
     pub async fn put_input(&self, input_id: i64, input: &InputPayload) -> Result<Input> {
         let url = format!("inputs/{}", input_id);
         self.put(url)
+            .json(input)
             .send()
             .await?
             .error_for_status()?
@@ -92,6 +94,7 @@ impl TestClient {
 
     pub async fn new_action(&self, action: &ActionPayload) -> Result<ActionDescription> {
         self.post("actions")
+            .json(action)
             .send()
             .await?
             .error_for_status()?
@@ -101,7 +104,7 @@ impl TestClient {
 
     pub async fn put_action(&self, action_id: i64, action: &ActionPayload) -> Result<Response> {
         let url = format!("actions/{}", action_id);
-        self.put(url).send().await?.error_for_status()
+        self.put(url).json(action).send().await?.error_for_status()
     }
 
     pub async fn delete_action(&self, action_id: i64) -> Result<Response> {

@@ -157,6 +157,12 @@ async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
 
         INSERT INTO users (user_id, active_org_id, name, email, password_hash) VALUES
           ('{user_id}', '{org_id}', 'Test Admin User', 'user@example.com', '{password_hash}');
+
+        -- Temporary until API supporst creating action categories.
+        INSERT INTO object_ids(object_id, type) VALUES
+            (1000000000, 'action_category');
+        INSERT INTO action_categories(action_category_id, name) VALUES
+            (1000000000, 'General');
         "##,
         user_id = user_id,
         org_id = org_id,

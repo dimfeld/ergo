@@ -22,15 +22,15 @@ use super::{
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ActionPayload {
-    action_id: Option<i64>,
-    action_category_id: i64,
-    name: String,
-    description: Option<String>,
-    executor_id: String,
-    executor_template: ScriptOrTemplate,
-    template_fields: TemplateFields,
-    account_required: bool,
-    account_types: Option<Vec<String>>,
+    pub action_id: Option<i64>,
+    pub action_category_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub executor_id: String,
+    pub executor_template: ScriptOrTemplate,
+    pub template_fields: TemplateFields,
+    pub account_required: bool,
+    pub account_types: Option<Vec<String>>,
 }
 
 impl ActionPayload {

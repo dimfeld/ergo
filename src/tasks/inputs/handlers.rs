@@ -4,7 +4,7 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 
 use crate::{
@@ -12,13 +12,13 @@ use crate::{
     tasks::inputs::Input, web_app_server::AppStateData,
 };
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct InputPayload {
-    input_id: Option<i64>,
-    input_category_id: Option<i64>,
-    name: String,
-    description: Option<String>,
-    payload_schema: serde_json::Value,
+    pub input_id: Option<i64>,
+    pub input_category_id: Option<i64>,
+    pub name: String,
+    pub description: Option<String>,
+    pub payload_schema: serde_json::Value,
 }
 
 #[get("/inputs")]
