@@ -1,4 +1,4 @@
-use super::state_machine;
+use super::state_machine::{self, StateMachineConfig, StateMachineStates};
 use crate::{
     auth::Authenticated,
     backend_data::BackendAppStateData,
@@ -67,12 +67,12 @@ pub struct TaskResult {
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
-    pub state_machine_config: serde_json::Value,
-    pub state_machine_states: serde_json::Value,
+    pub state_machine_config: sqlx::types::Json<StateMachineConfig>,
+    pub state_machine_states: sqlx::types::Json<StateMachineStates>,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
-    pub triggers: serde_json::Value,
-    pub actions: serde_json::Value,
+    pub actions: sqlx::types::Json<FxHashMap<String, TaskActionInput>>,
+    pub triggers: sqlx::types::Json<FxHashMap<String, TaskTriggerInput>>,
 }
 
 #[get("/tasks/{task_id}")]
@@ -90,10 +90,11 @@ async fn get_task(
         TaskResult,
         r##"SELECT external_task_id as task_id,
         tasks.name, tasks.description, enabled,
-        state_machine_config, state_machine_states,
+        state_machine_config as "state_machine_config!: _",
+        state_machine_states as "state_machine_states!: _",
         created, modified,
-        COALESCE(task_triggers, '[]'::jsonb) as "triggers!",
-        COALESCE(task_actions, '[]'::jsonb) as "actions!"
+        COALESCE(task_triggers, '{}'::jsonb) as "triggers!: _",
+        COALESCE(task_actions, '{}'::jsonb) as "actions!: _"
         FROM tasks
 
         LEFT JOIN LATERAL (
@@ -165,7 +166,7 @@ async fn delete_task(
     }
 }
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskActionInput {
     pub name: String,
     pub action_id: i64,
@@ -173,7 +174,7 @@ pub struct TaskActionInput {
     pub action_template: Option<Vec<(String, serde_json::Value)>>,
 }
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskTriggerInput {
     pub input_id: i64,
     pub name: String,

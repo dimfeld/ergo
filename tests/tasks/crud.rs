@@ -9,14 +9,42 @@ use ergo::tasks::{
         handlers::{ActionDescription, ActionPayload},
         template::{TemplateField, TemplateFields},
     },
-    handlers::{NewTaskResult, TaskDescription, TaskInput},
+    handlers::{NewTaskResult, TaskActionInput, TaskDescription, TaskInput, TaskTriggerInput},
     inputs::{handlers::InputPayload, Input},
-    state_machine,
+    state_machine::{
+        self, StateDefinition, StateMachine, StateMachineConfig, StateMachineData,
+        StateMachineStates,
+    },
 };
 use futures::future::{join, join_all};
 use fxhash::FxHashMap;
 use serde_json::json;
+use smallvec::smallvec;
 use uuid::Uuid;
+
+pub fn simple_state_machine() -> (StateMachineConfig, StateMachineStates) {
+    let machine = StateMachine {
+        name: "a sample machine".to_string(),
+        description: None,
+        initial: "start".to_string(),
+        on: smallvec![],
+        states: std::array::IntoIter::new([(
+            "initial".to_string(),
+            StateDefinition {
+                on: smallvec![],
+                description: None,
+            },
+        )])
+        .collect::<FxHashMap<_, _>>(),
+    };
+
+    let state = StateMachineData {
+        state: "initial".to_string(),
+        context: json!(null),
+    };
+
+    (smallvec![machine], smallvec![state])
+}
 
 struct BootstrappedInputs {
     url: Input,
@@ -42,7 +70,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
     let user1 = app.add_user(&org_id, "User 1").await?;
     let user2 = app.add_user(&org_id, "User 2").await?;
 
-    let url_input = InputPayload {
+    let url_input_payload = InputPayload {
         input_id: None,
         input_category_id: None,
         name: "URL".to_string(),
@@ -64,7 +92,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         }),
     };
 
-    let echo_action = ActionPayload {
+    let echo_action_payload = ActionPayload {
         action_id: None,
         action_category_id: 1000000000,
         name: "Echo".to_string(),
@@ -87,42 +115,88 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         account_types: None,
     };
 
-    let (url_input_result, echo_action_result) = join(
-        app.admin_user.client.new_input(&url_input),
-        app.admin_user.client.new_action(&echo_action),
+    let (url_input, echo_action) = join(
+        app.admin_user.client.new_input(&url_input_payload),
+        app.admin_user.client.new_action(&echo_action_payload),
     )
     .await;
 
-    let url_input_result = url_input_result.expect("Creating url input");
-    let echo_action_result = echo_action_result.expect("Creating echo action");
+    let url_input = url_input.expect("Creating url input");
+    let echo_action = echo_action.expect("Creating echo action");
+
+    let (machine, states) = simple_state_machine();
+
+    let test_actions = vec![
+        (
+            "run".to_string(),
+            TaskActionInput {
+                name: "Run the action".to_string(),
+                action_id: echo_action.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        ),
+        (
+            "ask".to_string(),
+            TaskActionInput {
+                name: "Ask a question".to_string(),
+                action_id: echo_action.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        ),
+    ]
+    .into_iter()
+    .collect::<FxHashMap<_, _>>();
+
+    let test_triggers = vec![
+        (
+            "run_it".to_string(),
+            TaskTriggerInput {
+                name: "run it".to_string(),
+                description: Some("Run the task and do something".to_string()),
+                input_id: url_input.input_id,
+            },
+        ),
+        (
+            "prepare".to_string(),
+            TaskTriggerInput {
+                name: "Get ready to do something".to_string(),
+                description: None,
+                input_id: url_input.input_id,
+            },
+        ),
+    ]
+    .into_iter()
+    .collect::<FxHashMap<_, _>>();
 
     let user1_tasks = vec![
         TaskInput {
             name: "task 1".to_string(),
             description: Some("task 1 description".to_string()),
             enabled: true,
-            state_machine_config: state_machine::StateMachineConfig::new(),
-            state_machine_states: state_machine::StateMachineStates::new(),
-            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            state_machine_config: machine.clone(),
+            state_machine_states: states.clone(),
+            actions: test_actions.clone(),
+            triggers: test_triggers.clone(),
         },
         TaskInput {
             name: "task 2".to_string(),
             description: Some("a task 2 description".to_string()),
             enabled: true,
-            state_machine_config: state_machine::StateMachineConfig::new(),
-            state_machine_states: state_machine::StateMachineStates::new(),
-            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            state_machine_config: machine.clone(),
+            state_machine_states: states.clone(),
+            actions: test_actions.clone(),
+            triggers: test_triggers.clone(),
         },
         TaskInput {
             name: "task 3".to_string(),
             description: None,
             enabled: false,
-            state_machine_config: state_machine::StateMachineConfig::new(),
-            state_machine_states: state_machine::StateMachineStates::new(),
-            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+            state_machine_config: machine.clone(),
+            state_machine_states: states.clone(),
+            actions: test_actions.clone(),
+            triggers: test_triggers.clone(),
         },
     ];
 
@@ -130,10 +204,10 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         name: "user2 task".to_string(),
         description: None,
         enabled: true,
-        state_machine_config: state_machine::StateMachineConfig::new(),
-        state_machine_states: state_machine::StateMachineStates::new(),
-        actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-        triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
+        state_machine_config: machine.clone(),
+        state_machine_states: states.clone(),
+        actions: test_actions.clone(),
+        triggers: test_triggers.clone(),
     };
 
     let reference_time = Utc::now();
@@ -157,12 +231,8 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         user1_tasks: user1_task_results,
         user2_task: (user2_task_result, user2_task),
         reference_time,
-        inputs: BootstrappedInputs {
-            url: url_input_result,
-        },
-        actions: BootstrappedActions {
-            echo: echo_action_result,
-        },
+        inputs: BootstrappedInputs { url: url_input },
+        actions: BootstrappedActions { echo: echo_action },
     })
 }
 
@@ -246,14 +316,12 @@ async fn get_task() {
                 i
             );
             assert_eq!(
-                task.state_machine_config,
-                json!([]),
+                task.state_machine_config.0, input.state_machine_config,
                 "Task {}: state machine config should match",
                 i
             );
             assert_eq!(
-                task.state_machine_states,
-                json!([]),
+                task.state_machine_states.0, input.state_machine_states,
                 "Task {}: state machine states should match",
                 i
             );
@@ -268,14 +336,12 @@ async fn get_task() {
                 i
             );
             assert_eq!(
-                task.triggers,
-                json!([]),
+                task.triggers.0, input.triggers,
                 "Task {}: triggers list should match",
                 i
             );
             assert_eq!(
-                task.actions,
-                json!([]),
+                task.actions.0, input.actions,
                 "Task {}: actions list should match",
                 i
             );

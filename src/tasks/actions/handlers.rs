@@ -57,13 +57,13 @@ impl ActionPayload {
 
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
 pub struct ActionDescription {
-    action_id: i64,
-    action_category_id: i64,
-    name: String,
-    description: Option<String>,
-    template_fields: sqlx::types::Json<TemplateFields>,
-    account_required: bool,
-    account_types: Option<Vec<String>>,
+    pub action_id: i64,
+    pub action_category_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub template_fields: sqlx::types::Json<TemplateFields>,
+    pub account_required: bool,
+    pub account_types: Option<Vec<String>>,
 }
 
 #[get("/actions")]

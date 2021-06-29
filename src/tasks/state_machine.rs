@@ -20,32 +20,33 @@ pub enum StateMachineError {
 pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
 pub type StateMachineStates = SmallVec<[StateMachineData; 2]>;
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateMachineData {
-    state: String,
-    context: serde_json::Value,
+    pub state: String,
+    pub context: serde_json::Value,
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateMachine {
-    name: String,
-    description: Option<String>,
-    initial: String,
-    on: Option<SmallVec<[EventHandler; 4]>>,
-    states: FxHashMap<String, StateDefinition>,
+    pub name: String,
+    pub description: Option<String>,
+    pub initial: String,
+    #[serde(default)]
+    pub on: SmallVec<[EventHandler; 4]>,
+    pub states: FxHashMap<String, StateDefinition>,
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateDefinition {
-    description: Option<String>,
-    on: SmallVec<[EventHandler; 4]>,
+    pub description: Option<String>,
+    pub on: SmallVec<[EventHandler; 4]>,
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EventHandler {
-    trigger_id: String,
-    target: Option<TransitionTarget>,
-    actions: Option<Vec<ActionInvokeDef>>,
+    pub trigger_id: String,
+    pub target: Option<TransitionTarget>,
+    pub actions: Option<Vec<ActionInvokeDef>>,
 }
 
 impl EventHandler {
@@ -86,7 +87,7 @@ impl EventHandler {
     }
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "t", content = "c")]
 pub enum TransitionTarget {
     One(String),
@@ -94,13 +95,13 @@ pub enum TransitionTarget {
     // Script(String),
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TransitionCondition {
-    target: String,
-    cond: String,
+    pub target: String,
+    pub cond: String,
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionPayloadBuilder {
     FieldMap(FxHashMap<String, ActionInvokeDefDataField>),
@@ -149,13 +150,13 @@ impl ActionPayloadBuilder {
     }
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ActionInvokeDef {
-    task_action_local_id: String,
-    data: ActionPayloadBuilder,
+    pub task_action_local_id: String,
+    pub data: ActionPayloadBuilder,
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "t", content = "c")]
 pub enum ActionInvokeDefDataField {
     /// A path from the input that triggered the action, and whether or not it's required.
@@ -219,10 +220,7 @@ impl<'d> StateMachineWithData {
                 .find(|o| o.trigger_id == trigger_id)
                 .or_else(|| {
                     // Look it up in the global event handlers
-                    self.machine
-                        .on
-                        .as_ref()
-                        .and_then(|on| on.iter().find(|o| o.trigger_id == trigger_id))
+                    self.machine.on.iter().find(|o| o.trigger_id == trigger_id)
                 })
         };
 
