@@ -106,7 +106,7 @@ impl TemplateFieldFormat {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct TemplateField {
     pub format: TemplateFieldFormat,
     pub optional: bool,

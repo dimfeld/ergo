@@ -7,6 +7,7 @@ use crate::{
     error::Error,
     notifications::{Notification, NotifyEvent},
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 use uuid::Uuid;
@@ -20,7 +21,7 @@ pub struct InputCategory {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, JsonSchema, Deserialize, PartialEq, Eq)]
 pub struct Input {
     pub input_id: i64,
     pub input_category_id: Option<i64>,

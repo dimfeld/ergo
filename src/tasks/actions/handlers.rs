@@ -55,7 +55,7 @@ impl ActionPayload {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
+#[derive(Clone, Debug, Deserialize, Serialize, sqlx::FromRow, PartialEq, Eq)]
 pub struct ActionDescription {
     pub action_id: i64,
     pub action_category_id: i64,

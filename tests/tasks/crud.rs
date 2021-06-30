@@ -837,9 +837,28 @@ async fn update_task_actions() {
     .await
 }
 
-#[test]
-#[ignore]
-fn list_inputs() {}
+#[actix_rt::test]
+async fn list_inputs() {
+    run_app_test(|app| async move {
+        let BootstrappedData { user1, inputs, .. } =
+            bootstrap_data(&app).await.expect("Bootstrapping");
+        let input_list = user1
+            .client
+            .list_inputs()
+            .await
+            .expect("Listing inputs")
+            .into_iter()
+            .map(|i| (i.input_id, i))
+            .collect::<FxHashMap<_, _>>();
+        let expected_inputs = std::array::IntoIter::new([inputs.url.clone()])
+            .map(|i| (i.input_id, i))
+            .collect::<FxHashMap<_, _>>();
+        assert_eq!(input_list, expected_inputs, "Inputs match expected list");
+
+        Ok(())
+    })
+    .await
+}
 
 #[test]
 #[ignore]
@@ -853,9 +872,28 @@ fn update_input() {}
 #[ignore]
 fn delete_input() {}
 
-#[test]
-#[ignore]
-fn list_actions() {}
+#[actix_rt::test]
+async fn list_actions() {
+    run_app_test(|app| async move {
+        let BootstrappedData { user1, actions, .. } =
+            bootstrap_data(&app).await.expect("Bootstrapping");
+        let action_list = user1
+            .client
+            .list_actions()
+            .await
+            .expect("Listing actions")
+            .into_iter()
+            .map(|i| (i.action_id, i))
+            .collect::<FxHashMap<_, _>>();
+        let expected_actions = std::array::IntoIter::new([actions.echo.clone()])
+            .map(|i| (i.action_id, i))
+            .collect::<FxHashMap<_, _>>();
+        assert_eq!(action_list, expected_actions, "actions match expected list");
+
+        Ok(())
+    })
+    .await
+}
 
 #[test]
 #[ignore]
