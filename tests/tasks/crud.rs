@@ -586,6 +586,257 @@ async fn put_new_task_with_id() {
     .await
 }
 
+#[actix_rt::test]
+async fn update_task_triggers() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            user1,
+            user1_tasks,
+            inputs,
+            ..
+        } = bootstrap_data(&app).await?;
+
+        let mut task = user1_tasks[0].1.clone();
+        task.triggers.insert(
+            "do_it".to_string(),
+            TaskTriggerInput {
+                name: "Do the thing".to_string(),
+                description: None,
+                input_id: inputs.url.input_id,
+            },
+        );
+
+        user1
+            .client
+            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .await
+            .expect("Adding trigger");
+        let added_trigger_result = user1
+            .client
+            .get_task(user1_tasks[0].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with added trigger");
+        assert_eq!(
+            added_trigger_result.triggers.0, task.triggers,
+            "trigger was added successfully"
+        );
+
+        task.triggers.remove("prepare");
+        user1
+            .client
+            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .await
+            .expect("Removing trigger");
+        let removed_trigger_result = user1
+            .client
+            .get_task(user1_tasks[0].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with removed trigger");
+        assert_eq!(
+            removed_trigger_result.triggers.0, task.triggers,
+            "trigger was added successfully"
+        );
+
+        // Update a trigger
+        task.triggers.insert(
+            "do_it".to_string(),
+            TaskTriggerInput {
+                name: "Do another thing".to_string(),
+                description: Some("A description".to_string()),
+                input_id: inputs.url.input_id,
+            },
+        );
+
+        user1
+            .client
+            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .await
+            .expect("Modifying trigger");
+        let updated_trigger_result = user1
+            .client
+            .get_task(user1_tasks[0].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with updated trigger");
+        assert_eq!(
+            updated_trigger_result.triggers.0, task.triggers,
+            "trigger was added successfully"
+        );
+
+        // And now try all operations at once.
+        let mut task2 = user1_tasks[1].1.clone();
+        task2.triggers.remove("prepare");
+        task2.triggers.insert(
+            "do_it".to_string(),
+            TaskTriggerInput {
+                name: "Do another thing".to_string(),
+                description: Some("A description".to_string()),
+                input_id: inputs.url.input_id,
+            },
+        );
+        task2.triggers.insert(
+            "run_it".to_string(),
+            TaskTriggerInput {
+                name: "changed run it".to_string(),
+                description: Some("this is another change".to_string()),
+                input_id: inputs.url.input_id,
+            },
+        );
+        task2.triggers.insert(
+            "see_it".to_string(),
+            TaskTriggerInput {
+                name: "see a thing".to_string(),
+                description: None,
+                input_id: inputs.url.input_id,
+            },
+        );
+
+        user1
+            .client
+            .put_task(user1_tasks[1].0.task_id.as_str(), &task2)
+            .await
+            .expect("Multiple trigger updates");
+        let updated_trigger_result = user1
+            .client
+            .get_task(user1_tasks[1].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with multiple updates");
+        assert_eq!(
+            updated_trigger_result.triggers.0, task2.triggers,
+            "triggers were updated"
+        );
+
+        Ok(())
+    })
+    .await
+}
+
+#[actix_rt::test]
+async fn update_task_actions() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            user1,
+            user1_tasks,
+            actions,
+            ..
+        } = bootstrap_data(&app).await?;
+
+        let mut task = user1_tasks[0].1.clone();
+        task.actions.insert(
+            "do_it".to_string(),
+            TaskActionInput {
+                name: "Do a thing".to_string(),
+                action_id: actions.echo.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        );
+        user1
+            .client
+            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .await
+            .expect("Adding action");
+        let added_action_result = user1
+            .client
+            .get_task(user1_tasks[0].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with added action");
+        assert_eq!(
+            added_action_result.actions.0, task.actions,
+            "action was added successfully"
+        );
+
+        task.actions.remove("run_it");
+        user1
+            .client
+            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .await
+            .expect("Removing action");
+        let removed_action_result = user1
+            .client
+            .get_task(user1_tasks[0].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with removed action");
+        assert_eq!(
+            removed_action_result.actions.0, task.actions,
+            "action was removed successfully"
+        );
+
+        // Update an action
+        task.actions.insert(
+            "ask".to_string(),
+            TaskActionInput {
+                name: "Ask it".to_string(),
+                action_id: actions.echo.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        );
+        user1
+            .client
+            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .await
+            .expect("Modifying action");
+        let modified_action_result = user1
+            .client
+            .get_task(user1_tasks[0].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with modified action");
+        assert_eq!(
+            modified_action_result.actions.0, task.actions,
+            "action was modified successfully"
+        );
+
+        // Try multiple changes at once
+        let mut task2 = user1_tasks[1].1.clone();
+        task2.actions.remove("run");
+        task2.actions.insert(
+            "ask".to_string(),
+            TaskActionInput {
+                name: "Ask it".to_string(),
+                action_id: actions.echo.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        );
+        task2.actions.insert(
+            "do_it".to_string(),
+            TaskActionInput {
+                name: "Do a thing".to_string(),
+                action_id: actions.echo.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        );
+        task2.actions.insert(
+            "add_another".to_string(),
+            TaskActionInput {
+                name: "Do another thing".to_string(),
+                action_id: actions.echo.action_id,
+                account_id: None,
+                action_template: None,
+            },
+        );
+
+        user1
+            .client
+            .put_task(user1_tasks[1].0.task_id.as_str(), &task2)
+            .await
+            .expect("Modifying action");
+        let result = user1
+            .client
+            .get_task(user1_tasks[1].0.task_id.as_str())
+            .await
+            .expect("Retrieving task with modified action");
+        assert_eq!(
+            result.actions.0, task2.actions,
+            "actions were modified successfully"
+        );
+
+        Ok(())
+    })
+    .await
+}
+
 #[test]
 #[ignore]
 fn list_inputs() {}
