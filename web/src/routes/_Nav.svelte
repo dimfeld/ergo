@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { scale } from 'svelte/transition';
+  import { cubicIn, cubicOut } from 'svelte/easing';
   import { darkModeStore } from '../styles';
 
   export let section: string;
@@ -16,6 +18,7 @@
   ];
 
   let mobileMenuOpen = false;
+  let profileDropdownOpen = false;
 
   let darkMode = darkModeStore();
 </script>
@@ -99,26 +102,30 @@
                   From: "transform opacity-100 scale-100"
                   To: "transform opacity-0 scale-95"
               -->
-            <div
-              class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 dark:bg-gray-800 bg-white ring-1 ring-black dark:ring-gray-500 ring-opacity-5 focus:outline-none"
-              role="menu"
-              aria-orientation="vertical"
-              aria-labelledby="user-menu-button"
-              tabindex="-1"
-            >
-              <!-- Active: "bg-gray-100", Not Active: "" -->
-              {#each profileMenuItems as { name, route }}
-                <a
-                  href="/{route}"
-                  class:bg-gray-100={route === section}
-                  class:dark:bg-gray-600={route === section}
-                  class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300"
-                  role="menuitem"
-                  tabindex="-1"
-                  id="user-menu-item-0">{name}</a
-                >
-              {/each}
-            </div>
+            {#if profileDropdownOpen}
+              <div
+                class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 dark:bg-gray-800 bg-white ring-1 ring-black dark:ring-gray-500 ring-opacity-5 focus:outline-none"
+                role="menu"
+                aria-orientation="vertical"
+                aria-labelledby="user-menu-button"
+                tabindex="-1"
+                in:scale={{ duration: 100, start: 0.95, easing: cubicOut }}
+                out:scale={{ duration: 75, start: 0.95, easing: cubicIn }}
+              >
+                <!-- Active: "bg-gray-100", Not Active: "" -->
+                {#each profileMenuItems as { name, route }}
+                  <a
+                    href="/{route}"
+                    class:bg-gray-100={route === section}
+                    class:dark:bg-gray-600={route === section}
+                    class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300"
+                    role="menuitem"
+                    tabindex="-1"
+                    id="user-menu-item-0">{name}</a
+                  >
+                {/each}
+              </div>
+            {/if}
           </div>
         </div>
       </div>

@@ -1,4 +1,5 @@
 import preprocess from 'svelte-preprocess';
+import * as path from 'path';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -12,6 +13,13 @@ const config = {
 
   kit: {
     ssr: false,
+    vite: () => ({
+      resolve: {
+        alias: {
+          '^': path.resolve(process.cwd(), 'src'),
+        },
+      },
+    }),
   },
 };
 
