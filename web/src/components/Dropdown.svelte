@@ -3,12 +3,14 @@
   import 'tippy.js/themes/light.css';
   import 'tippy.js/animations/shift-away.css';
   import 'tippy.js/dist/tippy.css';
+  import ChevronDown from './icons/ChevronDown.svelte';
+  import type { SvelteComponent } from 'svelte';
 
   export let open = false;
   export let disabled = false;
   export let position: 'top' | 'bottom' | 'left' | 'right' = 'bottom';
   export let label: string;
-  export let buttonArrow = true;
+  export let arrow: typeof SvelteComponent | undefined | null | false = ChevronDown;
 
   let dropdownButton: HTMLButtonElement;
 
@@ -38,7 +40,10 @@
 </script>
 
 <button bind:this={dropdownButton} type="button" {disabled} on:click={() => (open = !open)}>
-  <slot name="button">{label}</slot>
+  <slot name="button"
+    >{label}
+    {#if arrow}<svelte:component this={arrow} />{/if}</slot
+  >
 </button>
 
 {#if open}
