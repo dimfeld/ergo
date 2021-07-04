@@ -1,5 +1,5 @@
 <script lang="typescript">
-  import '../app.postcss';
+  import '../app.css';
   import { page } from '$app/stores';
   import { createDarkStore, cssDarkModePreference } from '../styles';
   import Nav from './_Nav.svelte';

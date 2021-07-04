@@ -1,6 +1,6 @@
 <script lang="ts">
   // heroicons.com chevron-down
-  let classNames = 'h-6 w-6';
+  let classNames = 'inline h-6 w-6';
   export { classNames as class };
 </script>
 
