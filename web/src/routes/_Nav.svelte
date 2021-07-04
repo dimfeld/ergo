@@ -49,7 +49,7 @@
             ><input type="checkbox" bind:checked={$darkMode} /> Test dark
           </label>
           <button
-            class="ml-4 bg-gray-200 dark:bg-gray-800 p-1 rounded-full text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-white"
+            class="ml-4 bg-gray-200 dark:bg-gray-800 p-1 rounded-full text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-gray-200"
           >
             <span class="sr-only">View notifications</span>
             <!-- Heroicon name: outline/bell -->
@@ -75,7 +75,7 @@
             <div>
               <button
                 type="button"
-                class="max-w-xs bg-gray-200 dark:bg-gray-800 rounded-full flex items-center text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-white"
+                class="max-w-xs bg-gray-200 dark:bg-gray-800 rounded-full flex items-center text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-gray-200"
                 id="user-menu-button"
                 aria-expanded="false"
                 aria-haspopup="true"
@@ -100,7 +100,7 @@
                   To: "transform opacity-0 scale-95"
               -->
             <div
-              class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 dark:bg-gray-800 bg-white ring-1 ring-black dark:ring-white ring-opacity-5 focus:outline-none"
+              class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 dark:bg-gray-800 bg-white ring-1 ring-black dark:ring-gray-500 ring-opacity-5 focus:outline-none"
               role="menu"
               aria-orientation="vertical"
               aria-labelledby="user-menu-button"
@@ -126,7 +126,7 @@
         <!-- Mobile menu button -->
         <button
           type="button"
-          class="bg-gray-200 dark:bg-gray-800 inline-flex items-center justify-center p-2 rounded-md text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-gray-700 dark:focus:ring-offset-gray-800 dark:focus:ring-white"
+          class="bg-gray-200 dark:bg-gray-800 inline-flex items-center justify-center p-2 rounded-md text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white hover:bg-gray-300 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-gray-700 dark:focus:ring-offset-gray-800 dark:focus:ring-gray-200"
           aria-controls="mobile-menu"
           aria-expanded="false"
           on:click={() => (mobileMenuOpen = !mobileMenuOpen)}
@@ -209,7 +209,7 @@
           ><input type="checkbox" bind:checked={$darkMode} /> Test dark toggle</label
         >
         <button
-          class="ml-4 bg-gray-100 dark:bg-gray-800 flex-shrink-0 p-1 rounded-full text-gray-600 dark:text-gray-400 hover:text-gray-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-white"
+          class="ml-4 bg-gray-100 dark:bg-gray-800 flex-shrink-0 p-1 rounded-full text-gray-600 dark:text-gray-400 hover:text-gray-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-gray-200"
         >
           <span class="sr-only">View notifications</span>
           <!-- Heroicon name: outline/bell -->
