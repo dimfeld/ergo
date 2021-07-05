@@ -27,7 +27,7 @@
 
 <style lang="postcss">
   #top {
-    @apply bg-gray-100 text-gray-900;
+    @apply bg-gray-50 text-gray-900;
   }
 
   #top.dark {
