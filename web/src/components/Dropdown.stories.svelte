@@ -2,14 +2,17 @@
   import { Meta, Story, Template } from '@storybook/addon-svelte-csf';
 
   import Dropdown from './Dropdown.svelte';
+  import MenuItem from './MenuItem.svelte';
 </script>
 
 <Meta title="Dropdown" component={Dropdown} />
 
 <Template let:args>
   <Dropdown {...args}>
-    <p>Dropdown contents</p>
-    <p>More dropdown contents</p>
+    <div class="flex flex-col">
+      <MenuItem>Dropdown contents</MenuItem>
+      <MenuItem>More dropdown contents</MenuItem>
+    </div>
   </Dropdown>
 </Template>
 
