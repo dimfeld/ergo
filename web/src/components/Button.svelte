@@ -1,5 +1,5 @@
 <script lang="ts">
-  export let element: HTMLButtonElement;
+  export let element: HTMLButtonElement | undefined = undefined;
   export let disabled = false;
 
   let classNames = '';

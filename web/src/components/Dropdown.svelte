@@ -1,5 +1,4 @@
 <script lang="ts">
-  import 'tippy.js/dist/tippy.css';
   import { scale } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
   import ChevronDown from './icons/ChevronDown.svelte';

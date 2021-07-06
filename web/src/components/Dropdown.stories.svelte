@@ -1,21 +1,19 @@
 <script>
   import { Meta, Story, Template } from '@storybook/addon-svelte-csf';
 
+  import DropdownWithMenu from './fixtures/DropdownWithMenu.svelte';
   import Dropdown from './Dropdown.svelte';
-  import MenuItem from './MenuItem.svelte';
+  import ChevronRight from './icons/ChevronRight.svelte';
 </script>
 
 <Meta title="Dropdown" component={Dropdown} />
 
 <Template let:args>
-  <Dropdown {...args}>
-    <div class="flex flex-col">
-      <MenuItem>Dropdown contents</MenuItem>
-      <MenuItem>More dropdown contents</MenuItem>
-    </div>
-  </Dropdown>
+  <DropdownWithMenu {...args} />
 </Template>
 
 <Story name="Default" args={{ label: 'Menu' }} />
+
+<Story name="Right Arrow" args={{ label: 'Menu', position: 'right-start', arrow: ChevronRight }} />
 
 <Story name="No arrow" args={{ label: 'Menu', arrow: false }} />
