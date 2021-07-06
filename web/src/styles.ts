@@ -9,7 +9,7 @@ export function createDarkStore() {
   }
 
   if ('theme' in window.localStorage) {
-    initialDarkMode = window.localStorage.theme;
+    initialDarkMode = window.localStorage.theme === 'true';
   }
 
   let darkModeStore = writable(initialDarkMode);
