@@ -20,6 +20,7 @@ export type Position =
 export interface TippyOptions {
   trigger: HTMLElement;
   position: Position;
+  fixed?: boolean;
   interactive: boolean;
   role?: string;
   close?: () => void;
@@ -27,7 +28,7 @@ export interface TippyOptions {
 
 export function showTippy(
   node: HTMLDivElement,
-  { trigger, position, interactive, role, close }: TippyOptions
+  { trigger, position, fixed, interactive, role, close }: TippyOptions
 ) {
   let tippyInstance = tippy(trigger, {
     interactive,
@@ -38,6 +39,7 @@ export function showTippy(
     role,
     showOnCreate: true,
     popperOptions: {
+      strategy: fixed ? 'fixed' : 'absolute',
       modifiers: [{ name: 'flip' }, { name: 'preventOverflow' }],
     },
     render(_instance) {

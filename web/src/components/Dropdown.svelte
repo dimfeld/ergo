@@ -10,14 +10,14 @@
   export let open = false;
   export let disabled = false;
   export let position: Position = 'bottom-end';
-  export let label: string;
+  export let label: string | undefined = undefined;
   export let arrow: typeof SvelteComponent | undefined | null | false = ChevronDown;
   export let closeOnClickInside = true;
 
   let classNames = '';
   export { classNames as class };
 
-  let dropdownButton: HTMLButtonElement;
+  let dropdownButton: HTMLDivElement;
 
   $: open = open && !disabled;
 
@@ -29,20 +29,20 @@
 </script>
 
 <div class="relative inline-block text-left">
-  <div aria-expanded={open} aria-haspopup="true">
-    <Button
-      bind:element={dropdownButton}
-      {disabled}
-      class={classNames}
-      on:click={() => (open = !open)}
-    >
-      <slot name="button"
-        ><div class="flex space-x-1 items-center">
+  <div
+    aria-expanded={open}
+    aria-haspopup="true"
+    bind:this={dropdownButton}
+    on:click={() => (open = !open)}
+  >
+    <slot name="button">
+      <Button {disabled} class={classNames}>
+        <div class="flex space-x-1 items-center">
           <span>{label}</span>
           {#if arrow}<svelte:component this={arrow} class="h-5 w-5" />{/if}
-        </div></slot
-      >
-    </Button>
+        </div>
+      </Button>
+    </slot>
   </div>
 
   {#if open && dropdownButton}
@@ -57,8 +57,6 @@
       on:click={clicked}
     >
       <div
-        in:scale={{ duration: 100, start: 0.95, easing: cubicOut }}
-        out:scale={{ duration: 75, start: 0.95, easing: cubicIn }}
         class="py-2 rounded-md shadow-lg bg-white dark:bg-black ring-1 ring-black dark:ring-gray-200 ring-opacity-5 focus:outline-none"
       >
         <slot />

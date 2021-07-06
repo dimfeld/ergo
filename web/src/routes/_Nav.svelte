@@ -2,6 +2,8 @@
   import { scale } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
   import { darkModeStore } from '../styles';
+  import Dropdown from '^/components/Dropdown.svelte';
+  import MenuItem from '^/components/MenuItem.svelte';
 
   export let section: string;
 
@@ -18,7 +20,6 @@
   ];
 
   let mobileMenuOpen = false;
-  let profileDropdownOpen = false;
 
   let darkMode = darkModeStore();
 </script>
@@ -75,57 +76,38 @@
 
           <!-- Profile dropdown -->
           <div class="ml-3 relative">
-            <div>
-              <button
-                type="button"
-                class="max-w-xs bg-gray-200 dark:bg-gray-800 rounded-full flex items-center text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-gray-200"
-                id="user-menu-button"
-                aria-expanded="false"
-                aria-haspopup="true"
-              >
-                <span class="sr-only">Open user menu</span>
-                <img
-                  class="h-8 w-8 rounded-full"
-                  src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
-                  alt=""
-                />
-              </button>
-            </div>
+            <Dropdown position="bottom-end">
+              <div slot="button">
+                <button
+                  type="button"
+                  class="max-w-xs bg-gray-200 dark:bg-gray-800 rounded-full flex items-center text-sm text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-200 focus:ring-black dark:focus:ring-offset-gray-800 dark:focus:ring-gray-200"
+                  id="user-menu-button"
+                  aria-expanded="false"
+                  aria-haspopup="true"
+                >
+                  <span class="sr-only">Open user menu</span>
+                  <img
+                    class="h-8 w-8 rounded-full"
+                    src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                    alt=""
+                  />
+                </button>
+              </div>
 
-            <!--
-                Dropdown menu, show/hide based on menu state.
-
-                Entering: "transition ease-out duration-100"
-                  From: "transform opacity-0 scale-95"
-                  To: "transform opacity-100 scale-100"
-                Leaving: "transition ease-in duration-75"
-                  From: "transform opacity-100 scale-100"
-                  To: "transform opacity-0 scale-95"
-              -->
-            {#if profileDropdownOpen}
-              <div
-                class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 dark:bg-gray-800 bg-white ring-1 ring-black dark:ring-gray-500 ring-opacity-5 focus:outline-none"
-                role="menu"
-                aria-orientation="vertical"
-                aria-labelledby="user-menu-button"
-                tabindex="-1"
-                in:scale={{ duration: 100, start: 0.95, easing: cubicOut }}
-                out:scale={{ duration: 75, start: 0.95, easing: cubicIn }}
-              >
-                <!-- Active: "bg-gray-100", Not Active: "" -->
+              <div class="flex flex-col items-stretch w-48" role="menu" tabindex="-1">
                 {#each profileMenuItems as { name, route }}
                   <a
                     href="/{route}"
+                    class="w-full"
                     class:bg-gray-100={route === section}
-                    class:dark:bg-gray-600={route === section}
-                    class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300"
+                    class:dark:bg-gray-800={route === section}
                     role="menuitem"
-                    tabindex="-1"
-                    id="user-menu-item-0">{name}</a
                   >
+                    <MenuItem>{name}</MenuItem>
+                  </a>
                 {/each}
               </div>
-            {/if}
+            </Dropdown>
           </div>
         </div>
       </div>

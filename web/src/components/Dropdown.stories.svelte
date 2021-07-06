@@ -6,7 +6,7 @@
   import ChevronRight from './icons/ChevronRight.svelte';
 </script>
 
-<Meta title="Dropdown" component={Dropdown} />
+<Meta title="Primitives/Dropdown" component={Dropdown} />
 
 <Template let:args>
   <DropdownWithMenu {...args} />
