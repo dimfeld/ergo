@@ -2,3 +2,4 @@
 .env
 vault_dev_roles.env
 erhttp
+/schemas
