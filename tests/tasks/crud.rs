@@ -258,6 +258,10 @@ async fn list_tasks() {
                         enabled: task.enabled,
                         created: reference_time.clone(),
                         modified: reference_time.clone(),
+                        last_triggered: None,
+                        successes: 0,
+                        failures: 0,
+                        stats_since: Utc::now() - chrono::Duration::days(7),
                     },
                 )
             })
@@ -273,6 +277,10 @@ async fn list_tasks() {
             assert_eq!(task.name, expected.name);
             assert_eq!(task.description, expected.description);
             assert_eq!(task.enabled, expected.enabled);
+            assert_eq!(task.last_triggered, expected.last_triggered);
+            assert_eq!(task.successes, expected.successes);
+            assert_eq!(task.failures, expected.failures);
+            assert!(task.stats_since - expected.stats_since < chrono::Duration::minutes(1));
             assert!(task.created > reference_time);
             assert!(task.modified > reference_time);
             assert!(task.id.len() > 0);

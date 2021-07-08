@@ -24,7 +24,7 @@ struct TaskAndTriggerPath {
     trigger_id: String,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TaskDescription {
     pub id: String,
     pub name: String,
@@ -32,6 +32,10 @@ pub struct TaskDescription {
     pub enabled: bool,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
+    pub last_triggered: Option<DateTime<Utc>>,
+    pub successes: i64,
+    pub failures: i64,
+    pub stats_since: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -44,14 +48,32 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
     let user_ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
-        "SELECT external_task_id AS id, name, description, enabled, created, modified
+        r##"SELECT external_task_id AS id, name, description, enabled, created, modified,
+            last_triggered AS "last_triggered?",
+            COALESCE(successes, 0) as "successes!",
+            COALESCE(failures, 0) as "failures!",
+            (now() - '7 days'::interval) as "stats_since!"
         FROM tasks
+        LEFT JOIN LATERAL(
+            SELECT
+                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS successes,
+                SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS failures
+            FROM inputs_log
+            WHERE inputs_log.task_id = tasks.task_id AND updated > (now() - '7 days'::interval)
+        ) stat_counts ON true
+        LEFT JOIN LATERAL (
+            SELECT created AS last_triggered
+            FROM inputs_log
+            WHERE inputs_log.task_id = tasks.task_id
+            ORDER BY created DESC
+            LIMIT 1
+        ) last_triggered ON true
         WHERE tasks.org_id = $2 AND NOT deleted AND
             EXISTS (SELECT 1 FROM user_entity_permissions
                 WHERE permissioned_object IN (1, tasks.task_id)
                 AND user_entity_id = ANY($1)
                 AND permission_type = 'read'
-            )",
+            )"##,
         user_ids.as_slice(),
         auth.org_id(),
     )

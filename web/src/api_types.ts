@@ -144,6 +144,20 @@ export interface StateMachineData {
   [k: string]: unknown;
 }
 
+export interface TaskDescription {
+  created: string;
+  description?: string | null;
+  enabled: boolean;
+  failures: number;
+  id: string;
+  last_triggered?: string | null;
+  modified: string;
+  name: string;
+  stats_since: string;
+  successes: number;
+  [k: string]: unknown;
+}
+
 export interface TaskInput {
   actions: {
     [k: string]: TaskActionInput;
