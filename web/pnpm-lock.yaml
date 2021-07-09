@@ -17,6 +17,7 @@ specifiers:
   autoprefixer: ^10.2.6
   babel-loader: ^8.2.2
   cssnano: ^5.0.6
+  date-fns: ~2.22.1
   eslint: ^7.30.0
   eslint-config-prettier: ^8.3.0
   eslint-plugin-svelte3: ^3.2.0
@@ -45,6 +46,7 @@ specifiers:
 
 dependencies:
   '@popperjs/core': 2.9.2
+  date-fns: 2.22.1
   tippy.js: 6.3.1
 
 devDependencies:
@@ -55,7 +57,7 @@ devDependencies:
   '@storybook/addon-postcss': 2.0.0
   '@storybook/addon-svelte-csf': 1.1.0_2a234ea9204f78aaa18f151bd82da574
   '@storybook/svelte': 6.3.3_67fb6bda970784022ff18b367727b607
-  '@sveltejs/kit': 1.0.0-next.122_svelte@3.38.3
+  '@sveltejs/kit': 1.0.0-next.123_svelte@3.38.3
   '@testing-library/jest-dom': 5.14.1
   '@testing-library/svelte': 3.0.3_svelte@3.38.3
   '@typescript-eslint/eslint-plugin': 4.28.2_5031fffb45dfb7117e61c1d8ea1ef3ff
@@ -3693,8 +3695,8 @@ packages:
       - '@types/react'
     dev: true
 
-  /@sveltejs/kit/1.0.0-next.122_svelte@3.38.3:
-    resolution: {integrity: sha512-HwyYcbLMN2q7HuO561CD01RZ8ZPEdZgwdTKmyvMYrTZehH9WPJI2VF+7bI84mNxWiQiLnc2gg+Y0klVHXJO+Yw==}
+  /@sveltejs/kit/1.0.0-next.123_svelte@3.38.3:
+    resolution: {integrity: sha512-C9UZ5yYdU94hjpmwTPmDpCWphPc9RsSR4TxV67JM+SqDrSCMKx65JI3+goQQzY2ZHARUGukoc1+ijaRxW48AWQ==}
     engines: {node: ^12.20 || >=14.13}
     hasBin: true
     peerDependencies:
@@ -6182,6 +6184,11 @@ packages:
       whatwg-mimetype: 2.3.0
       whatwg-url: 8.7.0
     dev: true
+
+  /date-fns/2.22.1:
+    resolution: {integrity: sha512-yUFPQjrxEmIsMqlHhAhmxkuH769baF21Kk+nZwZGyrMoyLA+LugaQtC0+Tqf9CBUUULWwUJt6Q5ySI3LJDDCGg==}
+    engines: {node: '>=0.11'}
+    dev: false
 
   /debug/2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -12148,8 +12155,8 @@ packages:
       inherits: 2.0.4
     dev: true
 
-  /rollup/2.52.8:
-    resolution: {integrity: sha512-IjAB0C6KK5/lvqzJWAzsvOik+jV5Bt907QdkQ/gDP4j+R9KYNI1tjqdxiPitGPVrWC21Mf/ucXgowUjN/VemaQ==}
+  /rollup/2.53.0:
+    resolution: {integrity: sha512-spgrY78Toh+m0+zaOoeaayJKuzFuWy6o1PdFIBMVwRcuxT0xCOX9A5rChyKe+2ruL4lePKWUMImS4mMW1QAkmQ==}
     engines: {node: '>=10.0.0'}
     hasBin: true
     optionalDependencies:
@@ -13935,7 +13942,7 @@ packages:
       esbuild: 0.12.15
       postcss: 8.3.5
       resolve: 1.20.0
-      rollup: 2.52.8
+      rollup: 2.53.0
     optionalDependencies:
       fsevents: 2.3.2
     dev: true

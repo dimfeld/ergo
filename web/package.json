@@ -62,10 +62,13 @@
   "type": "module",
   "dependencies": {
     "@popperjs/core": "^2.9.2",
+    "date-fns": "~2.22.1",
     "tippy.js": "^6.3.1"
   },
   "jest": {
-    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect"],
+    "setupFilesAfterEnv": [
+      "@testing-library/jest-dom/extend-expect"
+    ],
     "transform": {
       "^.+\\.svelte$": [
         "svelte-jester",
