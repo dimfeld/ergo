@@ -1,5 +1,6 @@
 import preprocess from 'svelte-preprocess';
 import * as path from 'path';
+import adapter from '@sveltejs/adapter-vercel';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -14,8 +15,14 @@ const config = {
   ],
 
   kit: {
-    ssr: false,
+    adapter: adapter(),
+    hostHeader: 'X-Forwarded-Host',
     vite: () => ({
+      server: {
+        proxy: {
+          '/api': `http://localhost:${process.env.BIND_PORT || 6543}/api`,
+        },
+      },
       resolve: {
         alias: {
           '^': path.resolve(process.cwd(), 'src'),

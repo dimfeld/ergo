@@ -20,13 +20,15 @@
   },
   "devDependencies": {
     "@babel/core": "^7.14.6",
-    "@storybook/addon-actions": "^6.3.3",
-    "@storybook/addon-essentials": "^6.3.3",
-    "@storybook/addon-links": "^6.3.3",
+    "@storybook/addon-actions": "^6.3.4",
+    "@storybook/addon-essentials": "^6.3.4",
+    "@storybook/addon-links": "^6.3.4",
     "@storybook/addon-postcss": "^2.0.0",
     "@storybook/addon-svelte-csf": "^1.1.0",
-    "@storybook/svelte": "^6.3.3",
+    "@storybook/svelte": "^6.3.4",
+    "@sveltejs/adapter-vercel": "next",
     "@sveltejs/kit": "next",
+    "@tailwindcss/forms": "~0.3.3",
     "@testing-library/jest-dom": "^5.14.1",
     "@testing-library/svelte": "^3.0.3",
     "@typescript-eslint/eslint-plugin": "^4.28.2",
@@ -66,9 +68,7 @@
     "tippy.js": "^6.3.1"
   },
   "jest": {
-    "setupFilesAfterEnv": [
-      "@testing-library/jest-dom/extend-expect"
-    ],
+    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect"],
     "transform": {
       "^.+\\.svelte$": [
         "svelte-jester",
