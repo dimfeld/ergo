@@ -3,3 +3,4 @@
 vault_dev_roles.env
 erhttp
 /schemas
+.pnpm-debug.log
