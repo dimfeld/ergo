@@ -1,4 +1,7 @@
-use super::state_machine::{self, StateMachineConfig, StateMachineStates};
+use super::{
+    actions::ActionStatus,
+    state_machine::{self, StateMachineConfig, StateMachineStates},
+};
 use crate::{
     auth::Authenticated,
     backend_data::BackendAppStateData,
@@ -8,7 +11,11 @@ use crate::{
     web_app_server::AppStateData,
 };
 
-use actix_web::{delete, get, post, put, web, web::Path, HttpRequest, HttpResponse, Responder};
+use actix_web::{
+    delete, get, post, put,
+    web::{self, Path, Query},
+    HttpRequest, HttpResponse, Responder,
+};
 use chrono::{DateTime, Utc};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -513,6 +520,63 @@ async fn post_task_trigger(
     .await?;
 
     Ok(HttpResponse::Accepted().json(json!({ "log_id": input_arrival_id })))
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+pub struct ActionLogEntry {
+    pub actions_log_id: Uuid,
+    pub task_name: String,
+    pub external_task_id: String,
+    pub task_action_local_id: String,
+    pub task_action_name: String,
+    pub task_trigger_local_id: String,
+    pub task_trigger_name: String,
+    pub payload: serde_json::Value,
+    pub result: serde_json::Value,
+    pub status: ActionStatus,
+    pub updated: DateTime<Utc>,
+}
+
+#[get("/logs")]
+async fn get_logs(data: BackendAppStateData, auth: Authenticated) -> Result<impl Responder> {
+    let ids = auth.user_entity_ids();
+    let org_id = auth.org_id();
+
+    let logs = sqlx::query_as!(
+        ActionLogEntry,
+        r##"
+            SELECT actions_log_id,
+                tasks.name AS task_name,
+                tasks.external_task_id,
+                ta.task_action_local_id,
+                ta.name AS task_action_name,
+                tt.task_trigger_local_id,
+                tt.name AS task_trigger_name,
+                COALESCE(al.payload, 'null'::jsonb) AS "payload!",
+                COALESCE(al.result, 'null'::jsonb) AS "result!",
+                al.status AS "status: ActionStatus",
+                al.updated
+            FROM tasks
+            JOIN actions_log al USING(task_id)
+            JOIN task_actions ta USING(task_action_local_id)
+            JOIN inputs_log il USING(inputs_log_id)
+            JOIN task_triggers tt USING(task_trigger_id)
+            WHERE tasks.org_id = $2 AND
+                EXISTS(SELECT 1 FROM user_entity_permissions
+                    WHERE user_entity_id = ANY($1)
+                    AND permission_type = 'read'
+                    AND permissioned_object IN (1, tasks.task_id)
+                )
+            ORDER BY al.updated DESC
+            LIMIT 50
+        "##,
+        ids.as_slice(),
+        org_id
+    )
+    .fetch_all(&data.pg)
+    .await?;
+
+    Ok(HttpResponse::Ok().json(logs))
 }
 
 pub fn config(cfg: &mut web::ServiceConfig) {

@@ -8,6 +8,7 @@ pub mod template;
 mod http_executor;
 mod raw_command_executor;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -50,8 +51,9 @@ pub struct TaskAction {
     pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, sqlx::Type)]
 #[sqlx(type_name = "action_status", rename_all = "lowercase")]
+#[serde(rename_all = "lowercase")]
 pub enum ActionStatus {
     Success,
     Pending,

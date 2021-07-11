@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
-use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultDuration, VaultResponse};
+use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultResponse};
 use log::LevelFilter;
 use serde::{de::DeserializeOwned, Serialize};
 use sqlx::{postgres::PgConnectOptions, ConnectOptions, Connection, PgConnection};
