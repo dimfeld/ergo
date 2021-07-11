@@ -1,37 +1,37 @@
 export type ActionPayloadBuilder = {
+  t: "FieldMap";
   c: {
     [k: string]: ActionInvokeDefDataField;
   };
-  t: "FieldMap";
   [k: string]: unknown;
 };
 
 export type ActionInvokeDefDataField =
   | {
-      c: [string, boolean];
       t: "Input";
-      [k: string]: unknown;
-    }
-  | {
       c: [string, boolean];
-      t: "Context";
       [k: string]: unknown;
     }
   | {
-      c: true;
+      t: "Context";
+      c: [string, boolean];
+      [k: string]: unknown;
+    }
+  | {
       t: "Constant";
+      c: true;
       [k: string]: unknown;
     };
 
 export interface ActionInvokeDef {
-  data: ActionPayloadBuilder;
   task_action_local_id: string;
+  data: ActionPayloadBuilder;
   [k: string]: unknown;
 }
 
 export type ScriptOrTemplate = {
-  c: [string, true][];
   t: "Template";
+  c: [string, true][];
   [k: string]: unknown;
 };
 
@@ -61,63 +61,89 @@ export type TemplateFieldFormat =
       [k: string]: unknown;
     }
   | {
-      choices: string[];
-      max?: number | null;
-      min?: number | null;
       type: "choice";
+      choices: string[];
+      min?: number | null;
+      max?: number | null;
       [k: string]: unknown;
     };
 
 export interface ActionPayload {
-  account_required: boolean;
-  account_types?: string[] | null;
-  action_category_id: number;
   action_id?: number | null;
+  action_category_id: number;
+  name: string;
   description?: string | null;
   executor_id: string;
   executor_template: ScriptOrTemplate;
-  name: string;
   template_fields: {
     [k: string]: TemplateField;
   };
+  account_required: boolean;
+  account_types?: string[] | null;
   [k: string]: unknown;
 }
 
 export interface TemplateField {
-  description?: string | null;
   format: TemplateFieldFormat;
   optional: boolean;
+  description?: string | null;
   [k: string]: unknown;
 }
 
 export type TransitionTarget = {
-  c: string;
   t: "One";
+  c: string;
   [k: string]: unknown;
 };
 
 export interface EventHandler {
-  actions?: ActionInvokeDef[] | null;
-  target?: TransitionTarget | null;
   trigger_id: string;
+  target?: TransitionTarget | null;
+  actions?: ActionInvokeDef[] | null;
   [k: string]: unknown;
 }
 
 export interface Input {
-  description?: string | null;
-  input_category_id?: number | null;
   input_id: number;
+  input_category_id?: number | null;
   name: string;
+  description?: string | null;
   payload_schema: true;
   [k: string]: unknown;
 }
 
 export interface InputPayload {
-  description?: string | null;
-  input_category_id?: number | null;
   input_id?: number | null;
+  input_category_id?: number | null;
   name: string;
+  description?: string | null;
   payload_schema: true;
+  [k: string]: unknown;
+}
+
+export type InputStatus = "pending" | "success" | "error";
+
+export type ActionStatus = "success" | "pending" | "running" | "error";
+
+export interface InputsLogEntry {
+  inputs_log_id: string;
+  task_name: string;
+  external_task_id: string;
+  input_status: InputStatus;
+  input_error: true;
+  task_trigger_name: string;
+  task_trigger_local_id: string;
+  actions: InputLogEntryAction[];
+  [k: string]: unknown;
+}
+
+export interface InputLogEntryAction {
+  task_action_local_id: string;
+  task_action_name: string;
+  task_trigger_local_id: string;
+  result: true;
+  status: ActionStatus;
+  updated: string;
   [k: string]: unknown;
 }
 
@@ -128,9 +154,9 @@ export interface StateDefinition {
 }
 
 export interface StateMachine {
+  name: string;
   description?: string | null;
   initial: string;
-  name: string;
   on?: EventHandler[];
   states: {
     [k: string]: StateDefinition;
@@ -139,34 +165,34 @@ export interface StateMachine {
 }
 
 export interface StateMachineData {
-  context: true;
   state: string;
+  context: true;
   [k: string]: unknown;
 }
 
 export interface TaskDescription {
-  created: string;
+  id: string;
+  name: string;
   description?: string | null;
   enabled: boolean;
-  failures: number;
-  id: string;
-  last_triggered?: string | null;
+  created: string;
   modified: string;
-  name: string;
-  stats_since: string;
+  last_triggered?: string | null;
   successes: number;
+  failures: number;
+  stats_since: string;
   [k: string]: unknown;
 }
 
 export interface TaskInput {
+  name: string;
+  description?: string | null;
+  enabled: boolean;
+  state_machine_config: StateMachine[];
+  state_machine_states: StateMachineData[];
   actions: {
     [k: string]: TaskActionInput;
   };
-  description?: string | null;
-  enabled: boolean;
-  name: string;
-  state_machine_config: StateMachine[];
-  state_machine_states: StateMachineData[];
   triggers: {
     [k: string]: TaskTriggerInput;
   };
@@ -174,22 +200,22 @@ export interface TaskInput {
 }
 
 export interface TaskActionInput {
-  account_id?: number | null;
-  action_id: number;
-  action_template?: [string, true][] | null;
   name: string;
+  action_id: number;
+  account_id?: number | null;
+  action_template?: [string, true][] | null;
   [k: string]: unknown;
 }
 
 export interface TaskTriggerInput {
-  description?: string | null;
   input_id: number;
   name: string;
+  description?: string | null;
   [k: string]: unknown;
 }
 
 export interface TransitionCondition {
-  cond: string;
   target: string;
+  cond: string;
   [k: string]: unknown;
 }

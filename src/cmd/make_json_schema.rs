@@ -4,7 +4,7 @@ use crate::tasks::{
         handlers::ActionPayload,
         template::{TemplateField, TemplateFieldFormat},
     },
-    handlers::{TaskDescription, TaskInput},
+    handlers::{InputsLogEntry, TaskDescription, TaskInput},
     inputs::{handlers::InputPayload, Input},
     state_machine::{
         ActionInvokeDef, ActionInvokeDefDataField, ActionPayloadBuilder, EventHandler,
@@ -80,6 +80,9 @@ pub fn main() -> crate::error::Result<()> {
 
     let schema = schema_for!(InputPayload);
     write(&dir, "input_payload", &schema)?;
+
+    let schema = schema_for!(InputsLogEntry);
+    write(&dir, "inputs_log_schema", &schema)?;
 
     Ok(())
 }
