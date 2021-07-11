@@ -2,11 +2,12 @@
   "name": "ergo-web",
   "version": "0.0.1",
   "scripts": {
-    "dev": "run-s generate-api-types dev:svelte",
-    "dev:svelte": "svelte-kit dev",
+    "dev": "run-p dev:svelte dev:server",
+    "dev:svelte": "svelte-kit dev --host 0.0.0.0",
+    "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && cargo run --release server | bunyan'",
     "build": "run-s generate-api-types build:svelte",
     "build:svelte": "svelte-kit build",
-    "preview": "run-s generate-api-types preview:svelte",
+    "preview": "pnpm run generate-api-types && run-p dev:server preview:svelte",
     "preview:svelte": "svelte-kit preview",
     "test": "jest src",
     "test:watch": "run-s test -- --watch",
@@ -16,7 +17,7 @@
     "format": "prettier --write --plugin-search-dir=. .",
     "storybook": "start-storybook -p 6006",
     "build-storybook": "build-storybook",
-    "generate-api-types": "cargo run dev make-json-schema && node generate_api_types.js"
+    "generate-api-types": "cargo run --release dev make-json-schema && node generate_api_types.js"
   },
   "devDependencies": {
     "@babel/core": "^7.14.6",
@@ -45,7 +46,6 @@
     "npm-run-all": "^4.1.5",
     "pkg-up": "^3.1.0",
     "postcss": "^8.3.5",
-    "postcss-load-config": "^3.1.0",
     "prettier": "~2.3.2",
     "prettier-plugin-svelte": "^2.3.1",
     "source-map-support": "^0.5.19",
@@ -64,6 +64,7 @@
   "type": "module",
   "dependencies": {
     "@popperjs/core": "^2.9.2",
+    "@sveltestack/svelte-query": "~1.4.1",
     "date-fns": "~2.22.1",
     "tippy.js": "^6.3.1"
   },
