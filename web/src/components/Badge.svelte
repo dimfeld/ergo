@@ -5,7 +5,7 @@
     success: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
     error: 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-200',
     plain: 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-    accent: 'bg-primary-100 text-primary-800 dark:bg-primary-800 dark:text-primary-200',
+    accent: 'bg-accent-100 text-accent-800 dark:bg-accent-800 dark:text-accent-200',
   };
 </script>
 

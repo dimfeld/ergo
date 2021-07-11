@@ -49,7 +49,7 @@
       </div>
       <div class="hidden md:block">
         <div class="ml-4 flex items-center md:ml-6">
-          <label class="text-black dark:text-gray-300"
+          <label class="text-black text-sm dark:text-gray-300"
             ><input type="checkbox" bind:checked={$darkMode} /> Test dark
           </label>
           <button
@@ -194,7 +194,7 @@
           <div class="text-base font-medium text-gray-800 dark:text-white">Tom Cook</div>
           <div class="text-sm font-medium text-gray-600 dark:text-gray-400">tom@example.com</div>
         </div>
-        <label class="ml-auto text-black dark:text-gray-300"
+        <label class="ml-auto text-sm text-black dark:text-gray-300"
           ><input type="checkbox" bind:checked={$darkMode} /> Test dark toggle</label
         >
         <button

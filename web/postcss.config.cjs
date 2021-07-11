@@ -15,7 +15,7 @@ const config = {
       cssnano({
         preset: 'default',
       }),
-  ],
+  ].filter(Boolean),
 };
 
 module.exports = config;

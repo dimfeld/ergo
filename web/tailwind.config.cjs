@@ -1,5 +1,6 @@
 const defaultTheme = require('tailwindcss/defaultTheme');
 const colors = require('tailwindcss/colors');
+const formsPlugin = require('@tailwindcss/forms');
 
 const config = {
   mode: 'jit',
@@ -7,14 +8,14 @@ const config = {
   theme: {
     extend: {
       colors: {
-        primary: colors.orange,
+        accent: colors.orange,
       },
       fontFamily: {
         sans: ['Inter var', ...defaultTheme.fontFamily.sans],
       },
     },
   },
-  plugins: [],
+  plugins: [formsPlugin],
   darkMode: 'class',
 };
 

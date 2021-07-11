@@ -1,6 +1,7 @@
 import preprocess from 'svelte-preprocess';
 import * as path from 'path';
 import adapter from '@sveltejs/adapter-vercel';
+import postcssConfig from './postcss.config.cjs';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -8,7 +9,7 @@ const config = {
   // for more information about preprocessors
   preprocess: [
     preprocess({
-      postcss: true,
+      postcss: postcssConfig,
       typescript: true,
       sourceMap: true,
     }),
