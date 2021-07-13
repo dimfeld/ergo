@@ -14,6 +14,22 @@
     description: 'The task does something',
     last_triggered: new Date('2021-04-05').toISOString(),
   };
+
+  let onlyFailures = {
+    ...task,
+    successes: 0,
+  };
+
+  let onlySuccesses = {
+    ...task,
+    failures: 0,
+  };
+
+  let noRuns = {
+    ...task,
+    successes: 0,
+    failures: 0,
+  };
 </script>
 
 <Meta title="Components/TaskRow" component={TaskRow} />
@@ -25,3 +41,6 @@
 </Template>
 
 <Story name="Default" args={{ task }} />
+<Story name="Only Successes" args={{ task: onlySuccesses }} />
+<Story name="Only Failures" args={{ task: onlyFailures }} />
+<Story name="No Runs" args={{ task: noRuns }} />

@@ -12,9 +12,15 @@
       <p class="text-sm font-medium text-accent-600 dark:text-accent-400 truncate">{task.name}</p>
       <div class="ml-2 flex-shrink-0 flex items-center space-x-2">
         <span class="text-xs text-gray-500 dark:text-gray-400">Runs in last week</span>
-        <Badge style="success">{task.successes} successes</Badge>
+        {#if task.successes}
+          <Badge style="success">{task.successes} successes</Badge>
+        {/if}
         {#if task.failures}
           <Badge style="error">{task.failures} errors</Badge>
+        {/if}
+
+        {#if !task.successes && !task.failures}
+          <Badge style="plain">No recent runs</Badge>
         {/if}
       </div>
     </div>
