@@ -1139,7 +1139,7 @@ dependencies = [
  "rand_core 0.6.3",
  "redis",
  "reqwest",
- "rusty_v8 0.25.2",
+ "rusty_v8 0.23.0",
  "schemars",
  "serde 1.0.126",
  "serde_json",
@@ -2620,19 +2620,6 @@ name = "rusty_v8"
 version = "0.23.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5463232950a37ad7337422f362252ac4ea6db897fc0cb63c8acf0cb4e643898a"
-dependencies = [
- "bitflags",
- "fslock",
- "lazy_static",
- "libc",
- "which",
-]
-
-[[package]]
-name = "rusty_v8"
-version = "0.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a49600f6c91588a9571329982801b4d9e9f3dff861bb8966a769ee25c121485"
 dependencies = [
  "bitflags",
  "fslock",

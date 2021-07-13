@@ -525,12 +525,12 @@ async fn post_task_trigger(
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
 pub struct InputLogEntryAction {
+    pub actions_log_id: Uuid,
     pub task_action_local_id: String,
     pub task_action_name: String,
-    pub task_trigger_local_id: String,
     pub result: serde_json::Value,
     pub status: ActionStatus,
-    pub updated: DateTime<Utc>,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
@@ -542,6 +542,7 @@ pub struct InputsLogEntry {
     pub input_error: serde_json::Value,
     pub task_trigger_name: String,
     pub task_trigger_local_id: String,
+    pub timestamp: DateTime<Utc>,
     pub actions: sqlx::types::Json<Vec<InputLogEntryAction>>,
 }
 
@@ -560,13 +561,14 @@ async fn get_logs(data: BackendAppStateData, auth: Authenticated) -> Result<impl
                 COALESCE(il.error, 'null'::jsonb) AS "input_error!",
                 MAX(tt.name) AS "task_trigger_name!",
                 il.task_trigger_local_id,
+                il.updated AS "timestamp",
                 jsonb_agg(jsonb_build_object(
                     'actions_log_id', al.actions_log_id,
                     'task_action_local_id', ta.task_action_local_id,
                     'task_action_name', ta.name,
                     'result', COALESCE(al.result, 'null'::jsonb),
                     'status', al.status,
-                    'updated', al.updated
+                    'timestamp', al.updated
                 )) AS "actions!: sqlx::types::Json<Vec<InputLogEntryAction>>"
             FROM tasks
             JOIN inputs_log il USING (task_id)

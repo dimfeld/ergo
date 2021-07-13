@@ -133,17 +133,18 @@ export interface InputsLogEntry {
   input_error: true;
   task_trigger_name: string;
   task_trigger_local_id: string;
+  timestamp: string;
   actions: InputLogEntryAction[];
   [k: string]: unknown;
 }
 
 export interface InputLogEntryAction {
+  actions_log_id: string;
   task_action_local_id: string;
   task_action_name: string;
-  task_trigger_local_id: string;
   result: true;
   status: ActionStatus;
-  updated: string;
+  timestamp: string;
   [k: string]: unknown;
 }
 
