@@ -47,8 +47,8 @@ This project is in very early stages right now with no current plans for proper 
 
 ## 0.2
 
-- [ ] Add all missing tests
-- [ ] Simple Web UI
+- [X] Add all missing tests
+- [ ] Simple Web UI - in progress
 - [ ] Scripting
 - [ ] Ability to run Nomad jobs as actions
 
