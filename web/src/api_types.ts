@@ -19,7 +19,7 @@ export type ActionInvokeDefDataField =
     }
   | {
       t: "Constant";
-      c: true;
+      c: any;
       [k: string]: unknown;
     };
 
@@ -108,7 +108,7 @@ export interface Input {
   input_category_id?: number | null;
   name: string;
   description?: string | null;
-  payload_schema: true;
+  payload_schema: any;
   [k: string]: unknown;
 }
 
@@ -117,7 +117,7 @@ export interface InputPayload {
   input_category_id?: number | null;
   name: string;
   description?: string | null;
-  payload_schema: true;
+  payload_schema: any;
   [k: string]: unknown;
 }
 
@@ -130,7 +130,7 @@ export interface InputsLogEntry {
   task_name: string;
   external_task_id: string;
   input_status: InputStatus;
-  input_error: true;
+  input_error: any;
   task_trigger_name: string;
   task_trigger_local_id: string;
   timestamp: string;
@@ -142,7 +142,7 @@ export interface InputLogEntryAction {
   actions_log_id: string;
   task_action_local_id: string;
   task_action_name: string;
-  result: true;
+  result: any;
   status: ActionStatus;
   timestamp: string;
   [k: string]: unknown;
@@ -167,7 +167,7 @@ export interface StateMachine {
 
 export interface StateMachineData {
   state: string;
-  context: true;
+  context: any;
   [k: string]: unknown;
 }
 

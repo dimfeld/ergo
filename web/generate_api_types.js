@@ -44,6 +44,9 @@ async function main() {
       if (!type) {
         continue;
       }
+
+      type = type.trim().replace(/:\s*true/g, ': any');
+
       compiledTypes.add('export ' + type.trim());
     }
   }
