@@ -4,6 +4,8 @@
   import { relativeTime } from '../time';
 
   export let entry: InputsLogEntry;
+
+  $: failed = entry.input_status === 'error';
 </script>
 
 <div class="relative pb-8 w-full">
@@ -30,15 +32,14 @@
         </svg>
       </span>
     </div>
-    <div class="flex flex-col space-y-8 flex-grow">
+    <div class="log-entry flex flex-col space-y-8 flex-grow">
       <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
         <div>
-          <p class="text-sm text-gray-500">
-            <span class="font-medium text-gray-900 dark:text-gray-300">{entry.task_name}</span>
-            received input
-            <span class="font-medium text-gray-900 dark:text-gray-300"
-              >{entry.task_trigger_name}</span
-            >
+          <p class:failed class="title-row">
+            <span class="bolded">{entry.task_name}</span>
+
+            {failed ? 'failed to process input' : 'received input'}
+            <span class="bolded">{entry.task_trigger_name}</span>
           </p>
         </div>
         <div class="text-right text-sm whitespace-nowrap text-gray-500">
@@ -57,3 +58,30 @@
     </div>
   </div>
 </div>
+
+<style lang="postcss">
+  .title-row {
+    @apply text-sm text-gray-500;
+    &.failed {
+      @apply text-red-500;
+
+      .bolded {
+        @apply text-red-900;
+      }
+    }
+
+    .bolded {
+      @apply font-medium text-gray-900;
+    }
+  }
+
+  :global(.dark) .title-row {
+    &.failed .bolded {
+      @apply text-red-300;
+    }
+
+    .bolded {
+      @apply text-gray-300;
+    }
+  }
+</style>
