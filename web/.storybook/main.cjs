@@ -1,4 +1,5 @@
 const preprocess = require('svelte-preprocess');
+const postcssConfig = require('../postcss.config.cjs');
 module.exports = {
   "stories": [
     "../src/**/*.stories.mdx",
@@ -14,13 +15,14 @@ module.exports = {
      options: {
        postcssLoaderOptions: {
          implementation: require('postcss'),
+         postcssOptions: postcssConfig,
        },
      },
    },
   ],
   "svelteOptions": {
     "preprocess": preprocess({
-      postcss: true,
+      postcss: postcssConfig,
       typescript: true,
       sourceMap: true
     })
