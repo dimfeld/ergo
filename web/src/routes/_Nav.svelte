@@ -25,7 +25,7 @@
 </script>
 
 <nav class="bg-white dark:bg-gray-800 border-b dark:border-none border-gray-200">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+  <div class="mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16">
       <div class="flex items-center">
         <div class="flex-shrink-0">

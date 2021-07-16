@@ -18,18 +18,18 @@ const config = {
   kit: {
     adapter: adapter(),
     hostHeader: 'X-Forwarded-Host',
+    ssr: false,
     vite: () => ({
-      optimizeDeps: {
-        include: ['@sveltestack/svelte-query'],
-      },
       server: {
         proxy: {
-          '/api': `http://localhost:${process.env.BIND_PORT || 6543}/api`,
+          '/api': `http://localhost:${process.env.BIND_PORT || 6543}`,
         },
       },
       resolve: {
+        dedupe: ['svelte'],
         alias: {
           '^': path.resolve(process.cwd(), 'src'),
+          svelte: path.resolve(process.cwd(), 'node_modules/svelte'),
         },
       },
     }),

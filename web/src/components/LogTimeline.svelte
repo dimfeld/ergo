@@ -9,7 +9,7 @@
 </script>
 
 <ul class="-mb-8 flex flex-col items-stretch {classNames}">
-  {#each entries as entry (entry.inputs_log_id)}
+  {#each entries ?? [] as entry (entry.inputs_log_id)}
     <li class="w-full" transition:slide|local={{ duration: 300 }}>
       <InputsLogTimelineRow {entry} />
     </li>

@@ -1,5 +1,9 @@
 lockfileVersion: 5.3
 
+overrides:
+  broadcast-channel: github:dimfeld/broadcast-channel
+  vite: file://home/dimfeld/projects/vite/packages/vite
+
 specifiers:
   '@babel/core': ^7.14.6
   '@popperjs/core': ^2.9.2
@@ -3719,7 +3723,7 @@ packages:
       cheap-watch: 1.0.3
       sade: 1.7.4
       svelte: 3.38.3
-      vite: 2.4.2
+      vite: link:../../vite/packages/vite
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -3738,7 +3742,7 @@ packages:
       require-relative: 0.8.7
       svelte: 3.38.3
       svelte-hmr: 0.14.5_svelte@3.38.3
-      vite: 2.4.2
+      vite: link:../../vite/packages/vite
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -3746,7 +3750,7 @@ packages:
   /@sveltestack/svelte-query/1.4.1:
     resolution: {integrity: sha512-aHAo3fUHcSqM2vF1wG9RFgzxfQyuaSfMeO8bMHFLoC9MqT7NnfF+R8VpB4dYjhkdXLtFj9wOsrA9lXP0xqgS6A==}
     dependencies:
-      broadcast-channel: 3.7.0
+      broadcast-channel: github.com/dimfeld/broadcast-channel/ab1a1ba861a47df7e27f123b25e7df0d4635feec
     dev: false
 
   /@tailwindcss/forms/0.3.3_tailwindcss@2.2.4:
@@ -5137,19 +5141,6 @@ packages:
     dependencies:
       fill-range: 7.0.1
     dev: true
-
-  /broadcast-channel/3.7.0:
-    resolution: {integrity: sha512-cIAKJXAxGJceNZGTZSBzMxzyOn72cVgPnKx4dc6LRjQgbaJUQqhy5rzL3zbMxkMWsGKkv2hSFkPRMEXfoMZ2Mg==}
-    dependencies:
-      '@babel/runtime': 7.14.6
-      detect-node: 2.1.0
-      js-sha3: 0.8.0
-      microseconds: 0.2.0
-      nano-time: 1.0.0
-      oblivious-set: 1.0.0
-      rimraf: 3.0.2
-      unload: 2.2.0
-    dev: false
 
   /brorand/1.1.0:
     resolution: {integrity: sha1-EsJe/kCkXjwyPrhnWgoM5XsiNx8=}
@@ -12235,14 +12226,6 @@ packages:
       inherits: 2.0.4
     dev: true
 
-  /rollup/2.53.2:
-    resolution: {integrity: sha512-1CtEYuS5CRCzFZ7SNW5528SlDlk4VDXIRGwbm/2POQxA/G4+7/crIqJwkmnj8Q/74hGx4oVlNvh4E1CJQ5hZ6w==}
-    engines: {node: '>=10.0.0'}
-    hasBin: true
-    optionalDependencies:
-      fsevents: 2.3.2
-    dev: true
-
   /rsvp/4.8.5:
     resolution: {integrity: sha512-nfMOlASu9OnRJo1mbEk2cz0D56a1MBNrJ7orjRZQG10XDyuvwksKbuXNp6qa+kbn839HwjwhBzhFmdsaEAfauA==}
     engines: {node: 6.* || >= 7.*}
@@ -14024,19 +14007,6 @@ packages:
       vfile-message: 2.0.4
     dev: true
 
-  /vite/2.4.2:
-    resolution: {integrity: sha512-2MifxD2I9fjyDmmEzbULOo3kOUoqX90A58cT6mECxoVQlMYFuijZsPQBuA14mqSwvV3ydUsqnq+BRWXyO9Qa+w==}
-    engines: {node: '>=12.0.0'}
-    hasBin: true
-    dependencies:
-      esbuild: 0.12.15
-      postcss: 8.3.5
-      resolve: 1.20.0
-      rollup: 2.53.2
-    optionalDependencies:
-      fsevents: 2.3.2
-    dev: true
-
   /vm-browserify/1.1.2:
     resolution: {integrity: sha512-2ham8XPWTONajOR0ohOKOHXkm3+gaBmGut3SRuu75xLd/RRaY6vqgh8NBYYk7+RW3u5AtzPQZG8F10LHkl0lAQ==}
     dev: true
@@ -14369,3 +14339,17 @@ packages:
   /zwitch/1.0.5:
     resolution: {integrity: sha512-V50KMwwzqJV0NpZIZFwfOD5/lyny3WlSzRiXgA0G7VUnRlqttta1L6UQIHzd6EuBY/cHGfwTIck7w1yH6Q5zUw==}
     dev: true
+
+  github.com/dimfeld/broadcast-channel/ab1a1ba861a47df7e27f123b25e7df0d4635feec:
+    resolution: {tarball: https://codeload.github.com/dimfeld/broadcast-channel/tar.gz/ab1a1ba861a47df7e27f123b25e7df0d4635feec}
+    name: broadcast-channel
+    version: 3.7.0
+    dependencies:
+      '@babel/runtime': 7.14.6
+      js-sha3: 0.8.0
+      microseconds: 0.2.0
+      nano-time: 1.0.0
+      oblivious-set: 1.0.0
+      rimraf: 3.0.2
+      unload: 2.2.0
+    dev: false
