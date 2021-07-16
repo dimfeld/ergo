@@ -608,5 +608,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(super::actions::handlers::list_actions)
         .service(super::actions::handlers::new_action)
         .service(super::actions::handlers::write_action)
-        .service(super::actions::handlers::delete_action);
+        .service(super::actions::handlers::delete_action)
+        .service(get_logs);
 }
