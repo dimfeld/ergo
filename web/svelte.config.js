@@ -19,6 +19,9 @@ const config = {
     adapter: adapter(),
     hostHeader: 'X-Forwarded-Host',
     vite: () => ({
+      optimizeDeps: {
+        include: ['@sveltestack/svelte-query'],
+      },
       server: {
         proxy: {
           '/api': `http://localhost:${process.env.BIND_PORT || 6543}/api`,

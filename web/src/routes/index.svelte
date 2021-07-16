@@ -1,7 +1,17 @@
 <script lang="ts">
+  import type { InputsLogEntry } from '../api_types';
+  import LogTimeline from '^/components/LogTimeline.svelte';
+  import { useQuery } from '@sveltestack/svelte-query';
   import { getContext } from 'svelte';
   getContext('headerText').set('Dashboard');
+
+  const recentLogs = useQuery<InputsLogEntry[]>('logs');
 </script>
 
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://kit.svelte.dev">kit.svelte.dev</a> to read the documentation</p>
+<main class="flex">
+  <div>Task list here</div>
+  <LogTimeline
+    class="w-1/4 border-l border-gray-200 dark:border-gray-700"
+    entries={$recentLogs.data}
+  />
+</main>
