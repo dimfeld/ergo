@@ -8,10 +8,10 @@
   let entries = [
     {
       inputs_log_id: 'some-uuid',
-      task_name: 'A task',
+      task_name: 'Weather Alert',
       external_task_id: 'test_task_id',
       input_status: 'success',
-      task_trigger_name: 'Weather Update',
+      task_trigger_name: 'Forecast Update',
       task_trigger_local_id: 'test_trigger_id',
       timestamp: inputDate.toISOString(),
       actions: [

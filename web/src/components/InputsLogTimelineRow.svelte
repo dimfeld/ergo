@@ -33,7 +33,7 @@
       </span>
     </div>
     <div class="log-entry flex flex-col space-y-8 flex-grow">
-      <div class="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+      <div class="min-w-0 flex-1 pt-1.5 flex flex-col sm:flex-row justify-between sm:space-x-4">
         <div>
           <p class:failed class="title-row">
             <span class="bolded">{entry.task_name}</span>
@@ -42,7 +42,7 @@
             <span class="bolded">{entry.task_trigger_name}</span>
           </p>
         </div>
-        <div class="text-right text-sm whitespace-nowrap text-gray-500">
+        <div class="text-left sm:text-right text-sm whitespace-nowrap text-gray-500">
           <time datetime={entry.timestamp}>{relativeTime(entry.timestamp)}</time> ago
         </div>
       </div>
