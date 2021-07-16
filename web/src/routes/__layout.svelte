@@ -49,12 +49,8 @@
         </h1>
       </div>
     </header>
-    <main class="flex-grow">
-      <div class="mx-auto py-6 sm:px-6 lg:px-8">
-        <div class="px-4 py-4 sm:px-0">
-          <slot />
-        </div>
-      </div>
+    <main class="flex-grow w-full mx-auto py-10 px-4 sm:px-6 lg:px-8">
+      <slot />
     </main>
   </div>
 </QueryClientProvider>

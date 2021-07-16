@@ -10,12 +10,12 @@
 </script>
 
 <div class="flex">
-  <div class="flex-grow">Task list here</div>
-  <div class="min-h-full pl-4 w-1/4 border-l border-gray-300 dark:border-gray-700">
+  <section class="flex-grow min-w-max">Task list here</section>
+  <section class="min-h-full ml-4">
     {#if $recentLogs.isLoading}
       Loading...
     {:else}
       <LogTimeline entries={$recentLogs.data} />
     {/if}
-  </div>
+  </section>
 </div>
