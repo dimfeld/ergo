@@ -1,0 +1,2 @@
+#!/bin/bash
+RUSTC_FORCE_INCREMENTAL=1 mold -run cargo "$@"
