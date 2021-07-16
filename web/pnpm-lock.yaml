@@ -25,6 +25,7 @@ specifiers:
   babel-loader: ^8.2.2
   cssnano: ^5.0.6
   date-fns: ~2.22.1
+  dotenv: ~10.0.0
   eslint: ^7.30.0
   eslint-config-prettier: ^8.3.0
   eslint-plugin-svelte3: ^3.2.0
@@ -79,6 +80,7 @@ devDependencies:
   autoprefixer: 10.3.1_postcss@8.3.5
   babel-loader: 8.2.2_@babel+core@7.14.6
   cssnano: 5.0.6_postcss@8.3.5
+  dotenv: 10.0.0
   eslint: 7.30.0
   eslint-config-prettier: 8.3.0_eslint@7.30.0
   eslint-plugin-svelte3: 3.2.0_eslint@7.30.0+svelte@3.38.3
@@ -3741,7 +3743,7 @@ packages:
       magic-string: 0.25.7
       require-relative: 0.8.7
       svelte: 3.38.3
-      svelte-hmr: 0.14.5_svelte@3.38.3
+      svelte-hmr: 0.14.6_svelte@3.38.3
       vite: link:../../vite/packages/vite
     transitivePeerDependencies:
       - supports-color
@@ -6515,6 +6517,11 @@ packages:
     dependencies:
       dotenv-defaults: 1.1.1
       webpack: 4.46.0
+    dev: true
+
+  /dotenv/10.0.0:
+    resolution: {integrity: sha512-rlBi9d8jpv9Sf1klPjNfFAuWDjKLwTIJJ/VxtoTwIR6hnZxcEOQCZg2oIL3MWBYw5GpUDKOEnND7LXTbIpQ03Q==}
+    engines: {node: '>=10'}
     dev: true
 
   /dotenv/6.2.0:
@@ -13035,6 +13042,14 @@ packages:
 
   /svelte-hmr/0.14.5_svelte@3.38.3:
     resolution: {integrity: sha512-3O+kkbT1XKAomKB0LRcdY8JUTzONoNZ8rSH4iEdG7piIYsw+KkXpTkbbU1Sc1yPY4onfXkmCrHElYsxr0V1Snw==}
+    peerDependencies:
+      svelte: '>=3.19.0'
+    dependencies:
+      svelte: 3.38.3
+    dev: true
+
+  /svelte-hmr/0.14.6_svelte@3.38.3:
+    resolution: {integrity: sha512-0oXQmRiEh3uNjyVQiGmIE7imbKO4dYc1WL6XRXTC0X9XbSacJgj9MOLguqqbZygPsNnlglhlk4eB0pCmM6nQAA==}
     peerDependencies:
       svelte: '>=3.19.0'
     dependencies:

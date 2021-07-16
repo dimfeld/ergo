@@ -4,7 +4,7 @@
   "scripts": {
     "dev": "run-p dev:svelte dev:server",
     "dev:svelte": "TAILWIND_MODE=watch svelte-kit dev --host 0.0.0.0",
-    "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && cargo run --release server | bunyan'",
+    "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && ../car run --release server | bunyan'",
     "build": "run-s generate-api-types build:svelte",
     "build:svelte": "svelte-kit build",
     "preview": "pnpm run generate-api-types && run-p dev:server preview:svelte",
@@ -43,6 +43,7 @@
     "autoprefixer": "^10.3.1",
     "babel-loader": "^8.2.2",
     "cssnano": "^5.0.6",
+    "dotenv": "~10.0.0",
     "eslint": "^7.30.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-svelte3": "^3.2.0",

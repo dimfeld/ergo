@@ -8,10 +8,20 @@
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
 
+  // @ts-ignore
+  const apiClient = window.ERGO_API_KEY
+    ? ky.extend({
+        headers: {
+          // @ts-ignore
+          Authorization: 'Bearer ' + window.ERGO_API_KEY,
+        },
+      })
+    : ky;
+
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        queryFn: ({ queryKey }) => ky(`/api/${queryKey}`).json(),
+        queryFn: ({ queryKey }) => apiClient(`/api/${queryKey}`).json(),
         staleTime: 60000,
       },
     },
