@@ -11,6 +11,8 @@
   </div>
 </Template>
 
-<Story id="loader_story" name="Loading" />
+<Story name="Default" />
 <Story name="Extra Delay" args={{ delay: 3000 }} />
 <Story name="No Delay" args={{ delay: 0 }} />
+<Story name="Large" args={{ heightClass: 'h-24' }} />
+<Story name="Small" args={{ heightClass: 'h-6' }} />
