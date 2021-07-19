@@ -1,9 +1,7 @@
+const {dirname} = require('path');
 const preprocess = require('svelte-preprocess');
 const postcssConfig = require('../postcss.config.cjs');
 module.exports = {
-  core: {
-    builder: 'webpack5',
-  },
   stories: ['../src/**/*.stories.mdx', '../src/**/*.stories.@(js|jsx|ts|tsx|svelte)'],
   addons: [
     '@storybook/addon-links',
@@ -26,14 +24,5 @@ module.exports = {
       typescript: true,
       sourceMap: true,
     }),
-  },
-  async webpackFinal(config) {
-    config.module.rules.push({
-      resolve: {
-        fullySpecified: false,
-        extensions: ['.js', '.ts', '.json', '.svelte'],
-      },
-    });
-    return config;
-  },
+  }
 };

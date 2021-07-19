@@ -21,6 +21,7 @@
   },
   "pnpm": {
     "overrides": {
+      "acorn": "8.0.1",
       "broadcast-channel": "github:dimfeld/broadcast-channel",
       "vite": "file://home/dimfeld/projects/vite/packages/vite"
     }
@@ -32,8 +33,6 @@
     "@storybook/addon-links": "^6.3.4",
     "@storybook/addon-postcss": "^2.0.0",
     "@storybook/addon-svelte-csf": "^1.1.0",
-    "@storybook/builder-webpack5": "^6.3.4",
-    "@storybook/manager-webpack5": "^6.3.4",
     "@storybook/svelte": "^6.3.4",
     "@sveltejs/adapter-vercel": "next",
     "@sveltejs/kit": "next",
