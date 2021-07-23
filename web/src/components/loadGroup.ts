@@ -1,5 +1,5 @@
 import type { Readable } from 'svelte/store';
-import { getContext } from 'svelte';
+import { getContext, onDestroy } from 'svelte';
 
 export interface LoadGroupStoreData {
   isLoading: boolean;
@@ -22,14 +22,29 @@ export function getParentLoadGroup() {
   return getContext<LoadGroupManager | undefined>('loadGroupManager');
 }
 
-export function registerLoadGroup(label: string, store: LoadGroupStore) {
-  let sus = getParentLoadGroup();
-  if (!sus) {
+export function registerWithParent(group: LoadGroupManager, store: LoadGroupStore, label?: string) {
+  if (!group) {
     // It's ok to have no parent load group. Return a dummy unsubscribe function.
     return () => void 0;
   }
 
   let symbol = Symbol(label);
-  sus.register(symbol, store);
-  return () => sus.delete(symbol);
+  group.register(symbol, store);
+  return () => group.delete(symbol);
+}
+
+export function registerLoadGroup(store: LoadGroupStore, label?: string) {
+  let group = getParentLoadGroup();
+  return registerWithParent(group, store, label);
+}
+
+/** Register the load group and automatically unregister it when the component is destroyed.
+ * Returns the `store` argument for convenience. */
+export function autoregisterLoadGroup<
+  DATA extends LoadGroupStoreData,
+  STORE extends Readable<DATA>
+>(store: STORE, label?: string): STORE {
+  let destroy = registerLoadGroup(store, label);
+  onDestroy(destroy);
+  return store;
 }

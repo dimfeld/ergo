@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onDestroy, setContext } from 'svelte';
+  import { setContext } from 'svelte';
   import { readable, writable, derived } from 'svelte/store';
+  import { autoregisterLoadGroup } from './loadGroup';
   import type { LoadGroupStore, LoadGroupManager, LoadGroupStoreData } from './loadGroup';
-  import { registerLoadGroup } from './loadGroup';
 
   /** The name to send to the parent load group, if any. This doesn't have to be unique but could be useful for debugging. */
   export let name: string = 'Load Group';
@@ -13,13 +13,20 @@
    * even if one of the data sources goes back into the loading or error state. */
   export let once = true;
 
+  /** If true, this load group will register itself with the parent load group, if any.
+   * By default it does not register itself, so that load group will not prevent
+   * a parent load group from showing its contents while this one finishes loading. */
+  export let registerWithParent = false;
+
   const NOT_LOADING = { isLoading: false, isError: false, error: undefined };
 
   // Since we have to recreate the store that calculates the state to handle changes in the list
   // of tracked stores, this store exists to provide a stable reference for the parent.
   let stateForParent = writable({ isLoading: false, isError: false, error: undefined });
-  let unregisterState = registerLoadGroup(name, stateForParent);
-  onDestroy(unregisterState);
+
+  if (registerWithParent) {
+    autoregisterLoadGroup(stateForParent, name);
+  }
 
   let stores = new Map<Symbol, LoadGroupStore>();
   let manager: LoadGroupManager = {
@@ -58,7 +65,7 @@
           }
 
           let loading = children.some((c) => c.isLoading);
-          if (loading) {
+          if (!loading) {
             loadingFinishedOnce = true;
           }
 
