@@ -18,8 +18,9 @@ use crate::{
     web_app_server,
 };
 
-use std::{env, net::TcpListener};
+use std::{env, net::TcpListener, path::PathBuf};
 
+use actix_files::NamedFile;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{
     dev::Server,
@@ -139,6 +140,8 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
         })
         .into_bytes();
 
+    let serve_dir = env::var("SERVE_DIR").ok().unwrap_or_else(String::new);
+
     let server = HttpServer::new(move || {
         let identity = IdentityService::new(
             CookieIdentityPolicy::new(&cookie_signing_key)
@@ -147,7 +150,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
                 .same_site(actix_web::cookie::SameSite::Strict),
         );
 
-        App::new().service(
+        let mut app = App::new().service(
             web::scope("/api")
                 .app_data(PathConfig::default().error_handler(|err, req| {
                     event!(Level::ERROR, ?err, ?req);
@@ -164,7 +167,21 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
                 .configure(web_app_server::config)
                 .configure(tasks::handlers::config)
                 .configure(status_server::config),
-        )
+        );
+
+        if !serve_dir.is_empty() {
+            let index_path = PathBuf::from(&serve_dir).join("index.html");
+            app = app.service(
+                actix_files::Files::new("/", &serve_dir)
+                    .prefer_utf8(true)
+                    .index_file("index.html")
+                    .default_handler(
+                        NamedFile::open(index_path).expect("index.html must exist in SERVE_DIR"),
+                    ),
+            );
+        }
+
+        app
     })
     .listen(listener)?
     .run();
