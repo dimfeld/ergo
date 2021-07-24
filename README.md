@@ -48,7 +48,7 @@ This project is in very early stages right now with no current plans for proper 
 ## 0.2
 
 - [X] Add all missing tests
-- [ ] Simple Web UI - in progress
+- [X] Read-only Web UI with events timeline
 - [ ] Scripting
 - [ ] Ability to run Nomad jobs as actions
 
