@@ -1,4 +1,4 @@
-import tippy from 'tippy.js/headless';
+import tippy from 'tippy.js';
 
 export type Position =
   | 'top'
@@ -32,6 +32,7 @@ export function showTippy(
 ) {
   let tippyInstance = tippy(trigger, {
     interactive,
+    animation: false,
     hideOnClick: 'toggle',
     trigger: 'manual',
     maxWidth: 'none',
