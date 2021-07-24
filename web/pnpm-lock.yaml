@@ -15,6 +15,7 @@ specifiers:
   '@storybook/builder-webpack5': ^6.3.4
   '@storybook/manager-webpack5': ^6.3.4
   '@storybook/svelte': ^6.3.4
+  '@sveltejs/adapter-static': ~1.0.0-next.13
   '@sveltejs/adapter-vercel': ~1.0.0-next.26
   '@sveltejs/kit': ~1.0.0-next.136
   '@sveltestack/svelte-query': ~1.4.1
@@ -42,6 +43,7 @@ specifiers:
   postcss-nested: ~5.0.5
   prettier: ~2.3.2
   prettier-plugin-svelte: ^2.3.1
+  rimraf: ~3.0.2
   source-map-support: ^0.5.19
   storybook-tailwind-dark-mode: ^1.0.9
   svelte: ^3.40.1
@@ -62,7 +64,6 @@ dependencies:
   date-fns: 2.22.1
   just-capitalize: 1.0.1
   ky: 0.28.5
-  tippy.js: 6.3.1
 
 devDependencies:
   '@babel/core': 7.14.6
@@ -74,6 +75,7 @@ devDependencies:
   '@storybook/builder-webpack5': 6.3.4_typescript@4.3.5
   '@storybook/manager-webpack5': 6.3.4_typescript@4.3.5
   '@storybook/svelte': 6.3.4_c216ebeed5209d5b78147e1a1cdcb5d0
+  '@sveltejs/adapter-static': 1.0.0-next.13
   '@sveltejs/adapter-vercel': 1.0.0-next.26
   '@sveltejs/kit': 1.0.0-next.136_svelte@3.40.1
   '@tailwindcss/forms': 0.3.3_tailwindcss@2.2.4
@@ -97,6 +99,7 @@ devDependencies:
   postcss-nested: 5.0.5_postcss@8.3.5
   prettier: 2.3.2
   prettier-plugin-svelte: 2.3.1_prettier@2.3.2+svelte@3.40.1
+  rimraf: 3.0.2
   source-map-support: 0.5.19
   storybook-tailwind-dark-mode: 1.0.9
   svelte: 3.40.1
@@ -105,6 +108,7 @@ devDependencies:
   svelte-loader: 3.1.2_svelte@3.40.1
   svelte-preprocess: 4.7.4_04bf6fa705f68394012916bd1fa358bd
   tailwindcss: 2.2.4_324eecaf336225dc5b8b4c8b2f9e2edd
+  tippy.js: 6.3.1
   ts-jest: 27.0.3_jest@27.0.6+typescript@4.3.5
   ts-node: 10.1.0_typescript@4.3.5
   tslib: 2.3.0
@@ -3885,6 +3889,10 @@ packages:
       store2: 2.12.0
     transitivePeerDependencies:
       - '@types/react'
+    dev: true
+
+  /@sveltejs/adapter-static/1.0.0-next.13:
+    resolution: {integrity: sha512-zaXJlWK9JfrjrE6nG5etB8kf4DSkbE3H8Ql6gmCk3WjdvpY85a60TMYBU9OK2iunkqpHnPYiMUGEnOGYmWlLYA==}
     dev: true
 
   /@sveltejs/adapter-vercel/1.0.0-next.26:
@@ -13939,7 +13947,7 @@ packages:
     resolution: {integrity: sha512-JnFncCq+rF1dTURupoJ4yPie5Cof978inW6/4S6kmWV7LL9YOSEVMifED3KdrVPEG+Z/TFH2CDNJcQEfaeuQww==}
     dependencies:
       '@popperjs/core': 2.9.2
-    dev: false
+    dev: true
 
   /tmp/0.2.1:
     resolution: {integrity: sha512-76SUhtfqR2Ijn+xllcI5P1oyannHNHByD80W1q447gU3mp9G9PSpGdWmjUOHRDPiHYacIk66W7ubDTuPF3BEtQ==}

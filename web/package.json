@@ -7,17 +7,18 @@
     "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && ../car run --release server | bunyan'",
     "build": "run-s generate-api-types build:svelte",
     "build:svelte": "svelte-kit build",
-    "preview": "pnpm run generate-api-types && run-p dev:server preview:svelte",
+    "preview": "run-s clean build && SERVE_DIR=build ../car run --release server | bunyan",
     "preview:svelte": "svelte-kit preview",
     "test": "jest src",
     "test:watch": "run-s test -- --watch",
+    "clean": "rimraf build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --check --plugin-search-dir=. . && eslint --ignore-path .gitignore .",
     "format": "prettier --write --plugin-search-dir=. .",
     "storybook": "start-storybook -p 6006",
     "build-storybook": "build-storybook",
-    "generate-api-types": "cargo run --release dev make-json-schema && node generate_api_types.js"
+    "generate-api-types": "../car run --release dev make-json-schema && node generate_api_types.js"
   },
   "pnpm": {
     "overrides": {
@@ -35,6 +36,7 @@
     "@storybook/builder-webpack5": "^6.3.4",
     "@storybook/manager-webpack5": "^6.3.4",
     "@storybook/svelte": "^6.3.4",
+    "@sveltejs/adapter-static": "~1.0.0-next.13",
     "@sveltejs/adapter-vercel": "~1.0.0-next.26",
     "@sveltejs/kit": "~1.0.0-next.136",
     "@tailwindcss/forms": "~0.3.3",
@@ -58,6 +60,7 @@
     "postcss-nested": "~5.0.5",
     "prettier": "~2.3.2",
     "prettier-plugin-svelte": "^2.3.1",
+    "rimraf": "~3.0.2",
     "source-map-support": "^0.5.19",
     "storybook-tailwind-dark-mode": "^1.0.9",
     "svelte": "^3.40.1",
@@ -66,6 +69,7 @@
     "svelte-loader": "^3.1.2",
     "svelte-preprocess": "^4.7.4",
     "tailwindcss": "^2.2.4",
+    "tippy.js": "^6.3.1",
     "ts-jest": "^27.0.3",
     "ts-node": "^10.1.0",
     "tslib": "^2.3.0",
@@ -77,13 +81,10 @@
     "@sveltestack/svelte-query": "~1.4.1",
     "date-fns": "~2.22.1",
     "just-capitalize": "~1.0.1",
-    "ky": "~0.28.5",
-    "tippy.js": "^6.3.1"
+    "ky": "~0.28.5"
   },
   "jest": {
-    "setupFilesAfterEnv": [
-      "@testing-library/jest-dom/extend-expect"
-    ],
+    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect"],
     "transform": {
       "^.+\\.svelte$": [
         "svelte-jester",

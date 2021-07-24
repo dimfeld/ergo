@@ -2,7 +2,7 @@ import dotenv from 'dotenv';
 import preprocess from 'svelte-preprocess';
 import * as path from 'path';
 import * as url from 'url';
-import adapter from '@sveltejs/adapter-vercel';
+import adapter from '@sveltejs/adapter-static';
 import postcssConfig from './postcss.config.cjs';
 
 const dotEnvPath = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), '../.env');
@@ -21,7 +21,9 @@ const config = {
   ],
 
   kit: {
-    adapter: adapter(),
+    adapter: adapter({
+      fallback: 'index.html',
+    }),
     hostHeader: 'X-Forwarded-Host',
     ssr: false,
     vite: () => ({
