@@ -1,0 +1,97 @@
+[package]
+name = "ergo-api"
+version = "0.2.0"
+authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
+edition = "2018"
+autotests = false
+
+[lib]
+path = "lib.rs"
+
+[[bin]]
+path = "main.rs"
+name = "ergo"
+
+[[test]]
+name = "test"
+path = "tests/main.rs"
+
+[features]
+test_redis = []
+test_password = []
+test_all = ["test_redis", "test_password"]
+test_slow = ["test_password"]
+
+[dependencies]
+# actix-cors = "0.6.0-beta.2"
+actix-files = "0.6.0-beta.6"
+actix-identity = "0.4.0-beta.2"
+actix-rt = "2.2.0"
+# actix-session = "0.5.0-beta.2"
+actix-service = "2.0.0"
+actix-web = "=4.0.0-beta.8"
+actix-web-httpauth = "0.6.0-beta.2"
+anyhow = "1.0.42"
+argon2 = "0.2.1"
+async-stream = "0.3.2"
+async-trait = "0.1.50"
+backoff = { version = "0.3.0", features = ["tokio"] }
+base64 = "0.13.0"
+chrono = { version = "0.4.19", features = ["serde"] }
+config = "0.11.0"
+console = "0.14.1"
+const_format = "0.2.14"
+crossbeam = "0.8.1"
+deadpool = "0.8.1"
+deadpool-redis = "0.8.1"
+deno_console = "0.12.0"
+deno_core = "0.94.0"
+deno_fetch = "0.34.0"
+deno_net = "0.3.0"
+deno_url = "0.12.0"
+dotenv = "0.15.0"
+either = "1.6.1"
+envoption = "0.2.1"
+futures = "0.3.15"
+fxhash = "0.2.1"
+handlebars = "4.0.0"
+hashicorp_vault = { git="https://github.com/dimfeld/vault-rs", branch="async" }
+indicatif = "0.16.2"
+itertools = "0.10.0"
+jsonschema = "0.9.0"
+lazy_static = "1.4.0"
+log = "0.4.14"
+num_cpus = "1.13.0"
+rand = "0.8.3"
+rand_core = "0.6.2"
+redis = { version = "0.20.1", features = ["tokio-comp"] }
+reqwest = "0.11.4"
+rusty_v8 = "0.25.3"
+schemars = { git="https://github.com/dimfeld/schemars", branch="sqlx-json", features=["smallvec", "uuid", "chrono", "preserve_order", "sqlx"] }
+serde = { version = "1.0.126", features = ["derive"] }
+serde_json = "1.0.64"
+serde_millis = "0.1.1"
+serde_v8 = "0.4.0"
+sha3 = "0.9.1"
+smallvec = { version = "1.6.1", features = ["serde", "union"] }
+snafu = "0.6.10"
+sqlx = { version = "0.5.5", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
+structopt = "0.3.22"
+thiserror = "1.0.25"
+tokio = { version = "1.8.1", features = ["full", "test-util"] }
+tracing = "0.1.26"
+tracing-actix-web = { version="0.4.0-beta.8", default-features=false, features=["emit_event_on_error"] }
+tracing-bunyan-formatter = "0.2.4"
+tracing-futures = "0.2.5"
+tracing-log = "0.1.2"
+tracing-subscriber = { version = "0.2.19", features = ["registry", "env-filter"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
+
+[dev-dependencies]
+assert_matches = "1.5.0"
+libc = "0.2.95"
+once_cell = "1.8.0"
+# syn = { version="1.0.73", features=["full"] }
+# quote = "1.0.9"
+wiremock = "0.5.3"
+

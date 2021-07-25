@@ -1,5 +1,5 @@
 use crate::common::run_database_test;
-use ergo::database::object_id;
+use ergo_api::database::object_id;
 
 #[actix_rt::test]
 async fn new_object_id() {

@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Error, Result};
-use ergo::cmd::make_api_key;
+use ergo_api::cmd::make_api_key;
 use futures::Future;
 use once_cell::sync::Lazy;
 
@@ -17,9 +17,9 @@ use uuid::Uuid;
 
 static TRACING: Lazy<()> = Lazy::new(|| {
     if std::env::var("TEST_LOG").is_ok() {
-        ergo::tracing_config::configure("test", std::io::stdout);
+        ergo_api::tracing_config::configure("test", std::io::stdout);
     } else {
-        ergo::tracing_config::configure("test", std::io::sink);
+        ergo_api::tracing_config::configure("test", std::io::sink);
     }
 });
 
@@ -47,9 +47,9 @@ async fn start_app(
     org_id: Uuid,
     admin_user: DatabaseUser,
 ) -> Result<TestApp> {
-    let shutdown = ergo::graceful_shutdown::GracefulShutdown::new();
+    let shutdown = ergo_api::graceful_shutdown::GracefulShutdown::new();
     let redis_key_prefix = Uuid::new_v4();
-    let config = ergo::server::Config {
+    let config = ergo_api::server::Config {
         database: database.config.clone(),
         bind_port: 0, // Bind to random port
         bind_address: Some("127.0.0.1".to_string()),
@@ -62,7 +62,7 @@ async fn start_app(
         shutdown: shutdown.consumer(),
     };
     Lazy::force(&TRACING);
-    let (server, addr, port) = ergo::server::start(config).await?;
+    let (server, addr, port) = ergo_api::server::start(config).await?;
 
     tokio::task::spawn(async move {
         let server_err = server.await;

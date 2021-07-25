@@ -1,4 +1,4 @@
-use ergo::tasks::{
+use ergo_api::tasks::{
     actions::handlers::{ActionDescription, ActionPayload},
     handlers::{NewTaskResult, TaskDescription, TaskInput, TaskResult},
     inputs::{handlers::InputPayload, Input},

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::common::{run_app_test, TestApp, TestUser};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use ergo::tasks::{
+use ergo_api::tasks::{
     actions::{
         execute::ScriptOrTemplate,
         handlers::{ActionDescription, ActionPayload},
@@ -105,7 +105,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         template_fields: std::array::IntoIter::new([(
             "text".to_string(),
             TemplateField {
-                format: ergo::tasks::actions::template::TemplateFieldFormat::String,
+                format: ergo_api::tasks::actions::template::TemplateFieldFormat::String,
                 optional: false,
                 description: None,
             },

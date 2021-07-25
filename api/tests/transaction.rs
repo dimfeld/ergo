@@ -1,5 +1,5 @@
 use crate::common;
-use ergo::database::transaction;
+use ergo_api::database::transaction;
 use futures::future::FutureExt;
 use sqlx::Row;
 
@@ -54,7 +54,7 @@ async fn bails_on_error() {
     common::run_database_test(|db| async move {
         let mut conn = db.pool.acquire().await?;
         let result = transaction::serializable(&mut conn, 1, |_| {
-            async move { Err::<(), _>(ergo::error::Error::StringError("An error".to_string())) }
+            async move { Err::<(), _>(ergo_api::error::Error::StringError("An error".to_string())) }
                 .boxed()
         })
         .await;

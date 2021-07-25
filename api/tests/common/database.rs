@@ -3,7 +3,7 @@ use lazy_static::lazy_static;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions, Executor, PgConnection};
 use uuid::Uuid;
 
-use ergo::{cmd::make_api_key, service_config::DatabaseConfiguration};
+use ergo_api::{cmd::make_api_key, service_config::DatabaseConfiguration};
 
 #[derive(Clone)]
 pub struct TestDatabase {
@@ -115,7 +115,7 @@ END; $$;
         .password(&password);
     let pool = sqlx::PgPool::connect_with(pool_options).await?;
 
-    sqlx::migrate!("./migrations").run(&pool).await?;
+    sqlx::migrate!("../migrations").run(&pool).await?;
 
     let mut conn = pool.acquire().await?;
     let admin_user = populate_database(&mut conn).await?;

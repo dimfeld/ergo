@@ -1,4 +1,4 @@
-use ergo::{cmd, error};
+use ergo_api::{cmd, error};
 use structopt::StructOpt;
 
 #[derive(StructOpt)]
