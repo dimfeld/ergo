@@ -1,4 +1,4 @@
 
 [workspace]
-members = [ "api" ]
+members = [ "api", "js" ]
 resolver = "2"
