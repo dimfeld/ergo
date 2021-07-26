@@ -22,7 +22,9 @@ fn write(dir: &std::path::Path, name: &str, schema: &RootSchema) -> std::io::Res
 }
 
 pub fn main() -> crate::error::Result<()> {
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("schemas");
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("schemas");
     let e = std::fs::DirBuilder::new().create(&dir);
     if let Err(e) = e {
         if e.kind() != std::io::ErrorKind::AlreadyExists {
