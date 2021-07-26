@@ -17,7 +17,7 @@ rusty_v8 = "0.25.3"
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
 serde_millis = "0.1.1"
-serde_v8 = "0.4.0"
+serde_v8 = "0.8.0"
 thiserror = "1.0.25"
 tokio = { version = "1.8.1", features = ["full", "test-util"] }
 tracing = "0.1.26"

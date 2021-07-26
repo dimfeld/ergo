@@ -1078,10 +1078,10 @@ dependencies = [
  "log",
  "parking_lot",
  "pin-project",
- "rusty_v8 0.25.3",
+ "rusty_v8",
  "serde 1.0.126",
  "serde_json",
- "serde_v8 0.8.0",
+ "serde_v8",
  "url",
 ]
 
@@ -1342,11 +1342,11 @@ dependencies = [
  "deno_fetch",
  "deno_net",
  "deno_url",
- "rusty_v8 0.25.3",
+ "rusty_v8",
  "serde 1.0.126",
  "serde_json",
  "serde_millis",
- "serde_v8 0.4.1",
+ "serde_v8",
  "thiserror",
  "tokio",
  "tracing",
@@ -2888,19 +2888,6 @@ dependencies = [
 
 [[package]]
 name = "rusty_v8"
-version = "0.22.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa03778bb7866d8320fc3dd5e6be52929dc10f729ae5e61ea2fbce385a4595d2"
-dependencies = [
- "bitflags",
- "fslock",
- "lazy_static",
- "libc",
- "which",
-]
-
-[[package]]
-name = "rusty_v8"
 version = "0.25.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b70e9384fa508bb1f337139aa01485a6d2b695072835bf084d635674b3445422"
@@ -3123,21 +3110,11 @@ dependencies = [
 
 [[package]]
 name = "serde_v8"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d1c602ced78c18b33338c832d79595e75ac6fd204d20fd4cc462ce5af29a75e"
-dependencies = [
- "rusty_v8 0.22.3",
- "serde 1.0.126",
-]
-
-[[package]]
-name = "serde_v8"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ee08dee77621b7bf7432a560f382f32a53df98e6a4009bca1f4998d5c90d24a"
 dependencies = [
- "rusty_v8 0.25.3",
+ "rusty_v8",
  "serde 1.0.126",
 ]
 
