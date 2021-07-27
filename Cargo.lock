@@ -1342,6 +1342,7 @@ dependencies = [
  "deno_fetch",
  "deno_net",
  "deno_url",
+ "ipnet",
  "rusty_v8",
  "serde 1.0.126",
  "serde_json",
@@ -1352,6 +1353,7 @@ dependencies = [
  "tracing",
  "tracing-futures",
  "tracing-log",
+ "url",
  "uuid",
 ]
 

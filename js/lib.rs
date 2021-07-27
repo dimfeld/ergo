@@ -1,11 +1,11 @@
+mod permissions;
+
 use std::borrow::Cow;
 
 use deno_core::{error::AnyError, JsRuntime, RuntimeOptions};
 use rusty_v8 as v8;
-use rusty_v8::{Global, ObjectTemplate, Value};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_v8::{from_v8, to_v8};
-use v8::{Handle, Local};
 
 pub struct Snapshot(Box<[u8]>);
 
@@ -90,15 +90,8 @@ impl Runtime {
         let script = Self::safe_braces(text);
         let result = self.runtime.execute_script(name, &script)?;
         let mut scope = self.runtime.handle_scope();
-        let local = Local::new(&mut scope, result);
-
-        println!(
-            "{}",
-            v8::json::stringify(&mut scope, local.clone())
-                .unwrap()
-                .to_rust_string_lossy(&mut scope)
-        );
-
+        // Convert to a Local handle to work with from_v8.
+        let local = v8::Local::new(&mut scope, result);
         let value = from_v8(&mut scope, local).unwrap();
         Ok(value)
     }
