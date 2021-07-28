@@ -10,7 +10,7 @@ pub enum PermissionsError {
     NetAddressDenied,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NetHostAndPort {
     pub host: String,
     pub port: Option<u16>,
@@ -34,10 +34,22 @@ impl TryFrom<&str> for NetHostAndPort {
     type Error = url::ParseError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let url = Url::parse(value)?;
+        let (url, port) = if value.contains("/") {
+            let url = Url::parse(value)?;
+            let port = url.port_or_known_default();
+            (url, port)
+        } else {
+            let url = Url::parse(&format!("http://{}", value))?;
+            let port = url.port();
+            (url, port)
+        };
+
         Ok(NetHostAndPort {
-            host: url.host_str().unwrap().to_string(), // TODO no unwrap
-            port: url.port(),
+            host: url
+                .host_str()
+                .ok_or(url::ParseError::RelativeUrlWithoutBase)?
+                .to_string(),
+            port,
         })
     }
 }
@@ -106,5 +118,76 @@ impl deno_fetch::FetchPermissions for Permissions {
 
     fn check_read(&mut self, _p: &std::path::Path) -> Result<(), deno_core::error::AnyError> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    mod net_host_and_port {
+        use super::*;
+
+        #[test]
+        fn parse() {
+            assert_eq!(
+                NetHostAndPort::try_from("10.2.3.4"),
+                Ok(NetHostAndPort {
+                    host: "10.2.3.4".to_string(),
+                    port: None
+                })
+            );
+
+            assert_eq!(
+                NetHostAndPort::try_from("10.2.3.4:8080"),
+                Ok(NetHostAndPort {
+                    host: "10.2.3.4".to_string(),
+                    port: Some(8080)
+                })
+            );
+
+            assert_eq!(
+                NetHostAndPort::try_from("example.com"),
+                Ok(NetHostAndPort {
+                    host: "example.com".to_string(),
+                    port: None
+                })
+            );
+
+            assert_eq!(
+                NetHostAndPort::try_from("example.com:8080"),
+                Ok(NetHostAndPort {
+                    host: "example.com".to_string(),
+                    port: Some(8080)
+                })
+            );
+
+            assert_eq!(
+                NetHostAndPort::try_from("http://example.com"),
+                Ok(NetHostAndPort {
+                    host: "example.com".to_string(),
+                    port: Some(80)
+                })
+            );
+
+            assert_eq!(
+                NetHostAndPort::try_from("https://example.com"),
+                Ok(NetHostAndPort {
+                    host: "example.com".to_string(),
+                    port: Some(443)
+                })
+            );
+
+            assert_eq!(
+                NetHostAndPort::try_from("http://example.com:8080"),
+                Ok(NetHostAndPort {
+                    host: "example.com".to_string(),
+                    port: Some(8080)
+                })
+            );
+
+            assert!(NetHostAndPort::try_from("/abc").is_err());
+            assert!(NetHostAndPort::try_from(":34").is_err());
+        }
     }
 }
