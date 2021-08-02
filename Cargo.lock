@@ -740,6 +740,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "clru"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "218d6bd3dde8e442a975fa1cd233c0e5fded7596bccfe39f58eca98d22421e0a"
+
+[[package]]
 name = "combine"
 version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1051,24 +1057,24 @@ dependencies = [
  "config 0.11.0",
  "deadpool 0.8.1",
  "log",
- "redis",
+ "redis 0.20.2",
  "serde 1.0.126",
 ]
 
 [[package]]
 name = "deno_console"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a785ffb35c8e663c5f1730416754533f32bee1f0a683fc396ffc850a3f0b0090"
+checksum = "8ff2c412fade0631464813faf469626b1579894fb0c83d30c13e00be3533e633"
 dependencies = [
  "deno_core",
 ]
 
 [[package]]
 name = "deno_core"
-version = "0.94.0"
+version = "0.95.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11bdb4050baff8f3151a88f0de5ca000e6c6118acfa15c917b4079c1da5f632d"
+checksum = "f42fb0787448bf9eb581cba0c31eff6d0d5c9bc0a9d92612d51bcab0068798b3"
 dependencies = [
  "anyhow",
  "futures",
@@ -1087,9 +1093,9 @@ dependencies = [
 
 [[package]]
 name = "deno_fetch"
-version = "0.34.0"
+version = "0.36.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b3b89058e3d57d21ce8e574515512636b162fb85791cffab31ec716b1e65dfb"
+checksum = "7ad9ac32b9499ad71850eb494ab3f0537447bc40769dba7a406d89a41101c58f"
 dependencies = [
  "bytes",
  "data-url",
@@ -1105,9 +1111,9 @@ dependencies = [
 
 [[package]]
 name = "deno_net"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "100c04e8311ca2723f0bf9b0c1b439e60fc8fb7628ade1ba91e835a43a66ab78"
+checksum = "f8863527321ef0ddaa7498e8a33e6b5948842b7fff5eb6070d87c0c8fa8a4783"
 dependencies = [
  "deno_core",
  "lazy_static",
@@ -1123,9 +1129,9 @@ dependencies = [
 
 [[package]]
 name = "deno_url"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84cecf5ab119587f14690b7d7f44cad323eae5079d287306ddb3b7fc2072837a"
+checksum = "fd902ba079aed51fff1b6d89f07bd733d89940952b283bb3358453da5a96a7f7"
 dependencies = [
  "deno_core",
  "idna",
@@ -1135,9 +1141,9 @@ dependencies = [
 
 [[package]]
 name = "deno_web"
-version = "0.43.0"
+version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "405bb428bc090ec55c37caed9612e11f472da62e174f9aa4cd097cf7214d3d88"
+checksum = "33b1f92fc9f3944262184e8c5fd55ad0e5d85a94f34a6a67d0bc61f7baf2f7ac"
 dependencies = [
  "async-trait",
  "base64 0.13.0",
@@ -1146,6 +1152,15 @@ dependencies = [
  "serde 1.0.126",
  "tokio",
  "uuid",
+]
+
+[[package]]
+name = "deno_webidl"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bdc6679cdd9cc653def917f4a5c8aa4843becacef83dba03837d40d407b280c"
+dependencies = [
+ "deno_core",
 ]
 
 [[package]]
@@ -1309,7 +1324,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.4",
  "rand_core 0.6.3",
- "redis",
+ "redis 0.21.0",
  "reqwest",
  "schemars",
  "serde 1.0.126",
@@ -1337,12 +1352,22 @@ name = "ergo-js"
 version = "0.0.0"
 dependencies = [
  "assert_matches",
+ "clru",
+ "deadpool 0.8.1",
+ "deadpool-redis",
  "deno_console",
  "deno_core",
  "deno_fetch",
  "deno_net",
  "deno_url",
+ "deno_web",
+ "deno_webidl",
+ "fxhash",
  "ipnet",
+ "lazy_static",
+ "once_cell",
+ "redis 0.21.0",
+ "reqwest",
  "rusty_v8",
  "serde 1.0.126",
  "serde_json",
@@ -2725,6 +2750,25 @@ dependencies = [
  "itoa",
  "percent-encoding",
  "pin-project-lite",
+ "tokio",
+ "tokio-util",
+ "url",
+]
+
+[[package]]
+name = "redis"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3bbc1838d8d0b423f325d6fac80c5f19109c7d16c8c37c584893dc17cf71c63d"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "combine",
+ "dtoa",
+ "futures-util",
+ "itoa",
+ "percent-encoding",
+ "pin-project-lite",
  "sha1",
  "tokio",
  "tokio-util",
@@ -3620,9 +3664,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.8.1"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98c8b05dc14c75ea83d63dd391100353789f5f24b8b3866542a5e85c8be8e985"
+checksum = "4b7b349f11a7047e6d1276853e612d152f5e8a352c61917887cc2169e2366b4c"
 dependencies = [
  "autocfg",
  "bytes",

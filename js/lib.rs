@@ -1,4 +1,5 @@
-mod permissions;
+pub mod module_loader;
+pub mod permissions;
 
 use std::borrow::Cow;
 
