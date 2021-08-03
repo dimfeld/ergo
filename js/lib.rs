@@ -1,9 +1,11 @@
 pub mod module_loader;
 pub mod permissions;
+mod raw_serde;
+pub mod serialized_execution;
 
 use std::borrow::Cow;
 
-use deno_core::{error::AnyError, Extension, JsRuntime, RuntimeOptions};
+use deno_core::{error::AnyError, Extension, JsRuntime};
 use deno_web::BlobStore;
 use rusty_v8 as v8;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -19,38 +21,44 @@ impl Clone for Snapshot {
     }
 }
 
+/// Core extensions and extensions to allow network access.
+pub fn net_extensions() -> Vec<Extension> {
+    vec![
+        deno_console::init(),
+        deno_webidl::init(),
+        deno_url::init(),
+        deno_web::init(BlobStore::default(), None),
+        deno_net::init::<Permissions>(None, false),
+        deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None),
+    ]
+}
+
+/// A basic set of extensions for console access and URL parsing.
+pub fn core_extensions() -> Vec<Extension> {
+    vec![deno_console::init(), deno_webidl::init(), deno_url::init()]
+}
+
+#[derive(Default)]
+pub struct RuntimeOptions<'a> {
+    will_snapshot: bool,
+    extensions: Vec<Extension>,
+    snapshot: Option<&'a Snapshot>,
+}
+
 pub struct Runtime {
     runtime: JsRuntime,
 }
 
 impl Runtime {
-    fn extensions() -> Vec<Extension> {
-        vec![
-            deno_console::init(),
-            deno_webidl::init(),
-            deno_url::init(),
-            deno_web::init(BlobStore::default(), None),
-            deno_net::init::<Permissions>(None, false),
-            deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None),
-        ]
-    }
-
-    pub fn new(will_snapshot: bool) -> Self {
-        let runtime = JsRuntime::new(RuntimeOptions {
-            will_snapshot,
-            extensions: Self::extensions(),
-            ..RuntimeOptions::default()
+    pub fn new(options: RuntimeOptions) -> Self {
+        let runtime = JsRuntime::new(deno_core::RuntimeOptions {
+            will_snapshot: options.will_snapshot,
+            extensions: options.extensions,
+            startup_snapshot: options
+                .snapshot
+                .map(|s| deno_core::Snapshot::Boxed(s.clone().0)),
+            ..deno_core::RuntimeOptions::default()
         });
-        Runtime { runtime }
-    }
-
-    pub fn from_snapshot(snapshot: &Snapshot) -> Self {
-        let runtime = JsRuntime::new(RuntimeOptions {
-            startup_snapshot: Some(deno_core::Snapshot::Boxed(snapshot.clone().0)),
-            extensions: Self::extensions(),
-            ..Default::default()
-        });
-
         Runtime { runtime }
     }
 
@@ -141,7 +149,10 @@ mod tests {
 
         #[test]
         fn simple_expression() {
-            let mut runtime = Runtime::new(false);
+            let mut runtime = Runtime::new(RuntimeOptions {
+                will_snapshot: false,
+                ..Default::default()
+            });
             let value = runtime
                 .run_expression::<u32>("test_add", "3 + 4")
                 .expect("Ok");
@@ -150,7 +161,10 @@ mod tests {
 
         #[test]
         fn returns_object() {
-            let mut runtime = Runtime::new(false);
+            let mut runtime = Runtime::new(RuntimeOptions {
+                will_snapshot: false,
+                ..Default::default()
+            });
             let expression = "{ a: 5, b: { c: 6 } }";
             let value = runtime
                 .run_expression::<serde_json::Value>("test_object", expression)
@@ -170,7 +184,10 @@ mod tests {
                 b: u32,
             }
 
-            let mut runtime = Runtime::new(false);
+            let mut runtime = Runtime::new(RuntimeOptions {
+                will_snapshot: false,
+                ..Default::default()
+            });
             let input = InputValue { a: 5 };
             runtime.insert_global_value("x", &input);
 
@@ -187,7 +204,10 @@ mod tests {
 
         #[test]
         fn simple() {
-            let mut runtime = Runtime::new(false);
+            let mut runtime = Runtime::new(RuntimeOptions {
+                will_snapshot: false,
+                ..Default::default()
+            });
             let result = runtime.run_boolean_expression(&5, "value === 5").unwrap();
             assert_eq!(result, true, "value === 5 where value is 5");
 
@@ -197,7 +217,10 @@ mod tests {
 
         #[test]
         fn object() {
-            let mut runtime = Runtime::new(false);
+            let mut runtime = Runtime::new(RuntimeOptions {
+                will_snapshot: false,
+                ..Default::default()
+            });
             let test_value = json!({
                 "x": {"y": 1 }
             });
