@@ -8,6 +8,7 @@ edition = "2018"
 path = "lib.rs"
 
 [dependencies]
+chrono = { version="0.4.19", features=["serde"] }
 clru = "0.5.0"
 deadpool = "0.8.1"
 deadpool-redis = "0.8.1"

@@ -1,12 +1,8 @@
-use deno_core::{
-    error::{null_opbuf, AnyError},
-    include_js_files, op_async, op_sync, Extension, OpState, ResourceId, ZeroCopyBuf,
-};
+use chrono::{DateTime, Utc};
 use rusty_v8 as v8;
 use serde::{Deserialize, Serialize};
-use v8::MapFnTo;
-
-pub type SerializedEvent = Vec<u8>;
+use serde_v8::to_v8;
+use v8::{Exception, MapFnTo};
 
 lazy_static::lazy_static! {
     pub static ref EXTERNAL_REFERENCES: v8::ExternalReferences = v8::ExternalReferences::new(&[
@@ -19,9 +15,17 @@ lazy_static::lazy_static! {
     ]);
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SerializedEvent {
+    /// The wall time when the event completes.
+    wall_time: chrono::DateTime<Utc>,
+    result: Vec<u8>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct SerializedState {
     random_seed: u64,
+    start_time: chrono::DateTime<Utc>,
     events: Vec<SerializedEvent>,
 }
 
@@ -29,24 +33,39 @@ impl Default for SerializedState {
     fn default() -> Self {
         SerializedState {
             random_seed: rand::random(),
+            start_time: Utc::now(),
             events: Vec::new(),
         }
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct EventTracker {
+    wall_time: DateTime<Utc>,
     saved_results: Vec<SerializedEvent>,
     next_event: usize,
     new_results: Vec<SerializedEvent>,
 }
 
+impl Default for EventTracker {
+    fn default() -> Self {
+        EventTracker {
+            wall_time: Utc::now(),
+            saved_results: Vec::new(),
+            next_event: 0,
+            new_results: Vec::new(),
+        }
+    }
+}
+
 pub fn install(runtime: &mut crate::Runtime, history: SerializedState) -> () {
     let tracker = EventTracker {
         saved_results: history.events,
+        wall_time: history.start_time,
         next_event: 0,
         new_results: Vec::new(),
     };
+
     let scope = &mut runtime.runtime.handle_scope();
     scope.set_slot(tracker);
 
@@ -55,6 +74,7 @@ pub fn install(runtime: &mut crate::Runtime, history: SerializedState) -> () {
 
     set_func(scope, ser_obj, "saveResult", save_result);
     set_func(scope, ser_obj, "getResult", get_result);
+    set_func(scope, ser_obj, "wallTime", wall_time);
 
     let global = scope.get_current_context().global(scope);
     global.set(scope, jskey.into(), ser_obj.into());
@@ -92,10 +112,32 @@ fn save_result(
     todo!();
 }
 
+/// Get the next result, if any.
 fn get_result(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
 ) {
     todo!();
+}
+
+/// Get the serialized wall time.
+fn wall_time(
+    scope: &mut v8::HandleScope,
+    args: v8::FunctionCallbackArguments,
+    mut rv: v8::ReturnValue,
+) {
+    let events = match scope.get_slot::<EventTracker>() {
+        Some(e) => e,
+        None => {
+            let msg = v8::String::new(scope, "Serialized execution not enabled").unwrap();
+            let exc = Exception::error(scope, msg);
+            scope.throw_exception(exc);
+            return;
+        }
+    };
+
+    let time_ms = events.wall_time.timestamp_millis();
+    let time_v8 = to_v8(scope, &time_ms).unwrap();
+    rv.set(time_v8);
 }
