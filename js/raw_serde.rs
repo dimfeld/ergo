@@ -47,7 +47,8 @@ pub fn deserialize<'a>(
 ) -> Result<Local<'a, Value>, RawSerdeError> {
     let serialize_deserialize = Box::new(SerializeDeserialize {});
     let mut value_deserializer = v8::ValueDeserializer::new(scope, serialize_deserialize, data);
-    let value = value_deserializer.read_value(scope.get_current_context());
 
-    value.ok_or(RawSerdeError::Deserialize)
+    value_deserializer
+        .read_value(scope.get_current_context())
+        .ok_or(RawSerdeError::Deserialize)
 }
