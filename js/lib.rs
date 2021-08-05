@@ -13,6 +13,8 @@ use serde_v8::{from_v8, to_v8};
 
 use crate::permissions::Permissions;
 
+pub use serialized_execution::SerializedState;
+
 pub struct Snapshot(Box<[u8]>);
 
 impl Clone for Snapshot {
@@ -43,6 +45,11 @@ pub struct RuntimeOptions<'a> {
     will_snapshot: bool,
     extensions: Vec<Extension>,
     snapshot: Option<&'a Snapshot>,
+
+    /// Serialized event state for this isolate. If None, serialized execution (including saving
+    /// results) is entirely disabled. To use serial execution without some existing
+    /// state, set this to Some(SerializedState::default()).
+    serialized_state: Option<SerializedState>,
 }
 
 pub struct Runtime {
@@ -51,7 +58,7 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn new(options: RuntimeOptions) -> Self {
-        let runtime = JsRuntime::new(deno_core::RuntimeOptions {
+        let mut runtime = JsRuntime::new(deno_core::RuntimeOptions {
             will_snapshot: options.will_snapshot,
             extensions: options.extensions,
             startup_snapshot: options
@@ -59,6 +66,15 @@ impl Runtime {
                 .map(|s| deno_core::Snapshot::Boxed(s.clone().0)),
             ..deno_core::RuntimeOptions::default()
         });
+
+        if let Some(state) = options.serialized_state {
+            if options.will_snapshot {
+                // This requires setting external references in the V8 runtime and that API is
+                // not currently exposed from deno_core, which uses its own fixed set of references.
+                panic!("Serialized execution is not supported when will_snapshot is true");
+            }
+            serialized_execution::install(&mut runtime, state);
+        }
         Runtime { runtime }
     }
 
@@ -121,7 +137,7 @@ impl Runtime {
         expression: &str,
     ) -> Result<bool, AnyError> {
         let script = Self::safe_braces(expression);
-        self.insert_global_value("value", value);
+        self.set_global_value("value", value);
 
         let result = self.runtime.execute_script("boolean expression", &script)?;
         let mut scope = self.runtime.handle_scope();
@@ -129,13 +145,24 @@ impl Runtime {
         Ok(local.boolean_value(&mut scope))
     }
 
-    pub fn insert_global_value<T: Serialize>(&mut self, key: &str, value: &T) {
+    pub fn set_global_value<T: Serialize>(&mut self, key: &str, value: &T) {
         let mut scope = self.runtime.handle_scope();
         let jskey = v8::String::new(&mut scope, key).unwrap();
         let value = to_v8(&mut scope, value).unwrap();
 
         let global = scope.get_current_context().global(&mut scope);
         global.set(&mut scope, jskey.into(), value);
+    }
+
+    pub fn get_global_value<T: DeserializeOwned>(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<T>, serde_v8::Error> {
+        let mut scope = self.runtime.handle_scope();
+        let global = scope.get_current_context().global(&mut scope);
+        let jskey = v8::String::new(&mut scope, key).unwrap();
+        let v8_value = global.get(&mut scope, jskey.into());
+        v8_value.map(|v| from_v8(&mut scope, v)).transpose()
     }
 }
 
@@ -189,7 +216,7 @@ mod tests {
                 ..Default::default()
             });
             let input = InputValue { a: 5 };
-            runtime.insert_global_value("x", &input);
+            runtime.set_global_value("x", &input);
 
             let result: OutputValue = runtime
                 .run_expression("test", "let a = x; { b: x.a + 1 };")

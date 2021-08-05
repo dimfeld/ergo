@@ -6,17 +6,6 @@ use v8::{Exception, MapFnTo};
 
 use crate::raw_serde::{self, deserialize};
 
-lazy_static::lazy_static! {
-    pub static ref EXTERNAL_REFERENCES: v8::ExternalReferences = v8::ExternalReferences::new(&[
-        v8::ExternalReference {
-            function: save_result.map_fn_to()
-        },
-        v8::ExternalReference {
-            function: get_result.map_fn_to()
-        },
-    ]);
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SerializedEvent {
     /// The wall time when the event completed.
@@ -45,6 +34,17 @@ impl Default for SerializedState {
     }
 }
 
+impl From<EventTracker> for SerializedState {
+    fn from(mut e: EventTracker) -> Self {
+        e.saved_results.extend(e.new_results.into_iter());
+        SerializedState {
+            random_seed: e.random_seed,
+            start_time: e.start_time,
+            events: e.saved_results,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EventTracker {
     wall_time: DateTime<Utc>,
@@ -52,10 +52,13 @@ pub struct EventTracker {
     next_event: usize,
     new_results: Vec<SerializedEvent>,
     no_new_results_symbol: v8::Global<v8::Symbol>,
+
+    start_time: DateTime<Utc>,
+    random_seed: u64,
 }
 
-pub fn install(runtime: &mut crate::Runtime, history: SerializedState) -> () {
-    let scope = &mut runtime.runtime.handle_scope();
+pub fn install(runtime: &mut deno_core::JsRuntime, history: SerializedState) {
+    let scope = &mut runtime.handle_scope();
 
     let jskey = v8::String::new(scope, "ErgoSerialize").unwrap();
     let ser_obj = v8::Object::new(scope);
@@ -81,13 +84,16 @@ pub fn install(runtime: &mut crate::Runtime, history: SerializedState) -> () {
         next_event: 0,
         new_results: Vec::new(),
         no_new_results_symbol: v8::Global::new(scope, no_new_results_symbol),
+
+        random_seed: history.random_seed,
+        start_time: history.start_time,
     };
     scope.set_slot(tracker);
 }
 
 /// Extract the serialized state from the runtime. This clears the saved state to avoid cloning,
 /// so should only be done once this runtime is finished.
-pub fn take_serialize_state(runtime: &mut crate::Runtime) -> Option<EventTracker> {
+pub fn take_serialize_state(runtime: &mut crate::Runtime) -> Option<SerializedState> {
     let isolate = runtime.runtime.v8_isolate();
     let events = isolate.get_slot_mut::<EventTracker>();
 
@@ -95,15 +101,18 @@ pub fn take_serialize_state(runtime: &mut crate::Runtime) -> Option<EventTracker
         Some(e) => {
             // We can't just remove the slot completely, so instead replace the value with
             // an empty tracker.
+            let now = Utc::now();
             let replacement = EventTracker {
-                wall_time: Utc::now(),
+                wall_time: now,
                 saved_results: Vec::new(),
                 next_event: 0,
                 new_results: Vec::new(),
                 no_new_results_symbol: e.no_new_results_symbol.clone(),
+                random_seed: 0,
+                start_time: now,
             };
 
-            Some(std::mem::replace(e, replacement))
+            Some(std::mem::replace(e, replacement).into())
         }
         None => None,
     }
@@ -124,18 +133,6 @@ fn set_func(
 /// Exit the script early.
 fn exit(scope: &mut v8::HandleScope, _args: v8::FunctionCallbackArguments, _rv: v8::ReturnValue) {
     scope.terminate_execution();
-}
-
-macro_rules! convert_arg {
-    ($scope: expr, $value: expr, $err: expr) => {
-        match from_v8($scope, $value) {
-            Ok(value) => value,
-            Err(_) => {
-                throw_error($scope, $err);
-                return;
-            }
-        }
-    };
 }
 
 macro_rules! get_event_state {
@@ -173,17 +170,19 @@ macro_rules! v8_try {
     };
 }
 
-macro_rules! v8_unwrap {
-    ($scope: expr, $expr: expr, $msg: expr) => {
-        v8_try!($scope, $expr.ok_or(Err(())), $msg);
-    };
-}
-
 fn save_result(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
     _rv: v8::ReturnValue,
 ) {
+    if args.length() != 3 {
+        throw_error(
+            scope,
+            "Arguments must be the function name, its arguments, and the result",
+        );
+        return;
+    }
+
     let fn_name: String = v8_try!(
         scope,
         from_v8(scope, args.get(0)),
@@ -218,6 +217,14 @@ fn get_result(
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
 ) {
+    if args.length() != 2 {
+        throw_error(
+            scope,
+            "Arguments must be the function name and its arguments",
+        );
+        return;
+    }
+
     let fn_name: String = v8_try!(
         scope,
         from_v8(scope, args.get(0)),
@@ -232,8 +239,12 @@ fn get_result(
             // then the JS code is not running deterministically.
             if fn_name != event.fn_name || fn_args != event.args {
                 // TODO More descriptive error that details the differences. Probably deserialize
-                // the saved arguments and function name and put them on the error somewhere.
-                throw_error(scope, "Deterministic execution violation");
+                // the saved arguments and put them on the error somewhere.
+                let msg = format!(
+                    "Deterministic execution violation, expected function {}",
+                    event.fn_name
+                );
+                throw_error(scope, &msg);
                 return;
             }
 
@@ -270,4 +281,48 @@ fn throw_error(scope: &mut v8::HandleScope, err: &str) {
     let msg = v8::String::new(scope, err).unwrap();
     let exc = Exception::error(scope, msg);
     scope.throw_exception(exc);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Runtime, RuntimeOptions};
+
+    #[test]
+    fn empty_event_list() {
+        let script = r##"
+            let result = globalThis.ErgoSerialize.getResult('fn', ['some args']);
+            result === globalThis.ErgoSerialize.noNewResults
+        "##;
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        let result: bool = runtime
+            .run_expression("test", script)
+            .expect("Execution succeeded");
+        assert!(result, "result was noNewResults symbol");
+    }
+
+    #[test]
+    #[ignore]
+    fn save_and_retrieve_events() {}
+
+    #[test]
+    #[ignore]
+    fn catch_fn_name_mismatch() {}
+
+    #[test]
+    #[ignore]
+    fn catch_fn_args_mismatch() {}
+
+    #[test]
+    #[ignore]
+    fn wall_time() {}
+
+    #[test]
+    #[ignore]
+    fn exit() {}
 }
