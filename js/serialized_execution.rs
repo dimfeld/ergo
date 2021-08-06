@@ -17,11 +17,18 @@ pub struct SerializedEvent {
     result: Vec<u8>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PendingEvent {
+    pub name: String,
+    pub args: Vec<serde_json::Value>,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct SerializedState {
     pub random_seed: u64,
     pub start_time: chrono::DateTime<Utc>,
     pub events: Vec<SerializedEvent>,
+    pub pending: Option<PendingEvent>,
 }
 
 impl Default for SerializedState {
@@ -30,6 +37,7 @@ impl Default for SerializedState {
             random_seed: rand::random(),
             start_time: Utc::now(),
             events: Vec::new(),
+            pending: None,
         }
     }
 }
@@ -41,6 +49,7 @@ impl From<EventTracker> for SerializedState {
             random_seed: e.random_seed,
             start_time: e.start_time,
             events: e.saved_results,
+            pending: e.pending_event,
         }
     }
 }
@@ -53,42 +62,58 @@ pub struct EventTracker {
     new_results: Vec<SerializedEvent>,
     no_new_results_symbol: v8::Global<v8::Symbol>,
 
+    /// If the execution stopped because getResult was called with exitIfUnsaved
+    /// and no result was found, the requested function name and arguments are
+    /// stored in `pending_event`.
+    pending_event: Option<PendingEvent>,
+
     start_time: DateTime<Utc>,
     random_seed: u64,
 }
 
 pub fn install(runtime: &mut deno_core::JsRuntime, history: SerializedState) {
-    let scope = &mut runtime.handle_scope();
+    {
+        let scope = &mut runtime.handle_scope();
 
-    let jskey = v8::String::new(scope, "ErgoSerialize").unwrap();
-    let ser_obj = v8::Object::new(scope);
+        let jskey = v8::String::new(scope, "ErgoSerialize").unwrap();
+        let ser_obj = v8::Object::new(scope);
 
-    set_func(scope, ser_obj, "saveResult", save_result);
-    set_func(scope, ser_obj, "getResult", get_result);
-    set_func(scope, ser_obj, "exit", exit);
+        set_func(scope, ser_obj, "saveResult", save_result);
+        set_func(scope, ser_obj, "getResult", get_result);
+        set_func(scope, ser_obj, "exit", exit_call);
 
-    let no_new_results_symbol_name = v8::String::new(scope, "ErgoSerialize noNewResults").unwrap();
-    let no_new_results_symbol = v8::Symbol::for_global(scope, no_new_results_symbol_name);
-    let key = v8::String::new(scope, "noNewResults").unwrap();
-    ser_obj.set(scope, key.into(), no_new_results_symbol.into());
+        let no_new_results_symbol_name =
+            v8::String::new(scope, "ErgoSerialize noNewResults").unwrap();
+        let no_new_results_symbol = v8::Symbol::for_global(scope, no_new_results_symbol_name);
+        let key = v8::String::new(scope, "noNewResults").unwrap();
+        ser_obj.set(scope, key.into(), no_new_results_symbol.into());
 
-    let wall_time_name = v8::String::new(scope, "wallTime").unwrap();
-    ser_obj.set_accessor(scope, wall_time_name.into(), wall_time_accessor);
+        let wall_time_name = v8::String::new(scope, "wallTime").unwrap();
+        ser_obj.set_accessor(scope, wall_time_name.into(), wall_time_accessor);
 
-    let global = scope.get_current_context().global(scope);
-    global.set(scope, jskey.into(), ser_obj.into());
+        let global = scope.get_current_context().global(scope);
+        global.set(scope, jskey.into(), ser_obj.into());
 
-    let tracker = EventTracker {
-        saved_results: history.events,
-        wall_time: history.start_time,
-        next_event: 0,
-        new_results: Vec::new(),
-        no_new_results_symbol: v8::Global::new(scope, no_new_results_symbol),
+        let tracker = EventTracker {
+            saved_results: history.events,
+            wall_time: history.start_time,
+            next_event: 0,
+            new_results: Vec::new(),
+            no_new_results_symbol: v8::Global::new(scope, no_new_results_symbol),
+            pending_event: None,
 
-        random_seed: history.random_seed,
-        start_time: history.start_time,
-    };
-    scope.set_slot(tracker);
+            random_seed: history.random_seed,
+            start_time: history.start_time,
+        };
+        scope.set_slot(tracker);
+    }
+
+    runtime
+        .execute_script(
+            "serialized_execution_install",
+            include_str!("serialized_execution.js"),
+        )
+        .expect("Installing serialized execution");
 }
 
 /// Extract the serialized state from the runtime. This clears the saved state to avoid cloning,
@@ -108,6 +133,7 @@ pub fn take_serialize_state(runtime: &mut crate::Runtime) -> Option<SerializedSt
                 next_event: 0,
                 new_results: Vec::new(),
                 no_new_results_symbol: e.no_new_results_symbol.clone(),
+                pending_event: None,
                 random_seed: 0,
                 start_time: now,
             };
@@ -166,7 +192,15 @@ macro_rules! v8_try {
 }
 
 /// Exit the script early.
-fn exit(scope: &mut v8::HandleScope, _args: v8::FunctionCallbackArguments, _rv: v8::ReturnValue) {
+fn exit_call(
+    scope: &mut v8::HandleScope,
+    _args: v8::FunctionCallbackArguments,
+    _rv: v8::ReturnValue,
+) {
+    exit(scope);
+}
+
+fn exit(scope: &mut v8::HandleScope) {
     scope.terminate_execution();
 
     // Termination doesn't necessarily happen immediately since V8 itself only checks for
@@ -220,9 +254,11 @@ fn save_result(
 /// Get the next result, if any. This is called with the arguments object,
 /// which is checked against the saved events object to ensure that the functions
 /// are being called with the same sequence and arguments as what was saved.
-/// From Javascript: getResult(fnName, fnArguments);
+/// From Javascript: getResult(exitIfUnsaved, fnName, fnArguments);
 ///
-/// If there are no more saved results, this returns a Symbol defined specially for this purpose
+/// If there are no more saved results, the behavior depends on the value of the exitIfUnsaved
+/// argument. If true, execution stops immediately so that the event can be handled externally.
+/// If exitIfUnsaved is false, getResult returns a Symbol defined specially for this purpose
 /// and accessible from JS at `window.ErgoSerialize.noNewResults`. This prevents confusion
 /// between legitimate return values of `undefined`, `null`, or other values that are
 /// normally used to represent a "no data" state.
@@ -231,27 +267,33 @@ fn get_result(
     args: v8::FunctionCallbackArguments,
     mut rv: v8::ReturnValue,
 ) {
-    if args.length() != 2 {
+    if args.length() != 3 {
         throw_error(
             scope,
-            "Arguments must be the function name and its arguments",
+            "Usage: getResult(exitIfUnsaved, functionName, functionArgs)",
         );
         return;
     }
 
-    let fn_name: String = v8_try!(
+    let exit_if_unsaved: bool = v8_try!(
         scope,
         from_v8(scope, args.get(0)),
-        "First argument must be the name of the function"
+        "First arguments should be exitIfUnsaved: boolean"
     );
-    let fn_args = v8_try!(scope, raw_serde::serialize(scope, args.get(1)));
+    let fn_name: String = v8_try!(
+        scope,
+        from_v8(scope, args.get(1)),
+        "Second argument must be the name of the function"
+    );
+    let fn_args = args.get(2);
+    let raw_args = v8_try!(scope, raw_serde::serialize(scope, fn_args.clone()));
     let events = get_event_state!(scope);
 
-    match events.saved_results.get(events.next_event) {
-        Some(event) => {
+    match (events.saved_results.get(events.next_event), exit_if_unsaved) {
+        (Some(event), _) => {
             // Make sure the function name and the arguments match. If not,
             // then the JS code is not running deterministically.
-            if fn_name != event.fn_name || fn_args != event.args {
+            if fn_name != event.fn_name || raw_args != event.args {
                 // TODO More descriptive error that details the differences. Probably deserialize
                 // the saved arguments and put them on the error somewhere. Have to figure out the
                 // mutable borrow issues with deserialze results first though.
@@ -267,12 +309,25 @@ fn get_result(
             // events holds a mutable borrow on scope, so clone the result and drop events to allow
             // deserialize to take the mutable borrow. Not ideal but it works.
             let result = event.result.clone();
-            drop(events);
-
             let obj = v8_try!(scope, deserialize(scope, &result));
             rv.set(obj);
         }
-        None => {
+        (None, true) => {
+            // Save the requested event, and exit execution.
+            // Drop events temporarily so we can mutably borrow scope to convert the arguments.
+            drop(events);
+            let args_as_json: Vec<serde_json::Value> =
+                v8_try!(scope, serde_v8::from_v8(scope, fn_args));
+            let events = get_event_state!(scope);
+            events.pending_event = Some(PendingEvent {
+                name: fn_name,
+                args: args_as_json,
+            });
+
+            exit(scope);
+        }
+        (None, false) => {
+            // Return to the caller that we didn't find anything.
             let symbol = events.no_new_results_symbol.clone();
             rv.set(v8::Local::new(scope, symbol).into());
         }
@@ -310,7 +365,7 @@ mod tests {
     #[test]
     fn empty_event_list() {
         let script = r##"
-            let result = globalThis.ErgoSerialize.getResult('fn', ['some args']);
+            let result = globalThis.ErgoSerialize.getResult(false, 'fn', ['some args']);
             result === globalThis.ErgoSerialize.noNewResults
         "##;
 
@@ -354,20 +409,20 @@ mod tests {
         });
 
         let second_script = r##"
-            let firstResult = globalThis.ErgoSerialize.getResult('fn_name', [5, 6]);
+            let firstResult = globalThis.ErgoSerialize.getResult(true, 'fn_name', [5, 6]);
             if(firstResult !== 'a result') {
                 throw new Error(`Expected first result to be 'a result' but saw ${JSON.stringify(firstResult)}`);
             }
 
-            let secondResult = globalThis.ErgoSerialize.getResult('another_name', { a: 5, b: 6 });
+            let secondResult = globalThis.ErgoSerialize.getResult(true, 'another_name', { a: 5, b: 6 });
             let saw = JSON.stringify(secondResult);
             if(saw !== `{"answer":"yes"}`) {
                 throw new Error(`Expected second result to be { answer: yes } but saw ${saw}`);
             }
 
-            let newResult = globalThis.ErgoSerialize.getResult('last_fn', [1, 2, 3]);
+            let newResult = globalThis.ErgoSerialize.getResult(false, 'last_fn', [1, 2, 3]);
             if(newResult !== globalThis.ErgoSerialize.noNewResults) {
-                throw new Error(`Expected new result to be noNewResult symbol but saw ${newResult}`);
+                throw new Error(`Expected new result to be noNewResults symbol but saw ${newResult}`);
             }
 
             globalThis.ErgoSerialize.saveResult('last_fn', [1, 2, 3], undefined);
@@ -407,7 +462,7 @@ mod tests {
             ..Default::default()
         });
 
-        let bad_get_script = r##"globalThis.ErgoSerialize.getResult('bad_name', [1, 2]);"##;
+        let bad_get_script = r##"globalThis.ErgoSerialize.getResult(false, 'bad_name', [1, 2]);"##;
         let err = runtime
             .execute_script("bad get script", bad_get_script)
             .expect_err("Expected error")
@@ -438,7 +493,7 @@ mod tests {
             ..Default::default()
         });
 
-        let bad_get_script = r##"globalThis.ErgoSerialize.getResult('fn_name', [1, 3]);"##;
+        let bad_get_script = r##"globalThis.ErgoSerialize.getResult(false, 'fn_name', [1, 3]);"##;
         let err = runtime
             .execute_script("bad get script", bad_get_script)
             .expect_err("Expected error")
@@ -490,5 +545,64 @@ mod tests {
             x, 5,
             "Execution should stopped when x is 5 and before it is set to 6"
         );
+    }
+
+    #[test]
+    fn exit_if_unsaved() {
+        let script = r##"
+            globalThis.x = 5;
+            globalThis.ErgoSerialize.getResult(true, 'abc', [1, { a: 5 } ]);
+            globalThis.x = 6;
+            "##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        let err = runtime
+            .execute_script("script", script)
+            .expect_err("Script terminates early")
+            .to_string();
+
+        println!("{}", err);
+        assert!(
+            err.contains("execution terminated"),
+            "Error should be from the termination"
+        );
+
+        let x: usize = runtime
+            .get_global_value("x")
+            .expect("value x deserialized")
+            .expect("value x was set");
+        assert_eq!(
+            x, 5,
+            "Execution should stopped when x is 5 and before it is set to 6"
+        );
+
+        let state = take_serialize_state(&mut runtime).expect("Retrieving state");
+        let pending = state.pending.expect("Pending event should be present");
+        assert_eq!(pending.name, "abc");
+        assert_eq!(
+            pending.args,
+            vec![serde_json::json!(1), serde_json::json!({"a":5})]
+        );
+    }
+
+    #[test]
+    #[ignore]
+    fn wrap_sync_function() {}
+
+    #[test]
+    #[ignore]
+    fn wrap_async_function() {}
+
+    #[test]
+    #[ignore]
+    fn external_action() {}
+
+    #[test]
+    #[ignore]
+    fn wrap_fetch() {
+        // Fetch requires some extra wrapping logic to save the body, so test it separately.
     }
 }

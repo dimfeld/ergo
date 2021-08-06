@@ -11,7 +11,7 @@ use std::{
 use deno_core::{error::AnyError, Extension, JsRuntime};
 use deno_web::BlobStore;
 use rusty_v8 as v8;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use serde_v8::{from_v8, to_v8};
 
 use crate::permissions::Permissions;
@@ -27,11 +27,12 @@ impl Clone for Snapshot {
 }
 
 /// Core extensions and extensions to allow network access.
-pub fn net_extensions() -> Vec<Extension> {
+pub fn net_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
     vec![
         deno_console::init(),
         deno_webidl::init(),
         deno_url::init(),
+        deno_crypto::init(crypto_seed),
         deno_web::init(BlobStore::default(), None),
         deno_net::init::<Permissions>(None, false),
         deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None),
@@ -39,13 +40,21 @@ pub fn net_extensions() -> Vec<Extension> {
 }
 
 /// A basic set of extensions for console access and URL parsing.
-pub fn core_extensions() -> Vec<Extension> {
-    vec![deno_console::init(), deno_webidl::init(), deno_url::init()]
+pub fn core_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
+    vec![
+        deno_console::init(),
+        deno_webidl::init(),
+        deno_url::init(),
+        deno_crypto::init(crypto_seed),
+    ]
 }
 
 #[derive(Default)]
 pub struct RuntimeOptions<'a> {
     will_snapshot: bool,
+    /// Deno extensions to pass to the runtime. If using serialized state,
+    /// the deno_crypto extension should be initialized with the random_seed
+    /// value from the SerializedState.
     extensions: Vec<Extension>,
     snapshot: Option<&'a Snapshot>,
 
@@ -181,6 +190,28 @@ impl Runtime {
         let v8_value = global.get(&mut scope, jskey.into());
         v8_value.map(|v| from_v8(&mut scope, v)).transpose()
     }
+
+    pub fn get_value_at_path<'a, S: AsRef<str>>(
+        scope: &'a mut v8::HandleScope<'a>,
+        path: &[S],
+    ) -> Option<v8::Local<'a, v8::Value>> {
+        let mut scope = v8::EscapableHandleScope::new(scope);
+        let global = scope.get_current_context().global(&mut scope);
+
+        let mut object: v8::Local<v8::Value> = global.into();
+        for key in path {
+            let s = v8::String::new(&mut scope, key.as_ref()).unwrap();
+            match object
+                .to_object(&mut scope)
+                .and_then(|obj| obj.get(&mut scope, s.into()))
+            {
+                Some(o) => object = o,
+                None => return None,
+            };
+        }
+
+        Some(scope.escape(object))
+    }
 }
 
 #[cfg(test)]
@@ -189,6 +220,7 @@ mod tests {
 
     mod run_expression {
         use super::*;
+        use serde::Deserialize;
         use serde_json::json;
 
         #[test]
