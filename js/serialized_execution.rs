@@ -19,9 +19,9 @@ pub struct SerializedEvent {
 
 #[derive(Serialize, Deserialize)]
 pub struct SerializedState {
-    random_seed: u64,
-    start_time: chrono::DateTime<Utc>,
-    events: Vec<SerializedEvent>,
+    pub random_seed: u64,
+    pub start_time: chrono::DateTime<Utc>,
+    pub events: Vec<SerializedEvent>,
 }
 
 impl Default for SerializedState {
@@ -130,11 +130,6 @@ fn set_func(
     object.set(scope, key.into(), v8_func.into());
 }
 
-/// Exit the script early.
-fn exit(scope: &mut v8::HandleScope, _args: v8::FunctionCallbackArguments, _rv: v8::ReturnValue) {
-    scope.terminate_execution();
-}
-
 macro_rules! get_event_state {
     ($scope: expr) => {
         match $scope.get_slot_mut::<EventTracker>() {
@@ -170,6 +165,20 @@ macro_rules! v8_try {
     };
 }
 
+/// Exit the script early.
+fn exit(scope: &mut v8::HandleScope, _args: v8::FunctionCallbackArguments, _rv: v8::ReturnValue) {
+    scope.terminate_execution();
+
+    // Termination doesn't necessarily happen immediately since V8 itself only checks for
+    // termination in function prologues and loops. This trick forces a terminate check,
+    // suggested by the V8 team at
+    // https://groups.google.com/g/v8-users/c/SpzuB-lTgcI/m/ZudO99pDXiAJ
+    let last_script = v8::String::new(scope, "0").unwrap();
+    let mut tc = v8::TryCatch::new(scope);
+    let script = v8::Script::compile(&mut tc, last_script, None).unwrap();
+    script.run(&mut tc);
+}
+
 fn save_result(
     scope: &mut v8::HandleScope,
     args: v8::FunctionCallbackArguments,
@@ -193,9 +202,14 @@ fn save_result(
     let result = v8_try!(scope, raw_serde::serialize(scope, args.get(2)));
     let events = get_event_state!(scope);
 
+    if events.next_event < events.saved_results.len() {
+        throw_error(scope, "Non-determinstic execution: Tried to save a new result but there were pending saved results");
+        return;
+    }
+
     let new_wall_time = Utc::now();
     events.wall_time = new_wall_time;
-    events.saved_results.push(SerializedEvent {
+    events.new_results.push(SerializedEvent {
         wall_time: new_wall_time,
         fn_name,
         args: fn_args,
@@ -239,9 +253,10 @@ fn get_result(
             // then the JS code is not running deterministically.
             if fn_name != event.fn_name || fn_args != event.args {
                 // TODO More descriptive error that details the differences. Probably deserialize
-                // the saved arguments and put them on the error somewhere.
+                // the saved arguments and put them on the error somewhere. Have to figure out the
+                // mutable borrow issues with deserialze results first though.
                 let msg = format!(
-                    "Deterministic execution violation, expected function {}",
+                    "Non-deterministic execution: expected function '{}' and matching arguments",
                     event.fn_name
                 );
                 throw_error(scope, &msg);
@@ -288,6 +303,10 @@ mod tests {
     use super::*;
     use crate::{Runtime, RuntimeOptions};
 
+    fn get_event_tracker<'a>(runtime: &'a mut crate::Runtime) -> &'a mut EventTracker {
+        runtime.v8_isolate().get_slot_mut::<EventTracker>().unwrap()
+    }
+
     #[test]
     fn empty_event_list() {
         let script = r##"
@@ -303,26 +322,173 @@ mod tests {
         let result: bool = runtime
             .run_expression("test", script)
             .expect("Execution succeeded");
+
         assert!(result, "result was noNewResults symbol");
     }
 
     #[test]
-    #[ignore]
-    fn save_and_retrieve_events() {}
+    fn save_and_retrieve_events() {
+        let save_script = r##"
+            globalThis.ErgoSerialize.saveResult('fn_name', [5, 6], "a result");
+            globalThis.ErgoSerialize.saveResult('another_name', { a: 5, b: 6 }, { answer: 'yes' });
+            "##;
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        runtime
+            .execute_script("save script", save_script)
+            .expect("Execution suceeded");
+
+        let state = take_serialize_state(&mut runtime).expect("take_serialize_state first call");
+
+        assert_eq!(state.events.len(), 2);
+        assert_eq!(state.events[0].fn_name, "fn_name", "first event name");
+        assert_eq!(state.events[1].fn_name, "another_name", "second event name");
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let second_script = r##"
+            let firstResult = globalThis.ErgoSerialize.getResult('fn_name', [5, 6]);
+            if(firstResult !== 'a result') {
+                throw new Error(`Expected first result to be 'a result' but saw ${JSON.stringify(firstResult)}`);
+            }
+
+            let secondResult = globalThis.ErgoSerialize.getResult('another_name', { a: 5, b: 6 });
+            let saw = JSON.stringify(secondResult);
+            if(saw !== `{"answer":"yes"}`) {
+                throw new Error(`Expected second result to be { answer: yes } but saw ${saw}`);
+            }
+
+            let newResult = globalThis.ErgoSerialize.getResult('last_fn', [1, 2, 3]);
+            if(newResult !== globalThis.ErgoSerialize.noNewResults) {
+                throw new Error(`Expected new result to be noNewResult symbol but saw ${newResult}`);
+            }
+
+            globalThis.ErgoSerialize.saveResult('last_fn', [1, 2, 3], undefined);
+            "##;
+
+        runtime
+            .execute_script("second script", second_script)
+            .expect("Running second script");
+
+        let new_state =
+            take_serialize_state(&mut runtime).expect("take_serialize_state second call");
+
+        assert_eq!(new_state.events.len(), 3);
+        assert_eq!(new_state.events[0].fn_name, "fn_name", "first event name");
+        assert_eq!(
+            new_state.events[1].fn_name, "another_name",
+            "second event name"
+        );
+        assert_eq!(new_state.events[2].fn_name, "last_fn", "third");
+    }
+
+    #[test]
+    fn catch_fn_name_mismatch() {
+        let save_script =
+            r##"globalThis.ErgoSerialize.saveResult('fn_name', [1, 2], "a result");"##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+        runtime
+            .execute_script("save script", save_script)
+            .expect("save script");
+
+        let state = take_serialize_state(&mut runtime).expect("take_serialize_state");
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let bad_get_script = r##"globalThis.ErgoSerialize.getResult('bad_name', [1, 2]);"##;
+        let err = runtime
+            .execute_script("bad get script", bad_get_script)
+            .expect_err("Expected error")
+            .to_string();
+
+        println!("{}", err);
+        assert!(
+            err.contains("Non-deterministic"),
+            "Error should be a non-determinstic execution error",
+        );
+    }
+
+    #[test]
+    fn catch_fn_args_mismatch() {
+        let save_script =
+            r##"globalThis.ErgoSerialize.saveResult('fn_name', [1, 2], "a result");"##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+        runtime
+            .execute_script("save script", save_script)
+            .expect("save script");
+
+        let state = take_serialize_state(&mut runtime).expect("take_serialize_state");
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let bad_get_script = r##"globalThis.ErgoSerialize.getResult('fn_name', [1, 3]);"##;
+        let err = runtime
+            .execute_script("bad get script", bad_get_script)
+            .expect_err("Expected error")
+            .to_string();
+
+        println!("{}", err);
+        assert!(
+            err.contains("Non-deterministic"),
+            "Error should be a non-determinstic execution error",
+        );
+    }
 
     #[test]
     #[ignore]
-    fn catch_fn_name_mismatch() {}
-
-    #[test]
-    #[ignore]
-    fn catch_fn_args_mismatch() {}
+    fn catch_save_with_pending_results() {}
 
     #[test]
     #[ignore]
     fn wall_time() {}
 
     #[test]
-    #[ignore]
-    fn exit() {}
+    fn exit() {
+        let exit_script = r##"
+            globalThis.x = 5;
+            globalThis.ErgoSerialize.exit();
+            globalThis.x = 6;
+            "##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        let err = runtime
+            .execute_script("exit_script", exit_script)
+            .expect_err("Script terminates early")
+            .to_string();
+
+        println!("{}", err);
+        assert!(
+            err.contains("execution terminated"),
+            "Error should be from the termination"
+        );
+
+        let x: usize = runtime
+            .get_global_value("x")
+            .expect("value x deserialized")
+            .expect("value x was set");
+        assert_eq!(
+            x, 5,
+            "Execution should stopped when x is 5 and before it is set to 6"
+        );
+    }
 }

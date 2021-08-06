@@ -3,7 +3,10 @@ pub mod permissions;
 mod raw_serde;
 pub mod serialized_execution;
 
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    ops::{Deref, DerefMut},
+};
 
 use deno_core::{error::AnyError, Extension, JsRuntime};
 use deno_web::BlobStore;
@@ -13,7 +16,7 @@ use serde_v8::{from_v8, to_v8};
 
 use crate::permissions::Permissions;
 
-pub use serialized_execution::SerializedState;
+pub use serialized_execution::{take_serialize_state, SerializedState};
 
 pub struct Snapshot(Box<[u8]>);
 
@@ -54,6 +57,20 @@ pub struct RuntimeOptions<'a> {
 
 pub struct Runtime {
     runtime: JsRuntime,
+}
+
+impl Deref for Runtime {
+    type Target = JsRuntime;
+
+    fn deref(&self) -> &Self::Target {
+        &self.runtime
+    }
+}
+
+impl DerefMut for Runtime {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.runtime
+    }
 }
 
 impl Runtime {
