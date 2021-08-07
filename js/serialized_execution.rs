@@ -686,9 +686,42 @@ mod tests {
     #[ignore]
     fn external_action() {}
 
-    #[test]
-    #[ignore]
-    fn wrap_fetch() {
+    use wiremock::{
+        matchers::{method, path},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    #[tokio::test]
+    async fn wrap_fetch() {
         // Fetch requires some extra wrapping logic to save the body, so test it separately.
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("a response"))
+            .mount(&server)
+            .await;
+
+        let script = r##"
+            (async function run() {
+               let x = await globalThis.fetch(url);
+               globalThis.result = await x.text();
+            }());
+            "##;
+
+        let state = SerializedState::default();
+        let mut runtime = Runtime::new(RuntimeOptions {
+            extensions: crate::net_extensions(Some(state.random_seed)),
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        runtime.set_global_value("url", &server.uri()).unwrap();
+        runtime
+            .execute_script("script", script)
+            .expect("running script");
+        runtime.run_event_loop(false).await.unwrap();
+
+        let result: String = runtime.get_global_value("result").unwrap().unwrap();
+        assert_eq!(result, "a response");
     }
 }
