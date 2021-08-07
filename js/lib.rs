@@ -32,8 +32,8 @@ pub fn net_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
         deno_console::init(),
         deno_webidl::init(),
         deno_url::init(),
-        deno_crypto::init(crypto_seed),
         deno_web::init(BlobStore::default(), None),
+        deno_crypto::init(crypto_seed),
         deno_net::init::<Permissions>(None, false),
         deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None),
     ]
@@ -45,6 +45,7 @@ pub fn core_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
         deno_console::init(),
         deno_webidl::init(),
         deno_url::init(),
+        deno_web::init(BlobStore::default(), None),
         deno_crypto::init(crypto_seed),
     ]
 }
@@ -218,6 +219,22 @@ impl Runtime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn core_extensions_init() {
+        Runtime::new(RuntimeOptions {
+            extensions: super::core_extensions(None),
+            ..Default::default()
+        });
+    }
+
+    #[test]
+    fn net_extensions_init() {
+        Runtime::new(RuntimeOptions {
+            extensions: super::net_extensions(None),
+            ..Default::default()
+        });
+    }
 
     mod run_expression {
         use super::*;
