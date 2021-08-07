@@ -589,8 +589,94 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn wrap_sync_function() {}
+    fn wrap_sync_function() {
+        let script = r##"
+            function abc() { return globalThis.x; }
+            const fn = ErgoSerialize.wrapSyncFunction(abc);
+            fn()
+            "##;
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        runtime.set_global_value("x", &6).unwrap();
+        let ret: usize = runtime
+            .run_expression("script", script)
+            .expect("executing script first run");
+
+        assert_eq!(ret, 6, "first run returns 6");
+
+        let state = take_serialize_state(&mut runtime).expect("has state");
+        assert!(state.events.len() == 1);
+        assert_eq!(state.events[0].fn_name, "abc");
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        // Although we're setting x to 10, the call to fn() should return the saved value of 6
+        // instead. This is very contrived but works for testing.
+        runtime.set_global_value("x", &10).unwrap();
+        let ret: usize = runtime
+            .run_expression("script", script)
+            .expect("executing script second run");
+        assert_eq!(ret, 6, "second run returns saved value of 6");
+    }
+
+    #[test]
+    fn wrap_sync_function_error() {
+        let script = r##"
+            function abc() {
+                if(globalThis.x === 6) {
+                    throw new Error('an error');
+                } else {
+                    return globalThis.x;
+                }
+            }
+            const fn = ErgoSerialize.wrapSyncFunction(abc);
+
+            globalThis.threw = false;
+            try {
+                fn();
+            } catch(e) {
+                globalThis.threw = true;
+            }
+            "##;
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        runtime.set_global_value("x", &6).unwrap();
+        runtime
+            .execute_script("script", script)
+            .expect("executing script first run");
+
+        let threw: bool = runtime.get_global_value("threw").unwrap().unwrap();
+        assert_eq!(threw, true, "first run threw error");
+
+        let state = take_serialize_state(&mut runtime).expect("has state");
+        assert!(state.events.len() == 1);
+        assert_eq!(state.events[0].fn_name, "abc");
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        // Although we're setting x to 10, the call to fn() should return the saved value of 6
+        // instead. This is very contrived but works for testing.
+        runtime.set_global_value("x", &10).unwrap();
+        runtime
+            .execute_script("script", script)
+            .expect("executing script second run");
+        let threw: bool = runtime.get_global_value("threw").unwrap().unwrap();
+        assert_eq!(threw, true, "second run threw saved error");
+    }
 
     #[test]
     #[ignore]
