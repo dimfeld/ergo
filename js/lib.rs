@@ -153,7 +153,7 @@ impl Runtime {
         let mut scope = self.runtime.handle_scope();
         // Convert to a Local handle to work with from_v8.
         let local = v8::Local::new(&mut scope, result);
-        let value = from_v8(&mut scope, local).unwrap();
+        let value = from_v8(&mut scope, local)?;
         Ok(value)
     }
 
@@ -163,7 +163,7 @@ impl Runtime {
         expression: &str,
     ) -> Result<bool, AnyError> {
         let script = Self::safe_braces(expression);
-        self.set_global_value("value", value);
+        self.set_global_value("value", value)?;
 
         let result = self.runtime.execute_script("boolean expression", &script)?;
         let mut scope = self.runtime.handle_scope();
@@ -171,13 +171,14 @@ impl Runtime {
         Ok(local.boolean_value(&mut scope))
     }
 
-    pub fn set_global_value<T: Serialize>(&mut self, key: &str, value: &T) {
+    pub fn set_global_value<T: Serialize>(&mut self, key: &str, value: &T) -> Result<(), AnyError> {
         let mut scope = self.runtime.handle_scope();
         let jskey = v8::String::new(&mut scope, key).unwrap();
-        let value = to_v8(&mut scope, value).unwrap();
+        let value = to_v8(&mut scope, value)?;
 
         let global = scope.get_current_context().global(&mut scope);
         global.set(&mut scope, jskey.into(), value);
+        Ok(())
     }
 
     pub fn get_global_value<T: DeserializeOwned>(
@@ -265,7 +266,7 @@ mod tests {
                 ..Default::default()
             });
             let input = InputValue { a: 5 };
-            runtime.set_global_value("x", &input);
+            runtime.set_global_value("x", &input).unwrap();
 
             let result: OutputValue = runtime
                 .run_expression("test", "let a = x; { b: x.a + 1 };")
