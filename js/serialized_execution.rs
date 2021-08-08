@@ -4,17 +4,16 @@ use serde::{Deserialize, Serialize};
 use serde_v8::{from_v8, to_v8};
 use v8::{Exception, MapFnTo};
 
-use crate::raw_serde::{self, deserialize};
+use crate::raw_serde::{self, deserialize, RawSerdeError};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SerializedEvent {
     /// The wall time when the event completed.
     wall_time: chrono::DateTime<Utc>,
-    /// Serialized version of the arguments used to generate this result, which will
-    /// be compared on retrieval to ensure that the script is running deterministically.
-    args: Vec<u8>,
     fn_name: String,
+    args_json: Vec<serde_json::Value>,
     result: Vec<u8>,
+    result_json: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -232,8 +231,11 @@ fn save_result(
         "First argument must be the name of the function"
     );
 
-    let fn_args = v8_try!(scope, raw_serde::serialize(scope, args.get(1)));
+    let args_json: Vec<serde_json::Value> = v8_try!(scope, from_v8(scope, args.get(1)));
+    // Save the the raw serialied result for proper reconstitution and the JSON version to
+    // make it inspectable without having to fire up a V8 isolate.
     let result = v8_try!(scope, raw_serde::serialize(scope, args.get(2)));
+    let result_json: serde_json::Value = v8_try!(scope, from_v8(scope, args.get(2)));
     let events = get_event_state!(scope);
 
     if events.next_event < events.saved_results.len() {
@@ -246,9 +248,18 @@ fn save_result(
     events.new_results.push(SerializedEvent {
         wall_time: new_wall_time,
         fn_name,
-        args: fn_args,
+        args_json,
         result,
+        result_json,
     });
+}
+
+fn compute_args_hash(
+    scope: &mut v8::HandleScope,
+    value: v8::Local<v8::Value>,
+) -> Result<u64, RawSerdeError> {
+    let raw_args = raw_serde::serialize(scope, value)?;
+    Ok(fxhash::hash64(&raw_args))
 }
 
 /// Get the next result, if any. This is called with the arguments object,
@@ -285,18 +296,16 @@ fn get_result(
         from_v8(scope, args.get(1)),
         "Second argument must be the name of the function"
     );
+
     let fn_args = args.get(2);
-    let raw_args = v8_try!(scope, raw_serde::serialize(scope, fn_args.clone()));
+    let args: Vec<serde_json::Value> = v8_try!(scope, from_v8(scope, fn_args));
     let events = get_event_state!(scope);
 
     match (events.saved_results.get(events.next_event), exit_if_unsaved) {
         (Some(event), _) => {
             // Make sure the function name and the arguments match. If not,
             // then the JS code is not running deterministically.
-            if fn_name != event.fn_name || raw_args != event.args {
-                // TODO More descriptive error that details the differences. Probably deserialize
-                // the saved arguments and put them on the error somewhere. Have to figure out the
-                // mutable borrow issues with deserialze results first though.
+            if fn_name != event.fn_name || args != event.args_json {
                 let msg = format!(
                     "Non-deterministic execution: expected function '{}' and matching arguments",
                     event.fn_name
@@ -306,22 +315,17 @@ fn get_result(
             }
 
             events.next_event += 1;
-            // events holds a mutable borrow on scope, so clone the result and drop events to allow
-            // deserialize to take the mutable borrow. Not ideal but it works.
+            // events holds a mutable borrow on scope, so clone the result to allow
+            // events to implicitly drop and deserialize to take the mutable borrow. Not ideal but it works.
             let result = event.result.clone();
             let obj = v8_try!(scope, deserialize(scope, &result));
             rv.set(obj);
         }
         (None, true) => {
             // Save the requested event, and exit execution.
-            // Drop events temporarily so we can mutably borrow scope to convert the arguments.
-            drop(events);
-            let args_as_json: Vec<serde_json::Value> =
-                v8_try!(scope, serde_v8::from_v8(scope, fn_args));
-            let events = get_event_state!(scope);
             events.pending_event = Some(PendingEvent {
                 name: fn_name,
-                args: args_as_json,
+                args,
             });
 
             exit(scope);
@@ -385,7 +389,7 @@ mod tests {
     fn save_and_retrieve_events() {
         let save_script = r##"
             globalThis.ErgoSerialize.saveResult('fn_name', [5, 6], "a result");
-            globalThis.ErgoSerialize.saveResult('another_name', { a: 5, b: 6 }, { answer: 'yes' });
+            globalThis.ErgoSerialize.saveResult('another_name', [{ a: 5, b: 6 }], { answer: 'yes' });
             "##;
 
         let mut runtime = Runtime::new(RuntimeOptions {
@@ -414,7 +418,7 @@ mod tests {
                 throw new Error(`Expected first result to be 'a result' but saw ${JSON.stringify(firstResult)}`);
             }
 
-            let secondResult = globalThis.ErgoSerialize.getResult(true, 'another_name', { a: 5, b: 6 });
+            let secondResult = globalThis.ErgoSerialize.getResult(true, 'another_name', [{ a: 5, b: 6 }]);
             let saw = JSON.stringify(secondResult);
             if(saw !== `{"answer":"yes"}`) {
                 throw new Error(`Expected second result to be { answer: yes } but saw ${saw}`);
