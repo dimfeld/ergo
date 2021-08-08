@@ -1,7 +1,11 @@
+mod console;
 pub mod module_loader;
 pub mod permissions;
 mod raw_serde;
 pub mod serialized_execution;
+
+pub use console::*;
+pub use serialized_execution::{take_serialize_state, SerializedState};
 
 use std::{
     borrow::Cow,
@@ -15,8 +19,6 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_v8::{from_v8, to_v8};
 
 use crate::permissions::Permissions;
-
-pub use serialized_execution::{take_serialize_state, SerializedState};
 
 pub struct Snapshot(Box<[u8]>);
 
@@ -50,7 +52,6 @@ pub fn core_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
     ]
 }
 
-#[derive(Default)]
 pub struct RuntimeOptions<'a> {
     will_snapshot: bool,
     /// Deno extensions to pass to the runtime. If using serialized state,
@@ -63,10 +64,25 @@ pub struct RuntimeOptions<'a> {
     /// results) is entirely disabled. To use serial execution without some existing
     /// state, set this to Some(SerializedState::default()).
     serialized_state: Option<SerializedState>,
+
+    console: Option<Box<dyn Console>>,
+}
+
+impl<'a> Default for RuntimeOptions<'a> {
+    fn default() -> Self {
+        RuntimeOptions {
+            will_snapshot: false,
+            extensions: net_extensions(None),
+            snapshot: None,
+            serialized_state: None,
+            console: None,
+        }
+    }
 }
 
 pub struct Runtime {
     runtime: JsRuntime,
+    console: Option<Box<dyn Console>>,
 }
 
 impl Deref for Runtime {
@@ -102,7 +118,10 @@ impl Runtime {
             }
             serialized_execution::install(&mut runtime, state);
         }
-        Runtime { runtime }
+        Runtime {
+            runtime,
+            console: options.console,
+        }
     }
 
     pub fn make_snapshot(&mut self) -> Snapshot {
