@@ -65,7 +65,7 @@ pub struct RuntimeOptions<'a> {
     /// state, set this to Some(SerializedState::default()).
     serialized_state: Option<SerializedState>,
 
-    console: Option<Box<dyn Console>>,
+    console: Box<dyn Console>,
 }
 
 impl<'a> Default for RuntimeOptions<'a> {
@@ -75,14 +75,14 @@ impl<'a> Default for RuntimeOptions<'a> {
             extensions: net_extensions(None),
             snapshot: None,
             serialized_state: None,
-            console: None,
+            console: Box::new(NullConsole::new()),
         }
     }
 }
 
 pub struct Runtime {
     runtime: JsRuntime,
-    console: Option<Box<dyn Console>>,
+    pub console: Box<dyn Console>,
 }
 
 impl Deref for Runtime {

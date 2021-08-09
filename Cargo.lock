@@ -1259,6 +1259,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
+name = "downcast-rs"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
+
+[[package]]
 name = "dtoa"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1390,9 +1396,11 @@ dependencies = [
  "deno_url",
  "deno_web",
  "deno_webidl",
+ "downcast-rs",
  "fxhash",
  "ipnet",
  "lazy_static",
+ "log",
  "once_cell",
  "rand 0.8.4",
  "redis 0.21.0",
@@ -1402,6 +1410,7 @@ dependencies = [
  "serde_json",
  "serde_millis",
  "serde_v8",
+ "slog",
  "thiserror",
  "tokio",
  "tracing",
@@ -3355,6 +3364,12 @@ name = "slab"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f173ac3d1a7e3b28003f40de0b5ce7fe2710f9b9dc3fc38664cebee46b3b6527"
+
+[[package]]
+name = "slog"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8347046d4ebd943127157b94d63abb990fcf729dc4e9978927fdf4ac3c998d06"
 
 [[package]]
 name = "smallvec"
