@@ -67,6 +67,9 @@ pub struct RuntimeOptions<'a> {
     serialized_state: Option<SerializedState>,
 
     console: Option<Box<dyn Console>>,
+
+    /// Permissions for Javascript code.
+    permissions: Option<Permissions>,
 }
 
 impl<'a> Default for RuntimeOptions<'a> {
@@ -77,6 +80,7 @@ impl<'a> Default for RuntimeOptions<'a> {
             snapshot: None,
             serialized_state: None,
             console: None,
+            permissions: None,
         }
     }
 }
@@ -113,6 +117,11 @@ impl Runtime {
                 .map(|s| deno_core::Snapshot::Boxed(s.clone().0)),
             ..deno_core::RuntimeOptions::default()
         });
+
+        runtime
+            .op_state()
+            .borrow_mut()
+            .put(options.permissions.unwrap_or_else(Default::default));
 
         if options.snapshot.is_none() {
             runtime
