@@ -20,20 +20,27 @@ ErgoSerialize.wrapSyncFunction = function wrapSyncFunction(fn, exitIfUnsaved = f
   };
 }
 
-ErgoSerialize.wrapAsyncFunction = function wrapAsyncFunction(fn, exitIfUnsaved = false) {
+ErgoSerialize.wrapAsyncFunction = function wrapAsyncFunction(fn, exitIfUnsaved = false, preserveFn = null, reviveFn = null) {
   return async function(...args) {
     let saved = ErgoSerialize.getResult(exitIfUnsaved, fn.name, args);
     if(saved !== ErgoSerialize.noNewResults) {
       if(saved instanceof Error) {
         throw saved;
       } else {
-        return saved;
+        return reviveFn ? reviveFn(saved) : saved;
       }
     }
 
     try {
       let result = await fn(...args);
-      ErgoSerialize.saveResult(fn.name, args, result);
+      let preserved = result;
+      if(preserveFn) {
+        let p = await preserveFn(result);
+        result = p.live;
+        preserved = p.preserved;
+      }
+
+      ErgoSerialize.saveResult(fn.name, args, preserved);
       return result;
     } catch(e) {
       ErgoSerialize.saveResult(fn.name, args, e);
@@ -50,15 +57,30 @@ ErgoSerialize.externalAction = function(name) {
 
 (function installSerializedExecution(window) {
   if(window.fetch) {
-    console.dir(window.fetch);
-    let origFetch = window.fetch;
-    let fetch = async function serializableFetch(...args) {
-      // To allow us to serialize the response, we need to read the whole blob now.
-      let response = await origFetch(...args);
+    async function preserveFetchResponse(response) {
+      // Convert the response into something we can save outside the system. Specifically,
+      // without reading the blob its data is stored elsewhere in the V8 runtime and so we
+      // need to actually consume it.
       let blob = await response.blob();
-      return new Response(blob, response);
-    };
+      let buffer = await blob.arrayBuffer();
+      return {
+        preserved: {
+          buffer,
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        },
+        // Create a new response to return right now, so that the caller
+        // has a stream to consume.
+        live: new Response(blob, response),
+      };
+    }
 
-    window.fetch = ErgoSerialize.wrapAsyncFunction(fetch);
+    function reviveFetchResponse(response) {
+      let { buffer, ...init } = response;
+      return new Response(new Blob([buffer]), init);
+    }
+
+    window.fetch = ErgoSerialize.wrapAsyncFunction(window.fetch, false, preserveFetchResponse, reviveFetchResponse);
   }
 })(globalThis);

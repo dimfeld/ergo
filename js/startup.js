@@ -6,6 +6,7 @@ Object.assign(globalThis,
   globalThis.__bootstrap.crypto,
   globalThis.__bootstrap.fetch,
   globalThis.__bootstrap.file,
+  globalThis.__bootstrap.formData,
   globalThis.__bootstrap.streams,
   globalThis.__bootstrap.url,
 );

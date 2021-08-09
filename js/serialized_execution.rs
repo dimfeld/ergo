@@ -727,8 +727,8 @@ mod tests {
         runtime.set_global_value("url", &server.uri()).unwrap();
         runtime
             .execute_script("script", script)
-            .expect("running script");
-        runtime.run_event_loop(false).await.unwrap();
+            .expect("script run 1");
+        runtime.run_event_loop(false).await.expect("script run 1");
 
         let result: String = runtime.get_global_value("result").unwrap().unwrap();
         assert_eq!(result, "a response");
@@ -736,5 +736,30 @@ mod tests {
         let state = runtime
             .take_serialize_state()
             .expect("getting serialized state");
+
+        assert_eq!(state.events.len(), 1, "state saved the event");
+        println!("{:?}", state.events[0]);
+
+        // And now run it again.
+        let mut runtime = Runtime::new(RuntimeOptions {
+            extensions: crate::net_extensions(Some(state.random_seed)),
+            serialized_state: Some(state),
+            console: Some(Box::new(PrintConsole::new(crate::ConsoleLevel::Info))),
+            ..Default::default()
+        });
+
+        runtime.set_global_value("url", &server.uri()).unwrap();
+
+        // Shutdown the mock server to make sure that the fetch is coming from the
+        // saved state and not from doing an actual fetch.
+        server.reset().await;
+        drop(server);
+
+        runtime
+            .execute_script("script-run-2", script)
+            .expect("script run 2");
+        runtime.run_event_loop(false).await.expect("script run 2");
+        let result: String = runtime.get_global_value("result").unwrap().unwrap();
+        assert_eq!(result, "a response");
     }
 }
