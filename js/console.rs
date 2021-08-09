@@ -17,6 +17,13 @@ pub trait Console: Downcast {
     /// false if the message was dropped. (Some console implementations may always
     /// return true.)
     fn add(&mut self, message: ConsoleMessage) -> bool;
+
+    /// Take the saved messages out of the queue, for consoles that save messages.
+    fn take_messages(&mut self) -> Vec<ConsoleMessage> {
+        Vec::new()
+    }
+
+    fn clone_settings(&self) -> Box<dyn Console>;
 }
 impl_downcast!(Console);
 
@@ -40,12 +47,14 @@ impl From<usize> for ConsoleLevel {
     }
 }
 
+#[derive(Debug)]
 pub struct ConsoleMessage {
     pub level: ConsoleLevel,
     pub time: DateTime<Utc>,
     pub message: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct ConsoleLimit {
     /// The total limit of messages, in bytes, to retain.
     total: usize,
@@ -55,31 +64,52 @@ pub struct ConsoleLimit {
     head: usize,
 }
 
+impl Default for ConsoleLimit {
+    fn default() -> Self {
+        ConsoleLimit {
+            total: usize::MAX,
+            head: usize::MAX,
+        }
+    }
+}
+
 /// A console that stores messages for later use.
 pub struct BufferConsole {
-    pub capacity: ConsoleLimit,
-    pub min_level: ConsoleLevel,
-    pub messages: VecDeque<ConsoleMessage>,
+    messages: VecDeque<ConsoleMessage>,
+    capacity: ConsoleLimit,
+    min_level: ConsoleLevel,
+    passthrough: Option<Box<dyn Console>>,
     current_size: usize,
 }
 
 impl Default for BufferConsole {
     fn default() -> Self {
-        BufferConsole::new(ConsoleLevel::Info, None)
+        BufferConsole::new(ConsoleLevel::Info)
     }
 }
 
 impl BufferConsole {
-    pub fn new(min_level: ConsoleLevel, capacity: Option<ConsoleLimit>) -> Self {
+    pub fn new(min_level: ConsoleLevel) -> Self {
         BufferConsole {
-            capacity: capacity.unwrap_or(ConsoleLimit {
-                total: usize::MAX,
-                head: usize::MAX,
-            }),
+            capacity: ConsoleLimit::default(),
             min_level,
             messages: VecDeque::new(),
             current_size: 0,
+            passthrough: None,
         }
+    }
+
+    /// Set a maximum capacity on the buffer.
+    pub fn capacity(mut self, capacity: Option<ConsoleLimit>) -> Self {
+        self.capacity = capacity.unwrap_or_else(ConsoleLimit::default);
+        self
+    }
+
+    /// Another console instance to which messages should be passed. This could be useful
+    /// if you want to buffer the messages but also print them to another console.
+    pub fn passthrough(mut self, passthrough: Option<Box<dyn Console>>) -> Self {
+        self.passthrough = passthrough;
+        self
     }
 }
 
@@ -90,7 +120,7 @@ impl Console for BufferConsole {
         }
 
         let message_size = message.message.len();
-        while self.current_size + message_size > self.capacity.total && self.messages.len() > 0 {
+        while self.current_size + message_size > self.capacity.total && !self.messages.is_empty() {
             let popped_size = self
                 .messages
                 .pop_front()
@@ -102,6 +132,22 @@ impl Console for BufferConsole {
         self.current_size += message_size;
         self.messages.push_back(message);
         return true;
+    }
+
+    fn take_messages(&mut self) -> Vec<ConsoleMessage> {
+        self.current_size = 0;
+        let mut messages = std::mem::take(&mut self.messages);
+        Vec::from(messages)
+    }
+
+    fn clone_settings(&self) -> Box<dyn Console> {
+        Box::new(BufferConsole {
+            capacity: self.capacity.clone(),
+            min_level: self.min_level,
+            messages: VecDeque::new(),
+            current_size: 0,
+            passthrough: self.passthrough.as_ref().map(|p| p.clone_settings()),
+        })
     }
 }
 
@@ -124,47 +170,24 @@ impl Console for NullConsole {
     fn add(&mut self, _message: ConsoleMessage) -> bool {
         false
     }
+
+    fn clone_settings(&self) -> Box<dyn Console> {
+        Box::new(NullConsole {})
+    }
 }
 
 /// A console implementation that just prints the messages to stdout or stderr.
-pub struct PrintConsole<STDOUT: Write, STDERR: Write> {
+pub struct PrintConsole {
     pub level: ConsoleLevel,
-    stdout: STDOUT,
-    stderr: STDERR,
 }
 
-impl<STDOUT: Write, STDERR: Write> PrintConsole<STDOUT, STDERR> {
-    pub fn new(level: ConsoleLevel, stdout: STDOUT, stderr: STDERR) -> Self {
-        PrintConsole {
-            level,
-            stdout,
-            stderr,
-        }
-    }
-
-    /// Transform the PrintConsole into a new one with a difference level threshold.
-    /// This is mostly useful in conjunction with default(). e.g.
-    /// `PrintConsole::default().level(ConsoleLevel::Debug)`
-    pub fn level(self, level: ConsoleLevel) -> Self {
-        PrintConsole {
-            level,
-            stdout: self.stdout,
-            stderr: self.stderr,
-        }
+impl PrintConsole {
+    pub fn new(level: ConsoleLevel) -> Self {
+        PrintConsole { level }
     }
 }
 
-impl Default for PrintConsole<std::io::Stdout, std::io::Stderr> {
-    fn default() -> Self {
-        PrintConsole {
-            level: ConsoleLevel::Info,
-            stdout: std::io::stdout(),
-            stderr: std::io::stderr(),
-        }
-    }
-}
-
-impl<STDOUT: Write + 'static, STDERR: Write + 'static> Console for PrintConsole<STDOUT, STDERR> {
+impl Console for PrintConsole {
     fn add(&mut self, message: ConsoleMessage) -> bool {
         if message.level < self.level {
             return false;
@@ -172,12 +195,16 @@ impl<STDOUT: Write + 'static, STDERR: Write + 'static> Console for PrintConsole<
 
         match message.level {
             ConsoleLevel::Debug | ConsoleLevel::Warn | ConsoleLevel::Error => {
-                self.stderr.write_all(message.message.as_bytes()).ok()
+                eprintln!("{}", message.message);
             }
-            ConsoleLevel::Info => self.stdout.write_all(message.message.as_bytes()).ok(),
+            ConsoleLevel::Info => println!("{}", message.message),
         };
 
         return true;
+    }
+
+    fn clone_settings(&self) -> Box<dyn Console> {
+        Box::new(PrintConsole { level: self.level })
     }
 }
 
@@ -205,6 +232,10 @@ mod log_console {
 
             ::log::log!(level, "{}", message.message);
             return true;
+        }
+
+        fn clone_settings(&self) -> Box<dyn Console> {
+            Box::new(LogConsole {})
         }
     }
 }
@@ -243,6 +274,12 @@ mod slog_console {
 
             return true;
         }
+
+        fn clone_settings(&self) -> Box<dyn Console> {
+            Box::new(SlogConsole {
+                logger: self.logger.clone(),
+            })
+        }
     }
 }
 
@@ -273,6 +310,10 @@ mod tracing_console {
             };
             return true;
         }
+
+        fn clone_settings(&self) -> Box<dyn Console> {
+            Box::new(TracingConsole {})
+        }
     }
 }
 
@@ -282,15 +323,17 @@ mod tests {
 
     #[test]
     fn default_print_console() {
-        let mut c = PrintConsole::default().level(ConsoleLevel::Info);
+        let mut c = PrintConsole::new(ConsoleLevel::Info);
         c.add(ConsoleMessage {
             level: ConsoleLevel::Info,
             message: String::from("test message\n"),
+            time: chrono::Utc::now(),
         });
 
         c.add(ConsoleMessage {
             level: ConsoleLevel::Debug,
             message: String::from("debug message should not appear\n"),
+            time: chrono::Utc::now(),
         });
     }
 }

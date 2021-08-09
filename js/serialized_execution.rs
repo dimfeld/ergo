@@ -360,7 +360,7 @@ fn throw_error(scope: &mut v8::HandleScope, err: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Runtime, RuntimeOptions};
+    use crate::{PrintConsole, Runtime, RuntimeOptions};
 
     fn get_event_tracker<'a>(runtime: &'a mut crate::Runtime) -> &'a mut EventTracker {
         runtime.v8_isolate().get_slot_mut::<EventTracker>().unwrap()
@@ -375,6 +375,7 @@ mod tests {
 
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(SerializedState::default()),
+            console: Some(Box::new(PrintConsole::new(crate::ConsoleLevel::Info))),
             ..Default::default()
         });
 
@@ -716,6 +717,7 @@ mod tests {
         let mut runtime = Runtime::new(RuntimeOptions {
             extensions: crate::net_extensions(Some(state.random_seed)),
             serialized_state: Some(state),
+            console: Some(Box::new(PrintConsole::new(crate::ConsoleLevel::Info))),
             ..Default::default()
         });
 

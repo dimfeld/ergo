@@ -10,9 +10,10 @@ pub use serialized_execution::{take_serialize_state, SerializedState};
 use std::{
     borrow::Cow,
     ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
-use deno_core::{error::AnyError, Extension, JsRuntime};
+use deno_core::{error::AnyError, op_sync, Extension, JsRuntime, OpState};
 use deno_web::BlobStore;
 use rusty_v8 as v8;
 use serde::{de::DeserializeOwned, Serialize};
@@ -65,7 +66,7 @@ pub struct RuntimeOptions<'a> {
     /// state, set this to Some(SerializedState::default()).
     serialized_state: Option<SerializedState>,
 
-    console: Box<dyn Console>,
+    console: Option<Box<dyn Console>>,
 }
 
 impl<'a> Default for RuntimeOptions<'a> {
@@ -75,14 +76,13 @@ impl<'a> Default for RuntimeOptions<'a> {
             extensions: net_extensions(None),
             snapshot: None,
             serialized_state: None,
-            console: Box::new(NullConsole::new()),
+            console: None,
         }
     }
 }
 
 pub struct Runtime {
     runtime: JsRuntime,
-    pub console: Box<dyn Console>,
 }
 
 impl Deref for Runtime {
@@ -100,7 +100,11 @@ impl DerefMut for Runtime {
 }
 
 impl Runtime {
-    pub fn new(options: RuntimeOptions) -> Self {
+    pub fn new(mut options: RuntimeOptions) -> Self {
+        if let Some(console) = options.console {
+            options.extensions.push(console_extension(console));
+        }
+
         let mut runtime = JsRuntime::new(deno_core::RuntimeOptions {
             will_snapshot: options.will_snapshot,
             extensions: options.extensions,
@@ -110,6 +114,12 @@ impl Runtime {
             ..deno_core::RuntimeOptions::default()
         });
 
+        if options.snapshot.is_none() {
+            runtime
+                .execute_script("<startup>", include_str!("startup.js"))
+                .expect("Running startup code");
+        }
+
         if let Some(state) = options.serialized_state {
             if options.will_snapshot {
                 // This requires setting external references in the V8 runtime and that API is
@@ -118,9 +128,22 @@ impl Runtime {
             }
             serialized_execution::install(&mut runtime, state);
         }
-        Runtime {
-            runtime,
-            console: options.console,
+
+        Runtime { runtime }
+    }
+
+    /// Retrieve the current set of console messages from the runtime.
+    /// This only really does anything for a [BufferConsole], since other console
+    /// implementations don't save their messages.
+    pub fn take_console_messages(&mut self) -> Vec<ConsoleMessage> {
+        match self
+            .runtime
+            .op_state()
+            .borrow_mut()
+            .try_borrow_mut::<ConsoleWrapper>()
+        {
+            Some(console) => console.console.take_messages(),
+            None => Vec::new(),
         }
     }
 
@@ -233,6 +256,45 @@ impl Runtime {
 
         Some(scope.escape(object))
     }
+}
+
+fn op_console(state: &mut OpState, message: String, level: usize) -> Result<(), AnyError> {
+    if let Some(console) = state.try_borrow_mut::<ConsoleWrapper>() {
+        let message = console::ConsoleMessage {
+            message,
+            level: ConsoleLevel::from(level),
+            time: chrono::Utc::now(),
+        };
+
+        console.console.add(message);
+    }
+
+    Ok(())
+}
+
+struct ConsoleWrapper {
+    console: Box<dyn Console>,
+}
+
+const CONSOLE_EXTENSION_JS: &'static str = r##"
+    globalThis.console = new globalThis.__bootstrap.console.Console(
+        (level, message) => Deno.core.opSync("ergo_js_console", level, message)
+    );"##;
+
+fn console_extension(console: Box<dyn Console>) -> deno_core::Extension {
+    deno_core::Extension::builder()
+        .js(vec![(
+            "ergo_js_console",
+            Box::new(|| Ok(String::from(CONSOLE_EXTENSION_JS))),
+        )])
+        .ops(vec![("ergo_js_console", op_sync(op_console))])
+        .state(move |state| {
+            state.put(ConsoleWrapper {
+                console: console.clone_settings(),
+            });
+            Ok(())
+        })
+        .build()
 }
 
 #[cfg(test)]

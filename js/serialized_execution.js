@@ -50,6 +50,7 @@ ErgoSerialize.externalAction = function(name) {
 
 (function installSerializedExecution(window) {
   if(window.fetch) {
+    console.dir(window.fetch);
     let origFetch = window.fetch;
     let fetch = async function serializableFetch(...args) {
       // To allow us to serialize the response, we need to read the whole blob now.
@@ -58,6 +59,6 @@ ErgoSerialize.externalAction = function(name) {
       return new Response(blob, response);
     };
 
-    window.fetch = wrapAsyncFunction(fetch);
+    window.fetch = ErgoSerialize.wrapAsyncFunction(fetch);
   }
 })(globalThis);
