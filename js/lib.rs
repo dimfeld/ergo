@@ -5,12 +5,11 @@ mod raw_serde;
 pub mod serialized_execution;
 
 pub use console::*;
-pub use serialized_execution::{take_serialize_state, SerializedState};
+pub use serialized_execution::SerializedState;
 
 use std::{
     borrow::Cow,
     ops::{Deref, DerefMut},
-    rc::Rc,
 };
 
 use deno_core::{error::AnyError, op_sync, Extension, JsRuntime, OpState};
@@ -109,7 +108,7 @@ impl Runtime {
             options.extensions.push(console_extension(console));
         }
 
-        let mut runtime = JsRuntime::new(deno_core::RuntimeOptions {
+        let deno_runtime = JsRuntime::new(deno_core::RuntimeOptions {
             will_snapshot: options.will_snapshot,
             extensions: options.extensions,
             startup_snapshot: options
@@ -117,6 +116,10 @@ impl Runtime {
                 .map(|s| deno_core::Snapshot::Boxed(s.clone().0)),
             ..deno_core::RuntimeOptions::default()
         });
+
+        let mut runtime = Runtime {
+            runtime: deno_runtime,
+        };
 
         runtime
             .op_state()
@@ -135,10 +138,11 @@ impl Runtime {
                 // not currently exposed from deno_core, which uses its own fixed set of references.
                 panic!("Serialized execution is not supported when will_snapshot is true");
             }
-            serialized_execution::install(&mut runtime, state);
+
+            runtime.install_serialized_execution(state);
         }
 
-        Runtime { runtime }
+        runtime
     }
 
     /// Retrieve the current set of console messages from the runtime.

@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use serde_v8::{from_v8, to_v8};
 use v8::{Exception, MapFnTo};
 
-use crate::raw_serde::{self, deserialize, RawSerdeError};
+use crate::{
+    raw_serde::{self, deserialize, RawSerdeError},
+    Runtime,
+};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SerializedEvent {
@@ -70,76 +73,77 @@ pub struct EventTracker {
     random_seed: u64,
 }
 
-pub fn install(runtime: &mut deno_core::JsRuntime, history: SerializedState) {
-    {
-        let scope = &mut runtime.handle_scope();
+impl Runtime {
+    pub fn install_serialized_execution(self: &mut Self, history: SerializedState) {
+        {
+            let scope = &mut self.handle_scope();
 
-        let jskey = v8::String::new(scope, "ErgoSerialize").unwrap();
-        let ser_obj = v8::Object::new(scope);
+            let jskey = v8::String::new(scope, "ErgoSerialize").unwrap();
+            let ser_obj = v8::Object::new(scope);
 
-        set_func(scope, ser_obj, "saveResult", save_result);
-        set_func(scope, ser_obj, "getResult", get_result);
-        set_func(scope, ser_obj, "exit", exit_call);
+            set_func(scope, ser_obj, "saveResult", save_result);
+            set_func(scope, ser_obj, "getResult", get_result);
+            set_func(scope, ser_obj, "exit", exit_call);
 
-        let no_new_results_symbol_name =
-            v8::String::new(scope, "ErgoSerialize noNewResults").unwrap();
-        let no_new_results_symbol = v8::Symbol::for_global(scope, no_new_results_symbol_name);
-        let key = v8::String::new(scope, "noNewResults").unwrap();
-        ser_obj.set(scope, key.into(), no_new_results_symbol.into());
+            let no_new_results_symbol_name =
+                v8::String::new(scope, "ErgoSerialize noNewResults").unwrap();
+            let no_new_results_symbol = v8::Symbol::for_global(scope, no_new_results_symbol_name);
+            let key = v8::String::new(scope, "noNewResults").unwrap();
+            ser_obj.set(scope, key.into(), no_new_results_symbol.into());
 
-        let wall_time_name = v8::String::new(scope, "wallTime").unwrap();
-        ser_obj.set_accessor(scope, wall_time_name.into(), wall_time_accessor);
+            let wall_time_name = v8::String::new(scope, "wallTime").unwrap();
+            ser_obj.set_accessor(scope, wall_time_name.into(), wall_time_accessor);
 
-        let global = scope.get_current_context().global(scope);
-        global.set(scope, jskey.into(), ser_obj.into());
+            let global = scope.get_current_context().global(scope);
+            global.set(scope, jskey.into(), ser_obj.into());
 
-        let tracker = EventTracker {
-            saved_results: history.events,
-            wall_time: history.start_time,
-            next_event: 0,
-            new_results: Vec::new(),
-            no_new_results_symbol: v8::Global::new(scope, no_new_results_symbol),
-            pending_event: None,
+            let tracker = EventTracker {
+                saved_results: history.events,
+                wall_time: history.start_time,
+                next_event: 0,
+                new_results: Vec::new(),
+                no_new_results_symbol: v8::Global::new(scope, no_new_results_symbol),
+                pending_event: None,
 
-            random_seed: history.random_seed,
-            start_time: history.start_time,
-        };
-        scope.set_slot(tracker);
-    }
+                random_seed: history.random_seed,
+                start_time: history.start_time,
+            };
+            scope.set_slot(tracker);
+        }
 
-    runtime
-        .execute_script(
+        self.execute_script(
             "serialized_execution_install",
             include_str!("serialized_execution.js"),
         )
         .expect("Installing serialized execution");
-}
+    }
 
-/// Extract the serialized state from the runtime. This clears the saved state to avoid cloning,
-/// so should only be done once this runtime is finished.
-pub fn take_serialize_state(runtime: &mut crate::Runtime) -> Option<SerializedState> {
-    let isolate = runtime.runtime.v8_isolate();
-    let events = isolate.get_slot_mut::<EventTracker>();
+    /// Extract the serialized state from the runtime. This clears the saved state to avoid cloning,
+    /// so should only be done once this runtime is finished.
+    pub fn take_serialize_state(self: &mut Self) -> Option<SerializedState> {
+        let isolate = self.runtime.v8_isolate();
+        let events = isolate.get_slot_mut::<EventTracker>();
 
-    match events {
-        Some(e) => {
-            // We can't just remove the slot completely, so instead replace the value with
-            // an empty tracker.
-            let now = Utc::now();
-            let replacement = EventTracker {
-                wall_time: now,
-                saved_results: Vec::new(),
-                next_event: 0,
-                new_results: Vec::new(),
-                no_new_results_symbol: e.no_new_results_symbol.clone(),
-                pending_event: None,
-                random_seed: 0,
-                start_time: now,
-            };
+        match events {
+            Some(e) => {
+                // We can't just remove the slot completely, so instead replace the value with
+                // an empty tracker.
+                let now = Utc::now();
+                let replacement = EventTracker {
+                    wall_time: now,
+                    saved_results: Vec::new(),
+                    next_event: 0,
+                    new_results: Vec::new(),
+                    no_new_results_symbol: e.no_new_results_symbol.clone(),
+                    pending_event: None,
+                    random_seed: 0,
+                    start_time: now,
+                };
 
-            Some(std::mem::replace(e, replacement).into())
+                Some(std::mem::replace(e, replacement).into())
+            }
+            None => None,
         }
-        None => None,
     }
 }
 
@@ -252,14 +256,6 @@ fn save_result(
         result,
         result_json,
     });
-}
-
-fn compute_args_hash(
-    scope: &mut v8::HandleScope,
-    value: v8::Local<v8::Value>,
-) -> Result<u64, RawSerdeError> {
-    let raw_args = raw_serde::serialize(scope, value)?;
-    Ok(fxhash::hash64(&raw_args))
 }
 
 /// Get the next result, if any. This is called with the arguments object,
@@ -402,7 +398,9 @@ mod tests {
             .execute_script("save script", save_script)
             .expect("Execution suceeded");
 
-        let state = take_serialize_state(&mut runtime).expect("take_serialize_state first call");
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state first call");
 
         assert_eq!(state.events.len(), 2);
         assert_eq!(state.events[0].fn_name, "fn_name", "first event name");
@@ -437,8 +435,9 @@ mod tests {
             .execute_script("second script", second_script)
             .expect("Running second script");
 
-        let new_state =
-            take_serialize_state(&mut runtime).expect("take_serialize_state second call");
+        let new_state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state second call");
 
         assert_eq!(new_state.events.len(), 3);
         assert_eq!(new_state.events[0].fn_name, "fn_name", "first event name");
@@ -461,7 +460,9 @@ mod tests {
             .execute_script("save script", save_script)
             .expect("save script");
 
-        let state = take_serialize_state(&mut runtime).expect("take_serialize_state");
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(state),
             ..Default::default()
@@ -492,7 +493,9 @@ mod tests {
             .execute_script("save script", save_script)
             .expect("save script");
 
-        let state = take_serialize_state(&mut runtime).expect("take_serialize_state");
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(state),
             ..Default::default()
@@ -584,7 +587,7 @@ mod tests {
             "Execution should stopped when x is 5 and before it is set to 6"
         );
 
-        let state = take_serialize_state(&mut runtime).expect("Retrieving state");
+        let state = runtime.take_serialize_state().expect("Retrieving state");
         let pending = state.pending.expect("Pending event should be present");
         assert_eq!(pending.name, "abc");
         assert_eq!(
@@ -613,7 +616,7 @@ mod tests {
 
         assert_eq!(ret, 6, "first run returns 6");
 
-        let state = take_serialize_state(&mut runtime).expect("has state");
+        let state = runtime.take_serialize_state().expect("has state");
         assert!(state.events.len() == 1);
         assert_eq!(state.events[0].fn_name, "abc");
 
@@ -664,7 +667,7 @@ mod tests {
         let threw: bool = runtime.get_global_value("threw").unwrap().unwrap();
         assert_eq!(threw, true, "first run threw error");
 
-        let state = take_serialize_state(&mut runtime).expect("has state");
+        let state = runtime.take_serialize_state().expect("has state");
         assert!(state.events.len() == 1);
         assert_eq!(state.events[0].fn_name, "abc");
 
@@ -729,5 +732,9 @@ mod tests {
 
         let result: String = runtime.get_global_value("result").unwrap().unwrap();
         assert_eq!(result, "a response");
+
+        let state = runtime
+            .take_serialize_state()
+            .expect("getting serialized state");
     }
 }
