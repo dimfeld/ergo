@@ -56,6 +56,8 @@ ErgoSerialize.externalAction = function(name) {
 };
 
 (function installSerializedExecution(window) {
+  // TODO Replace Math.random with a version that uses the seed.
+  // TODO Use the serialized wall time for Date.
   if(window.fetch) {
     async function preserveFetchResponse(response) {
       // Convert the response into something we can save outside the system. Specifically,
