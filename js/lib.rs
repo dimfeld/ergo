@@ -215,13 +215,14 @@ impl Runtime {
 
     pub fn run_boolean_expression<T: Serialize>(
         &mut self,
+        name: &str,
         value: &T,
         expression: &str,
     ) -> Result<bool, AnyError> {
         let script = Self::safe_braces(expression);
         self.set_global_value("value", value)?;
 
-        let result = self.runtime.execute_script("boolean expression", &script)?;
+        let result = self.runtime.execute_script(name, &script)?;
         let mut scope = self.runtime.handle_scope();
         let local = result.get(&mut scope);
         Ok(local.boolean_value(&mut scope))
@@ -396,10 +397,14 @@ mod tests {
                 will_snapshot: false,
                 ..Default::default()
             });
-            let result = runtime.run_boolean_expression(&5, "value === 5").unwrap();
+            let result = runtime
+                .run_boolean_expression("script", &5, "value === 5")
+                .unwrap();
             assert_eq!(result, true, "value === 5 where value is 5");
 
-            let result = runtime.run_boolean_expression(&1, "value > 2").unwrap();
+            let result = runtime
+                .run_boolean_expression("script", &1, "value > 2")
+                .unwrap();
             assert_eq!(result, false, "value > 2 where value is 1");
         }
 
@@ -413,7 +418,7 @@ mod tests {
                 "x": {"y": 1 }
             });
             let result = runtime
-                .run_boolean_expression(&test_value, "value.x.y === 1")
+                .run_boolean_expression("script", &test_value, "value.x.y === 1")
                 .unwrap();
             assert_eq!(result, true, "comparison passed");
         }
