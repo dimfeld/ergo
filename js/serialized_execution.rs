@@ -1,4 +1,6 @@
 use chrono::{DateTime, Utc};
+use deno_core::error::AnyError;
+use futures::future::{ready, TryFutureExt};
 use rusty_v8 as v8;
 use serde::{Deserialize, Serialize};
 use serde_v8::{from_v8, to_v8};
@@ -25,7 +27,7 @@ pub struct PendingEvent {
     pub args: Vec<serde_json::Value>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SerializedState {
     pub random_seed: u64,
     pub start_time: chrono::DateTime<Utc>,
@@ -116,6 +118,29 @@ impl Runtime {
             include_str!("serialized_execution.js"),
         )
         .expect("Installing serialized execution");
+    }
+
+    /// Run with serialized execution. This pumps the event loop to completion, and also
+    /// catches the execution termination exception.
+    pub async fn run_serialized(
+        self: &mut Self,
+        name: &str,
+        script: &str,
+    ) -> Result<Option<SerializedState>, AnyError> {
+        let result = ready(self.runtime.execute_script(name, script))
+            .and_then(|_| async { self.runtime.run_event_loop(false).await })
+            .await;
+
+        match result {
+            Ok(_) => Ok(self.take_serialize_state()),
+            Err(e) => {
+                if e.to_string().ends_with("execution terminated") {
+                    Ok(self.take_serialize_state())
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 
     /// Extract the serialized state from the runtime. This clears the saved state to avoid cloning,
@@ -388,8 +413,8 @@ mod tests {
         assert!(result, "result was noNewResults symbol");
     }
 
-    #[test]
-    fn save_and_retrieve_events() {
+    #[tokio::test]
+    async fn save_and_retrieve_events() {
         let save_script = r##"
             globalThis.ErgoSerialize.saveResult('fn_name', [5, 6], "a result");
             globalThis.ErgoSerialize.saveResult('another_name', [{ a: 5, b: 6 }], { answer: 'yes' });
@@ -400,13 +425,11 @@ mod tests {
             ..Default::default()
         });
 
-        runtime
-            .execute_script("save script", save_script)
-            .expect("Execution suceeded");
-
         let state = runtime
-            .take_serialize_state()
-            .expect("take_serialize_state first call");
+            .run_serialized("save script", save_script)
+            .await
+            .expect("Execution suceeded")
+            .expect("serialized state was empty");
 
         assert_eq!(state.events.len(), 2);
         assert_eq!(state.events[0].fn_name, "fn_name", "first event name");
@@ -437,13 +460,11 @@ mod tests {
             globalThis.ErgoSerialize.saveResult('last_fn', [1, 2, 3], undefined);
             "##;
 
-        runtime
-            .execute_script("second script", second_script)
-            .expect("Running second script");
-
         let new_state = runtime
-            .take_serialize_state()
-            .expect("take_serialize_state second call");
+            .run_serialized("second script", second_script)
+            .await
+            .expect("Running second script")
+            .expect("serialized state was empty");
 
         assert_eq!(new_state.events.len(), 3);
         assert_eq!(new_state.events[0].fn_name, "fn_name", "first event name");
@@ -454,21 +475,20 @@ mod tests {
         assert_eq!(new_state.events[2].fn_name, "last_fn", "third");
     }
 
-    #[test]
-    fn catch_fn_name_mismatch() {
+    #[tokio::test]
+    async fn catch_fn_name_mismatch() {
         let save_script =
             r##"globalThis.ErgoSerialize.saveResult('fn_name', [1, 2], "a result");"##;
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(SerializedState::default()),
             ..Default::default()
         });
-        runtime
-            .execute_script("save script", save_script)
-            .expect("save script");
-
         let state = runtime
-            .take_serialize_state()
-            .expect("take_serialize_state");
+            .run_serialized("save script", save_script)
+            .await
+            .expect("save script")
+            .expect("serialized state was empty");
+
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(state),
             ..Default::default()
@@ -476,7 +496,8 @@ mod tests {
 
         let bad_get_script = r##"globalThis.ErgoSerialize.getResult(false, 'bad_name', [1, 2]);"##;
         let err = runtime
-            .execute_script("bad get script", bad_get_script)
+            .run_serialized("bad get script", bad_get_script)
+            .await
             .expect_err("Expected error")
             .to_string();
 
@@ -487,21 +508,20 @@ mod tests {
         );
     }
 
-    #[test]
-    fn catch_fn_args_mismatch() {
+    #[tokio::test]
+    async fn catch_fn_args_mismatch() {
         let save_script =
             r##"globalThis.ErgoSerialize.saveResult('fn_name', [1, 2], "a result");"##;
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(SerializedState::default()),
             ..Default::default()
         });
-        runtime
-            .execute_script("save script", save_script)
-            .expect("save script");
-
         let state = runtime
-            .take_serialize_state()
-            .expect("take_serialize_state");
+            .run_serialized("save script", save_script)
+            .await
+            .expect("save script")
+            .expect("serialized state was empty");
+
         let mut runtime = Runtime::new(RuntimeOptions {
             serialized_state: Some(state),
             ..Default::default()
@@ -520,8 +540,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn catch_save_with_pending_results() {
+    #[tokio::test]
+    async fn catch_save_with_pending_results() {
         let first_script = r##"
             ErgoSerialize.saveResult('a', [1, 2], 5);
             ErgoSerialize.saveResult('b', [3, 4], 6);
@@ -532,12 +552,11 @@ mod tests {
             ..Default::default()
         });
 
-        runtime
-            .execute_script("first", first_script)
-            .expect("first script");
         let state = runtime
-            .take_serialize_state()
-            .expect("take_serialize_state");
+            .run_serialized("first", first_script)
+            .await
+            .expect("first script")
+            .expect("serialized state was empty");
 
         let second_script = r##"
             ErgoSerialize.getResult(false, 'a', [1, 2]);
@@ -549,7 +568,8 @@ mod tests {
         });
 
         let err = runtime
-            .execute_script("second", second_script)
+            .run_serialized("second", second_script)
+            .await
             .expect_err("second script should fail")
             .to_string();
         println!("{}", err);
@@ -664,7 +684,7 @@ mod tests {
 
         println!("{}", err);
         assert!(
-            err.contains("execution terminated"),
+            err.ends_with("execution terminated"),
             "Error should be from the termination"
         );
 
@@ -678,8 +698,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn exit_if_unsaved() {
+    #[tokio::test]
+    async fn exit_if_unsaved() {
         let script = r##"
             globalThis.x = 5;
             globalThis.ErgoSerialize.getResult(true, 'abc', [1, { a: 5 } ]);
@@ -690,16 +710,11 @@ mod tests {
             ..Default::default()
         });
 
-        let err = runtime
-            .execute_script("script", script)
-            .expect_err("Script terminates early")
-            .to_string();
-
-        println!("{}", err);
-        assert!(
-            err.contains("execution terminated"),
-            "Error should be from the termination"
-        );
+        let state = runtime
+            .run_serialized("script", script)
+            .await
+            .expect("running script")
+            .expect("serialied state was empty");
 
         let x: usize = runtime
             .get_global_value("x")
@@ -710,7 +725,6 @@ mod tests {
             "Execution should stopped when x is 5 and before it is set to 6"
         );
 
-        let state = runtime.take_serialize_state().expect("Retrieving state");
         let pending = state.pending.expect("Pending event should be present");
         assert_eq!(pending.name, "abc");
         assert_eq!(
@@ -814,8 +828,26 @@ mod tests {
     fn wrap_async_function() {}
 
     #[test]
-    #[ignore]
-    fn external_action() {}
+    fn external_action() {
+        let script = r##"
+            const fn = ErgoSerialize.externalAction('abc');
+            fn(1, 2, 3)
+            "##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        let err = runtime
+            .execute_script("script", script)
+            .expect_err("script first run");
+
+        println!("{:?}", err);
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
+        assert!(state.pending.is_some());
+    }
 
     use wiremock::{
         matchers::{method, path},
@@ -848,17 +880,14 @@ mod tests {
         });
 
         runtime.set_global_value("url", &server.uri()).unwrap();
-        runtime
-            .execute_script("script", script)
-            .expect("script run 1");
-        runtime.run_event_loop(false).await.expect("script run 1");
+        let state = runtime
+            .run_serialized("script", script)
+            .await
+            .expect("script run 1")
+            .expect("serialized state was empty");
 
         let result: String = runtime.get_global_value("result").unwrap().unwrap();
         assert_eq!(result, "a response");
-
-        let state = runtime
-            .take_serialize_state()
-            .expect("getting serialized state");
 
         assert_eq!(state.events.len(), 1, "state saved the event");
         println!("{:?}", state.events[0]);
@@ -879,9 +908,9 @@ mod tests {
         drop(server);
 
         runtime
-            .execute_script("script-run-2", script)
+            .run_serialized("script-run-2", script)
+            .await
             .expect("script run 2");
-        runtime.run_event_loop(false).await.expect("script run 2");
         let result: String = runtime.get_global_value("result").unwrap().unwrap();
         assert_eq!(result, "a response");
     }
