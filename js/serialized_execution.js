@@ -57,7 +57,31 @@ ErgoSerialize.externalAction = function(name) {
 
 (function installSerializedExecution(window) {
   // TODO Replace Math.random with a version that uses the seed.
-  // TODO Use the serialized wall time for Date.
+
+  const NativeDate = window.Date;
+  const SerializedDate = function SerializedDate(...args) {
+    if(!(this instanceof SerializedDate)) {
+      // Handle calls without `new`.
+      return new SerializedDate().toString();
+    }
+
+    if(args.length === 0) {
+      return new NativeDate(ErgoSerialize.wallTime);
+    } else {
+      return new NativeDate(...args);
+    }
+  };
+
+  // This is based on Sinon's mock Date implementation at
+  // https://github.com/sinonjs/fake-timers/blob/master/src/fake-timers-src.js
+  Object.assign(SerializedDate, NativeDate);
+  SerializedDate.now = () => ErgoSerialize.wallTime;
+  SerializedDate.prototype = NativeDate.prototype;
+  SerializedDate.parse = NativeDate.parse;
+  SerializedDate.UTC = NativeDate.UTC;
+  SerializedDate.prototype.toUTCString = NativeDate.prototype.toUTCString;
+  window.Date = SerializedDate;
+
   if(window.fetch) {
     async function preserveFetchResponse(response) {
       // Convert the response into something we can save outside the system. Specifically,
