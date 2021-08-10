@@ -235,7 +235,11 @@ fn save_result(
         "First argument must be the name of the function"
     );
 
-    let args_json: Vec<serde_json::Value> = v8_try!(scope, from_v8(scope, args.get(1)));
+    let args_json: Vec<serde_json::Value> = v8_try!(
+        scope,
+        from_v8(scope, args.get(1)),
+        "Second argument should be the list of arguments to the wrapped function"
+    );
     // Save the the raw serialied result for proper reconstitution and the JSON version to
     // make it inspectable without having to fire up a V8 isolate.
     let result = v8_try!(scope, raw_serde::serialize(scope, args.get(2)));
@@ -310,6 +314,8 @@ fn get_result(
                 return;
             }
 
+            // Move wall time up to the saved time for this event.
+            events.wall_time = event.wall_time;
             events.next_event += 1;
             // events holds a mutable borrow on scope, so clone the result to allow
             // events to implicitly drop and deserialize to take the mutable borrow. Not ideal but it works.
@@ -515,12 +521,129 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    fn catch_save_with_pending_results() {}
+    fn catch_save_with_pending_results() {
+        let first_script = r##"
+            ErgoSerialize.saveResult('a', [1, 2], 5);
+            ErgoSerialize.saveResult('b', [3, 4], 6);
+            "##;
 
-    #[test]
-    #[ignore]
-    fn wall_time() {}
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        runtime
+            .execute_script("first", first_script)
+            .expect("first script");
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
+
+        let second_script = r##"
+            ErgoSerialize.getResult(false, 'a', [1, 2]);
+            ErgoSerialize.saveResult('c', [10], 11);
+            "##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let err = runtime
+            .execute_script("second", second_script)
+            .expect_err("second script should fail")
+            .to_string();
+        println!("{}", err);
+        assert!(
+            err.contains("Tried to save a new result but there were pending saved results"),
+            "Error should be about pending saved results"
+        );
+    }
+
+    #[tokio::test]
+    async fn wall_time() {
+        let script = r##"
+            const fn = ErgoSerialize.wrapSyncFunction(() => 5);
+            let firstDateNum = Date.now();
+            let firstDate = new Date();
+            if(firstDate.valueOf() !== firstDateNum) {
+                throw new Error(`First date was ${firstDate.valueOf()} but Date.now was ${firstDateNum}`);
+            }
+
+            let setDate = new Date(2200, 00, 01);
+            if(setDate.getFullYear() !== 2200) {
+                throw new Error(`Expected explicit year to be set but saw ${setDate.toString()}`);
+            }
+
+            // Calling into the serialize framework updates wall time.
+            fn();
+
+            let secondDateNum = Date.now();
+
+            ({
+                firstDateNum,
+                secondDateNum
+            })
+
+        "##;
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(SerializedState::default()),
+            ..Default::default()
+        });
+
+        #[derive(Debug, Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Result {
+            first_date_num: i64,
+            second_date_num: i64,
+        }
+
+        let result: Result = runtime
+            .run_expression("script 1", script)
+            .expect("First script run");
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
+        println!("{:?}", result);
+        assert_eq!(
+            result.first_date_num,
+            state.start_time.timestamp_millis(),
+            "first time matches start time"
+        );
+        assert_eq!(
+            result.second_date_num,
+            state.events[0].wall_time.timestamp_millis(),
+            "second time matches saved event time"
+        );
+
+        // In case the above all runs super fast, sleep a bit to make sure the second run actually
+        // happens at a later time in ms.
+        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+        let second_start_time = Utc::now();
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let second_result: Result = runtime
+            .run_expression("script 1", script)
+            .expect("First script run");
+        println!("{:?}", second_result);
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
+        assert_eq!(
+            second_result.first_date_num,
+            state.start_time.timestamp_millis(),
+            "first time matches start time"
+        );
+        assert_eq!(
+            second_result.second_date_num,
+            state.events[0].wall_time.timestamp_millis(),
+            "second time matches saved event time"
+        );
+        assert!(second_result.first_date_num < second_start_time.timestamp_millis());
+    }
 
     #[test]
     fn exit() {
