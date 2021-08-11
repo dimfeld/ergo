@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use downcast_rs::{impl_downcast, Downcast};
 use serde::{Deserialize, Serialize};
-use std::{collections::VecDeque, io::Write};
+use std::collections::VecDeque;
 
 #[cfg(feature = "log")]
 pub use log_console::*;
@@ -136,7 +136,7 @@ impl Console for BufferConsole {
 
     fn take_messages(&mut self) -> Vec<ConsoleMessage> {
         self.current_size = 0;
-        let mut messages = std::mem::take(&mut self.messages);
+        let messages = std::mem::take(&mut self.messages);
         Vec::from(messages)
     }
 
