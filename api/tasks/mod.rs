@@ -2,6 +2,7 @@ pub mod actions;
 pub mod handlers;
 pub mod inputs;
 pub mod queue_drain_runner;
+pub mod scripting;
 pub mod state_machine;
 
 pub use state_machine::StateMachineError;

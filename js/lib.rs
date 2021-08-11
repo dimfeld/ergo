@@ -7,26 +7,20 @@ pub mod serialized_execution;
 pub use console::*;
 pub use serialized_execution::SerializedState;
 
+pub use deno_core::{Extension, Snapshot};
+
 use std::{
     borrow::Cow,
     ops::{Deref, DerefMut},
 };
 
-use deno_core::{error::AnyError, op_sync, Extension, JsRuntime, OpState};
+use deno_core::{error::AnyError, op_sync, JsRuntime, OpState};
 use deno_web::BlobStore;
 use rusty_v8 as v8;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_v8::{from_v8, to_v8};
 
 use crate::permissions::Permissions;
-
-pub struct Snapshot(Box<[u8]>);
-
-impl Clone for Snapshot {
-    fn clone(&self) -> Self {
-        Snapshot(self.0.clone())
-    }
-}
 
 /// Core extensions and extensions to allow network access.
 pub fn net_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
@@ -52,26 +46,26 @@ pub fn core_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
     ]
 }
 
-pub struct RuntimeOptions<'a> {
-    will_snapshot: bool,
+pub struct RuntimeOptions {
+    pub will_snapshot: bool,
     /// Deno extensions to pass to the runtime. If using serialized state,
     /// the deno_crypto extension should be initialized with the random_seed
     /// value from the SerializedState.
-    extensions: Vec<Extension>,
-    snapshot: Option<&'a Snapshot>,
+    pub extensions: Vec<Extension>,
+    pub snapshot: Option<Snapshot>,
 
     /// Serialized event state for this isolate. If None, serialized execution (including saving
     /// results) is entirely disabled. To use serial execution without some existing
     /// state, set this to Some(SerializedState::default()).
-    serialized_state: Option<SerializedState>,
+    pub serialized_state: Option<SerializedState>,
 
-    console: Option<Box<dyn Console>>,
+    pub console: Option<Box<dyn Console>>,
 
     /// Permissions for Javascript code.
-    permissions: Option<Permissions>,
+    pub permissions: Option<Permissions>,
 }
 
-impl<'a> Default for RuntimeOptions<'a> {
+impl Default for RuntimeOptions {
     fn default() -> Self {
         RuntimeOptions {
             will_snapshot: false,
@@ -108,12 +102,11 @@ impl Runtime {
             options.extensions.push(console_extension(console));
         }
 
+        let has_snapshot = options.snapshot.is_some();
         let deno_runtime = JsRuntime::new(deno_core::RuntimeOptions {
             will_snapshot: options.will_snapshot,
             extensions: options.extensions,
-            startup_snapshot: options
-                .snapshot
-                .map(|s| deno_core::Snapshot::Boxed(s.clone().0)),
+            startup_snapshot: options.snapshot,
             ..deno_core::RuntimeOptions::default()
         });
 
@@ -126,7 +119,8 @@ impl Runtime {
             .borrow_mut()
             .put(options.permissions.unwrap_or_else(Default::default));
 
-        if options.snapshot.is_none() {
+        if !has_snapshot {
+            // If we have a snapshot, then this will already have run. If not, then run it now.
             runtime
                 .execute_script("<startup>", include_str!("startup.js"))
                 .expect("Running startup code");
@@ -136,7 +130,9 @@ impl Runtime {
             if options.will_snapshot {
                 // This requires setting external references in the V8 runtime and that API is
                 // not currently exposed from deno_core, which uses its own fixed set of references.
-                panic!("Serialized execution is not supported when will_snapshot is true");
+                // You can still create a snapshot and then later load that snapshot with
+                // serialized execution enabled.
+                panic!("Serialized execution is not supported when will_snapshot is true.");
             }
 
             runtime.install_serialized_execution(state);
@@ -160,9 +156,9 @@ impl Runtime {
         }
     }
 
-    pub fn make_snapshot(&mut self) -> Snapshot {
+    pub fn make_snapshot(&mut self) -> Vec<u8> {
         let snapshot = self.runtime.snapshot();
-        Snapshot(snapshot.as_ref().to_vec().into_boxed_slice())
+        snapshot.as_ref().to_vec()
     }
 
     /// When evaluating a raw expression like { a: 5 }, V8 sees the
