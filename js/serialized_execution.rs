@@ -25,6 +25,7 @@ pub struct SerializedEvent {
 pub struct PendingEvent {
     pub name: String,
     pub args: Vec<serde_json::Value>,
+    pub result: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,6 +34,31 @@ pub struct SerializedState {
     pub start_time: chrono::DateTime<Utc>,
     pub events: Vec<SerializedEvent>,
     pub pending: Option<PendingEvent>,
+}
+
+impl SerializedState {
+    pub fn apply_pending_event(&mut self, scope: &mut v8::HandleScope) -> Result<(), AnyError> {
+        let pending = match self.pending.take() {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+
+        let wall_time = Utc::now();
+        let result = pending.result.unwrap_or_else(|| serde_json::Value::Null);
+        let v8_result = to_v8(scope, &result)?;
+        let serialized = raw_serde::serialize(scope, v8_result)?;
+
+        let event = SerializedEvent {
+            wall_time,
+            fn_name: pending.name,
+            args_json: pending.args,
+            result: serialized,
+            result_json: result,
+        };
+
+        self.events.push(event);
+        Ok(())
+    }
 }
 
 impl Default for SerializedState {
@@ -59,7 +85,7 @@ impl From<EventTracker> for SerializedState {
 }
 
 #[derive(Debug, Clone)]
-pub struct EventTracker {
+struct EventTracker {
     wall_time: DateTime<Utc>,
     saved_results: Vec<SerializedEvent>,
     next_event: usize,
@@ -353,6 +379,7 @@ fn get_result(
             events.pending_event = Some(PendingEvent {
                 name: fn_name,
                 args,
+                result: None,
             });
 
             exit(scope);
@@ -388,10 +415,6 @@ fn throw_error(scope: &mut v8::HandleScope, err: &str) {
 mod tests {
     use super::*;
     use crate::{net_extensions, PrintConsole, Runtime, RuntimeOptions};
-
-    fn get_event_tracker<'a>(runtime: &'a mut crate::Runtime) -> &'a mut EventTracker {
-        runtime.v8_isolate().get_slot_mut::<EventTracker>().unwrap()
-    }
 
     #[test]
     fn empty_event_list() {
