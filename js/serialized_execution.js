@@ -56,7 +56,7 @@ ErgoSerialize.externalAction = function(name) {
 };
 
 (function installSerializedExecution(window) {
-  // TODO Replace Math.random with a version that uses the seed.
+  Math.random = ErgoSerialize.wrapSyncFunction(Math.random);
 
   const NativeDate = window.Date;
   const SerializedDate = function SerializedDate(...args) {

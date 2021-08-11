@@ -7,7 +7,7 @@ use serde_v8::{from_v8, to_v8};
 use v8::{Exception, MapFnTo};
 
 use crate::{
-    raw_serde::{self, deserialize, RawSerdeError},
+    raw_serde::{self, deserialize},
     Runtime,
 };
 
@@ -387,7 +387,7 @@ fn throw_error(scope: &mut v8::HandleScope, err: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PrintConsole, Runtime, RuntimeOptions};
+    use crate::{net_extensions, PrintConsole, Runtime, RuntimeOptions};
 
     fn get_event_tracker<'a>(runtime: &'a mut crate::Runtime) -> &'a mut EventTracker {
         runtime.v8_isolate().get_slot_mut::<EventTracker>().unwrap()
@@ -849,10 +849,7 @@ mod tests {
         assert!(state.pending.is_some());
     }
 
-    use wiremock::{
-        matchers::{method, path},
-        Mock, MockServer, ResponseTemplate,
-    };
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
 
     #[tokio::test]
     async fn wrap_fetch() {
@@ -913,5 +910,53 @@ mod tests {
             .expect("script run 2");
         let result: String = runtime.get_global_value("result").unwrap().unwrap();
         assert_eq!(result, "a response");
+    }
+
+    #[tokio::test]
+    async fn random() {
+        let script = r##"
+            let x = Math.random();
+            let y = Math.random();
+            [x, y]
+        "##;
+
+        let state = SerializedState::default();
+        println!("Random seed: {}", state.random_seed);
+        let mut runtime = Runtime::new(RuntimeOptions {
+            extensions: net_extensions(Some(state.random_seed)),
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let first_values: Vec<f64> = runtime
+            .run_expression("script", script)
+            .expect("first script run");
+        println!("First values {:?}", first_values);
+        assert_ne!(
+            first_values[0], first_values[1],
+            "successive Math.random() calls in a script are different"
+        );
+
+        let state = runtime
+            .take_serialize_state()
+            .expect("take_serialize_state");
+        let mut runtime = Runtime::new(RuntimeOptions {
+            extensions: net_extensions(Some(state.random_seed)),
+            serialized_state: Some(state),
+            ..Default::default()
+        });
+
+        let second_values: Vec<f64> = runtime
+            .run_expression("script", script)
+            .expect("second script run");
+
+        assert_eq!(
+            first_values[0], second_values[0],
+            "First value is same across successive runs"
+        );
+        assert_eq!(
+            first_values[1], second_values[1],
+            "Second value is same across successive runs"
+        );
     }
 }
