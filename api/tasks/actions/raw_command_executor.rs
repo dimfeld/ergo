@@ -14,6 +14,31 @@ use tracing::{event, instrument, Level};
 #[cfg(target_family = "unix")]
 use std::os::unix::process::ExitStatusExt;
 
+const FIELD_COMMAND: TemplateField = TemplateField::from_static(
+    "command",
+    TemplateFieldFormat::String,
+    false,
+    "The executable to run",
+);
+const FIELD_ARGS: TemplateField = TemplateField::from_static(
+    "args",
+    TemplateFieldFormat::StringArray,
+    true,
+    "An array of arguments to the executable",
+);
+const FIELD_ENV: TemplateField = TemplateField::from_static(
+    "env",
+    TemplateFieldFormat::Object,
+    true,
+    "Environment variables to set",
+);
+const FIELD_ALLOW_FAILURE: TemplateField = TemplateField::from_static(
+    "allow_failure",
+    TemplateFieldFormat::Boolean,
+    true,
+    "If true, ignore the process exit code. By default, a nonzero exit code counts as failure",
+);
+
 #[derive(Debug)]
 pub struct RawCommandExecutor {
     template_fields: TemplateFields,
@@ -21,43 +46,10 @@ pub struct RawCommandExecutor {
 
 impl RawCommandExecutor {
     pub fn new() -> RawCommandExecutor {
-        let template_fields = vec![
-            (
-                "command",
-                TemplateField {
-                    format: TemplateFieldFormat::String,
-                    optional: false,
-                    description: Some("The executable to run".to_string()),
-                },
-            ),
-            (
-                "args",
-                TemplateField {
-                    format: TemplateFieldFormat::StringArray,
-                    optional: true,
-                    description: Some("An array of arguments to the executable".to_string()),
-                },
-            ),
-            (
-                "env",
-                TemplateField {
-                    format: TemplateFieldFormat::Object,
-                    optional: true,
-                    description: Some("Environment variables to set".to_string()),
-                },
-            ),
-            (
-                "allow_failure",
-                TemplateField{
-                    format: TemplateFieldFormat::Boolean,
-                    optional: true,
-                    description: Some("If true, ignore the process exit code. By default, a nonzero exit code counts as failure".to_string()),
-                }
-            )
-        ]
-        .into_iter()
-        .map(|(key, val)| (key.to_string(), val))
-        .collect::<TemplateFields>();
+        let template_fields = vec![FIELD_COMMAND, FIELD_ARGS, FIELD_ENV, FIELD_ALLOW_FAILURE]
+            .into_iter()
+            .map(|val| (val.name.to_string(), val))
+            .collect::<TemplateFields>();
 
         RawCommandExecutor { template_fields }
     }

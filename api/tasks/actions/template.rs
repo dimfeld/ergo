@@ -1,9 +1,13 @@
-use std::fmt::Display;
+use std::{
+    borrow::{Borrow, Cow},
+    fmt::Display,
+};
 
 use fxhash::FxHashMap;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
 lazy_static! {
@@ -33,13 +37,25 @@ pub enum TemplateFieldFormat {
     Boolean,
     Object,
     Choice {
-        choices: Vec<String>,
+        choices: Cow<'static, [Cow<'static, str>]>,
         min: Option<usize>,
         max: Option<usize>,
     },
 }
 
 impl TemplateFieldFormat {
+    pub const fn from_static_choices(
+        choices: &'static [Cow<'static, str>],
+        min: Option<usize>,
+        max: Option<usize>,
+    ) -> Self {
+        TemplateFieldFormat::Choice {
+            choices: Cow::Borrowed(choices),
+            min,
+            max,
+        }
+    }
+
     fn validate(
         &self,
         field_name: &str,
@@ -98,7 +114,7 @@ impl TemplateFieldFormat {
             Ok(())
         } else {
             Err(TemplateValidationFailure::Invalid {
-                name: field_name.to_string(),
+                name: Cow::from(field_name.to_string()),
                 expected: self.clone(),
                 actual: value.clone(),
             })
@@ -106,23 +122,135 @@ impl TemplateFieldFormat {
     }
 }
 
+impl ToString for TemplateFieldFormat {
+    fn to_string(&self) -> String {
+        match self {
+            Self::String => "string".to_string(),
+            Self::StringArray => "array".to_string(),
+            Self::Integer => "integer".to_string(),
+            Self::Float => "number".to_string(),
+            Self::Boolean => "boolean".to_string(),
+            Self::Object => "object".to_string(),
+            Self::Choice { choices, min, max } => {
+                let choice_strings = choices.iter().join(", ");
+                match (min, max) {
+                    (Some(1), Some(1)) => format!("One of {}", choice_strings),
+                    (Some(min), Some(max)) => format!(
+                        "Between {min} and {max} of {choice_strings}",
+                        min = min,
+                        max = max,
+                        choice_strings = choice_strings
+                    ),
+                    (Some(min), None) => {
+                        format!(
+                            "At least {min} of {choice_strings}",
+                            min = min,
+                            choice_strings = choice_strings
+                        )
+                    }
+                    (None, Some(max)) => {
+                        format!(
+                            "At most {max} of {choice_strings}",
+                            max = max,
+                            choice_strings = choice_strings
+                        )
+                    }
+                    (None, None) => format!(
+                        "Values in {choice_strings}",
+                        choice_strings = choice_strings
+                    ),
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct TemplateField {
+    pub name: Cow<'static, str>,
     pub format: TemplateFieldFormat,
     pub optional: bool,
-    pub description: Option<String>,
+    pub description: Option<Cow<'static, str>>,
 }
 
 impl TemplateField {
-    pub fn from_static(
+    pub const fn from_static(
+        name: &'static str,
         format: TemplateFieldFormat,
         optional: bool,
         description: &'static str,
     ) -> TemplateField {
         TemplateField {
+            name: Cow::Borrowed(name),
             format,
             optional,
-            description: Some(description.to_string()),
+            description: Some(Cow::Borrowed(description)),
+        }
+    }
+
+    pub fn extract<T: DeserializeOwned>(
+        &self,
+        payload: &FxHashMap<String, serde_json::Value>,
+    ) -> Result<Option<T>, TemplateValidationFailure> {
+        let value = payload.get(self.name.as_ref());
+
+        match value {
+            Some(v) => serde_json::from_value(v.clone()).map(Some).map_err(|_| {
+                TemplateValidationFailure::Invalid {
+                    name: self.name.clone(),
+                    expected: self.format.clone(),
+                    actual: v.clone(),
+                }
+            }),
+            None => {
+                if self.optional {
+                    Ok(None)
+                } else {
+                    Err(TemplateValidationFailure::Required(self.name.clone()))
+                }
+            }
+        }
+    }
+
+    pub fn extract_str<'a>(
+        &self,
+        payload: &'a FxHashMap<String, serde_json::Value>,
+    ) -> Result<Option<&'a str>, TemplateValidationFailure> {
+        match payload.get(self.name.as_ref()) {
+            Some(v) => match v {
+                serde_json::Value::String(s) => Ok(Some(s.as_str())),
+                _ => Err(TemplateValidationFailure::Invalid {
+                    name: self.name.clone(),
+                    actual: v.clone(),
+                    expected: TemplateFieldFormat::String,
+                }),
+            },
+            None => {
+                if self.optional {
+                    Ok(None)
+                } else {
+                    Err(TemplateValidationFailure::Required(self.name.clone()))
+                }
+            }
+        }
+    }
+
+    pub fn extract_object<'a>(
+        &self,
+        payload: &'a FxHashMap<String, serde_json::Value>,
+    ) -> Result<Option<&'a serde_json::Value>, TemplateValidationFailure> {
+        assert_eq!(self.format, TemplateFieldFormat::Object);
+
+        let value = payload.get(self.name.as_ref());
+        match value {
+            Some(v) => Ok(Some(v)),
+            None => {
+                if self.optional {
+                    Ok(None)
+                } else {
+                    Err(TemplateValidationFailure::Required(self.name.clone()))
+                }
+            }
         }
     }
 }
@@ -131,13 +259,15 @@ pub type TemplateFields = FxHashMap<String, TemplateField>;
 
 #[derive(Debug)]
 pub enum TemplateValidationFailure {
-    Required(String),
+    Required(Cow<'static, str>),
     Invalid {
-        name: String,
+        name: Cow<'static, str>,
         expected: TemplateFieldFormat,
         actual: serde_json::Value,
     },
 }
+
+impl std::error::Error for TemplateValidationFailure {}
 
 impl Display for TemplateValidationFailure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -208,7 +338,9 @@ pub fn validate(
         .filter_map(|(name, field)| match (values.get(name), field.optional) {
             (Some(v), _) => Some(field.format.validate(name, &v)),
             (None, true) => None,
-            (None, false) => Some(Err(TemplateValidationFailure::Required(name.to_string()))),
+            (None, false) => Some(Err(TemplateValidationFailure::Required(Cow::from(
+                name.to_string(),
+            )))),
         })
         .filter_map(|e| match e {
             Ok(_) => None,
@@ -295,7 +427,7 @@ mod tests {
     mod validate {
         use super::super::{validate, TemplateFieldFormat, TemplateValidationFailure};
         use serde_json::{value, Value};
-        use std::error::Error;
+        use std::{borrow::Cow, error::Error};
 
         #[test]
         fn string() -> Result<(), TemplateValidationFailure> {
@@ -476,7 +608,7 @@ mod tests {
         #[test]
         fn choice_failing_formats() -> Result<(), TemplateValidationFailure> {
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def")]),
                 min: None,
                 max: None,
             };
@@ -506,7 +638,7 @@ mod tests {
         #[test]
         fn choice_against_string() -> Result<(), TemplateValidationFailure> {
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def")]),
                 min: None,
                 max: None,
             };
@@ -517,7 +649,7 @@ mod tests {
                 .expect_err("non-matching string");
 
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def")]),
                 min: Some(1),
                 max: None,
             };
@@ -530,7 +662,7 @@ mod tests {
                 .expect_err("min=1: non-matching string");
 
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def")]),
                 min: Some(2),
                 max: None,
             };
@@ -558,7 +690,7 @@ mod tests {
             }
 
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def"), Cow::from("ghi")]),
                 min: None,
                 max: None,
             };
@@ -574,7 +706,7 @@ mod tests {
                 .expect_err("non-matching element");
 
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def"), Cow::from("ghi")]),
                 min: Some(1),
                 max: None,
             };
@@ -595,7 +727,7 @@ mod tests {
                 .expect_err("non-matching element");
 
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def"), Cow::from("ghi")]),
                 min: Some(2),
                 max: None,
             };
@@ -622,7 +754,7 @@ mod tests {
                 .expect_err("non-matching element");
 
             let choice = TemplateFieldFormat::Choice {
-                choices: vec!["abc".to_string(), "def".to_string(), "ghi".to_string()],
+                choices: Cow::from(vec![Cow::from("abc"), Cow::from("def"), Cow::from("ghi")]),
                 min: Some(1),
                 max: Some(2),
             };

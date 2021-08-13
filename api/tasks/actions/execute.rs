@@ -20,7 +20,7 @@ use crate::{
 };
 
 use super::{
-    template::{self, TemplateFields},
+    template::{self, TemplateFields, TemplateValidationFailure},
     ActionInvocation,
 };
 
@@ -85,6 +85,19 @@ pub enum ExecutorError {
         source: anyhow::Error,
         result: serde_json::Value,
     },
+}
+
+impl From<TemplateValidationFailure> for ExecutorError {
+    fn from(e: TemplateValidationFailure) -> Self {
+        match e {
+            TemplateValidationFailure::Required(s) => Self::MissingFieldError(s.to_string()),
+            TemplateValidationFailure::Invalid { name, expected, .. } => Self::FieldFormatError {
+                field: name.to_string(),
+                expected: expected.to_string(),
+                subfield: None,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Error)]

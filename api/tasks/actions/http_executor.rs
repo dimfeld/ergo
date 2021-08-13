@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{borrow::Cow, convert::TryFrom};
 
 use crate::database::PostgresPool;
 
@@ -12,6 +12,73 @@ use fxhash::FxHashMap;
 use serde_json::json;
 use tracing::instrument;
 
+const FIELD_URL: TemplateField = TemplateField::from_static(
+    "url",
+    TemplateFieldFormat::String,
+    false,
+    "The URL to request",
+);
+
+const FIELD_METHOD: TemplateField = TemplateField::from_static(
+    "method",
+    TemplateFieldFormat::String,
+    true,
+    "The HTTP method to use. Defaults to GET",
+);
+
+const FIELD_USER_AGENT: TemplateField = TemplateField::from_static(
+    "user_agent",
+    TemplateFieldFormat::String,
+    true,
+    "Use a custom user agent string (default is 'Ergo')",
+);
+
+const FIELD_TIMEOUT: TemplateField = TemplateField::from_static(
+    "timeout",
+    TemplateFieldFormat::Integer,
+    true,
+    "The request timeout, in seconds. Default is 30 seconds",
+);
+
+const FIELD_JSON: TemplateField = TemplateField::from_static(
+    "json",
+    TemplateFieldFormat::Object,
+    true,
+    "A JSON body to send with the request",
+);
+
+const FIELD_BODY: TemplateField = TemplateField::from_static(
+    "body",
+    TemplateFieldFormat::String,
+    true,
+    "A raw string body to send with the request",
+);
+
+const FIELD_QUERY: TemplateField = TemplateField::from_static(
+    "query",
+    TemplateFieldFormat::Object,
+    true,
+    "Query string to send",
+);
+
+const FIELD_HEADERS: TemplateField = TemplateField::from_static(
+    "headers",
+    TemplateFieldFormat::Object,
+    true,
+    "HTTP header values for the request",
+);
+
+const FIELD_RESULT_FORMAT: TemplateField = TemplateField::from_static(
+    "result_format",
+    TemplateFieldFormat::from_static_choices(
+        &[Cow::Borrowed("json"), Cow::Borrowed("string")],
+        Some(1),
+        Some(1),
+    ),
+    true,
+    "How to process the result. Defaults to JSON",
+);
+
 #[derive(Debug)]
 pub struct HttpExecutor {
     template_fields: TemplateFields,
@@ -20,85 +87,18 @@ pub struct HttpExecutor {
 impl HttpExecutor {
     pub fn new() -> HttpExecutor {
         let template_fields = vec![
-            (
-                "url",
-                TemplateField::from_static(
-                    TemplateFieldFormat::String,
-                    false,
-                    "The URL to request",
-                ),
-            ),
-            (
-                "method",
-                TemplateField::from_static(
-                    TemplateFieldFormat::String,
-                    true,
-                    "The HTTP method to use. Defaults to GET",
-                ),
-            ),
-            (
-                "user_agent",
-                TemplateField::from_static(
-                    TemplateFieldFormat::String,
-                    true,
-                    "Use a custom user agent string (default is 'Ergo')",
-                ),
-            ),
-            (
-                "timeout",
-                TemplateField::from_static(
-                    TemplateFieldFormat::Integer,
-                    true,
-                    "The request timeout, in seconds. Default is 30 seconds",
-                ),
-            ),
-            (
-                "json",
-                TemplateField::from_static(
-                    TemplateFieldFormat::Object,
-                    true,
-                    "A JSON body to send with the request",
-                ),
-            ),
-            (
-                "body",
-                TemplateField::from_static(
-                    TemplateFieldFormat::String,
-                    true,
-                    "A raw string body to send with the request",
-                ),
-            ),
-            (
-                "query",
-                TemplateField::from_static(
-                    TemplateFieldFormat::Object,
-                    true,
-                    "Query string to send",
-                ),
-            ),
-            (
-                "headers",
-                TemplateField::from_static(
-                    TemplateFieldFormat::Object,
-                    true,
-                    "HTTP header values for the request",
-                ),
-            ),
-            (
-                "result_format",
-                TemplateField::from_static(
-                    TemplateFieldFormat::Choice {
-                        choices: vec!["json".to_string(), "string".to_string()],
-                        min: Some(1),
-                        max: Some(1),
-                    },
-                    true,
-                    "How to process the result. Defaults to JSON",
-                ),
-            ),
+            FIELD_URL,
+            FIELD_METHOD,
+            FIELD_USER_AGENT,
+            FIELD_TIMEOUT,
+            FIELD_JSON,
+            FIELD_BODY,
+            FIELD_QUERY,
+            FIELD_HEADERS,
+            FIELD_RESULT_FORMAT,
         ]
         .into_iter()
-        .map(|(key, val)| (key.to_string(), val))
+        .map(|val| (val.name.to_string(), val))
         .collect::<TemplateFields>();
 
         HttpExecutor { template_fields }
@@ -108,16 +108,9 @@ impl HttpExecutor {
         &self,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
-        let user_agent = match payload.get("user_agent") {
-            Some(serde_json::Value::String(s)) => s,
-            _ => "Ergo",
-        };
+        let user_agent = FIELD_USER_AGENT.extract_str(&payload)?.unwrap_or("Ergo");
 
-        let timeout = match payload.get("timeout") {
-            Some(serde_json::Value::Number(n)) => n.as_u64().unwrap_or(30),
-            _ => 30,
-        };
-
+        let timeout: u64 = FIELD_TIMEOUT.extract(&payload)?.unwrap_or(30);
         let client = reqwest::ClientBuilder::new()
             .user_agent(user_agent)
             .timeout(std::time::Duration::from_secs(timeout))
@@ -127,23 +120,15 @@ impl HttpExecutor {
                 result: serde_json::Value::Null,
             })?;
 
-        let method = reqwest::Method::try_from(match payload.get("method") {
-            Some(serde_json::Value::String(s)) => s,
-            _ => "GET",
-        })
-        .map_err(|_| ExecutorError::FieldFormatError {
-            field: "method".to_string(),
-            subfield: None,
-            expected: "Valid HTTP method".to_string(),
-        })?;
+        let method =
+            reqwest::Method::try_from(FIELD_METHOD.extract_str(&payload)?.unwrap_or("GET"))
+                .map_err(|_| ExecutorError::FieldFormatError {
+                    field: "method".to_string(),
+                    subfield: None,
+                    expected: "Valid HTTP method".to_string(),
+                })?;
 
-        let url = payload.get("url").and_then(|u| u.as_str()).ok_or_else(|| {
-            ExecutorError::FieldFormatError {
-                field: "url".to_string(),
-                subfield: None,
-                expected: "Request URL".to_string(),
-            }
-        })?;
+        let url = FIELD_URL.extract_str(&payload)?.unwrap_or("");
 
         let req = client.request(method, url);
 
@@ -178,9 +163,10 @@ impl HttpExecutor {
             _ => req,
         };
 
-        let req = match payload.get("query") {
-            Some(serde_json::Value::Object(o)) => req.query(o),
-            _ => req,
+        let req = if let Some(q) = FIELD_QUERY.extract_object(&payload)? {
+            req.query(q)
+        } else {
+            req
         };
 
         let body = payload
