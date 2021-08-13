@@ -1,4 +1,4 @@
-use ergo_js::{BufferConsole, Extension, Runtime, SerializedState, Snapshot};
+use ergo_js::{BufferConsole, Extension, Runtime, RuntimeOptions, SerializedState, Snapshot};
 
 const NET_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/net");
 const CORE_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/core");
@@ -20,7 +20,7 @@ pub fn create_task_script_runtime(state: Option<SerializedState>, allow_net: boo
     let state = state.unwrap_or_else(Default::default);
     let (snapshot, extensions) = snapshot_and_extensions(allow_net, Some(state.random_seed));
 
-    ergo_js::Runtime::new(ergo_js::RuntimeOptions {
+    Runtime::new(RuntimeOptions {
         console: Some(Box::new(BufferConsole::new(ergo_js::ConsoleLevel::Debug))),
         extensions,
         snapshot: Some(Snapshot::Static(snapshot)),
@@ -29,9 +29,21 @@ pub fn create_task_script_runtime(state: Option<SerializedState>, allow_net: boo
     })
 }
 
+/// Create a full-features, non-serialized runtime.
+pub fn create_executor_runtime() -> Runtime {
+    let (snapshot, extensions) = snapshot_and_extensions(true, None);
+    Runtime::new(RuntimeOptions {
+        console: Some(Box::new(BufferConsole::new(ergo_js::ConsoleLevel::Info))),
+        extensions,
+        snapshot: Some(Snapshot::Static(snapshot)),
+        ..Default::default()
+    })
+}
+
 /// Create a simple runtime without net access or serialized execution.
+/// This is used for things like evaluating guard conditions in state machines.
 pub fn create_simple_runtime() -> Runtime {
-    ergo_js::Runtime::new(ergo_js::RuntimeOptions {
+    Runtime::new(RuntimeOptions {
         console: Some(Box::new(BufferConsole::new(ergo_js::ConsoleLevel::Debug))),
         extensions: ergo_js::core_extensions(None),
         snapshot: Some(Snapshot::Static(CORE_SNAPSHOT)),
