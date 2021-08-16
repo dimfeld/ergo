@@ -5,7 +5,7 @@ use futures::{
     stream::StreamExt,
     Future,
 };
-use tokio::sync::oneshot;
+use tokio::{sync::oneshot, time::error::Elapsed};
 
 lazy_static::lazy_static! {
     static ref NUM_CPUS : usize = num_cpus::get();
@@ -47,18 +47,42 @@ where
 
 pub struct RuntimePool {
     sender: async_channel::Sender<Box<dyn AnyJob>>,
+    threads: Vec<std::thread::JoinHandle<()>>,
 }
 
+// TODO This needs a lot of unwrap cleanup.
 impl RuntimePool {
     pub fn new(num_threads: Option<usize>) -> Self {
-        let num_threads = num_threads.unwrap_or_else(|| num_cpus::get());
+        let num_threads = num_threads.unwrap_or_else(|| *NUM_CPUS);
         let (s, r) = async_channel::unbounded();
 
         let threads = itertools::repeat_n(r, num_threads)
             .map(|r| std::thread::spawn(|| worker(r)))
             .collect::<Vec<_>>();
 
-        Self { sender: s }
+        Self { sender: s, threads }
+    }
+
+    /// Shut down the pool and wait for all the threads to finish processing the remaining jobs.
+    pub async fn close(self, timeout: Option<tokio::time::Duration>) -> Result<(), Elapsed> {
+        let Self { sender, threads } = self;
+        let stop = tokio::task::spawn_blocking(move || {
+            drop(sender);
+            for t in threads {
+                t.join();
+            }
+        });
+
+        match timeout {
+            Some(d) => {
+                tokio::time::timeout(d, stop).await?;
+            }
+            None => {
+                stop.await;
+            }
+        };
+
+        Ok(())
     }
 
     pub async fn run<F, Fut, RESULT>(self: &RuntimePool, run_fn: F) -> RESULT
@@ -79,7 +103,10 @@ impl RuntimePool {
 }
 
 fn worker(r: async_channel::Receiver<Box<dyn AnyJob>>) {
-    let runtime = tokio::runtime::Handle::current();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
     runtime.block_on(async move {
         let local_set = tokio::task::LocalSet::new();
         local_set.spawn_local(async move {
@@ -92,4 +119,48 @@ fn worker(r: async_channel::Receiver<Box<dyn AnyJob>>) {
 
         local_set.await;
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Runtime, RuntimeOptions};
+
+    #[tokio::test]
+    async fn run_job() {
+        let pool = RuntimePool::new(Some(2));
+
+        let script = r##"
+            async function doIt() {
+                return 5;
+            }
+
+            doIt().then((value) => {
+                globalThis.result = value;
+            })
+        "##;
+
+        let ret_val = tokio::time::timeout(
+            tokio::time::Duration::from_secs(5),
+            pool.run(move || async move {
+                let mut runtime = Runtime::new(RuntimeOptions::default());
+                runtime
+                    .execute_script("script", script)
+                    .expect("script ran");
+                runtime.run_event_loop(false).await.expect("run_event_loop");
+                runtime
+                    .get_global_value::<usize>("result")
+                    .unwrap()
+                    .unwrap()
+            }),
+        )
+        .await
+        .expect("run timed out");
+
+        pool.close(Some(tokio::time::Duration::from_secs(10)))
+            .await
+            .expect("close timed out");
+
+        assert_eq!(ret_val, 5);
+    }
 }
