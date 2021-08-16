@@ -1,6 +1,7 @@
 mod console;
 pub mod module_loader;
 pub mod permissions;
+pub mod pool;
 mod raw_serde;
 pub mod serialized_execution;
 
