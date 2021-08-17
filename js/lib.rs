@@ -1,11 +1,12 @@
 mod console;
 pub mod module_loader;
 pub mod permissions;
-pub mod pool;
+mod pool;
 mod raw_serde;
 pub mod serialized_execution;
 
 pub use console::*;
+pub use pool::RuntimePool;
 pub use serialized_execution::SerializedState;
 
 pub use deno_core::{Extension, Snapshot};

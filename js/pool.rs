@@ -1,4 +1,4 @@
-use std::{any::Any, fmt::Debug, pin::Pin};
+use std::{any::Any, fmt::Debug, pin::Pin, sync::Arc};
 
 use futures::{
     future::{ready, FutureExt},
@@ -45,9 +45,18 @@ where
     }
 }
 
-pub struct RuntimePool {
+#[derive(Clone)]
+pub struct RuntimePool(Arc<RuntimePoolInner>);
+
+struct RuntimePoolInner {
     sender: async_channel::Sender<Box<dyn AnyJob>>,
     threads: Vec<std::thread::JoinHandle<()>>,
+}
+
+impl std::fmt::Debug for RuntimePoolInner {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RuntimePoolInner").finish_non_exhaustive()
+    }
 }
 
 // TODO This needs a lot of unwrap cleanup.
@@ -60,12 +69,12 @@ impl RuntimePool {
             .map(|r| std::thread::spawn(|| worker(r)))
             .collect::<Vec<_>>();
 
-        Self { sender: s, threads }
+        Self(Arc::new(RuntimePoolInner { sender: s, threads }))
     }
 
     /// Shut down the pool and wait for all the threads to finish processing the remaining jobs.
     pub async fn close(self, timeout: Option<tokio::time::Duration>) -> Result<(), Elapsed> {
-        let Self { sender, threads } = self;
+        let RuntimePoolInner { sender, threads } = Arc::try_unwrap(self.0).unwrap();
         let stop = tokio::task::spawn_blocking(move || {
             drop(sender);
             for t in threads {
@@ -97,7 +106,7 @@ impl RuntimePool {
             output_sender: Some(s),
         };
 
-        self.sender.send(Box::new(job)).await;
+        self.0.sender.send(Box::new(job)).await;
         r.await.unwrap()
     }
 }
