@@ -47,7 +47,7 @@ impl From<usize> for ConsoleLevel {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ConsoleMessage {
     pub level: ConsoleLevel,
     pub time: DateTime<Utc>,

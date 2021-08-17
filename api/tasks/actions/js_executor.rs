@@ -6,7 +6,8 @@ use super::{
 };
 
 use async_trait::async_trait;
-use futures::future::TryFutureExt;
+use ergo_js::ConsoleMessage;
+use futures::future::{ready, TryFutureExt};
 use fxhash::FxHashMap;
 use tracing::instrument;
 
@@ -63,28 +64,47 @@ impl Executor for JsExecutor {
 
                 let mut runtime = scripting::create_executor_runtime();
                 if let Some(args) = FIELD_ARGS.extract_object(&payload)? {
-                    runtime.set_global_value("args", args)?;
+                    runtime.set_global_value("args", args).map_err(|e| {
+                        ExecutorError::CommandError {
+                            source: e,
+                            result: serde_json::Value::Null,
+                        }
+                    })?;
                 } else {
-                    runtime.set_global_value("args", &serde_json::json!({}))?;
+                    runtime
+                        .set_global_value("args", &serde_json::json!({}))
+                        .map_err(|e| ExecutorError::CommandError {
+                            source: e,
+                            result: serde_json::Value::Null,
+                        })?;
                 }
 
-                // TODO Catch exceptions
-                runtime.execute_script(name, script);
-                runtime.run_event_loop(false).await;
+                let run_result = ready(runtime.execute_script(name, script))
+                    .and_then(|_| runtime.run_event_loop(false))
+                    .await;
+                let mut console = serde_json::to_value(runtime.take_console_messages())
+                    .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
 
-                let console = runtime.take_console_messages();
+                run_result.map_err(|e| ExecutorError::CommandError {
+                    source: e,
+                    result: std::mem::take(&mut console),
+                })?;
+
                 let result = runtime
                     .get_global_value::<serde_json::Value>("result")
-                    .unwrap();
-                Ok::<_, anyhow::Error>((console, result))
+                    .map_err(|e| ExecutorError::CommandError {
+                        source: e.into(),
+                        result: std::mem::take(&mut console),
+                    })?
+                    .unwrap_or(serde_json::Value::Null);
+                Ok::<_, ExecutorError>((console, result))
             })
-            .await
-            .map_err(|e| ExecutorError::CommandError {
-                source: e,
-                result: serde_json::Value::Null,
-            })?;
+            .await?;
 
-        Ok(serde_json::json!({}))
+        Ok(serde_json::json!({
+            "result": result,
+            "console": console
+        }))
     }
 
     fn template_fields(&self) -> &TemplateFields {
