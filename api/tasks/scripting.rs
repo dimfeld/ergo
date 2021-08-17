@@ -1,7 +1,13 @@
-use ergo_js::{BufferConsole, Extension, Runtime, RuntimeOptions, SerializedState, Snapshot};
+use ergo_js::{
+    BufferConsole, Extension, Runtime, RuntimeOptions, RuntimePool, SerializedState, Snapshot,
+};
 
 const NET_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/net");
 const CORE_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/core");
+
+lazy_static::lazy_static! {
+    pub static ref POOL : RuntimePool = RuntimePool::new(None);
+}
 
 fn snapshot_and_extensions(
     allow_net: bool,

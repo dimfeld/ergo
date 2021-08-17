@@ -20,10 +20,9 @@ struct Job<RESULT, Fut, F>
 where
     RESULT: Send + Debug + 'static,
     Fut: Future<Output = RESULT> + 'static,
-    F: (Fn() -> Fut) + Send + 'static,
+    F: (FnOnce() -> Fut) + Send + 'static,
 {
-    data: Box<F>,
-    output_sender: Option<oneshot::Sender<RESULT>>,
+    data: Option<(Box<F>, oneshot::Sender<RESULT>)>,
 }
 
 #[async_trait::async_trait]
@@ -31,12 +30,12 @@ impl<RESULT, Fut, F> AnyJob for Job<RESULT, Fut, F>
 where
     RESULT: Send + Debug + 'static,
     Fut: Future<Output = RESULT> + 'static,
-    F: (Fn() -> Fut) + Send + 'static,
+    F: (FnOnce() -> Fut) + Send + 'static,
 {
     fn run(&mut self) -> Pin<Box<dyn Future<Output = ()>>> {
-        let output_sender = self.output_sender.take().unwrap();
+        let (data, output_sender) = self.data.take().unwrap();
 
-        (self.data)()
+        (data)()
             .then(|result| {
                 output_sender.send(result).ok();
                 ready(())
@@ -96,14 +95,13 @@ impl RuntimePool {
 
     pub async fn run<F, Fut, RESULT>(self: &RuntimePool, run_fn: F) -> RESULT
     where
-        F: (Fn() -> Fut) + Send + 'static,
+        F: (FnOnce() -> Fut) + Send + 'static,
         Fut: Future<Output = RESULT> + 'static,
         RESULT: Send + Debug + 'static,
     {
         let (s, r) = oneshot::channel();
         let job = Job {
-            data: Box::new(run_fn),
-            output_sender: Some(s),
+            data: Some((Box::new(run_fn), s)),
         };
 
         self.0.sender.send(Box::new(job)).await;

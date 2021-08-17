@@ -1,15 +1,21 @@
-use crate::database::PostgresPool;
+use crate::{database::PostgresPool, tasks::scripting};
 
 use super::{
-    super::scripting,
     execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
 
 use async_trait::async_trait;
+use futures::future::TryFutureExt;
 use fxhash::FxHashMap;
 use tracing::instrument;
 
+const FIELD_NAME: TemplateField = TemplateField::from_static(
+    "name",
+    TemplateFieldFormat::String,
+    true,
+    "The name of the action",
+);
 const FIELD_SCRIPT: TemplateField = TemplateField::from_static(
     "script",
     TemplateFieldFormat::String,
@@ -30,7 +36,7 @@ pub struct JsExecutor {
 
 impl JsExecutor {
     pub fn new() -> JsExecutor {
-        let template_fields = vec![FIELD_SCRIPT, FIELD_ARGS]
+        let template_fields = vec![FIELD_NAME, FIELD_SCRIPT, FIELD_ARGS]
             .into_iter()
             .map(|val| (val.name.to_string(), val))
             .collect::<TemplateFields>();
@@ -45,39 +51,38 @@ impl Executor for JsExecutor {
         "js"
     }
 
-    #[instrument(level = "debug", name = "JsExecutor::execute", skip(_pg_pool))]
     async fn execute(
         &self,
         _pg_pool: PostgresPool,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
-        let script = payload
-            .get("script")
-            .and_then(|u| u.as_str())
-            .ok_or_else(|| ExecutorError::FieldFormatError {
-                field: "script".to_string(),
-                subfield: None,
-                expected: "Javascript string".to_string(),
-            });
+        let (console, result) = scripting::POOL
+            .run(move || async move {
+                let name = FIELD_NAME.extract_str(&payload)?.unwrap_or("script");
+                let script = FIELD_SCRIPT.extract_str(&payload)?.unwrap_or("");
 
-        let mut runtime = scripting::create_executor_runtime();
-        if let Some(args) = FIELD_ARGS.extract_object(&payload)? {
-            runtime
-                .set_global_value("args", args)
-                .map_err(|e| ExecutorError::CommandError {
-                    source: e,
-                    result: serde_json::Value::Null,
-                })?;
-        } else {
-            runtime
-                .set_global_value("args", &serde_json::json!({}))
-                .map_err(|e| ExecutorError::CommandError {
-                    source: e,
-                    result: serde_json::Value::Null,
-                })?;
-        }
+                let mut runtime = scripting::create_executor_runtime();
+                if let Some(args) = FIELD_ARGS.extract_object(&payload)? {
+                    runtime.set_global_value("args", args)?;
+                } else {
+                    runtime.set_global_value("args", &serde_json::json!({}))?;
+                }
 
-        let console = runtime.take_console_messages();
+                // TODO Catch exceptions
+                runtime.execute_script(name, script);
+                runtime.run_event_loop(false).await;
+
+                let console = runtime.take_console_messages();
+                let result = runtime
+                    .get_global_value::<serde_json::Value>("result")
+                    .unwrap();
+                Ok::<_, anyhow::Error>((console, result))
+            })
+            .await
+            .map_err(|e| ExecutorError::CommandError {
+                source: e,
+                result: serde_json::Value::Null,
+            })?;
 
         Ok(serde_json::json!({}))
     }

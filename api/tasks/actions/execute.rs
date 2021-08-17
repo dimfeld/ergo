@@ -160,6 +160,7 @@ lazy_static! {
         std::array::IntoIter::new([
             Box::new(super::http_executor::HttpExecutor::new()) as Box<dyn Executor>,
             Box::new(super::raw_command_executor::RawCommandExecutor::new()) as Box<dyn Executor>,
+            Box::new(super::js_executor::JsExecutor::new()) as Box<dyn Executor>,
         ])
         .map(|e| (e.name(), e))
         .collect::<FxHashMap<&'static str, Box<dyn Executor>>>()
