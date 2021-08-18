@@ -105,34 +105,30 @@ impl Task {
                 } = task;
 
                 let num_machines = state_machine_config.len();
-                let (new_data, actions, changed) = state_machine_config
+
+                let mut new_data = StateMachineStates::with_capacity(num_machines);
+                let mut actions = ActionInvocations::new();
+                let mut changed = false;
+
+                for (idx, (machine, state)) in state_machine_config
                     .0
                     .into_iter()
                     .zip(state_machine_states.0.into_iter())
-                    .enumerate()
-                    .try_fold(
-                        (
-                            StateMachineStates::with_capacity(num_machines),
-                            ActionInvocations::new(),
-                            false,
-                        ),
-                        |mut acc, (idx, (machine, state))| {
-                            let mut m = StateMachineWithData::new(task_id, idx, machine, state);
-                            let actions = m
-                                .apply_trigger(
-                                    &task_trigger_local_id,
-                                    &Some(input_arrival_id),
-                                    Some(&payload),
-                                )
-                                .map_err(Error::from)?;
+                    .enumerate() {
+                        let mut m = StateMachineWithData::new(task_id, idx, machine, state);
+                        let this_actions = m
+                            .apply_trigger(
+                                &task_trigger_local_id,
+                                &Some(input_arrival_id),
+                                Some(&payload),
+                            ).await
+                            .map_err(Error::from)?;
 
-                            let (data, changed) = m.take();
-                            acc.0.push(data);
-                            acc.1.extend(actions.into_iter());
-                            acc.2 = acc.2 || changed;
-                            Ok(acc) as Result<(StateMachineStates, ActionInvocations, bool), Error>
-                        },
-                    )?;
+                        let (data, this_changed) = m.take();
+                        new_data.push(data);
+                        actions.extend(this_actions.into_iter());
+                        changed = changed || this_changed;
+                    }
 
                 if changed {
                     event!(Level::INFO, state=?new_data, "New state");

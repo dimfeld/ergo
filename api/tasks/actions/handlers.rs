@@ -52,7 +52,7 @@ impl ActionPayload {
                         let mut runtime = scripting::create_simple_runtime();
                         let values = runtime
                             .run_expression::<FxHashMap<String, serde_json::Value>>(
-                                "<executor template>",
+                                "<action template>",
                                 &s,
                             );
                         ready(values)

@@ -468,7 +468,7 @@ async fn prepare_invocation(
                         .set_global_value("args", &action_payload)
                         .map_err(ExecuteErrorSource::ScriptError)?;
                     let values: FxHashMap<String, serde_json::Value> = runtime
-                        .run_expression("template", s.as_str())
+                        .run_expression("<action executor template>", s.as_str())
                         .map_err(ExecuteErrorSource::ScriptError)?;
                     Ok::<_, ExecuteErrorSource>(values)
                 })

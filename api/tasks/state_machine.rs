@@ -1,3 +1,10 @@
+use std::borrow::Cow;
+
+use ergo_js::{Runtime, RuntimeOptions};
+use futures::{
+    future::ready,
+    stream::{self, StreamExt, TryStream, TryStreamExt},
+};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -5,7 +12,10 @@ use smallvec::SmallVec;
 use thiserror::Error;
 use tracing::{event, instrument, Level};
 
-use super::actions::ActionInvocation;
+use super::{
+    actions::ActionInvocation,
+    scripting::{self, run_simple_with_context_and_payload},
+};
 
 #[derive(Debug, Error)]
 pub enum StateMachineError {
@@ -15,6 +25,8 @@ pub enum StateMachineError {
     ContextMissingField(String),
     #[error("Payload is missing required field {0}")]
     InputPayloadMissingField(String),
+    #[error(transparent)]
+    ScriptError(anyhow::Error),
 }
 
 pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
@@ -50,39 +62,46 @@ pub struct EventHandler {
 }
 
 impl EventHandler {
-    fn resolve_actions(
+    async fn resolve_actions(
         &self,
         task_id: i64,
         input_arrival_id: &Option<uuid::Uuid>,
         context: &serde_json::Value,
         payload: &Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
-        self.actions
-            .as_ref()
-            .unwrap_or(&Vec::new())
-            .iter()
-            .map(|def| {
-                let payload = def.data.build(context, payload)?;
-
-                Ok(ActionInvocation {
-                    input_arrival_id: input_arrival_id.clone(),
-                    actions_log_id: uuid::Uuid::new_v4(),
-                    task_id,
-                    task_action_local_id: def.task_action_local_id.clone(),
-                    payload,
-                })
-            })
-            .collect::<Result<ActionInvocations, StateMachineError>>()
+        match &self.actions {
+            None => Ok(ActionInvocations::new()),
+            Some(actions) => {
+                let mut output = ActionInvocations::with_capacity(actions.len());
+                for def in actions {
+                    let payload = def.data.build(context, payload).await?;
+                    let invocation = ActionInvocation {
+                        input_arrival_id: input_arrival_id.clone(),
+                        actions_log_id: uuid::Uuid::new_v4(),
+                        task_id,
+                        task_action_local_id: def.task_action_local_id.clone(),
+                        payload,
+                    };
+                    output.push(invocation);
+                }
+                Ok(output)
+            }
+        }
     }
 
-    fn next_state(
+    async fn next_state(
         &self,
-        _context: &serde_json::Value,
-        _payload: &Option<&serde_json::Value>,
+        context: &serde_json::Value,
+        payload: &Option<&serde_json::Value>,
     ) -> Result<Option<String>, StateMachineError> {
         match &self.target {
             None => Ok(None),
             Some(TransitionTarget::One(s)) => Ok(Some(s.clone())),
+            Some(TransitionTarget::Script(s)) => {
+                scripting::run_simple_with_context_and_payload(s.as_str(), Some(context), *payload)
+                    .await
+                    .map_err(StateMachineError::ScriptError)
+            }
         }
     }
 }
@@ -92,7 +111,7 @@ impl EventHandler {
 pub enum TransitionTarget {
     One(String),
     // Cond(Vec<TransitionCondition>),
-    // Script(String),
+    Script(String),
 }
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
@@ -105,20 +124,20 @@ pub struct TransitionCondition {
 #[serde(tag = "t", content = "c")]
 pub enum ActionPayloadBuilder {
     FieldMap(FxHashMap<String, ActionInvokeDefDataField>),
-    // Script(String),
+    Script(String),
 }
 
 impl ActionPayloadBuilder {
-    fn build(
+    async fn build(
         &self,
         context: &serde_json::Value,
         payload: &Option<&serde_json::Value>,
     ) -> Result<serde_json::Value, StateMachineError> {
         match self {
-            ActionPayloadBuilder::FieldMap(data) => data
-                .iter()
-                .map(|(key, invoke_def)| {
-                    let value: Result<serde_json::Value, StateMachineError> = match &invoke_def {
+            ActionPayloadBuilder::FieldMap(data) => {
+                let mut output = serde_json::Map::with_capacity(data.len());
+                for (key, invoke_def) in data {
+                    let value: serde_json::Value = match &invoke_def {
                         ActionInvokeDefDataField::Constant(v) => Ok(v.clone()),
                         ActionInvokeDefDataField::Input(path, required) => {
                             let payload_value = payload.as_ref().and_then(|p| p.pointer(path));
@@ -140,12 +159,26 @@ impl ActionPayloadBuilder {
                                 (Some(v), _) => Ok(v.clone()),
                             }
                         }
-                    };
+                        ActionInvokeDefDataField::Script(script) => {
+                            run_simple_with_context_and_payload::<serde_json::Value>(
+                                script.as_str(),
+                                Some(context),
+                                *payload,
+                            )
+                            .await
+                            .map_err(StateMachineError::ScriptError)
+                        }
+                    }?;
+                    output.insert(key.clone(), value);
+                }
 
-                    value.map(|v| (key.clone(), v))
-                })
-                .collect::<Result<serde_json::Map<String, serde_json::Value>, StateMachineError>>()
-                .map(serde_json::Value::Object),
+                Ok(serde_json::Value::Object(output))
+            }
+            ActionPayloadBuilder::Script(s) => {
+                scripting::run_simple_with_context_and_payload(s.as_str(), Some(context), *payload)
+                    .await
+                    .map_err(StateMachineError::ScriptError)
+            }
         }
     }
 }
@@ -165,8 +198,8 @@ pub enum ActionInvokeDefDataField {
     Context(String, bool),
     /// A constant value
     Constant(serde_json::Value),
-    // /// A script that calculates a value
-    // Script(String),
+    /// A script that calculates a value
+    Script(String),
 }
 
 pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;
@@ -201,7 +234,7 @@ impl<'d> StateMachineWithData {
     }
 
     #[instrument(fields(actions))]
-    pub fn apply_trigger(
+    pub async fn apply_trigger(
         &mut self,
         trigger_id: &str,
         input_arrival_id: &Option<uuid::Uuid>,
@@ -227,13 +260,10 @@ impl<'d> StateMachineWithData {
         match handler {
             Some(h) => {
                 event!(Level::DEBUG, handler=?h, "Running event handler");
-                let next_state = h.next_state(&self.data.context, &payload)?;
-                let actions = h.resolve_actions(
-                    self.task_id,
-                    input_arrival_id,
-                    &self.data.context,
-                    &payload,
-                )?;
+                let next_state = h.next_state(&self.data.context, &payload).await?;
+                let actions = h
+                    .resolve_actions(self.task_id, input_arrival_id, &self.data.context, &payload)
+                    .await?;
 
                 if let Some(s) = next_state {
                     if self.data.state != s {

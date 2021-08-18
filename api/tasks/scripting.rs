@@ -1,6 +1,9 @@
+use std::borrow::Cow;
+
 use ergo_js::{
     BufferConsole, Extension, Runtime, RuntimeOptions, RuntimePool, SerializedState, Snapshot,
 };
+use serde::{de::DeserializeOwned, Serialize};
 
 const NET_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/net");
 const CORE_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/core");
@@ -55,4 +58,62 @@ pub fn create_simple_runtime() -> Runtime {
         snapshot: Some(Snapshot::Static(CORE_SNAPSHOT)),
         ..Default::default()
     })
+}
+
+pub fn wrap_in_function(script: &str) -> String {
+    format!(
+        r##"(function() {{
+        {}
+    }})()"##,
+        script
+    )
+}
+
+pub fn wrap_in_function_with_args(
+    script: &str,
+    arg_name: &str,
+    arg: impl Serialize,
+) -> Result<String, serde_json::Error> {
+    let arg_value = serde_json::to_string(&arg)?;
+    let output = format!(
+        r##"(function({arg_name}) {{
+        {script}
+    }})({arg_value})"##,
+        script = script,
+        arg_name = arg_name,
+        arg_value = arg_value
+    );
+
+    Ok(output)
+}
+
+pub async fn run_simple_with_context_and_payload<
+    RESULT: DeserializeOwned + std::fmt::Debug + Send + 'static,
+>(
+    script: &str,
+    context: Option<&serde_json::Value>,
+    payload: Option<&serde_json::Value>,
+) -> Result<RESULT, anyhow::Error> {
+    let payload_arg = payload
+        .map(Cow::Borrowed)
+        .unwrap_or(Cow::Owned(serde_json::Value::Null));
+    let context_arg = context
+        .map(Cow::Borrowed)
+        .unwrap_or(Cow::Owned(serde_json::Value::Null));
+
+    let wrapped = format!(
+        r##"(function(payload, context) {{
+            {script}
+        }})({payload}, {context})"##,
+        payload = payload_arg,
+        context = context_arg,
+        script = script
+    );
+
+    POOL.run(move || async move {
+        let mut runtime = create_simple_runtime();
+        let result: RESULT = runtime.run_expression("script", wrapped.as_str())?;
+        Ok(result)
+    })
+    .await
 }
