@@ -3,6 +3,7 @@ use actix_web::{
     web::{self, Path},
     HttpResponse, Responder,
 };
+use futures::future::ready;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -12,6 +13,7 @@ use crate::{
     auth::Authenticated,
     database::{object_id::new_object_id_with_value, sql_insert_parameters},
     error::{Error, Result},
+    tasks::scripting,
     web_app_server::AppStateData,
 };
 
@@ -34,24 +36,39 @@ pub struct ActionPayload {
 }
 
 impl ActionPayload {
-    fn validate(&self) -> Result<()> {
-        match (
-            super::execute::EXECUTOR_REGISTRY.get(self.executor_id.as_str()),
-            &self.executor_template,
-        ) {
-            (Some(executor), ScriptOrTemplate::Template(values)) => {
-                let values_map = values.iter().cloned().collect::<FxHashMap<_, _>>();
-                validate(
-                    "action",
-                    &self.action_id.unwrap_or(-1),
-                    executor.template_fields(),
-                    &values_map,
-                )?;
+    async fn validate(&self) -> Result<()> {
+        let executor = super::execute::EXECUTOR_REGISTRY
+            .get(self.executor_id.as_str())
+            .ok_or_else(|| Error::UnknownExecutor(self.executor_id.clone()))?;
 
-                Ok(())
+        let values_map = match &self.executor_template {
+            ScriptOrTemplate::Template(values) => {
+                values.iter().cloned().collect::<FxHashMap<_, _>>()
             }
-            (None, _) => Err(Error::UnknownExecutor(self.executor_id.clone())),
-        }
+            ScriptOrTemplate::Script(s) => {
+                let s = s.clone();
+                scripting::POOL
+                    .run(move || {
+                        let mut runtime = scripting::create_simple_runtime();
+                        let values = runtime
+                            .run_expression::<FxHashMap<String, serde_json::Value>>(
+                                "<executor template>",
+                                &s,
+                            );
+                        ready(values)
+                    })
+                    .await
+                    .map_err(Error::ScriptError)?
+            }
+        };
+
+        validate(
+            "action",
+            &self.action_id.unwrap_or(-1),
+            executor.template_fields(),
+            &values_map,
+        )?;
+        Ok(())
     }
 }
 
@@ -93,7 +110,7 @@ pub async fn new_action(
     auth.expect_admin()?;
 
     let payload = payload.into_inner();
-    payload.validate()?;
+    payload.validate().await?;
 
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
@@ -158,7 +175,7 @@ pub async fn write_action(
     let action_id = action_id.into_inner();
     let payload = payload.into_inner();
 
-    payload.validate()?;
+    payload.validate().await?;
 
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;

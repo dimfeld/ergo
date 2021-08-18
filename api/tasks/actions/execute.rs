@@ -16,7 +16,7 @@ use crate::{
     database::PostgresPool,
     error::{Error, Result},
     notifications::{Notification, NotificationManager, NotifyEvent},
-    tasks::actions::ActionStatus,
+    tasks::{actions::ActionStatus, scripting},
 };
 
 use super::{
@@ -128,6 +128,9 @@ pub enum ExecuteErrorSource {
     #[error(transparent)]
     TemplateError(#[from] super::template::TemplateError),
 
+    #[error("Script error: {0}")]
+    ScriptError(anyhow::Error),
+
     #[error(transparent)]
     ExecutorError(#[from] ExecutorError),
 
@@ -167,11 +170,11 @@ lazy_static! {
     };
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ScriptOrTemplate {
     Template(Vec<(String, serde_json::Value)>),
-    // Script(String),
+    Script(String),
 }
 
 #[instrument(name = "execute_action", level = "debug", skip(pg_pool, notifications))]
@@ -326,19 +329,19 @@ async fn execute_action(
             .await?;
     }
 
-    let prepare_result = EXECUTOR_REGISTRY
+    let executor = EXECUTOR_REGISTRY
         .get(action.executor_id.as_str())
         .ok_or_else(|| {
             ExecuteError::from_action_and_error(
                 &action,
                 ExecuteErrorSource::MissingExecutor(action.executor_id.clone()),
             )
-        })
-        .and_then(|executor| {
-            prepare_invocation(executor, &invocation.payload, &mut action)
-                .map(|values| (executor, values))
-                .map_err(|e| ExecuteError::from_action_and_error(&action, e))
-        });
+        })?;
+
+    let prepare_result = prepare_invocation(executor, &invocation.payload, &mut action)
+        .await
+        .map(|values| (executor, values))
+        .map_err(|e| ExecuteError::from_action_and_error(&action, e));
 
     let (executor, action_template_values) = match prepare_result {
         Ok(v) => v,
@@ -414,7 +417,7 @@ async fn notify_action_error(
     Ok(())
 }
 
-fn prepare_invocation(
+async fn prepare_invocation(
     executor: &Box<dyn Executor>,
     invocation_payload: &serde_json::Value,
     action: &mut ExecuteActionData,
@@ -449,7 +452,7 @@ fn prepare_invocation(
     }
 
     // 2. Verify that it all matches the action template_fields.
-    let action_template_values = match &action.action_executor_template.0 {
+    let action_template_values = match action.action_executor_template.0.clone() {
         ScriptOrTemplate::Template(t) => template::validate_and_apply(
             "action",
             action.action_id,
@@ -457,6 +460,20 @@ fn prepare_invocation(
             &t,
             &action_payload,
         )?,
+        ScriptOrTemplate::Script(s) => {
+            scripting::POOL
+                .run(move || async move {
+                    let mut runtime = scripting::create_simple_runtime();
+                    runtime
+                        .set_global_value("args", &action_payload)
+                        .map_err(ExecuteErrorSource::ScriptError)?;
+                    let values: FxHashMap<String, serde_json::Value> = runtime
+                        .run_expression("template", s.as_str())
+                        .map_err(ExecuteErrorSource::ScriptError)?;
+                    Ok::<_, ExecuteErrorSource>(values)
+                })
+                .await?
+        }
     };
 
     // 3. Make sure the resulting template matches what the executor expects.

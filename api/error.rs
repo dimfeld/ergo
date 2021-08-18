@@ -109,6 +109,9 @@ pub enum Error {
 
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
+
+    #[error("Script Error: {0}")]
+    ScriptError(anyhow::Error),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
