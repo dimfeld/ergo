@@ -188,6 +188,8 @@ impl HttpExecutor {
                 result: json!(null),
             })?;
 
+        let status = result.status().as_u16();
+
         let output = match payload
             .get("result_format")
             .and_then(|v| v.as_array())
@@ -202,7 +204,7 @@ impl HttpExecutor {
                         source: anyhow!(e),
                         result: json!(null),
                     })?;
-                json!({ "response": r })
+                json!({ "response": r, "status": status })
             }
             _ => {
                 let r = result.json::<serde_json::Value>().await.map_err(|e| {
@@ -211,7 +213,7 @@ impl HttpExecutor {
                         result: json!(null),
                     }
                 })?;
-                json!({ "response": r })
+                json!({ "response": r, "status": status })
             }
         };
 
@@ -269,7 +271,7 @@ mod tests {
             .await
             .expect("Running action");
 
-        assert_eq!(result, json!({"response": "the response"}));
+        assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
     #[actix_rt::test]
@@ -301,7 +303,7 @@ mod tests {
             .await
             .expect("Running action");
 
-        assert_eq!(result, json!({"response": "the response"}));
+        assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
     #[actix_rt::test]
@@ -329,7 +331,7 @@ mod tests {
             .await
             .expect("Running action");
 
-        assert_eq!(result, json!({"response": "the response"}));
+        assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
     #[actix_rt::test]
@@ -357,7 +359,7 @@ mod tests {
             .await
             .expect("Running action");
 
-        assert_eq!(result, json!({"response": "the response"}));
+        assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
     #[actix_rt::test]
@@ -366,7 +368,7 @@ mod tests {
 
         Mock::given(method("GET"))
             .and(path("/a_url"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("a string response"))
+            .respond_with(ResponseTemplate::new(202).set_body_string("a string response"))
             .mount(&mock_server)
             .await;
 
@@ -384,7 +386,10 @@ mod tests {
             .await
             .expect("Running action");
 
-        assert_eq!(result, json!({"response": "a string response"}));
+        assert_eq!(
+            result,
+            json!({"response": "a string response", "status": 202 })
+        );
     }
 
     #[actix_rt::test]
@@ -418,7 +423,7 @@ mod tests {
 
         assert_eq!(
             result,
-            json!({"response": { "response_json": 5, "another_key": 6} })
+            json!({"response": { "response_json": 5, "another_key": 6}, "status": 200 })
         );
     }
 
