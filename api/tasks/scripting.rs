@@ -117,3 +117,10 @@ pub async fn run_simple_with_context_and_payload<
     })
     .await
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    #[ignore]
+    async fn simple_runs() {}
+}

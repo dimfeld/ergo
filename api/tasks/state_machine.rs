@@ -1,10 +1,3 @@
-use std::borrow::Cow;
-
-use ergo_js::{Runtime, RuntimeOptions};
-use futures::{
-    future::ready,
-    stream::{self, StreamExt, TryStream, TryStreamExt},
-};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -280,4 +273,34 @@ impl<'d> StateMachineWithData {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{json, Value};
+
+    #[tokio::test]
+    #[ignore]
+    async fn trigger_changes_state() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn trigger_without_handler() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn global_trigger_handler() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn next_state_script() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn next_state_script_returns_null() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn next_state_script_returns_same_state() {}
 }

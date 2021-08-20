@@ -111,3 +111,22 @@ impl Executor for JsExecutor {
         &self.template_fields
     }
 }
+
+#[cfg(test)]
+mod tests {
+    #[tokio::test]
+    #[ignore]
+    async fn runs_script() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn runs_async_script() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn script_exception() {}
+
+    #[tokio::test]
+    #[ignore]
+    async fn async_script_exception() {}
+}

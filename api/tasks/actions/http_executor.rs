@@ -242,6 +242,7 @@ impl Executor for HttpExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use wiremock::{
         matchers::{self, method, path},
         Mock, MockServer, ResponseTemplate,
@@ -438,5 +439,7 @@ mod tests {
             .execute_internal(payload)
             .await
             .expect_err("Running action");
+
+        assert_matches!(result, ExecutorError::CommandError { .. });
     }
 }
