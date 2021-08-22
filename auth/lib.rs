@@ -1,7 +1,9 @@
 pub mod api_key;
-pub mod handlers;
+pub mod error;
 pub mod middleware;
 pub mod password;
+
+pub use error::*;
 
 use std::{
     future::{ready, Ready},
@@ -10,7 +12,6 @@ use std::{
 
 pub use api_key::ApiKey;
 
-use crate::error::{Error, Result};
 use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
 use ergo_database::PostgresPool;
@@ -68,7 +69,7 @@ impl MaybeAuthenticated {
         self.0
     }
 
-    pub fn expect_authed(self) -> Result<Rc<AuthenticationInfo>> {
+    pub fn expect_authed(self) -> Result<Rc<AuthenticationInfo>, Error> {
         self.0.ok_or(Error::AuthenticationError)
     }
 }
@@ -176,7 +177,7 @@ impl AuthenticationInfo {
         }
     }
 
-    pub fn expect_admin(&self) -> Result<()> {
+    pub fn expect_admin(&self) -> Result<(), Error> {
         let is_admin = match self {
             Self::User(user) => user.is_admin,
             Self::ApiKey { user, .. } => user.as_ref().map(|u| u.is_admin).unwrap_or(false),
@@ -198,7 +199,7 @@ pub struct AuthData {
 }
 
 impl AuthData {
-    pub fn new(pg_pool: PostgresPool) -> Result<AuthData> {
+    pub fn new(pg_pool: PostgresPool) -> Result<AuthData, Error> {
         Ok(AuthData {
             pg: pg_pool,
             admin_user: envoption::optional("ADMIN_USER_ID")?,
@@ -210,7 +211,7 @@ impl AuthData {
         &self,
         identity: Option<String>,
         req: &ServiceRequest,
-    ) -> Result<Option<AuthenticationInfo>> {
+    ) -> Result<Option<AuthenticationInfo>, Error> {
         if let Some(auth) = api_key::get_api_key(self, req).await? {
             return Ok(Some(auth));
         }
@@ -218,7 +219,7 @@ impl AuthData {
         match identity {
             Some(identity) => {
                 // TODO This should be a session ID, not a user ID.
-                let user_id = Uuid::parse_str(&identity)?;
+                let user_id = Uuid::parse_str(&identity).map_err(|_| Error::AuthenticationError)?;
 
                 let req_user = self.get_user_info(&user_id).await?;
                 Ok(Some(AuthenticationInfo::User(req_user)))
@@ -228,7 +229,7 @@ impl AuthData {
     }
 
     #[instrument(skip(self), fields(user))]
-    async fn get_user_info(&self, user_id: &Uuid) -> Result<RequestUser> {
+    async fn get_user_info(&self, user_id: &Uuid) -> Result<RequestUser, Error> {
         event!(Level::DEBUG, "Fetching user");
         query!(
             r##"SELECT user_id,
@@ -276,12 +277,13 @@ impl AuthData {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     mod authentication_info {
         use smallvec::smallvec;
         use std::str::FromStr;
         use uuid::Uuid;
 
-        use crate::auth::{api_key::ApiKeyAuth, AuthenticationInfo, RequestUser, UserEntityList};
+        use super::*;
 
         fn user_id() -> Uuid {
             Uuid::from_str("e1ecedb3-10a5-4fa5-ae8d-edb383aac701").unwrap()

@@ -1369,7 +1369,6 @@ dependencies = [
  "actix-web",
  "actix-web-httpauth",
  "anyhow",
- "argon2",
  "assert_matches",
  "async-stream",
  "async-trait",
@@ -1385,6 +1384,7 @@ dependencies = [
  "dotenv",
  "either",
  "envoption",
+ "ergo-auth",
  "ergo-database",
  "ergo-graceful-shutdown",
  "ergo-js",
@@ -1408,7 +1408,6 @@ dependencies = [
  "serde 1.0.126",
  "serde_json",
  "serde_millis",
- "sha3",
  "smallvec",
  "snafu",
  "sqlx",
@@ -1423,6 +1422,32 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "ergo-auth"
+version = "0.1.0"
+dependencies = [
+ "actix-identity",
+ "actix-service",
+ "actix-web",
+ "actix-web-httpauth",
+ "argon2",
+ "assert_matches",
+ "base64 0.13.0",
+ "chrono",
+ "envoption",
+ "ergo-database",
+ "futures",
+ "serde 1.0.126",
+ "serde_json",
+ "sha3",
+ "smallvec",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

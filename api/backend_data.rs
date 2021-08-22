@@ -1,8 +1,8 @@
 use actix_web::web::Data;
+use ergo_auth::AuthData;
 use ergo_database::PostgresPool;
 
 use crate::{
-    auth::AuthData,
     error::Result,
     tasks::{actions::queue::ActionQueue, inputs::queue::InputQueue},
 };

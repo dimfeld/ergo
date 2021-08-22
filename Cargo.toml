@@ -1,4 +1,10 @@
 
 [workspace]
-members = [ "api", "database", "graceful_shutdown", "js" ]
+members = [
+  "api",
+  "auth",
+  "database",
+  "graceful_shutdown",
+  "js"
+]
 resolver = "2"

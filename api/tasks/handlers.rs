@@ -4,7 +4,6 @@ use super::{
     state_machine::{self, StateMachineConfig, StateMachineStates},
 };
 use crate::{
-    auth::Authenticated,
     backend_data::BackendAppStateData,
     error::{Error, Result},
     tasks::inputs::EnqueueInputOptions,
@@ -17,6 +16,7 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use chrono::{DateTime, Utc};
+use ergo_auth::Authenticated;
 use ergo_database::object_id::new_object_id;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;

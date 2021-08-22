@@ -31,7 +31,7 @@ pub async fn make_key(
 ) -> Result<String> {
     // Eventually all this code will be integrated into the ergo library itself.
 
-    let key = crate::auth::api_key::ApiKeyData::new();
+    let key = ergo_auth::api_key::ApiKeyData::new();
 
     sqlx::query!(
         "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",

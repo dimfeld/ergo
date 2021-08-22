@@ -3,6 +3,7 @@ use actix_web::{
     web::{self, Path},
     HttpResponse, Responder,
 };
+use ergo_auth::Authenticated;
 use ergo_database::{object_id::new_object_id_with_value, sql_insert_parameters};
 use futures::future::ready;
 use fxhash::FxHashMap;
@@ -11,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 
 use crate::{
-    auth::Authenticated,
     error::{Error, Result},
     tasks::scripting,
     web_app_server::AppStateData,

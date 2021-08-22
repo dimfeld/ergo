@@ -3,14 +3,13 @@ use actix_web::{
     web::{self, Path},
     HttpResponse, Responder,
 };
+use ergo_auth::Authenticated;
 use ergo_database::object_id::new_object_id_with_value;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 
-use crate::{
-    auth::Authenticated, error::Result, tasks::inputs::Input, web_app_server::AppStateData,
-};
+use crate::{error::Result, tasks::inputs::Input, web_app_server::AppStateData};
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct InputPayload {

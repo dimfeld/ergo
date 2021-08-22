@@ -1,16 +1,16 @@
-use crate::error::{Error, Result};
+use crate::error::Error;
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2, Params,
 };
 use uuid::Uuid;
 
-pub fn new_hash(password: &str) -> Result<String> {
+pub fn new_hash(password: &str) -> Result<String, Error> {
     let salt = uuid::Uuid::new_v4();
     hash_password(password, &salt)
 }
 
-fn hash_password(password: &str, salt: &Uuid) -> Result<String> {
+fn hash_password(password: &str, salt: &Uuid) -> Result<String, Error> {
     let saltstring = SaltString::b64_encode(salt.as_bytes())
         .map_err(|e| Error::PasswordHasherError(e.to_string()))?;
 
@@ -28,7 +28,7 @@ fn hash_password(password: &str, salt: &Uuid) -> Result<String> {
     Ok(hash.to_string())
 }
 
-pub fn verify_password(password: &str, hash_str: &str) -> Result<()> {
+pub fn verify_password(password: &str, hash_str: &str) -> Result<(), Error> {
     let hash =
         PasswordHash::new(hash_str).map_err(|e| Error::PasswordHasherError(e.to_string()))?;
 

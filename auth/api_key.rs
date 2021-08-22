@@ -1,4 +1,4 @@
-use crate::error::{Error, Result};
+use crate::error::Error;
 use actix_web::{dev::ServiceRequest, http::header::Header};
 use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
@@ -59,7 +59,7 @@ fn hash_key(key: &str) -> Vec<u8> {
     hasher.finalize().to_vec()
 }
 
-fn decode_key(key: &str) -> Result<(Uuid, Vec<u8>)> {
+fn decode_key(key: &str) -> Result<(Uuid, Vec<u8>), Error> {
     if !key.starts_with("er1.") || key.len() != 49 {
         return Err(Error::AuthenticationError);
     }
@@ -82,7 +82,10 @@ struct ApiQueryString {
     api_key: String,
 }
 
-async fn handle_api_key(auth_data: &AuthData, key: &str) -> Result<super::AuthenticationInfo> {
+async fn handle_api_key(
+    auth_data: &AuthData,
+    key: &str,
+) -> Result<super::AuthenticationInfo, Error> {
     let (api_key_id, hash) = decode_key(key)?;
     let auth_key = sqlx::query_as!(
         ApiKeyAuth,
@@ -129,7 +132,7 @@ fn extract_api_key<'a>(req: &'a ServiceRequest) -> Option<String> {
 pub async fn get_api_key(
     auth_data: &AuthData,
     req: &ServiceRequest,
-) -> Result<Option<super::AuthenticationInfo>> {
+) -> Result<Option<super::AuthenticationInfo>, Error> {
     event!(Level::DEBUG, "Fetching api key");
     if let Some(key) = extract_api_key(req) {
         let auth = handle_api_key(auth_data, &key.borrow()).await?;
@@ -145,10 +148,10 @@ mod tests {
     use assert_matches::assert_matches;
 
     use super::{decode_key, ApiKeyData};
-    use crate::error::Result;
+    use crate::Error;
 
     #[test]
-    fn valid_key() -> Result<()> {
+    fn valid_key() -> Result<(), Error> {
         let data = ApiKeyData::new();
 
         let (api_key_id, hash) = decode_key(&data.key)?;
@@ -158,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn bad_key() -> Result<()> {
+    fn bad_key() -> Result<(), Error> {
         let data = ApiKeyData::new();
 
         // Alter the key.

@@ -69,9 +69,6 @@ pub enum Error {
     #[error("Environment variable error: {0}")]
     EnvOptionError(String),
 
-    #[error("Password hasher error: {0}")]
-    PasswordHasherError(String),
-
     #[error("Redis connection error {0}")]
     RedisPoolError(#[from] deadpool::managed::PoolError<::redis::RedisError>),
 
@@ -86,6 +83,9 @@ pub enum Error {
 
     #[error(transparent)]
     DatabaseError(#[from] ergo_database::Error),
+
+    #[error(transparent)]
+    AuthError(#[from] ergo_auth::Error),
 
     #[error("{0}")]
     StringError(String),
@@ -132,6 +132,8 @@ impl actix_web::error::ResponseError for Error {
         match self {
             Error::AuthenticationError => StatusCode::UNAUTHORIZED,
             Error::AuthorizationError => StatusCode::FORBIDDEN,
+            Error::AuthError(ergo_auth::Error::AuthenticationError) => StatusCode::UNAUTHORIZED,
+            Error::AuthError(ergo_auth::Error::AuthorizationError) => StatusCode::FORBIDDEN,
             Error::NotFound => StatusCode::NOT_FOUND,
             Error::UnknownExecutor(_) => StatusCode::BAD_REQUEST,
             Error::ActixError { status_code, .. } => *status_code,
