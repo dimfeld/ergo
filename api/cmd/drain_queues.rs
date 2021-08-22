@@ -1,9 +1,9 @@
 use crate::{
     error::Result,
-    graceful_shutdown::GracefulShutdown,
     service_config::database_configuration_from_env,
     tasks::{actions::queue::ActionQueue, inputs::queue::InputQueue},
 };
+use ergo_graceful_shutdown::GracefulShutdown;
 
 pub async fn main() -> Result<()> {
     dotenv::dotenv().ok();

@@ -4,10 +4,10 @@ use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 use crate::{
     database::{RedisPool, VaultPostgresPool},
     error::Error,
-    graceful_shutdown::GracefulShutdownConsumer,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
 };
 
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::Serialize;
 
 /// Handle draining task staging tables for both actions and inputs.

@@ -15,8 +15,8 @@ use super::{Job, Queue};
 use crate::{
     database::{PostgresPool, RedisPool},
     error::Error,
-    graceful_shutdown::GracefulShutdownConsumer,
 };
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 
 #[async_trait]
 pub trait Drainer: Send + Sync {

@@ -10,10 +10,10 @@ use sqlx::PgConnection;
 use crate::{
     database::{PostgresPool, RedisPool},
     error::{Error, Result},
-    graceful_shutdown::GracefulShutdownConsumer,
     queues::{generic_stage::QueueJob, Queue, QueueJobProcessor},
 };
 use async_trait::async_trait;
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::{Deserialize, Serialize};
 
 use self::discord_webhook::send_discord_webhook;

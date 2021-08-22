@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use backoff::backoff::Backoff;
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use futures::stream::{FuturesUnordered, StreamExt};
 use serde::de::DeserializeOwned;
 use tokio::{sync::oneshot, task::JoinHandle};
@@ -8,7 +9,7 @@ use tracing::{event, Level};
 use std::time::Duration;
 
 use super::QueueWorkItem;
-use crate::{error::Error, graceful_shutdown::GracefulShutdownConsumer};
+use crate::error::Error;
 
 #[async_trait]
 pub trait QueueJobProcessor: Clone + Sync + Send {

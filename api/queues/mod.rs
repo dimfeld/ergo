@@ -14,7 +14,7 @@ mod start_work;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
 pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
-use crate::{database::RedisPool, error::Error, graceful_shutdown::GracefulShutdownConsumer};
+use crate::{database::RedisPool, error::Error};
 
 use std::{
     num::NonZeroU32,
@@ -24,6 +24,7 @@ use std::{
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono::{DateTime, TimeZone, Utc};
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};

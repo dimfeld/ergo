@@ -68,7 +68,7 @@ pub struct VaultPostgresPoolOptions {
     pub port: u16,
     pub database: String,
     pub auth: VaultPostgresPoolAuth,
-    pub shutdown: crate::graceful_shutdown::GracefulShutdownConsumer,
+    pub shutdown: ergo_graceful_shutdown::GracefulShutdownConsumer,
 }
 
 #[derive(Clone)]

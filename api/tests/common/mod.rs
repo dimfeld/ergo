@@ -47,7 +47,7 @@ async fn start_app(
     org_id: Uuid,
     admin_user: DatabaseUser,
 ) -> Result<TestApp> {
-    let shutdown = ergo_api::graceful_shutdown::GracefulShutdown::new();
+    let shutdown = ergo_graceful_shutdown::GracefulShutdown::new();
     let redis_key_prefix = Uuid::new_v4();
     let config = ergo_api::server::Config {
         database: database.config.clone(),

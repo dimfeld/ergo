@@ -1,10 +1,10 @@
 use async_trait::async_trait;
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use std::num::NonZeroU32;
 
 use crate::{
     database::{PostgresPool, RedisPool},
     error::Error,
-    graceful_shutdown::GracefulShutdownConsumer,
     queues::{QueueJobProcessor, QueueWorkItem},
 };
 

@@ -3,7 +3,6 @@ use std::{borrow::Cow, ops::Deref};
 use crate::{
     database::{PostgresPool, RedisPool},
     error::Error,
-    graceful_shutdown::GracefulShutdownConsumer,
     queues::{
         postgres_drain::{Drainer, QueueStageDrain, QueueStageDrainConfig},
         Job, JobId, Queue,
@@ -11,6 +10,7 @@ use crate::{
 };
 
 use async_trait::async_trait;
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use sqlx::{Postgres, Transaction};
 
 struct QueueDrainer {}

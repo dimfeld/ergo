@@ -1385,6 +1385,7 @@ dependencies = [
  "dotenv",
  "either",
  "envoption",
+ "ergo-graceful-shutdown",
  "ergo-js",
  "futures",
  "fxhash",
@@ -1421,6 +1422,13 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "wiremock",
+]
+
+[[package]]
+name = "ergo-graceful-shutdown"
+version = "0.1.0"
+dependencies = [
+ "tokio",
 ]
 
 [[package]]

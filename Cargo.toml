@@ -1,4 +1,4 @@
 
 [workspace]
-members = [ "api", "js" ]
+members = [ "api", "graceful_shutdown", "js" ]
 resolver = "2"

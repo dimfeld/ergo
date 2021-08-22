@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use deadpool::managed::RecycleError;
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use hashicorp_vault::client::{PostgresqlLogin, VaultClient, VaultResponse};
 use log::LevelFilter;
 use serde::{de::DeserializeOwned, Serialize};
@@ -13,7 +14,6 @@ use tokio::sync::RwLock;
 use tracing::{event, instrument, Level};
 
 use super::{Error, VaultPostgresPoolAuth};
-use crate::graceful_shutdown::GracefulShutdownConsumer;
 
 #[async_trait]
 pub trait PostgresAuthRenewer: 'static + Send + Sync + Debug {
@@ -403,7 +403,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn renews_role_lease() {
-        let shutdown = crate::graceful_shutdown::GracefulShutdown::new();
+        let shutdown = ergo_graceful_shutdown::GracefulShutdown::new();
         let vault_client = Arc::new(RwLock::new(MockVaultClient {
             lease_id: "l1".to_string(),
             lease_duration: Duration::from_secs(300),
@@ -453,7 +453,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn updates_nonrenewable_lease() {
-        let shutdown = crate::graceful_shutdown::GracefulShutdown::new();
+        let shutdown = ergo_graceful_shutdown::GracefulShutdown::new();
         let vault_client = Arc::new(RwLock::new(MockVaultClient {
             lease_id: "l1".to_string(),
             lease_duration: Duration::from_secs(300),

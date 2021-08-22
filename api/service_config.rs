@@ -3,8 +3,8 @@ use crate::{
         PostgresAuthRenewer, VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions,
     },
     error::Error,
-    graceful_shutdown::GracefulShutdownConsumer,
 };
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use std::{env, sync::Arc};
 
 #[derive(Clone, Debug)]

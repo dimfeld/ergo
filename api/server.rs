@@ -1,7 +1,6 @@
 use crate::{
     auth::middleware::AuthenticateMiddlewareFactory,
     error::Result,
-    graceful_shutdown::GracefulShutdownConsumer,
     service_config::DatabaseConfiguration,
     status_server,
     tasks::{
@@ -27,6 +26,7 @@ use actix_web::{
     web::{self, PathConfig},
     App, HttpServer,
 };
+use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use tracing::{event, Level};
 use tracing_actix_web::TracingLogger;
 

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use ergo_graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer};
 use futures::future::try_join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
@@ -9,7 +10,6 @@ use tokio::{sync::watch, task::JoinHandle};
 use crate::{
     database::RedisPool,
     error::Error,
-    graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer},
     queues::{Job, JobId, Queue},
 };
 
