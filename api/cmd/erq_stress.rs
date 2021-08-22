@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use ergo_database::RedisPool;
 use ergo_graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer};
 use futures::future::try_join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
@@ -8,7 +9,6 @@ use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 
 use crate::{
-    database::RedisPool,
     error::Error,
     queues::{Job, JobId, Queue},
 };
@@ -47,7 +47,7 @@ enum JobLimit {
 }
 
 pub async fn main(queue_name: String, args: Args) -> Result<(), Error> {
-    let redis_pool = crate::database::RedisPool::new(None, None).expect("Creating redis pool");
+    let redis_pool = ergo_database::RedisPool::new(None, None).expect("Creating redis pool");
 
     let queue = Queue::new(redis_pool.clone(), queue_name.clone(), None, None, None);
 

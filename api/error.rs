@@ -27,20 +27,8 @@ pub enum Error {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
-    #[error("SQL Error")]
-    SqlError(#[from] sqlx::error::Error),
-
-    #[error("Vault Error")]
-    VaultError(#[from] hashicorp_vault::Error),
-
-    #[error("Vault returned no auth data")]
-    VaultNoDataError,
-
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
-
-    #[error("timed out")]
-    TimeoutError,
 
     #[error("Actix error {:?}", body)]
     ActixError {
@@ -50,16 +38,6 @@ pub enum Error {
 
     #[error("Redis error {0}")]
     RedisError(#[from] redis::RedisError),
-
-    #[error("Redis connection error {0}")]
-    RedisPoolError(#[from] deadpool::managed::PoolError<RedisError>),
-
-    // deadpool_redis 0.8 doesn't expose this error so we have to wrap it.
-    #[error("Redis pool creation error {0}")]
-    RedisPoolCreationError(#[from] deadpool_redis::CreatePoolError),
-
-    #[error("Connection pool closed")]
-    PoolClosed,
 
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
@@ -76,14 +54,8 @@ pub enum Error {
     #[error("State Machine Error: {0}")]
     StateMachineError(#[from] StateMachineError),
 
-    #[error("Unable to execute serializable transaction")]
-    SerializationFailure,
-
     #[error(transparent)]
     ParseBool(#[from] ParseBoolError),
-
-    #[error("{0}")]
-    StringError(String),
 
     #[error("Unknown executor {0}")]
     UnknownExecutor(String),
@@ -100,18 +72,23 @@ pub enum Error {
     #[error("Password hasher error: {0}")]
     PasswordHasherError(String),
 
-    #[error("Tried to create object ID {id} with type {wanted} but it has type {saw}")]
-    ObjectIdTypeMismatch {
-        id: i64,
-        wanted: String,
-        saw: String,
-    },
+    #[error("Redis connection error {0}")]
+    RedisPoolError(#[from] deadpool::managed::PoolError<::redis::RedisError>),
+
+    #[error("SQL Error")]
+    SqlError(#[from] sqlx::error::Error),
 
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
 
     #[error("Script Error: {0}")]
     ScriptError(anyhow::Error),
+
+    #[error(transparent)]
+    DatabaseError(#[from] ergo_database::Error),
+
+    #[error("{0}")]
+    StringError(String),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
@@ -137,6 +114,15 @@ impl From<actix_web::Error> for Error {
     }
 }
 
+impl ergo_database::transaction::TryIntoSqlxError for Error {
+    fn try_into_sqlx_error(self) -> Result<sqlx::Error, Self> {
+        match self {
+            Self::SqlError(e) => Ok(e),
+            _ => Err(self),
+        }
+    }
+}
+
 impl actix_web::error::ResponseError for Error {
     fn error_response(&self) -> HttpResponse<actix_web::dev::Body> {
         HttpResponse::build(self.status_code()).body(self.to_string())
@@ -151,26 +137,5 @@ impl actix_web::error::ResponseError for Error {
             Error::ActixError { status_code, .. } => *status_code,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
-    }
-}
-
-impl sqlx::error::DatabaseError for Error {
-    fn message(&self) -> &str {
-        match self {
-            Error::SqlError(sqlx::Error::Database(e)) => e.message(),
-            _ => "",
-        }
-    }
-
-    fn as_error(&self) -> &(dyn std::error::Error + Send + Sync + 'static) {
-        self
-    }
-
-    fn as_error_mut(&mut self) -> &mut (dyn std::error::Error + Send + Sync + 'static) {
-        self
-    }
-
-    fn into_error(self: Box<Self>) -> Box<dyn std::error::Error + Send + Sync + 'static> {
-        self
     }
 }

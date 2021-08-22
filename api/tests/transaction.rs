@@ -1,5 +1,5 @@
 use crate::common;
-use ergo_api::database::transaction;
+use ergo_database::transaction;
 use futures::future::FutureExt;
 use sqlx::Row;
 

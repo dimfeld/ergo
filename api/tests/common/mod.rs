@@ -255,7 +255,7 @@ impl TestApp {
 //             actix_rt::System::new()
 //                 .block_on(async {
 //                     let #appname = {
-//                         let (database, org_id, admin_user) = crate::common::database::create_database().await.expect("Creating database");
+//                         let (database, org_id, admin_user) = ergo_database::create_database().await.expect("Creating database");
 //                         crate::common::start_app(database, org_id, admin_user)
 //                             .await
 //                             .expect("Starting app");

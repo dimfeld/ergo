@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use ergo_database::PostgresPool;
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
@@ -13,7 +14,6 @@ use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
 use crate::{
-    database::PostgresPool,
     error::{Error, Result},
     notifications::{Notification, NotificationManager, NotifyEvent},
     tasks::{actions::ActionStatus, scripting},

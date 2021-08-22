@@ -47,6 +47,7 @@ deadpool-redis = "0.8.1"
 dotenv = "0.15.0"
 either = "1.6.1"
 envoption = "0.2.1"
+ergo-database = { version = "0.1.0", path="../database" }
 ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown" }
 ergo-js = { version = "0.0.0", path="../js" }
 futures = "0.3.15"
@@ -76,7 +77,7 @@ thiserror = "1.0.25"
 tokio = { version = "1.9.0", features = ["full", "test-util"] }
 tracing = "0.1.26"
 tracing-actix-web = { version="0.4.0-beta.8", default-features=false, features=["emit_event_on_error"] }
-tracing-bunyan-formatter = "0.2.4"
+tracing-bunyan-formatter = "0.2.5"
 tracing-futures = "0.2.5"
 tracing-log = "0.1.2"
 tracing-subscriber = { version = "0.2.19", features = ["registry", "env-filter"] }

@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::Error;
 use std::{env, ops::Deref, sync::Arc};
 
 #[derive(Clone)]
@@ -18,7 +18,7 @@ impl Deref for RedisPool {
 }
 
 impl RedisPool {
-    pub fn new(connection: Option<String>, key_prefix: Option<String>) -> Result<RedisPool> {
+    pub fn new(connection: Option<String>, key_prefix: Option<String>) -> Result<RedisPool, Error> {
         let redis_host =
             connection.unwrap_or_else(|| env::var("REDIS_URL").expect("REDIS_URL is required"));
 

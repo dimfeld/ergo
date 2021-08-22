@@ -1,6 +1,6 @@
 use sqlx::PgConnection;
 
-use crate::error::{Error, Result};
+use crate::Error;
 
 pub async fn new_object_id(tx: &mut PgConnection, object_type: &str) -> Result<i64, sqlx::Error> {
     let id = sqlx::query_scalar!(
@@ -17,7 +17,7 @@ pub async fn new_object_id_with_value(
     id: Option<i64>,
     object_type: &str,
     allow_existing: bool,
-) -> Result<i64> {
+) -> Result<i64, Error> {
     let result = match (id, allow_existing) {
         (Some(id), false) => {
             sqlx::query_scalar!(

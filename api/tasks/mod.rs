@@ -9,7 +9,6 @@ pub use state_machine::StateMachineError;
 use tracing::{event, instrument, Level};
 
 use crate::{
-    database::{sql_insert_parameters, transaction::serializable, PostgresPool},
     error::Error,
     notifications::{Notification, NotifyEvent},
     tasks::{
@@ -18,6 +17,7 @@ use crate::{
     },
 };
 use chrono::{DateTime, Utc};
+use ergo_database::{sql_insert_parameters, transaction::serializable, PostgresPool};
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow};
 use uuid::Uuid;

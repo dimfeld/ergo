@@ -1385,6 +1385,7 @@ dependencies = [
  "dotenv",
  "either",
  "envoption",
+ "ergo-database",
  "ergo-graceful-shutdown",
  "ergo-js",
  "futures",
@@ -1425,9 +1426,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "ergo-database"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "async-trait",
+ "deadpool 0.8.1",
+ "deadpool-redis",
+ "either",
+ "ergo-graceful-shutdown",
+ "futures",
+ "hashicorp_vault",
+ "itertools",
+ "log",
+ "redis",
+ "serde 1.0.126",
+ "serde_json",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "ergo-graceful-shutdown"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
+ "libc",
  "tokio",
 ]
 
@@ -3981,9 +4007,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-bunyan-formatter"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce1eae70720bd6bb3944f7cf501761aeae658bd1f9293aa373c71a195064910"
+checksum = "63053c8ba268268d59c06b919d6c94fd968b3bd9995c5f59a03dea42fc351e70"
 dependencies = [
  "chrono",
  "gethostname",

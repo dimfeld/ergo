@@ -1,9 +1,9 @@
 use async_trait::async_trait;
+use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use std::num::NonZeroU32;
 
 use crate::{
-    database::{PostgresPool, RedisPool},
     error::Error,
     queues::{QueueJobProcessor, QueueWorkItem},
 };

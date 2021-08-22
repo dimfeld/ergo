@@ -14,7 +14,7 @@ mod start_work;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
 pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
-use crate::{database::RedisPool, error::Error};
+use crate::error::Error;
 
 use std::{
     num::NonZeroU32,
@@ -24,6 +24,7 @@ use std::{
 
 use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono::{DateTime, TimeZone, Utc};
+use ergo_database::RedisPool;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::oneshot, task::JoinHandle};
@@ -589,7 +590,7 @@ mod tests {
     {
         dotenv::dotenv().ok();
         let queue_name = format!("test-{}", uuid::Uuid::new_v4());
-        let pool = crate::database::RedisPool::new(None, None).expect("Creating connection pool");
+        let pool = ergo_database::RedisPool::new(None, None).expect("Creating connection pool");
         let queue = Queue::new(pool.clone(), queue_name.clone(), None, None, None);
 
         let result = std::panic::AssertUnwindSafe(test(queue))

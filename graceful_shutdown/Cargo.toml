@@ -9,3 +9,7 @@ path = "lib.rs"
 
 [dependencies]
 tokio = { version = "1.9.0", features = ["full", "test-util"] }
+
+[dev-dependencies]
+assert_matches = "1.5.0"
+libc = "0.2.95"

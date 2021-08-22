@@ -1,4 +1,4 @@
-use crate::{database::PostgresPool, tasks::scripting};
+use crate::tasks::scripting;
 
 use super::{
     execute::{Executor, ExecutorError},
@@ -6,6 +6,7 @@ use super::{
 };
 
 use async_trait::async_trait;
+use ergo_database::PostgresPool;
 use ergo_js::ConsoleMessage;
 use futures::future::{ready, TryFutureExt};
 use fxhash::FxHashMap;

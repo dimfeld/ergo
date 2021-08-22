@@ -78,7 +78,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     let backend_pg_pool =
         crate::service_config::backend_pg_pool(shutdown.clone(), &vault_client, database).await?;
 
-    let redis_pool = crate::database::RedisPool::new(redis_url, redis_queue_prefix)?;
+    let redis_pool = ergo_database::RedisPool::new(redis_url, redis_queue_prefix)?;
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());

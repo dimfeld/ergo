@@ -1,12 +1,12 @@
 use super::postgres_drain::Drainer;
 use crate::{
-    database::PostgresPool,
     error::{Error, Result},
     queues::Job,
 };
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use ergo_database::PostgresPool;
 use serde::Serialize;
 use sqlx::{PgConnection, Postgres, Transaction};
 use std::{borrow::Cow, time::Duration};

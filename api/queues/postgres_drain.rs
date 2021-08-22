@@ -2,6 +2,7 @@ use std::{borrow::Cow, time::Duration};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use ergo_database::{PostgresPool, RedisPool};
 use fxhash::FxHashMap;
 use serde::Serialize;
 use sqlx::{Connection, Postgres, Row, Transaction};
@@ -12,10 +13,7 @@ use tokio::{
 use tracing::{event, Level};
 
 use super::{Job, Queue};
-use crate::{
-    database::{PostgresPool, RedisPool},
-    error::Error,
-};
+use crate::error::Error;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 
 #[async_trait]

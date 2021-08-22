@@ -8,11 +8,11 @@ use smallvec::SmallVec;
 use sqlx::PgConnection;
 
 use crate::{
-    database::{PostgresPool, RedisPool},
     error::{Error, Result},
     queues::{generic_stage::QueueJob, Queue, QueueJobProcessor},
 };
 use async_trait::async_trait;
+use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::{Deserialize, Serialize};
 

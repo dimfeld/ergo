@@ -1,4 +1,4 @@
-use crate::database::PostgresAuthRenewer;
+use ergo_database::PostgresAuthRenewer;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use hashicorp_vault::client::{TokenData, VaultClient};
 use serde::de::DeserializeOwned;

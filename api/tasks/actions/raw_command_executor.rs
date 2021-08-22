@@ -1,11 +1,10 @@
-use crate::database::PostgresPool;
-
 use super::{
     execute::{get_primitive_payload_value, json_primitive_as_string, Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
+use ergo_database::PostgresPool;
 use fxhash::FxHashMap;
 use serde_json::json;
 use std::process::Stdio;

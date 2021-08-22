@@ -6,7 +6,6 @@ use super::{
 use crate::{
     auth::Authenticated,
     backend_data::BackendAppStateData,
-    database::object_id::new_object_id,
     error::{Error, Result},
     tasks::inputs::EnqueueInputOptions,
     web_app_server::AppStateData,
@@ -18,6 +17,7 @@ use actix_web::{
     HttpRequest, HttpResponse, Responder,
 };
 use chrono::{DateTime, Utc};
+use ergo_database::object_id::new_object_id;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

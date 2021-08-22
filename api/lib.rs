@@ -2,7 +2,6 @@
 pub mod auth;
 pub mod backend_data;
 pub mod cmd;
-pub mod database;
 pub mod error;
 pub mod notifications;
 pub mod queues;

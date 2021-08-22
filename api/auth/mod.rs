@@ -10,12 +10,10 @@ use std::{
 
 pub use api_key::ApiKey;
 
-use crate::{
-    database::PostgresPool,
-    error::{Error, Result},
-};
+use crate::error::{Error, Result};
 use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
+use ergo_database::PostgresPool;
 use serde::{Deserialize, Serialize};
 use sqlx::query;
 use tracing::{event, field, instrument, Level};

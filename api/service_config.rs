@@ -1,8 +1,6 @@
-use crate::{
-    database::{
-        PostgresAuthRenewer, VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions,
-    },
-    error::Error,
+use crate::error::Error;
+use ergo_database::{
+    PostgresAuthRenewer, VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions,
 };
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use std::{env, sync::Arc};
@@ -42,6 +40,7 @@ async fn pg_pool(
         shutdown,
     })
     .await
+    .map_err(|e| e.into())
 }
 
 pub async fn backend_pg_pool(

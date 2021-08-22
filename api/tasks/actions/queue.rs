@@ -1,7 +1,6 @@
 use std::{borrow::Cow, ops::Deref};
 
 use crate::{
-    database::{PostgresPool, RedisPool},
     error::Error,
     queues::{
         postgres_drain::{Drainer, QueueStageDrain, QueueStageDrainConfig},
@@ -10,6 +9,7 @@ use crate::{
 };
 
 use async_trait::async_trait;
+use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use sqlx::{Postgres, Transaction};
 

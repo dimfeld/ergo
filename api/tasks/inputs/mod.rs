@@ -3,10 +3,10 @@ pub mod handlers;
 pub mod queue;
 
 use crate::{
-    database::PostgresPool,
     error::Error,
     notifications::{Notification, NotifyEvent},
 };
+use ergo_database::PostgresPool;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;

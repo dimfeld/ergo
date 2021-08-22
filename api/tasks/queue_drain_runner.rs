@@ -2,11 +2,11 @@
 
 use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 use crate::{
-    database::{RedisPool, VaultPostgresPool},
     error::Error,
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
 };
 
+use ergo_database::{PostgresPool, RedisPool, VaultPostgresPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::Serialize;
 

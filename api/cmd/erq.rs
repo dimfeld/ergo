@@ -46,7 +46,7 @@ enum QueueCmd {
 }
 
 pub async fn main(args: Args) -> Result<(), Error> {
-    let redis_pool = crate::database::RedisPool::new(None, None).expect("Creating redis pool");
+    let redis_pool = ergo_database::RedisPool::new(None, None).expect("Creating redis pool");
 
     let queue = Queue::new(redis_pool, args.queue.clone(), None, None, None);
 

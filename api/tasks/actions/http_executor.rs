@@ -1,6 +1,6 @@
 use std::{borrow::Cow, convert::TryFrom};
 
-use crate::database::PostgresPool;
+use ergo_database::PostgresPool;
 
 use super::{
     execute::{Executor, ExecutorError},

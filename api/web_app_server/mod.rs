@@ -1,11 +1,8 @@
 #![allow(dead_code, unused_imports, unused_variables)] // Remove this once the basic application is up and working
-use crate::{
-    database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions},
-    error::Error,
-    vault::VaultClientTokenData,
-};
+use crate::{error::Error, vault::VaultClientTokenData};
 
 use actix_web::{get, web, web::Data, App, HttpResponse, HttpServer, Responder, Scope};
+use ergo_database::{PostgresPool, VaultPostgresPool, VaultPostgresPoolOptions};
 use serde::Serialize;
 use sqlx::query_as;
 use tracing_actix_web::TracingLogger;
