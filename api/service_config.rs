@@ -1,6 +1,7 @@
 use crate::error::Error;
 use ergo_database::{
-    PostgresAuthRenewer, VaultPostgresPool, VaultPostgresPoolAuth, VaultPostgresPoolOptions,
+    PostgresAuthRenewer, RenewablePostgresPool, RenewablePostgresPoolAuth,
+    RenewablePostgresPoolOptions,
 };
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use std::{env, sync::Arc};
@@ -28,10 +29,10 @@ pub fn database_configuration_from_env() -> Result<DatabaseConfiguration, Error>
 
 async fn pg_pool(
     shutdown: GracefulShutdownConsumer,
-    auth: VaultPostgresPoolAuth,
+    auth: RenewablePostgresPoolAuth,
     configuration: DatabaseConfiguration,
-) -> Result<VaultPostgresPool, Error> {
-    VaultPostgresPool::new(VaultPostgresPoolOptions {
+) -> Result<RenewablePostgresPool, Error> {
+    RenewablePostgresPool::new(RenewablePostgresPoolOptions {
         max_connections: 16,
         host: configuration.host,
         port: configuration.port,
@@ -47,10 +48,10 @@ pub async fn backend_pg_pool(
     shutdown: GracefulShutdownConsumer,
     vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
     configuration: DatabaseConfiguration,
-) -> Result<VaultPostgresPool, Error> {
+) -> Result<RenewablePostgresPool, Error> {
     pg_pool(
         shutdown,
-        VaultPostgresPoolAuth::from_env(vault_client, "BACKEND", "ergo_backend")?,
+        RenewablePostgresPoolAuth::from_env(vault_client, "BACKEND", "ergo_backend")?,
         configuration,
     )
     .await
@@ -60,10 +61,10 @@ pub async fn web_pg_pool(
     shutdown: GracefulShutdownConsumer,
     vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
     configuration: DatabaseConfiguration,
-) -> Result<VaultPostgresPool, Error> {
+) -> Result<RenewablePostgresPool, Error> {
     pg_pool(
         shutdown,
-        VaultPostgresPoolAuth::from_env(vault_client, "WEB", "ergo_web")?,
+        RenewablePostgresPoolAuth::from_env(vault_client, "WEB", "ergo_web")?,
         configuration,
     )
     .await

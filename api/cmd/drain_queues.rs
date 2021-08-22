@@ -13,7 +13,7 @@ pub async fn main() -> Result<()> {
 
     let shutdown = GracefulShutdown::new();
 
-    let vault_client = crate::vault::from_env("AIO_SERVER", shutdown.consumer()).await;
+    let vault_client = ergo_database::vault::from_env("AIO_SERVER", shutdown.consumer()).await;
     tracing::info!("{:?}", vault_client);
 
     let database_config = database_configuration_from_env()?;

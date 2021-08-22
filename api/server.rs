@@ -63,7 +63,8 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     let bound_port = listener.local_addr()?.port();
 
     let vault_client =
-        crate::vault::from_env(vault_approle.unwrap_or("AIO_SERVER"), shutdown.clone()).await;
+        ergo_database::vault::from_env(vault_approle.unwrap_or("AIO_SERVER"), shutdown.clone())
+            .await;
     tracing::info!(
         "Vault mode {}",
         vault_client

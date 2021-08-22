@@ -10,5 +10,4 @@ pub mod service_config;
 pub mod status_server;
 pub mod tasks;
 pub mod tracing_config;
-pub mod vault;
 pub mod web_app_server;

@@ -6,7 +6,7 @@ use crate::{
     queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
 };
 
-use ergo_database::{PostgresPool, RedisPool, VaultPostgresPool};
+use ergo_database::{PostgresPool, RedisPool, RenewablePostgresPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use serde::Serialize;
 
@@ -26,7 +26,7 @@ impl AllQueuesDrain {
     pub fn new(
         input_queue: InputQueue,
         action_queue: ActionQueue,
-        pg_pool: VaultPostgresPool,
+        pg_pool: RenewablePostgresPool,
         redis_pool: RedisPool,
         shutdown: GracefulShutdownConsumer,
     ) -> Result<AllQueuesDrain, Error> {

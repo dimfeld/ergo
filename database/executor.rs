@@ -10,12 +10,12 @@ use sqlx::{
     Database, Describe, Error, Execute, Executor, PgConnection, Postgres,
 };
 
-use super::VaultPostgresPool;
+use super::RenewablePostgresPool;
 
 // This is modified from the Pool Executor implementation in sqlx.
 // Currently disabled until I figure out some lifetime problems.
 
-impl<'p> Executor<'p> for &'_ VaultPostgresPool
+impl<'p> Executor<'p> for &'_ RenewablePostgresPool
 where
     for<'c> &'c mut PgConnection: Executor<'c, Database = Postgres>,
 {

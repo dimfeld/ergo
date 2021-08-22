@@ -9,6 +9,7 @@ mod executor;
 pub mod object_id;
 pub mod redis;
 pub mod transaction;
+pub mod vault;
 
 pub use self::{object_id::new_object_id, redis::RedisPool};
 
@@ -17,10 +18,10 @@ use connection_manager::{Manager, WrappedConnection};
 pub use self::connection_manager::PostgresAuthRenewer;
 
 pub type ConnectionObject = deadpool::managed::Object<Manager>;
-pub type PostgresPool = VaultPostgresPool;
+pub type PostgresPool = RenewablePostgresPool;
 
 #[derive(Clone, Debug)]
-pub enum VaultPostgresPoolAuth {
+pub enum RenewablePostgresPoolAuth {
     Vault {
         client: Arc<dyn PostgresAuthRenewer>,
         role: String,
@@ -31,7 +32,7 @@ pub enum VaultPostgresPoolAuth {
     },
 }
 
-impl VaultPostgresPoolAuth {
+impl RenewablePostgresPoolAuth {
     pub fn from_env(
         vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
         database_role_env_name: &str,
@@ -62,19 +63,19 @@ impl VaultPostgresPoolAuth {
     }
 }
 
-pub struct VaultPostgresPoolOptions {
+pub struct RenewablePostgresPoolOptions {
     pub max_connections: usize,
     pub host: String,
     pub port: u16,
     pub database: String,
-    pub auth: VaultPostgresPoolAuth,
+    pub auth: RenewablePostgresPoolAuth,
     pub shutdown: ergo_graceful_shutdown::GracefulShutdownConsumer,
 }
 
 #[derive(Clone)]
-pub struct VaultPostgresPool(Pool<Manager>);
+pub struct RenewablePostgresPool(Pool<Manager>);
 
-impl std::fmt::Debug for VaultPostgresPool {
+impl std::fmt::Debug for RenewablePostgresPool {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PostgresPool")
             .field("pool", &self.0.status())
@@ -94,9 +95,9 @@ fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
     }
 }
 
-impl VaultPostgresPool {
-    pub async fn new(config: VaultPostgresPoolOptions) -> Result<VaultPostgresPool, Error> {
-        let VaultPostgresPoolOptions {
+impl RenewablePostgresPool {
+    pub async fn new(config: RenewablePostgresPoolOptions) -> Result<RenewablePostgresPool, Error> {
+        let RenewablePostgresPoolOptions {
             max_connections,
             host,
             port,
@@ -108,7 +109,7 @@ impl VaultPostgresPool {
 
         let pool = Pool::new(manager, max_connections);
 
-        Ok(VaultPostgresPool(pool))
+        Ok(RenewablePostgresPool(pool))
     }
 
     pub fn stats(&self) -> connection_manager::ManagerStats {

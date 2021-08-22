@@ -13,7 +13,7 @@ use std::{
 use tokio::sync::RwLock;
 use tracing::{event, instrument, Level};
 
-use super::{Error, VaultPostgresPoolAuth};
+use super::{Error, RenewablePostgresPoolAuth};
 
 #[async_trait]
 pub trait PostgresAuthRenewer: 'static + Send + Sync + Debug {
@@ -111,7 +111,7 @@ pub(crate) struct ManagerInner {
 
 impl Manager {
     pub(crate) async fn new(
-        auth_method: VaultPostgresPoolAuth,
+        auth_method: RenewablePostgresPoolAuth,
         shutdown: GracefulShutdownConsumer,
         host: String,
         port: u16,
@@ -129,10 +129,10 @@ impl Manager {
             Option<Arc<dyn PostgresAuthRenewer>>,
             String,
         ) = match auth_method {
-            VaultPostgresPoolAuth::Vault { client, role } => {
+            RenewablePostgresPoolAuth::Vault { client, role } => {
                 ((String::new(), String::new()), Some(client), role)
             }
-            VaultPostgresPoolAuth::Password { username, password } => {
+            RenewablePostgresPoolAuth::Password { username, password } => {
                 ((username, password), None, String::new())
             }
         };
@@ -304,7 +304,7 @@ impl deadpool::managed::Manager for Manager {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::VaultPostgresPoolAuth, *};
+    use super::{super::RenewablePostgresPoolAuth, *};
     use hashicorp_vault::client::VaultDuration;
     use std::time::Duration;
 
@@ -416,7 +416,7 @@ mod tests {
         }));
 
         let m = Manager::new(
-            VaultPostgresPoolAuth::Vault {
+            RenewablePostgresPoolAuth::Vault {
                 client: vault_client.clone(),
                 role: "dbrole".to_string(),
             },
@@ -466,7 +466,7 @@ mod tests {
         }));
 
         let m = Manager::new(
-            VaultPostgresPoolAuth::Vault {
+            RenewablePostgresPoolAuth::Vault {
                 client: vault_client.clone(),
                 role: "dbrole".to_string(),
             },
