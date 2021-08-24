@@ -1,6 +1,7 @@
 mod discord_webhook;
 mod notification;
 pub use notification::*;
+use uuid::Uuid;
 
 use std::{borrow::Cow, sync::Arc};
 
@@ -111,9 +112,9 @@ impl NotificationManager {
         org_id: &uuid::Uuid,
         notification: &Notification,
     ) -> Result<Vec<ServiceAndDestination>> {
-        let mut object_ids = SmallVec::<[i64; 3]>::new();
-        object_ids.push(1);
-        object_ids.push(notification.task_id);
+        let mut object_ids = SmallVec::<[Uuid; 3]>::new();
+        object_ids.push(Uuid::nil());
+        object_ids.push(notification.task_id.0);
         if let Some(object_id) = notification.local_object_id {
             object_ids.push(object_id);
         }

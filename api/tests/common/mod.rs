@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Error, Result};
 use ergo_api::cmd::make_api_key;
+use ergo_database::object_id::{ActionCategoryId, OrgId, UserId};
 use futures::Future;
 use once_cell::sync::Lazy;
 
@@ -24,8 +25,8 @@ static TRACING: Lazy<()> = Lazy::new(|| {
 });
 
 pub struct TestUser {
-    pub org_id: Uuid,
-    pub user_id: Uuid,
+    pub org_id: OrgId,
+    pub user_id: UserId,
     pub password: Option<String>,
     pub api_key: String,
     pub client: TestClient,
@@ -34,17 +35,18 @@ pub struct TestUser {
 pub struct TestApp {
     pub database: TestDatabase,
     /// The ID of the precreated organization.
-    pub org_id: Uuid,
+    pub org_id: OrgId,
     pub admin_user: TestUser,
     /// A client set to the base url of the server.
     pub client: TestClient,
     pub address: String,
     pub base_url: String,
+    pub base_action_category: ActionCategoryId,
 }
 
 async fn start_app(
     database: TestDatabase,
-    org_id: Uuid,
+    org_id: OrgId,
     admin_user: DatabaseUser,
 ) -> Result<TestApp> {
     let shutdown = ergo_graceful_shutdown::GracefulShutdown::new();
@@ -95,6 +97,7 @@ async fn start_app(
         },
         client,
         address: format!("{}:{}", addr, port),
+        base_action_category: admin_user.action_category_id,
         base_url,
     })
 }
@@ -123,20 +126,13 @@ where
 }
 
 impl TestApp {
-    pub async fn add_org(&self, name: &str) -> Result<Uuid> {
+    pub async fn add_org(&self, name: &str) -> Result<OrgId> {
         let mut conn = self.database.pool.acquire().await?;
-        let org_id = Uuid::new_v4();
-
-        sqlx::query!(
-            "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",
-            org_id
-        )
-        .execute(&mut conn)
-        .await?;
+        let org_id = OrgId::new();
 
         sqlx::query!(
             r##"INSERT INTO orgs (org_id, name) VALUES ($1, $2)"##,
-            org_id,
+            &org_id.0,
             name
         )
         .execute(&mut conn)
@@ -147,7 +143,7 @@ impl TestApp {
 
     pub async fn add_user_with_password(
         &self,
-        org_id: &Uuid,
+        org_id: &OrgId,
         name: &str,
         password: Option<&str>,
     ) -> Result<TestUser> {
@@ -155,21 +151,14 @@ impl TestApp {
             todo!("Password support will be implemented once the API supports creating users");
         }
 
-        let user_id = Uuid::new_v4();
+        let user_id = UserId::new();
         let mut conn = self.database.pool.acquire().await?;
-
-        sqlx::query!(
-            "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",
-            user_id
-        )
-        .execute(&mut conn)
-        .await?;
 
         sqlx::query!(
             r##"INSERT INTO users (user_id, active_org_id, name, email, password_hash) VALUES
                 ($1, $2, $3, $4, $5)"##,
-            user_id,
-            org_id,
+            &user_id.0,
+            &org_id.0,
             name,
             format!("test_user_{}@example.com", user_id),
             ""
@@ -189,7 +178,7 @@ impl TestApp {
         })
     }
 
-    pub async fn add_user(&self, org_id: &Uuid, name: &str) -> Result<TestUser> {
+    pub async fn add_user(&self, org_id: &OrgId, name: &str) -> Result<TestUser> {
         self.add_user_with_password(org_id, name, None).await
     }
 }

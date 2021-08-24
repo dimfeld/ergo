@@ -45,6 +45,9 @@ pub async fn send_discord_webhook(
 
 #[cfg(test)]
 mod tests {
+    use ergo_database::object_id::TaskId;
+    use uuid::Uuid;
+
     use crate::notifications::NotifyEvent;
 
     #[actix_rt::test]
@@ -58,11 +61,11 @@ mod tests {
 
         let notification = super::Notification {
             event: NotifyEvent::ActionSuccess,
-            task_id: 1,
+            task_id: TaskId::new(),
             task_name: "a test task".to_string(),
             local_id: "the local id".to_string(),
             local_object_name: "the local object name".to_string(),
-            local_object_id: Some(1),
+            local_object_id: Some(Uuid::new_v4()),
             payload: Some(serde_json::json!({ "payload_value": 5})),
             error: None,
             log_id: Some(uuid::Uuid::new_v4()),

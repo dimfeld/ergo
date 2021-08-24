@@ -68,9 +68,9 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
         Task::apply_input(
             &self.pg_pool,
             self.notifications.clone(),
-            invocation.task_id,
-            invocation.input_id,
-            invocation.task_trigger_id,
+            invocation.task_id.clone(),
+            invocation.input_id.clone(),
+            invocation.task_trigger_id.clone(),
             invocation.inputs_log_id,
             invocation.payload.clone(),
             self.immediate_actions,

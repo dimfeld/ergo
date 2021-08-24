@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use downcast_rs::{impl_downcast, Downcast};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -27,7 +28,9 @@ pub trait Console: Downcast {
 }
 impl_downcast!(Console);
 
-#[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, Debug, JsonSchema, PartialOrd, Ord, PartialEq, Eq, Serialize, Deserialize,
+)]
 pub enum ConsoleLevel {
     Debug,
     Info,
@@ -47,7 +50,7 @@ impl From<usize> for ConsoleLevel {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct ConsoleMessage {
     pub level: ConsoleLevel,
     pub time: DateTime<Utc>,

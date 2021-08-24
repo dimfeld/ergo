@@ -329,7 +329,7 @@ impl Display for TemplateValidationError {
 
 pub fn validate(
     object: &'static str,
-    id: impl ToString,
+    id: Option<impl ToString>,
     fields: &TemplateFields,
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<(), TemplateError> {
@@ -353,7 +353,7 @@ pub fn validate(
     } else {
         Err(TemplateError::Validation(TemplateValidationError {
             object,
-            id: id.to_string(),
+            id: id.map(|i| i.to_string()).unwrap_or_else(String::new),
             fields: errors,
         }))
     }
@@ -413,21 +413,21 @@ fn apply(
 
 pub fn validate_and_apply<'a>(
     object: &'static str,
-    id: i64,
+    id: impl ToString,
     fields: &TemplateFields,
     template: &'a Vec<(String, serde_json::Value)>,
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
-    validate(object, id, fields, values)?;
+    validate(object, Some(id), fields, values)?;
     apply(template, values).map_err(|e| e.into())
 }
 
 #[cfg(test)]
 mod tests {
     mod validate {
-        use super::super::{validate, TemplateFieldFormat, TemplateValidationFailure};
+        use super::super::{TemplateFieldFormat, TemplateValidationFailure};
         use serde_json::{value, Value};
-        use std::{borrow::Cow, error::Error};
+        use std::borrow::Cow;
 
         #[test]
         fn string() -> Result<(), TemplateValidationFailure> {

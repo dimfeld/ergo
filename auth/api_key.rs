@@ -2,6 +2,7 @@ use crate::error::Error;
 use actix_web::{dev::ServiceRequest, http::header::Header};
 use actix_web_httpauth::headers::authorization::{Authorization, Bearer};
 use chrono::{DateTime, Utc};
+use ergo_database::object_id::{OrgId, UserId};
 use serde::{Deserialize, Serialize};
 use sha3::Digest;
 use std::borrow::Borrow;
@@ -14,8 +15,8 @@ use super::AuthData;
 pub struct ApiKey {
     pub api_key_id: Uuid,
     pub prefix: String,
-    pub org_id: Uuid,
-    pub user_id: Option<Uuid>,
+    pub org_id: OrgId,
+    pub user_id: Option<UserId>,
     pub inherits_user_permissions: bool,
     pub description: Option<String>,
     pub active: bool,
@@ -26,8 +27,8 @@ pub struct ApiKey {
 #[derive(Clone, Debug, sqlx::FromRow)]
 pub struct ApiKeyAuth {
     pub api_key_id: Uuid,
-    pub org_id: Uuid,
-    pub user_id: Option<Uuid>,
+    pub org_id: OrgId,
+    pub user_id: Option<UserId>,
     pub inherits_user_permissions: bool,
 }
 
@@ -89,10 +90,13 @@ async fn handle_api_key(
     let (api_key_id, hash) = decode_key(key)?;
     let auth_key = sqlx::query_as!(
         ApiKeyAuth,
-        "SELECT api_key_id, org_id, user_id, inherits_user_permissions
+        r##"SELECT api_key_id,
+            org_id as "org_id: OrgId",
+            user_id as "user_id: UserId",
+            inherits_user_permissions
         FROM api_keys
         WHERE api_key_id=$1 AND hash=$2 AND active AND (expires IS NULL OR expires < now())
-        LIMIT 1",
+        LIMIT 1"##,
         api_key_id,
         hash
     )

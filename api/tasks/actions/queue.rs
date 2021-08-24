@@ -9,7 +9,7 @@ use crate::{
 };
 
 use async_trait::async_trait;
-use ergo_database::{PostgresPool, RedisPool};
+use ergo_database::{object_id::TaskId, PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use sqlx::{Postgres, Transaction};
 
@@ -26,7 +26,9 @@ impl Drainer for QueueDrainer {
         tx: &mut Transaction<Postgres>,
     ) -> Result<Vec<(Cow<'static, str>, Job)>, Error> {
         let results = sqlx::query!(
-            r##"SELECT action_queue_id, actions_log_id, task_id, task_action_local_id, input_arrival_id, payload
+            r##"SELECT action_queue_id, actions_log_id,
+                task_id as "task_id: TaskId",
+                task_action_local_id, input_arrival_id, payload
             FROM action_queue ORDER BY action_queue_id LIMIT 50"##
         )
         .fetch_all(&mut *tx)

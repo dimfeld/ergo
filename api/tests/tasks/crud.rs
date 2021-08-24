@@ -15,14 +15,16 @@ use ergo_api::tasks::{
         self, StateDefinition, StateMachine, StateMachineConfig, StateMachineData,
         StateMachineStates,
     },
+    TaskConfig, TaskState,
 };
+use ergo_database::object_id::{OrgId, TaskId, TaskTriggerId};
 use futures::future::{join, join_all};
 use fxhash::FxHashMap;
 use serde_json::json;
 use smallvec::smallvec;
 use uuid::Uuid;
 
-pub fn simple_state_machine() -> (StateMachineConfig, StateMachineStates) {
+pub fn simple_state_machine() -> (TaskConfig, TaskState) {
     let machine = StateMachine {
         name: "a sample machine".to_string(),
         description: None,
@@ -43,7 +45,10 @@ pub fn simple_state_machine() -> (StateMachineConfig, StateMachineStates) {
         context: json!(null),
     };
 
-    (smallvec![machine], smallvec![state])
+    (
+        TaskConfig::StateMachine(smallvec![machine]),
+        TaskState::StateMachine(smallvec![state]),
+    )
 }
 
 struct BootstrappedInputs {
@@ -55,7 +60,7 @@ struct BootstrappedActions {
 }
 
 struct BootstrappedData {
-    org_id: Uuid,
+    org_id: OrgId,
     user1: TestUser,
     user2: TestUser,
     user1_tasks: Vec<(NewTaskResult, TaskInput)>,
@@ -94,7 +99,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
 
     let echo_action_payload = ActionPayload {
         action_id: None,
-        action_category_id: 1000000000,
+        action_category_id: app.base_action_category.clone(),
         name: "Echo".to_string(),
         description: Some("Echo the input".to_string()),
         executor_id: "raw_command".to_string(),
@@ -130,7 +135,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             "run".to_string(),
             TaskActionInput {
                 name: "Run the action".to_string(),
-                action_id: echo_action.action_id,
+                action_id: echo_action.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
@@ -139,7 +144,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             "ask".to_string(),
             TaskActionInput {
                 name: "Ask a question".to_string(),
-                action_id: echo_action.action_id,
+                action_id: echo_action.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
@@ -154,7 +159,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             TaskTriggerInput {
                 name: "run it".to_string(),
                 description: Some("Run the task and do something".to_string()),
-                input_id: url_input.input_id,
+                input_id: url_input.input_id.clone(),
             },
         ),
         (
@@ -162,7 +167,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             TaskTriggerInput {
                 name: "Get ready to do something".to_string(),
                 description: None,
-                input_id: url_input.input_id,
+                input_id: url_input.input_id.clone(),
             },
         ),
     ]
@@ -174,8 +179,9 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             name: "task 1".to_string(),
             description: Some("task 1 description".to_string()),
             enabled: true,
-            state_machine_config: machine.clone(),
-            state_machine_states: states.clone(),
+            compiled: machine.clone(),
+            source: serde_json::Value::Null,
+            state: states.clone(),
             actions: test_actions.clone(),
             triggers: test_triggers.clone(),
         },
@@ -183,8 +189,9 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             name: "task 2".to_string(),
             description: Some("a task 2 description".to_string()),
             enabled: true,
-            state_machine_config: machine.clone(),
-            state_machine_states: states.clone(),
+            compiled: machine.clone(),
+            source: serde_json::Value::Null,
+            state: states.clone(),
             actions: test_actions.clone(),
             triggers: test_triggers.clone(),
         },
@@ -192,8 +199,9 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             name: "task 3".to_string(),
             description: None,
             enabled: false,
-            state_machine_config: machine.clone(),
-            state_machine_states: states.clone(),
+            compiled: machine.clone(),
+            source: serde_json::Value::Null,
+            state: states.clone(),
             actions: test_actions.clone(),
             triggers: test_triggers.clone(),
         },
@@ -203,8 +211,9 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         name: "user2 task".to_string(),
         description: None,
         enabled: true,
-        state_machine_config: machine.clone(),
-        state_machine_states: states.clone(),
+        compiled: machine.clone(),
+        source: serde_json::Value::Null,
+        state: states.clone(),
         actions: test_actions.clone(),
         triggers: test_triggers.clone(),
     };
@@ -251,7 +260,7 @@ async fn list_tasks() {
                 (
                     task.name.clone(),
                     TaskDescription {
-                        id: String::new(),
+                        task_id: TaskId::new(),
                         name: task.name.clone(),
                         description: task.description.clone(),
                         enabled: task.enabled,
@@ -282,7 +291,7 @@ async fn list_tasks() {
             assert!(task.stats_since - expected.stats_since < chrono::Duration::minutes(1));
             assert!(task.created > reference_time);
             assert!(task.modified > reference_time);
-            assert!(task.id.len() > 0);
+            assert!(task.task_id.to_string().starts_with("tsk"));
         }
 
         assert_eq!(task_list.len(), 3, "Expecting three tasks");
@@ -323,12 +332,12 @@ async fn get_task() {
                 i
             );
             assert_eq!(
-                task.state_machine_config.0, input.state_machine_config,
+                task.compiled.0, input.compiled,
                 "Task {}: state machine config should match",
                 i
             );
             assert_eq!(
-                task.state_machine_states.0, input.state_machine_states,
+                task.state.0, input.state,
                 "Task {}: state machine states should match",
                 i
             );
@@ -373,7 +382,7 @@ async fn get_task_without_permission() {
         let id = user2_task.0.task_id;
         user2
             .client
-            .get_task(id.as_str())
+            .get_task(&id)
             .await
             .expect("User 2 should be able to see its own task");
 
@@ -404,7 +413,7 @@ async fn delete_task() {
             "3 tasks to start"
         );
 
-        let deleted_task = user1_tasks[2].0.task_id.as_str();
+        let deleted_task = &user1_tasks[2].0.task_id;
 
         // First try to delete it from a user that doesn't have permissions.
         user2
@@ -424,7 +433,7 @@ async fn delete_task() {
         let remaining_tasks = user1.client.list_tasks().await?;
         let remaining_task_ids = remaining_tasks
             .into_iter()
-            .map(|t| t.id)
+            .map(|t| t.task_id)
             .collect::<HashSet<_>>();
 
         assert!(
@@ -456,7 +465,7 @@ async fn put_existing_task() {
             ..
         } = bootstrap_data(&app).await?;
 
-        let task_id = user1_tasks[0].0.task_id.as_str();
+        let task_id = &user1_tasks[0].0.task_id;
 
         user2
             .client
@@ -470,12 +479,15 @@ async fn put_existing_task() {
             "Task should not be changed by disallowed update"
         );
 
+        let (config, state) = simple_state_machine();
+
         let updated = TaskInput {
             name: "new name".to_string(),
             description: Some("a new description".to_string()),
             enabled: false,
-            state_machine_config: state_machine::StateMachineConfig::new(),
-            state_machine_states: state_machine::StateMachineStates::new(),
+            compiled: config.clone(),
+            source: serde_json::Value::Null,
+            state: state.clone(),
             actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
             triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
         };
@@ -501,99 +513,6 @@ async fn put_existing_task() {
 }
 
 #[actix_rt::test]
-async fn put_new_task_with_id() {
-    run_app_test(|app| async move {
-        let BootstrappedData { user1, .. } = bootstrap_data(&app).await?;
-
-        let other_org = app
-            .add_org("other test org")
-            .await
-            .expect("Creating new org");
-        let other_org_user = app
-            .add_user(&other_org, "other org test user")
-            .await
-            .expect("Creating new org user");
-
-        let new_task_id = "a_new_test_task_id";
-        let task = TaskInput {
-            name: "new name".to_string(),
-            description: Some("a new description".to_string()),
-            enabled: false,
-            state_machine_config: state_machine::StateMachineConfig::new(),
-            state_machine_states: state_machine::StateMachineStates::new(),
-            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-        };
-
-        let other_org_task = TaskInput {
-            name: "other org task name".to_string(),
-            description: Some("another new description".to_string()),
-            enabled: true,
-            state_machine_config: state_machine::StateMachineConfig::new(),
-            state_machine_states: state_machine::StateMachineStates::new(),
-            actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-            triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
-        };
-
-        user1
-            .client
-            .put_task(new_task_id, &task)
-            .await
-            .expect("Writing new task");
-
-        other_org_user
-            .client
-            .put_task(new_task_id, &other_org_task)
-            .await
-            .expect("Writing other org task");
-
-        let task_list = user1.client.list_tasks().await.expect("Listing tasks");
-        let task_ids = task_list
-            .iter()
-            .map(|t| t.id.clone())
-            .collect::<HashSet<_>>();
-        assert!(task_ids.get(new_task_id).is_some(), "new task is in list");
-        assert_eq!(
-            task_list.len(),
-            4,
-            "Task list contains original tasks and the new one"
-        );
-
-        let result = user1
-            .client
-            .get_task(new_task_id)
-            .await
-            .expect("Retrieving new task");
-        assert_eq!(result.name, task.name);
-        assert_eq!(result.description, task.description);
-        assert_eq!(result.enabled, task.enabled);
-
-        let other_org_tasks = other_org_user
-            .client
-            .list_tasks()
-            .await
-            .expect("Other org listing tasks");
-        assert_eq!(other_org_tasks.len(), 1, "Other org has only one task");
-        assert_eq!(
-            other_org_tasks[0].id, new_task_id,
-            "other org task has expected ID"
-        );
-
-        let other_org_result = other_org_user
-            .client
-            .get_task(new_task_id)
-            .await
-            .expect("Retrieving other org task");
-        assert_eq!(other_org_result.name, other_org_task.name);
-        assert_eq!(other_org_result.description, other_org_task.description);
-        assert_eq!(other_org_result.enabled, other_org_task.enabled);
-
-        Ok(())
-    })
-    .await
-}
-
-#[actix_rt::test]
 async fn update_task_triggers() {
     run_app_test(|app| async move {
         let BootstrappedData {
@@ -609,18 +528,18 @@ async fn update_task_triggers() {
             TaskTriggerInput {
                 name: "Do the thing".to_string(),
                 description: None,
-                input_id: inputs.url.input_id,
+                input_id: inputs.url.input_id.clone(),
             },
         );
 
         user1
             .client
-            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .put_task(&user1_tasks[0].0.task_id, &task)
             .await
             .expect("Adding trigger");
         let added_trigger_result = user1
             .client
-            .get_task(user1_tasks[0].0.task_id.as_str())
+            .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with added trigger");
         assert_eq!(
@@ -631,12 +550,12 @@ async fn update_task_triggers() {
         task.triggers.remove("prepare");
         user1
             .client
-            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .put_task(&user1_tasks[0].0.task_id, &task)
             .await
             .expect("Removing trigger");
         let removed_trigger_result = user1
             .client
-            .get_task(user1_tasks[0].0.task_id.as_str())
+            .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with removed trigger");
         assert_eq!(
@@ -650,18 +569,18 @@ async fn update_task_triggers() {
             TaskTriggerInput {
                 name: "Do another thing".to_string(),
                 description: Some("A description".to_string()),
-                input_id: inputs.url.input_id,
+                input_id: inputs.url.input_id.clone(),
             },
         );
 
         user1
             .client
-            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .put_task(&user1_tasks[0].0.task_id, &task)
             .await
             .expect("Modifying trigger");
         let updated_trigger_result = user1
             .client
-            .get_task(user1_tasks[0].0.task_id.as_str())
+            .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with updated trigger");
         assert_eq!(
@@ -677,7 +596,7 @@ async fn update_task_triggers() {
             TaskTriggerInput {
                 name: "Do another thing".to_string(),
                 description: Some("A description".to_string()),
-                input_id: inputs.url.input_id,
+                input_id: inputs.url.input_id.clone(),
             },
         );
         task2.triggers.insert(
@@ -685,7 +604,7 @@ async fn update_task_triggers() {
             TaskTriggerInput {
                 name: "changed run it".to_string(),
                 description: Some("this is another change".to_string()),
-                input_id: inputs.url.input_id,
+                input_id: inputs.url.input_id.clone(),
             },
         );
         task2.triggers.insert(
@@ -693,18 +612,18 @@ async fn update_task_triggers() {
             TaskTriggerInput {
                 name: "see a thing".to_string(),
                 description: None,
-                input_id: inputs.url.input_id,
+                input_id: inputs.url.input_id.clone(),
             },
         );
 
         user1
             .client
-            .put_task(user1_tasks[1].0.task_id.as_str(), &task2)
+            .put_task(&user1_tasks[1].0.task_id, &task2)
             .await
             .expect("Multiple trigger updates");
         let updated_trigger_result = user1
             .client
-            .get_task(user1_tasks[1].0.task_id.as_str())
+            .get_task(&user1_tasks[1].0.task_id)
             .await
             .expect("Retrieving task with multiple updates");
         assert_eq!(
@@ -732,19 +651,19 @@ async fn update_task_actions() {
             "do_it".to_string(),
             TaskActionInput {
                 name: "Do a thing".to_string(),
-                action_id: actions.echo.action_id,
+                action_id: actions.echo.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
         );
         user1
             .client
-            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .put_task(&user1_tasks[0].0.task_id, &task)
             .await
             .expect("Adding action");
         let added_action_result = user1
             .client
-            .get_task(user1_tasks[0].0.task_id.as_str())
+            .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with added action");
         assert_eq!(
@@ -755,12 +674,12 @@ async fn update_task_actions() {
         task.actions.remove("run_it");
         user1
             .client
-            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .put_task(&user1_tasks[0].0.task_id, &task)
             .await
             .expect("Removing action");
         let removed_action_result = user1
             .client
-            .get_task(user1_tasks[0].0.task_id.as_str())
+            .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with removed action");
         assert_eq!(
@@ -773,19 +692,19 @@ async fn update_task_actions() {
             "ask".to_string(),
             TaskActionInput {
                 name: "Ask it".to_string(),
-                action_id: actions.echo.action_id,
+                action_id: actions.echo.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
         );
         user1
             .client
-            .put_task(user1_tasks[0].0.task_id.as_str(), &task)
+            .put_task(&user1_tasks[0].0.task_id, &task)
             .await
             .expect("Modifying action");
         let modified_action_result = user1
             .client
-            .get_task(user1_tasks[0].0.task_id.as_str())
+            .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with modified action");
         assert_eq!(
@@ -800,7 +719,7 @@ async fn update_task_actions() {
             "ask".to_string(),
             TaskActionInput {
                 name: "Ask it".to_string(),
-                action_id: actions.echo.action_id,
+                action_id: actions.echo.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
@@ -809,7 +728,7 @@ async fn update_task_actions() {
             "do_it".to_string(),
             TaskActionInput {
                 name: "Do a thing".to_string(),
-                action_id: actions.echo.action_id,
+                action_id: actions.echo.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
@@ -818,7 +737,7 @@ async fn update_task_actions() {
             "add_another".to_string(),
             TaskActionInput {
                 name: "Do another thing".to_string(),
-                action_id: actions.echo.action_id,
+                action_id: actions.echo.action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
@@ -826,12 +745,12 @@ async fn update_task_actions() {
 
         user1
             .client
-            .put_task(user1_tasks[1].0.task_id.as_str(), &task2)
+            .put_task(&user1_tasks[1].0.task_id, &task2)
             .await
             .expect("Modifying action");
         let result = user1
             .client
-            .get_task(user1_tasks[1].0.task_id.as_str())
+            .get_task(&user1_tasks[1].0.task_id)
             .await
             .expect("Retrieving task with modified action");
         assert_eq!(
@@ -855,10 +774,10 @@ async fn list_inputs() {
             .await
             .expect("Listing inputs")
             .into_iter()
-            .map(|i| (i.input_id, i))
+            .map(|i| (i.input_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
         let expected_inputs = std::array::IntoIter::new([inputs.url.clone()])
-            .map(|i| (i.input_id, i))
+            .map(|i| (i.input_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
         assert_eq!(input_list, expected_inputs, "Inputs match expected list");
 
@@ -890,10 +809,10 @@ async fn list_actions() {
             .await
             .expect("Listing actions")
             .into_iter()
-            .map(|i| (i.action_id, i))
+            .map(|i| (i.action_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
         let expected_actions = std::array::IntoIter::new([actions.echo.clone()])
-            .map(|i| (i.action_id, i))
+            .map(|i| (i.action_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
         assert_eq!(action_list, expected_actions, "actions match expected list");
 

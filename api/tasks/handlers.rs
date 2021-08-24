@@ -1,8 +1,4 @@
-use super::{
-    actions::ActionStatus,
-    inputs::InputStatus,
-    state_machine::{self, StateMachineConfig, StateMachineStates},
-};
+use super::{actions::ActionStatus, inputs::InputStatus, TaskConfig, TaskState};
 use crate::{
     backend_data::BackendAppStateData,
     error::{Error, Result},
@@ -17,7 +13,9 @@ use actix_web::{
 };
 use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
-use ergo_database::object_id::new_object_id;
+use ergo_database::object_id::{
+    AccountId, ActionId, InputId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
+};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,13 +26,13 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
-    task_id: String,
+    task_id: TaskId,
     trigger_id: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 pub struct TaskDescription {
-    pub id: String,
+    pub task_id: TaskId,
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
@@ -46,17 +44,12 @@ pub struct TaskDescription {
     pub stats_since: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
-struct TaskId {
-    task_id: String,
-}
-
 #[get("/tasks")]
 async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Responder> {
     let user_ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
-        r##"SELECT external_task_id AS id, name, description, enabled, created, modified,
+        r##"SELECT task_id AS "task_id: TaskId", name, description, enabled, created, modified,
             last_triggered AS "last_triggered?",
             COALESCE(successes, 0) as "successes!",
             COALESCE(failures, 0) as "failures!",
@@ -78,12 +71,12 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
         ) last_triggered ON true
         WHERE tasks.org_id = $2 AND NOT deleted AND
             EXISTS (SELECT 1 FROM user_entity_permissions
-                WHERE permissioned_object IN (1, tasks.task_id)
+                WHERE permissioned_object IN (uuid_nil(), tasks.task_id)
                 AND user_entity_id = ANY($1)
                 AND permission_type = 'read'
             )"##,
         user_ids.as_slice(),
-        auth.org_id(),
+        &auth.org_id().0,
     )
     .fetch_all(&data.pg)
     .await?;
@@ -93,12 +86,14 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
 
 #[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
 pub struct TaskResult {
-    pub task_id: String,
+    pub task_id: TaskId,
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
-    pub state_machine_config: sqlx::types::Json<StateMachineConfig>,
-    pub state_machine_states: sqlx::types::Json<StateMachineStates>,
+    pub task_template_version: i64,
+    pub compiled: sqlx::types::Json<TaskConfig>,
+    pub source: sqlx::types::Json<serde_json::Value>,
+    pub state: sqlx::types::Json<TaskState>,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
     pub actions: sqlx::types::Json<FxHashMap<String, TaskActionInput>>,
@@ -108,7 +103,7 @@ pub struct TaskResult {
 #[get("/tasks/{task_id}")]
 #[instrument(skip(data), fields(task))]
 async fn get_task(
-    task_id: Path<String>,
+    task_id: Path<TaskId>,
     data: AppStateData,
     req: HttpRequest,
     auth: Authenticated,
@@ -118,14 +113,17 @@ async fn get_task(
 
     let task = sqlx::query_as!(
         TaskResult,
-        r##"SELECT external_task_id as task_id,
+        r##"SELECT task_id as "task_id: TaskId",
         tasks.name, tasks.description, enabled,
-        state_machine_config as "state_machine_config!: _",
-        state_machine_states as "state_machine_states!: _",
-        created, modified,
+        task_template_version,
+        compiled as "compiled!: _",
+        source as "source!: _",
+        state as "state!: _",
+        tasks.created, tasks.modified,
         COALESCE(task_triggers, '{}'::jsonb) as "triggers!: _",
         COALESCE(task_actions, '{}'::jsonb) as "actions!: _"
         FROM tasks
+        JOIN task_templates USING (task_template_id, task_template_version)
 
         LEFT JOIN LATERAL (
             SELECT jsonb_object_agg(task_action_local_id, jsonb_build_object(
@@ -149,16 +147,16 @@ async fn get_task(
             GROUP BY task_triggers.task_id
         ) tt ON true
 
-        WHERE external_task_id=$1 AND org_id=$3 AND NOT deleted
+        WHERE task_id=$1 AND tasks.org_id=$3 AND NOT deleted
         AND EXISTS(SELECT 1 FROM user_entity_permissions
             WHERE
-            permissioned_object IN (1, task_id)
+            permissioned_object IN (uuid_nil(), task_id)
             AND user_entity_id=ANY($2)
             AND permission_type = 'read'
         )"##,
-        &task_id,
+        &task_id.0,
         user_ids.as_slice(),
-        auth.org_id()
+        &auth.org_id().0
     )
     .fetch_optional(&data.pg)
     .await?;
@@ -173,20 +171,22 @@ async fn get_task(
 
 #[delete("/tasks/{task_id}")]
 async fn delete_task(
-    task_id: Path<String>,
+    task_id: Path<TaskId>,
     data: AppStateData,
     auth: Authenticated,
 ) -> Result<impl Responder> {
     let user_entity_ids = auth.user_entity_ids();
     let task_id = task_id.into_inner();
 
-    let deleted = sqlx::query_scalar!("UPDATE tasks SET deleted=true WHERE external_task_id=$1 AND org_id=$2
+    let deleted = sqlx::query_scalar!("UPDATE tasks SET deleted=true WHERE task_id=$1 AND org_id=$2
         AND NOT deleted AND
         EXISTS(SELECT 1 FROM user_entity_permissions
-            WHERE permissioned_object IN (1, task_id) AND user_entity_id=ANY($3) AND permission_type='write'
+            WHERE permissioned_object IN (uuid_nil(), task_id) AND user_entity_id=ANY($3) AND permission_type='write'
         )
         RETURNING task_id",
-        task_id, auth.org_id(), user_entity_ids.as_slice())
+        task_id.0,
+        auth.org_id().0,
+        user_entity_ids.as_slice())
         .fetch_optional(&data.pg)
         .await?;
 
@@ -199,14 +199,14 @@ async fn delete_task(
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskActionInput {
     pub name: String,
-    pub action_id: i64,
-    pub account_id: Option<i64>,
+    pub action_id: ActionId,
+    pub account_id: Option<AccountId>,
     pub action_template: Option<Vec<(String, serde_json::Value)>>,
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskTriggerInput {
-    pub input_id: i64,
+    pub input_id: InputId,
     pub name: String,
     pub description: Option<String>,
 }
@@ -216,57 +216,70 @@ pub struct TaskInput {
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
-    pub state_machine_config: state_machine::StateMachineConfig,
-    pub state_machine_states: state_machine::StateMachineStates,
+    pub compiled: TaskConfig,
+    pub source: serde_json::Value,
+    pub state: TaskState,
     pub actions: FxHashMap<String, TaskActionInput>,
     pub triggers: FxHashMap<String, TaskTriggerInput>,
 }
 
 #[put("/tasks/{task_id}")]
 async fn update_task(
-    external_task_id: Path<String>,
+    task_id: Path<TaskId>,
     data: AppStateData,
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
     let user_ids = auth.user_entity_ids();
-    let external_task_id = external_task_id.into_inner();
+    let task_id = task_id.into_inner();
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
     // TODO Validate task actions against action templates.
 
-    let task_id = sqlx::query!(
-        "UPDATE TASKS SET
-        name=$2, description=$3, enabled=$4, state_machine_config=$5, state_machine_states=$6, modified=now()
-        WHERE external_task_id=$1 AND org_id=$7 AND EXISTS (
+    struct TaskUpdateResult {
+        task_template_id: Uuid,
+        task_template_version: i64,
+    }
+
+    let TaskUpdateResult {
+        task_template_id,
+        task_template_version,
+    } = sqlx::query_as!(
+        TaskUpdateResult,
+        "UPDATE tasks SET
+        name=$2, description=$3, enabled=$4, state=$5, modified=now()
+        WHERE task_id=$1 AND org_id=$6 AND EXISTS (
             SELECT 1 FROM user_entity_permissions
-            WHERE permissioned_object IN (1, tasks.task_id)
-            AND user_entity_id=ANY($8)
+            WHERE permissioned_object IN (uuid_nil(), tasks.task_id)
+            AND user_entity_id=ANY($7)
             AND permission_type = 'write'
             )
-        RETURNING task_id
+        RETURNING task_template_id, task_template_version
         ",
-        &external_task_id,
+        &task_id.0,
         &payload.name,
         &payload.description as _,
         payload.enabled,
-        sqlx::types::Json(&payload.state_machine_config) as _,
-        sqlx::types::Json(&payload.state_machine_states) as _,
-        auth.org_id(),
+        sqlx::types::Json(&payload.state) as _,
+        &auth.org_id().0,
         user_ids.as_slice()
     )
     .fetch_optional(&mut tx)
-    .await?;
+    .await?
+    .ok_or(Error::NotFound)?;
 
-    let task_id = match task_id {
-        Some(t) => t.task_id,
-        None => {
-            drop(tx);
-            drop(conn);
-            return new_task(data, auth, Some(external_task_id), payload).await;
-        }
-    };
+    sqlx::query!(
+        "UPDATE task_templates
+        SET source=$3, compiled=$4
+        WHERE task_template_id=$1 AND task_template_version=$2",
+        task_template_id,
+        task_template_version,
+        &payload.source,
+        sqlx::types::Json(&payload.compiled) as _,
+    )
+    .execute(&mut tx)
+    .await?;
 
     for (action_local_id, action) in &payload.actions {
         sqlx::query!(
@@ -276,10 +289,10 @@ async fn update_task(
             ON CONFLICT (task_id, task_action_local_id) DO UPDATE SET
                 action_id=EXCLUDED.action_id, account_id=EXCLUDED.account_id,
                 name=EXCLUDED.name, action_template=EXCLUDED.action_template",
-            task_id,
+            &task_id.0,
             action_local_id,
-            action.action_id,
-            action.account_id,
+            &action.action_id.0,
+            action.account_id.as_ref().map(|x| x.0),
             action.name,
             sqlx::types::Json(&action.action_template) as _
         )
@@ -295,7 +308,7 @@ async fn update_task(
     if !action_local_ids.is_empty() {
         sqlx::query!(
             "DELETE FROM task_actions WHERE task_id=$1 AND task_action_local_id <> ALL($2)",
-            task_id,
+            &task_id.0,
             action_local_ids.as_slice() as _
         )
         .execute(&mut tx)
@@ -308,9 +321,9 @@ async fn update_task(
             "UPDATE task_triggers
             SET input_id=$3, name=$4, description=$5
             WHERE task_id=$1 and task_trigger_local_id=$2",
-            task_id,
+            &task_id.0,
             &trigger_local_id,
-            trigger.input_id,
+            &trigger.input_id.0,
             &trigger.name,
             &trigger.description as _
         )
@@ -319,7 +332,7 @@ async fn update_task(
 
         if updated.rows_affected() == 0 {
             // The object didn't exist, so update it here.
-            add_task_trigger(&mut tx, &trigger_local_id, task_id, trigger, &user_id).await?;
+            add_task_trigger(&mut tx, &trigger_local_id, &task_id, trigger, &user_id).await?;
         }
     }
 
@@ -331,7 +344,7 @@ async fn update_task(
     if !task_trigger_ids.is_empty() {
         sqlx::query!(
             "DELETE FROM task_triggers WHERE task_id=$1 AND task_triggeR_local_id <> ALL($2)",
-            task_id,
+            &task_id.0,
             &task_trigger_ids as _
         )
         .execute(&mut tx)
@@ -345,19 +358,19 @@ async fn update_task(
 async fn add_task_trigger(
     tx: &mut Transaction<'_, Postgres>,
     local_id: &str,
-    task_id: i64,
+    task_id: &TaskId,
     trigger: &TaskTriggerInput,
-    user_id: &Option<&Uuid>,
-) -> Result<i64> {
-    let trigger_id = new_object_id(&mut *tx, "task_trigger").await?;
+    user_id: &Option<&UserId>,
+) -> Result<TaskTriggerId> {
+    let trigger_id = TaskTriggerId::new();
     sqlx::query!(
         "INSERT INTO task_triggers (task_trigger_id, task_id, input_id, task_trigger_local_id,
                 name, description
             ) VALUES
             ($1, $2, $3, $4, $5, $6)",
-        trigger_id,
-        task_id,
-        trigger.input_id,
+        &trigger_id.0,
+        &task_id.0,
+        &trigger.input_id.0,
         local_id,
         trigger.name,
         trigger.description as _
@@ -368,8 +381,8 @@ async fn add_task_trigger(
     if let Some(user_id) = user_id {
         sqlx::query!("INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
         VALUES ($1, 'trigger_event', $2)",
-            user_id,
-            trigger_id
+            &user_id.0,
+            &trigger_id.0
         ).execute(&mut *tx).await?;
     }
 
@@ -378,7 +391,7 @@ async fn add_task_trigger(
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NewTaskResult {
-    pub task_id: String,
+    pub task_id: TaskId,
 }
 
 #[post("/tasks")]
@@ -387,20 +400,16 @@ async fn new_task_handler(
     auth: Authenticated,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
-    new_task(data, auth, None, payload).await
+    new_task(data, auth, payload).await
 }
 
 #[instrument(skip(data))]
 async fn new_task(
     data: AppStateData,
     auth: Authenticated,
-    external_task_id: Option<String>,
     payload: web::Json<TaskInput>,
 ) -> Result<HttpResponse> {
     let payload = payload.into_inner();
-    let external_task_id = external_task_id.unwrap_or_else(|| {
-        base64::encode_config(uuid::Uuid::new_v4().as_bytes(), base64::URL_SAFE_NO_PAD)
-    });
     let user_id = auth.user_id();
 
     // TODO Validate task actions against action templates.
@@ -408,19 +417,39 @@ async fn new_task(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let task_id = new_object_id(&mut tx, "task").await?;
+    let task_id = TaskId::new();
+    let task_template_id = TaskTemplateId::new();
+    let org_id = auth.org_id();
+
     sqlx::query!(
-        "INSERT INTO tasks (task_id, external_task_id, org_id, name,
-        description, enabled, state_machine_config, state_machine_states) VALUES
+        r##"
+        INSERT INTO task_templates (task_template_id, task_template_version, org_id,
+            name, description, source, compiled, initial_state) VALUES
+            ($1, $2, $3, $4, $5, $6, $7, $8)"##,
+        &task_template_id.0,
+        0,
+        &org_id.0,
+        &payload.name,
+        payload.description,
+        &payload.source,
+        sqlx::types::Json(payload.compiled) as _,
+        sqlx::types::Json(&payload.state) as _
+    )
+    .execute(&mut tx)
+    .await?;
+
+    sqlx::query!(
+        "INSERT INTO tasks (task_id, org_id, task_template_id, task_template_version, name,
+        description, enabled, state) VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8)",
-        task_id,
-        external_task_id,
-        auth.org_id(),
+        &task_id.0,
+        &org_id.0,
+        &task_template_id.0,
+        0,
         payload.name,
         payload.description,
         payload.enabled,
-        sqlx::types::Json(payload.state_machine_config.as_slice()) as _,
-        sqlx::types::Json(payload.state_machine_states.as_slice()) as _
+        sqlx::types::Json(&payload.state) as _
     )
     .execute(&mut tx)
     .await?;
@@ -431,7 +460,7 @@ async fn new_task(
             VALUES
             ($1, 'read', $2),
             ($1, 'write', $2)",
-            user_id, &task_id
+            &user_id.0, &task_id.0
         )
         .execute(&mut tx)
         .await?;
@@ -443,10 +472,10 @@ async fn new_task(
                 action_id, account_id, name, action_template)
                 VALUES
                 ($1, $2, $3, $4, $5, $6)",
-            task_id,
+            &task_id.0,
             local_id,
-            action.action_id,
-            action.account_id,
+            &action.action_id.0,
+            action.account_id.as_ref().map(|x| x.0),
             action.name,
             sqlx::types::Json(action.action_template.as_ref()) as _
         )
@@ -455,14 +484,12 @@ async fn new_task(
     }
 
     for (local_id, trigger) in &payload.triggers {
-        add_task_trigger(&mut tx, &local_id, task_id, trigger, &user_id).await?;
+        add_task_trigger(&mut tx, &local_id, &task_id, trigger, &user_id).await?;
     }
 
     tx.commit().await?;
 
-    Ok(HttpResponse::Created().json(NewTaskResult {
-        task_id: external_task_id,
-    }))
+    Ok(HttpResponse::Created().json(NewTaskResult { task_id }))
 }
 
 #[post("/tasks/{task_id}/trigger/{trigger_id}")]
@@ -481,23 +508,27 @@ async fn post_task_trigger(
     } = path.into_inner();
 
     let trigger = sqlx::query!(
-        r##"SELECT tasks.*, tt.name as task_trigger_name, task_trigger_id, input_id,
+        r##"SELECT tasks.task_id AS "task_id: TaskId",
+            tasks.name as task_name,
+            tt.name as task_trigger_name,
+            task_trigger_id AS "task_trigger_id: TaskTriggerId",
+            input_id AS "input_id: InputId",
             inputs.payload_schema as input_schema
         FROM task_triggers tt
         JOIN tasks USING(task_id)
         JOIN inputs USING(input_id)
-        WHERE org_id = $2 AND task_trigger_local_id = $3 AND external_task_id = $4
+        WHERE org_id = $2 AND task_trigger_local_id = $3 AND task_id = $4
             AND EXISTS(
                 SELECT 1 FROM user_entity_permissions
                 WHERE user_entity_id = ANY($1)
                 AND permission_type = 'trigger_event'
-                AND permissioned_object IN(1, task_trigger_id)
+                AND permissioned_object IN(uuid_nil(), task_trigger_id)
             )
         "##,
         ids.as_slice(),
-        org_id,
+        &org_id.0,
         &trigger_id,
-        &task_id
+        &task_id.0
     )
     .fetch_optional(&data.pg)
     .await?
@@ -514,7 +545,7 @@ async fn post_task_trigger(
         task_trigger_id: trigger.task_trigger_id,
         task_trigger_local_id: trigger_id,
         task_trigger_name: trigger.task_trigger_name,
-        task_name: trigger.name,
+        task_name: trigger.task_name,
         payload_schema: &trigger.input_schema,
         payload: payload.into_inner(),
     })
@@ -537,7 +568,7 @@ pub struct InputLogEntryAction {
 pub struct InputsLogEntry {
     pub inputs_log_id: Uuid,
     pub task_name: String,
-    pub external_task_id: String,
+    pub task_id: TaskId,
     pub input_status: InputStatus,
     pub input_error: serde_json::Value,
     pub task_trigger_name: String,
@@ -556,7 +587,7 @@ async fn get_logs(data: BackendAppStateData, auth: Authenticated) -> Result<impl
         r##"
             SELECT inputs_log_id,
                 tasks.name AS task_name,
-                tasks.external_task_id,
+                tasks.task_id AS "task_id: TaskId",
                 il.status AS "input_status!: InputStatus",
                 COALESCE(il.error, 'null'::jsonb) AS "input_error!",
                 MAX(tt.name) AS "task_trigger_name!",
@@ -579,14 +610,14 @@ async fn get_logs(data: BackendAppStateData, auth: Authenticated) -> Result<impl
                 EXISTS(SELECT 1 FROM user_entity_permissions
                     WHERE user_entity_id = ANY($1)
                     AND permission_type = 'read'
-                    AND permissioned_object IN (1, tasks.task_id)
+                    AND permissioned_object IN (uuid_nil(), tasks.task_id)
                 )
             GROUP BY tasks.task_id, inputs_log_id
             ORDER BY il.updated DESC
             LIMIT 50
         "##,
         ids.as_slice(),
-        org_id
+        org_id.0
     )
     .fetch_all(&data.pg)
     .await?;

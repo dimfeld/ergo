@@ -8,13 +8,17 @@ pub use error::*;
 use std::{
     future::{ready, Ready},
     rc::Rc,
+    str::FromStr,
 };
 
 pub use api_key::ApiKey;
 
 use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
 use chrono::{DateTime, Utc};
-use ergo_database::PostgresPool;
+use ergo_database::{
+    object_id::{OrgId, RoleId, UserId},
+    PostgresPool,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::query;
 use tracing::{event, field, instrument, Level};
@@ -37,24 +41,24 @@ pub struct Permission {
     #[serde(rename = "permission_type")]
     pub perm: PermissionType,
     #[serde(rename = "permissioned_object")]
-    pub object: Option<i64>,
+    pub object: Option<Uuid>,
 }
 
 #[derive(Debug, Clone)]
 pub struct User {
-    pub user_id: Uuid,
+    pub user_id: UserId,
     pub external_user_id: String,
-    pub active_org_id: Uuid,
+    pub active_org_id: OrgId,
     pub name: String,
     pub email: String,
     pub active: bool,
     pub created: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct RequestUser {
-    pub user_id: Uuid,
-    pub org_id: Uuid,
+    pub user_id: UserId,
+    pub org_id: OrgId,
     pub name: String,
     pub email: String,
     pub user_entity_ids: UserEntityList,
@@ -139,14 +143,14 @@ pub enum AuthenticationInfo {
 pub type UserEntityList = smallvec::SmallVec<[Uuid; 4]>;
 
 impl AuthenticationInfo {
-    pub fn org_id(&self) -> &Uuid {
+    pub fn org_id(&self) -> &OrgId {
         match self {
             Self::User(user) => &user.org_id,
             Self::ApiKey { key, .. } => &key.org_id,
         }
     }
 
-    pub fn user_id(&self) -> Option<&Uuid> {
+    pub fn user_id(&self) -> Option<&UserId> {
         match self {
             Self::User(user) => Some(&user.user_id),
             Self::ApiKey { user, .. } => user.as_ref().map(|u| &u.user_id),
@@ -170,7 +174,7 @@ impl AuthenticationInfo {
                 (true, None) => {
                     let mut list = UserEntityList::new();
                     list.push(key.api_key_id.clone());
-                    list.push(key.org_id.clone());
+                    list.push(key.org_id.clone().into());
                     list
                 }
             },
@@ -195,7 +199,7 @@ impl AuthenticationInfo {
 pub struct AuthData {
     pg: PostgresPool,
     /// Temporary method of implementing admin user
-    admin_user: Option<Uuid>,
+    admin_user: Option<UserId>,
 }
 
 impl AuthData {
@@ -219,7 +223,8 @@ impl AuthData {
         match identity {
             Some(identity) => {
                 // TODO This should be a session ID, not a user ID.
-                let user_id = Uuid::parse_str(&identity).map_err(|_| Error::AuthenticationError)?;
+                let user_id =
+                    UserId::from_str(&identity).map_err(|_| Error::AuthenticationError)?;
 
                 let req_user = self.get_user_info(&user_id).await?;
                 Ok(Some(AuthenticationInfo::User(req_user)))
@@ -229,29 +234,32 @@ impl AuthData {
     }
 
     #[instrument(skip(self), fields(user))]
-    async fn get_user_info(&self, user_id: &Uuid) -> Result<RequestUser, Error> {
+    async fn get_user_info(&self, user_id: &UserId) -> Result<RequestUser, Error> {
         event!(Level::DEBUG, "Fetching user");
         query!(
-            r##"SELECT user_id,
-            active_org_id AS org_id, users.name, email,
-            array_agg(role_id) FILTER(WHERE role_id IS NOT NULL) AS roles
+            r##"SELECT user_id as "user_id: UserId",
+            active_org_id AS "org_id: OrgId", users.name, email,
+            array_agg(role_id) FILTER(WHERE role_id IS NOT NULL) AS "roles: Vec<RoleId>"
         FROM users
         JOIN orgs ON orgs.org_id = active_org_id
         LEFT JOIN user_roles USING(user_id, org_id)
         WHERE user_id = $1 AND NOT users.deleted AND NOT orgs.deleted
         GROUP BY user_id"##,
-            user_id
+            &user_id.0
         )
         .fetch_optional(&self.pg)
         .await?
         .map(|user| {
             let user_entity_ids = match user.roles {
                 Some(roles) => {
-                    let mut ids = UserEntityList::from_vec(roles);
-                    ids.push(user.user_id);
+                    let mut ids = UserEntityList::with_capacity(roles.len() + 1);
+                    for role in roles {
+                        ids.push(role.into());
+                    }
+                    ids.push(user.user_id.clone().into());
                     ids
                 }
-                None => UserEntityList::from_elem(user.user_id, 1),
+                None => UserEntityList::from_elem(user.user_id.clone().into(), 1),
             };
 
             let user = RequestUser {
@@ -277,34 +285,35 @@ impl AuthData {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{api_key::ApiKeyAuth, *};
     mod authentication_info {
+        use ergo_database::object_id::*;
         use smallvec::smallvec;
         use std::str::FromStr;
         use uuid::Uuid;
 
         use super::*;
 
-        fn user_id() -> Uuid {
-            Uuid::from_str("e1ecedb3-10a5-4fa5-ae8d-edb383aac701").unwrap()
+        fn user_id() -> UserId {
+            UserId::from_uuid(Uuid::from_str("e1ecedb3-10a5-4fa5-ae8d-edb383aac701").unwrap())
         }
 
-        fn org_id() -> Uuid {
-            Uuid::from_str("622217aa-6a58-45ea-812f-749b8ad462bf").unwrap()
+        fn org_id() -> OrgId {
+            OrgId::from_uuid(Uuid::from_str("622217aa-6a58-45ea-812f-749b8ad462bf").unwrap())
         }
 
         fn api_key_id() -> Uuid {
             Uuid::from_str("353d3c01-d0ea-46ea-95e4-3a07d0ce9116").unwrap()
         }
 
-        fn role_id() -> Uuid {
-            Uuid::from_str("27849616-d3a4-43c6-995d-143cf1c8de98").unwrap()
+        fn role_id() -> RoleId {
+            RoleId::from_uuid(Uuid::from_str("27849616-d3a4-43c6-995d-143cf1c8de98").unwrap())
         }
 
         fn request_user() -> RequestUser {
             let user = user_id();
             let org = org_id();
-            let ids = smallvec![user.clone(), org.clone(), role_id()];
+            let ids = smallvec![user.0.clone(), org.0.clone(), role_id().0];
             RequestUser {
                 user_id: user,
                 org_id: org,
@@ -423,7 +432,12 @@ mod tests {
         fn user_entity_ids() {
             let mut ids = user_key_with_inherit().user_entity_ids();
             ids.sort();
-            let mut s: UserEntityList = smallvec![user_id(), org_id(), api_key_id(), role_id()];
+            let mut s: UserEntityList = smallvec![
+                user_id().into(),
+                org_id().into(),
+                api_key_id(),
+                role_id().into()
+            ];
             s.sort();
             assert_eq!(
                 ids, s,
@@ -438,7 +452,7 @@ mod tests {
 
             let mut ids = org_key_with_inherit().user_entity_ids();
             ids.sort();
-            let mut s: UserEntityList = smallvec![org_id(), api_key_id()];
+            let mut s: UserEntityList = smallvec![org_id().into(), api_key_id()];
             s.sort();
             assert_eq!(ids, s, "org key with inherit should have API key and org");
 
@@ -453,7 +467,8 @@ mod tests {
 
             let mut ids = user_auth().user_entity_ids();
             ids.sort();
-            let mut s: UserEntityList = smallvec![org_id(), user_id(), role_id()];
+            let mut s: UserEntityList =
+                smallvec![org_id().into(), user_id().into(), role_id().into()];
             s.sort();
             assert_eq!(ids, s, "user auth should have user, org, and roles");
         }

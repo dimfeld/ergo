@@ -3,6 +3,7 @@ use ergo_api::tasks::{
     handlers::{NewTaskResult, TaskDescription, TaskInput, TaskResult},
     inputs::{handlers::InputPayload, Input},
 };
+use ergo_database::object_id::TaskId;
 
 use super::TestClient;
 use reqwest::{Response, Result};
@@ -18,7 +19,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn put_task(&self, id: &str, task: &TaskInput) -> Result<Response> {
+    pub async fn put_task(&self, id: &TaskId, task: &TaskInput) -> Result<Response> {
         let url = format!("tasks/{}", id);
 
         self.put(url).json(task).send().await?.error_for_status()
@@ -33,7 +34,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn get_task(&self, task_id: &str) -> Result<TaskResult> {
+    pub async fn get_task(&self, task_id: &TaskId) -> Result<TaskResult> {
         let url = format!("tasks/{}", task_id);
         self.get(url)
             .send()
@@ -43,7 +44,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn delete_task(&self, task_id: &str) -> Result<Response> {
+    pub async fn delete_task(&self, task_id: &TaskId) -> Result<Response> {
         let url = format!("tasks/{}", task_id);
         self.delete(url).send().await?.error_for_status()
     }

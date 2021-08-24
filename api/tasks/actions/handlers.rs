@@ -4,7 +4,10 @@ use actix_web::{
     HttpResponse, Responder,
 };
 use ergo_auth::Authenticated;
-use ergo_database::{object_id::new_object_id_with_value, sql_insert_parameters};
+use ergo_database::{
+    object_id::{ActionCategoryId, ActionId},
+    sql_insert_parameters,
+};
 use futures::future::ready;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -24,8 +27,8 @@ use super::{
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ActionPayload {
-    pub action_id: Option<i64>,
-    pub action_category_id: i64,
+    pub action_id: Option<ActionId>,
+    pub action_category_id: ActionCategoryId,
     pub name: String,
     pub description: Option<String>,
     pub executor_id: String,
@@ -64,7 +67,7 @@ impl ActionPayload {
 
         validate(
             "action",
-            &self.action_id.unwrap_or(-1),
+            self.action_id.as_ref(),
             executor.template_fields(),
             &values_map,
         )?;
@@ -74,8 +77,8 @@ impl ActionPayload {
 
 #[derive(Clone, Debug, Deserialize, Serialize, sqlx::FromRow, PartialEq, Eq)]
 pub struct ActionDescription {
-    pub action_id: i64,
-    pub action_category_id: i64,
+    pub action_id: ActionId,
+    pub action_category_id: ActionCategoryId,
     pub name: String,
     pub description: Option<String>,
     pub template_fields: sqlx::types::Json<TemplateFields>,
@@ -115,13 +118,13 @@ pub async fn new_action(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let action_id = new_object_id_with_value(&mut tx, payload.action_id, "action", false).await?;
+    let action_id = ActionId::new();
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
         executor_id, executor_template, template_fields, account_required) VALUES
         ($1, $2, $3, $4, $5, $6, $7, $8)",
-        action_id,
-        &payload.action_category_id,
+        &action_id.0,
+        &payload.action_category_id.0,
         &payload.name,
         &payload.description as _,
         &payload.executor_id,
@@ -141,7 +144,7 @@ pub async fn new_action(
 
             let mut query = sqlx::query(&q);
             for account_type in account_types {
-                query = query.bind(account_type).bind(action_id);
+                query = query.bind(account_type).bind(&action_id.0);
             }
 
             query.execute(&mut tx).await?;
@@ -167,7 +170,7 @@ pub async fn new_action(
 pub async fn write_action(
     data: AppStateData,
     auth: Authenticated,
-    action_id: Path<i64>,
+    action_id: Path<ActionId>,
     payload: web::Json<ActionPayload>,
 ) -> Result<impl Responder> {
     auth.expect_admin()?;
@@ -180,8 +183,6 @@ pub async fn write_action(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    new_object_id_with_value(&mut tx, Some(action_id), "action", true).await?;
-
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
             executor_id, executor_template, template_fields, account_required)
@@ -189,8 +190,8 @@ pub async fn write_action(
         ON CONFLICT(action_id) DO UPDATE
         SET action_category_id=$2, name=$3, description=$4,
         executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8",
-        action_id,
-        &payload.action_category_id,
+        &action_id.0,
+        &payload.action_category_id.0,
         &payload.name,
         &payload.description as _,
         &payload.executor_id,
@@ -212,14 +213,14 @@ pub async fn write_action(
 
         let mut query = sqlx::query(&q);
         for account_type in &account_types {
-            query = query.bind(account_type).bind(action_id);
+            query = query.bind(account_type).bind(&action_id.0);
         }
 
         query.execute(&mut tx).await?;
     }
 
     sqlx::query!("DELETE FROM allowed_action_account_types WHERE action_id=$1 AND account_type_id <> ALL($2)",
-        action_id,
+        &action_id.0,
         &account_types).execute(&mut tx).await?;
 
     tx.commit().await?;
@@ -231,12 +232,12 @@ pub async fn write_action(
 pub async fn delete_action(
     data: AppStateData,
     auth: Authenticated,
-    action_id: Path<i64>,
+    action_id: Path<ActionId>,
 ) -> Result<impl Responder> {
     auth.expect_admin()?;
     sqlx::query!(
         "DELETE FROM actions WHERE action_id=$1",
-        action_id.into_inner()
+        action_id.into_inner().0
     )
     .execute(&data.pg)
     .await?;

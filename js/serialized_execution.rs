@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use deno_core::error::AnyError;
 use futures::future::{ready, TryFutureExt};
 use rusty_v8 as v8;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_v8::{from_v8, to_v8};
 use v8::{Exception, MapFnTo};
@@ -11,7 +12,7 @@ use crate::{
     Runtime,
 };
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct SerializedEvent {
     /// The wall time when the event completed.
     wall_time: chrono::DateTime<Utc>,
@@ -21,14 +22,14 @@ pub struct SerializedEvent {
     result_json: serde_json::Value,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone)]
 pub struct PendingEvent {
     pub name: String,
     pub args: Vec<serde_json::Value>,
     pub result: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct SerializedState {
     pub random_seed: u64,
     pub start_time: chrono::DateTime<Utc>,

@@ -21,6 +21,8 @@ enum DevCmds {
     MakeJsonSchema,
     #[structopt(about = "Examine the task queues")]
     Queue(cmd::erq::Args),
+    #[structopt(about = "Create an object ID")]
+    Id(cmd::make_id::Args),
 }
 
 #[actix_web::main]
@@ -36,6 +38,7 @@ async fn main() -> Result<(), error::Error> {
         Args::Dev(cmd) => match cmd {
             DevCmds::HashPassword(args) => cmd::hash_passwd::main(args),
             DevCmds::MakeApiKey(args) => cmd::make_api_key::main(args).await,
+            DevCmds::Id(args) => cmd::make_id::main(args).await,
             DevCmds::MakeJsonSchema => cmd::make_json_schema::main(),
             DevCmds::Queue(args) => cmd::erq::main(args).await,
         },

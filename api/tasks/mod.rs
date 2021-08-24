@@ -5,6 +5,7 @@ pub mod queue_drain_runner;
 pub mod scripting;
 pub mod state_machine;
 
+use smallvec::SmallVec;
 pub use state_machine::StateMachineError;
 use tracing::{event, instrument, Level};
 
@@ -17,28 +18,50 @@ use crate::{
     },
 };
 use chrono::{DateTime, Utc};
-use ergo_database::{sql_insert_parameters, transaction::serializable, PostgresPool};
+use ergo_database::{
+    object_id::{InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId},
+    sql_insert_parameters,
+    transaction::serializable,
+    PostgresPool,
+};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow};
 use uuid::Uuid;
 
 use self::state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData};
 
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
+#[serde(tag = "type")]
+pub enum TaskConfig {
+    StateMachine(state_machine::StateMachineConfig),
+    // JS(scripting::TaskJsConfig),
+}
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", content = "data")]
+pub enum TaskState {
+    StateMachine(state_machine::StateMachineStates),
+    // JS(scripting::TaskJsState)
+}
+
 #[derive(Serialize, Deserialize, FromRow)]
 pub struct Task {
-    pub task_id: i64,
-    pub external_task_id: String,
+    pub task_id: TaskId,
     pub org_id: Uuid,
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
-    pub state_machine_config: Json<state_machine::StateMachineConfig>,
-    pub state_machine_states: Json<state_machine::StateMachineStates>,
+    pub task_template_id: uuid::Uuid,
+    pub task_template_version: TaskTemplateId,
+    pub config: Json<TaskConfig>,
+    pub state: Json<TaskState>,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
 }
 
-const GET_TASK_QUERY: &'static str = r##"SELECT task_id, external_task_id, org_id, name,
+const GET_TASK_QUERY: &'static str = r##"SELECT task_id as "task_id: TaskId",
+              org_id, name,
               description, enabled,
               state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>",
               state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>",
@@ -55,9 +78,9 @@ impl Task {
     pub async fn apply_input(
         pool: &PostgresPool,
         notifications: Option<crate::notifications::NotificationManager>,
-        task_id: i64,
-        input_id: i64,
-        task_trigger_id: i64,
+        task_id: TaskId,
+        input_id: InputId,
+        task_trigger_id: TaskTriggerId,
         input_arrival_id: uuid::Uuid,
         payload: serde_json::Value,
         immediate_actions: bool,
@@ -73,27 +96,32 @@ impl Task {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
             let notifications = notifications.clone();
+            let task_id = task_id.clone();
+            let task_trigger_id = task_trigger_id.clone();
             Box::pin(async move {
                 #[derive(Debug, FromRow)]
                 struct TaskInputData {
                     task_trigger_local_id: String,
-                    state_machine_config: Json<state_machine::StateMachineConfig>,
-                    state_machine_states: Json<state_machine::StateMachineStates>,
-                    org_id: Uuid,
+                    config: Json<TaskConfig>,
+                    state: Json<TaskState>,
+                    org_id: OrgId,
                     task_name: String,
                     task_trigger_name: String,
                 }
 
                 let task = sqlx::query_as!(TaskInputData,
                         r##"SELECT task_trigger_local_id,
-                        state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>" ,
-                        state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>",
-                        tasks.org_id, tasks.name as task_name, tt.name as task_trigger_name
+                        compiled as "config!: Json<TaskConfig>",
+                        state as "state!: Json<TaskState>",
+                        tasks.org_id as "org_id: OrgId",
+                        tasks.name as task_name,
+                        tt.name as task_trigger_name
                         FROM tasks
+                        JOIN task_templates USING (task_template_id, task_template_version)
                         JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
                         WHERE tasks.task_id=$1"##,
-                        task_id,
-                        task_trigger_id
+                        &task_id.0,
+                        &task_trigger_id.0
                     )
                     .fetch_optional(&mut *tx)
                     .await?;
@@ -101,44 +129,48 @@ impl Task {
                 let task = task.ok_or(Error::NotFound)?;
 
                 let TaskInputData {
-                    task_trigger_local_id, state_machine_config, state_machine_states, org_id, task_name, task_trigger_name
+                    task_trigger_local_id, config, state, org_id, task_name, task_trigger_name
                 } = task;
 
-                let num_machines = state_machine_config.len();
+                let (new_data, actions, changed) = match (config.0, state.0) {
+                    (TaskConfig::StateMachine(machine), TaskState::StateMachine(state)) => {
+                      let num_machines = machine.len();
+                      let mut new_data = StateMachineStates::with_capacity(num_machines);
+                      let mut actions = ActionInvocations::new();
+                      let mut changed = false;
+                      for (idx, (machine, state)) in machine
+                        .into_iter()
+                        .zip(state.into_iter())
+                        .enumerate() {
+                              let mut m = StateMachineWithData::new(task_id.clone(), idx, machine, state);
+                              let this_actions = m
+                                  .apply_trigger(
+                                      &task_trigger_local_id,
+                                      &Some(input_arrival_id),
+                                      Some(&payload),
+                                  ).await
+                                  .map_err(Error::from)?;
 
-                let mut new_data = StateMachineStates::with_capacity(num_machines);
-                let mut actions = ActionInvocations::new();
-                let mut changed = false;
+                              let (data, this_changed) = m.take();
+                              new_data.push(data);
+                              actions.extend(this_actions.into_iter());
+                              changed = changed || this_changed;
+                            }
 
-                for (idx, (machine, state)) in state_machine_config
-                    .0
-                    .into_iter()
-                    .zip(state_machine_states.0.into_iter())
-                    .enumerate() {
-                        let mut m = StateMachineWithData::new(task_id, idx, machine, state);
-                        let this_actions = m
-                            .apply_trigger(
-                                &task_trigger_local_id,
-                                &Some(input_arrival_id),
-                                Some(&payload),
-                            ).await
-                            .map_err(Error::from)?;
+                      (TaskState::StateMachine(new_data), actions, changed)
+                  }
+                };
 
-                        let (data, this_changed) = m.take();
-                        new_data.push(data);
-                        actions.extend(this_actions.into_iter());
-                        changed = changed || this_changed;
-                    }
 
                 if changed {
                     event!(Level::INFO, state=?new_data, "New state");
                     sqlx::query!(
                         r##"UPDATE tasks
-                        SET state_machine_states = $1::jsonb
+                        SET state = $1::jsonb
                         WHERE task_id = $2;
                         "##,
                         serde_json::value::to_value(&new_data)?,
-                        task_id,
+                        *task_id,
                     )
                     .execute(&mut *tx)
                     .await?;
@@ -158,7 +190,7 @@ impl Task {
 
                     for action in &actions {
                         log_query = log_query
-                            .bind(action.task_id)
+                            .bind(&action.task_id)
                             .bind(&action.task_action_local_id)
                             .bind(action.actions_log_id)
                             .bind(action.input_arrival_id)
@@ -181,7 +213,7 @@ impl Task {
                         let mut query = sqlx::query(&q);
                         for action in &actions {
                             query = query
-                                .bind(action.task_id)
+                                .bind(&action.task_id)
                                 .bind(&action.task_action_local_id)
                                 .bind(action.actions_log_id)
                                 .bind(action.input_arrival_id)
@@ -200,7 +232,7 @@ impl Task {
                         task_name,
                         local_id: task_trigger_local_id,
                         local_object_name: task_trigger_name,
-                        local_object_id: Some(task_trigger_id),
+                        local_object_id: Some(task_trigger_id.into()),
                         error: None,
                         log_id: Some(input_arrival_id),
                     };
@@ -250,8 +282,8 @@ impl Task {
 
 #[derive(Serialize, Deserialize)]
 pub struct TaskTrigger {
-    pub task_trigger_id: i64,
-    pub task_id: i64,
-    pub input_id: i64,
+    pub task_trigger_id: TaskTriggerId,
+    pub task_id: TaskId,
+    pub input_id: InputId,
     pub last_payload: Option<Box<serde_json::value::RawValue>>,
 }

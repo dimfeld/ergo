@@ -1,15 +1,28 @@
 use std::borrow::Cow;
 
 use ergo_js::{
-    BufferConsole, Extension, Runtime, RuntimeOptions, RuntimePool, SerializedState, Snapshot,
+    BufferConsole, ConsoleMessage, Extension, Runtime, RuntimeOptions, RuntimePool,
+    SerializedState, Snapshot,
 };
-use serde::{de::DeserializeOwned, Serialize};
+use schemars::JsonSchema;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 const NET_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/net");
 const CORE_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/core");
 
 lazy_static::lazy_static! {
     pub static ref POOL : RuntimePool = RuntimePool::new(None);
+}
+
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+pub struct TaskJsConfig {
+    pub script: String,
+}
+
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+pub struct TaskJsState {
+    pub state: ergo_js::SerializedState,
+    pub console: Vec<ConsoleMessage>,
 }
 
 fn snapshot_and_extensions(

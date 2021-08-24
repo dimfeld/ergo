@@ -1,3 +1,4 @@
+use ergo_database::object_id::TaskId;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -57,7 +58,7 @@ pub struct EventHandler {
 impl EventHandler {
     async fn resolve_actions(
         &self,
-        task_id: i64,
+        task_id: &TaskId,
         input_arrival_id: &Option<uuid::Uuid>,
         context: &serde_json::Value,
         payload: &Option<&serde_json::Value>,
@@ -71,7 +72,7 @@ impl EventHandler {
                     let invocation = ActionInvocation {
                         input_arrival_id: input_arrival_id.clone(),
                         actions_log_id: uuid::Uuid::new_v4(),
-                        task_id,
+                        task_id: task_id.clone(),
                         task_action_local_id: def.task_action_local_id.clone(),
                         payload,
                     };
@@ -199,7 +200,7 @@ pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;
 
 #[derive(Debug)]
 pub struct StateMachineWithData {
-    task_id: i64,
+    task_id: TaskId,
     idx: usize,
     machine: StateMachine,
     data: StateMachineData,
@@ -208,7 +209,7 @@ pub struct StateMachineWithData {
 
 impl<'d> StateMachineWithData {
     pub fn new(
-        task_id: i64,
+        task_id: TaskId,
         idx: usize,
         machine: StateMachine,
         data: StateMachineData,
@@ -233,29 +234,33 @@ impl<'d> StateMachineWithData {
         input_arrival_id: &Option<uuid::Uuid>,
         payload: Option<&serde_json::Value>,
     ) -> Result<ActionInvocations, StateMachineError> {
-        let handler = {
-            self.machine
-                .states
-                .get(&self.data.state)
-                .ok_or_else(|| StateMachineError::UnknownState {
-                    idx: self.idx,
-                    state: self.data.state.clone(),
-                })?
-                .on
-                .iter()
-                .find(|o| o.trigger_id == trigger_id)
-                .or_else(|| {
-                    // Look it up in the global event handlers
-                    self.machine.on.iter().find(|o| o.trigger_id == trigger_id)
-                })
-        };
+        let handler = self
+            .machine
+            .states
+            .get(&self.data.state)
+            .ok_or_else(|| StateMachineError::UnknownState {
+                idx: self.idx,
+                state: self.data.state.clone(),
+            })?
+            .on
+            .iter()
+            .find(|o| o.trigger_id == trigger_id)
+            .or_else(|| {
+                // Look it up in the global event handlers
+                self.machine.on.iter().find(|o| o.trigger_id == trigger_id)
+            });
 
         match handler {
             Some(h) => {
                 event!(Level::DEBUG, handler=?h, "Running event handler");
                 let next_state = h.next_state(&self.data.context, &payload).await?;
                 let actions = h
-                    .resolve_actions(self.task_id, input_arrival_id, &self.data.context, &payload)
+                    .resolve_actions(
+                        &self.task_id,
+                        input_arrival_id,
+                        &self.data.context,
+                        &payload,
+                    )
                     .await?;
 
                 if let Some(s) = next_state {

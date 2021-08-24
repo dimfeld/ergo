@@ -1456,6 +1456,7 @@ version = "0.1.0"
 dependencies = [
  "async-stream",
  "async-trait",
+ "base64 0.13.0",
  "deadpool 0.8.1",
  "deadpool-redis",
  "either",
@@ -1465,12 +1466,14 @@ dependencies = [
  "itertools",
  "log",
  "redis",
+ "schemars",
  "serde 1.0.126",
  "serde_json",
  "sqlx",
  "thiserror",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
@@ -1514,6 +1517,7 @@ dependencies = [
  "redis",
  "reqwest",
  "rusty_v8",
+ "schemars",
  "serde 1.0.126",
  "serde_json",
  "serde_millis",

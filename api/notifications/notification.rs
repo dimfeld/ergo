@@ -2,17 +2,18 @@ use std::borrow::Cow;
 
 use super::Level;
 
+use ergo_database::object_id::TaskId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Notification {
     pub event: NotifyEvent,
-    pub task_id: i64,
+    pub task_id: TaskId,
     pub task_name: String,
     pub local_id: String,
     pub local_object_name: String,
-    pub local_object_id: Option<i64>,
+    pub local_object_id: Option<Uuid>,
     pub payload: Option<serde_json::Value>,
     pub error: Option<String>,
     pub log_id: Option<Uuid>,

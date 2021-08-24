@@ -1,7 +1,7 @@
 use futures::future::BoxFuture;
 use std::{borrow::Cow, time::Duration};
 
-use sqlx::{error::DatabaseError, Connection, PgConnection, Postgres};
+use sqlx::{Connection, PgConnection, Postgres};
 
 use crate::Error;
 

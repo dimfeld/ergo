@@ -2,7 +2,10 @@ use std::borrow::Cow;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use ergo_database::PostgresPool;
+use ergo_database::{
+    object_id::{AccountId, ActionId, OrgId, TaskId},
+    PostgresPool,
+};
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
@@ -11,7 +14,6 @@ use serde_json::json;
 use sqlx::types::Json;
 use thiserror::Error;
 use tracing::{event, instrument, Level};
-use uuid::Uuid;
 
 use crate::{
     error::{Error, Result},
@@ -103,7 +105,7 @@ impl From<TemplateValidationFailure> for ExecutorError {
 #[derive(Debug, Error)]
 #[error("Action {task_action_name} ({task_id}:{task_action_local_id}): {error}")]
 pub struct ExecuteError {
-    task_id: i64,
+    task_id: TaskId,
     task_action_local_id: String,
     task_action_name: String,
     error: ExecuteErrorSource,
@@ -115,7 +117,7 @@ impl ExecuteError {
         error: impl Into<ExecuteErrorSource>,
     ) -> Self {
         ExecuteError {
-            task_id: action.task_id,
+            task_id: action.task_id.clone(),
             task_action_local_id: action.task_action_local_id.clone(),
             task_action_name: action.task_action_name.clone(),
             error: error.into(),
@@ -193,7 +195,7 @@ pub async fn execute(
     .execute(pg_pool)
     .await
     .map_err(|e| ExecuteError {
-        task_id: invocation.task_id,
+        task_id: invocation.task_id.clone(),
         task_action_local_id: invocation.task_action_local_id.clone(),
         // We don't actually know the task action name here, but that's ok.
         task_action_name: String::new(),
@@ -227,7 +229,7 @@ pub async fn execute(
     .execute(pg_pool)
     .await
     .map_err(|e| ExecuteError {
-        task_id: invocation.task_id,
+        task_id: invocation.task_id.clone(),
         task_action_local_id: invocation.task_action_local_id.clone(),
         // We don't actually know the task action name here, but that's ok.
         task_action_name: String::new(),
@@ -240,20 +242,20 @@ pub async fn execute(
 #[derive(Debug, sqlx::FromRow)]
 struct ExecuteActionData {
     executor_id: String,
-    action_id: i64,
+    action_id: ActionId,
     action_name: String,
     action_executor_template: Json<ScriptOrTemplate>,
     action_template_fields: Json<TemplateFields>,
     account_required: bool,
-    task_id: i64,
+    task_id: TaskId,
     task_name: String,
     task_action_local_id: String,
     task_action_name: String,
     task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
-    account_id: Option<i64>,
+    account_id: Option<AccountId>,
     account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
     account_expires: Option<DateTime<Utc>>,
-    org_id: Uuid,
+    org_id: OrgId,
 }
 
 async fn execute_action(
@@ -261,26 +263,26 @@ async fn execute_action(
     notifications: Option<&crate::notifications::NotificationManager>,
     invocation: &ActionInvocation,
 ) -> Result<serde_json::Value, Error> {
-    let task_id = invocation.task_id;
+    let task_id = &invocation.task_id;
     let task_action_local_id = &invocation.task_action_local_id;
     let mut action: ExecuteActionData = sqlx::query_as_unchecked!(
         ExecuteActionData,
         r##"SELECT
         executor_id,
-        action_id,
+        action_id as "action_id: ActionId",
         actions.name as action_name,
         actions.executor_template as action_executor_template,
         actions.template_fields as action_template_fields,
         actions.account_required,
-        task_id,
+        task_id as "task_id: TaskId",
         tasks.name AS task_name,
         task_actions.task_action_local_id,
         task_actions.name as task_action_name,
         NULLIF(task_actions.action_template, 'null'::jsonb) as task_action_template,
-        task_actions.account_id,
+        task_actions.account_id as "account_id: AccountId",
         NULLIF(accounts.fields, 'null'::jsonb) as account_fields,
         accounts.expires as account_expires,
-        tasks.org_id
+        tasks.org_id as "org_id: OrgId"
 
         FROM task_actions
         JOIN tasks USING (task_id)
@@ -294,7 +296,7 @@ async fn execute_action(
     .fetch_one(pg_pool)
     .await
     .map_err(|e| ExecuteError {
-        task_id,
+        task_id: task_id.clone(),
         task_action_local_id: invocation.task_action_local_id.clone(),
         task_action_name: String::new(),
         error: e.into(),
@@ -302,7 +304,7 @@ async fn execute_action(
 
     event!(Level::TRACE, ?action);
     event!(Level::INFO,
-        task_id,
+        %task_id,
         %action.task_action_local_id,
         %action.action_id,
         %action.action_name,
@@ -313,7 +315,7 @@ async fn execute_action(
     if let Some(notifications) = &notifications {
         let mut conn = pg_pool.acquire().await?;
         let notification = Notification {
-            task_id: action.task_id,
+            task_id: action.task_id.clone(),
             event: NotifyEvent::ActionStarted,
             payload: Some(invocation.payload.clone()),
             error: None,
@@ -363,7 +365,7 @@ async fn execute_action(
         Ok(results) => {
             if let Some(notifications) = notifications {
                 let notification = Notification {
-                    task_id: invocation.task_id,
+                    task_id: invocation.task_id.clone(),
                     event: NotifyEvent::ActionError,
                     payload: Some(invocation.payload.clone()),
                     error: None,
@@ -397,7 +399,7 @@ async fn notify_action_error(
 ) -> Result<()> {
     if let Some(notifications) = notifications {
         let notification = Notification {
-            task_id: invocation.task_id,
+            task_id: invocation.task_id.clone(),
             event: NotifyEvent::ActionError,
             payload: Some(invocation.payload.clone()),
             error: Some(error.to_string()),
@@ -455,7 +457,7 @@ async fn prepare_invocation(
     let action_template_values = match action.action_executor_template.0.clone() {
         ScriptOrTemplate::Template(t) => template::validate_and_apply(
             "action",
-            action.action_id,
+            &action.action_id,
             &action.action_template_fields.0,
             &t,
             &action_payload,
@@ -479,7 +481,7 @@ async fn prepare_invocation(
     // 3. Make sure the resulting template matches what the executor expects.
     template::validate(
         "executor",
-        &action.executor_id,
+        Some(&action.executor_id),
         executor.template_fields(),
         &action_template_values,
     )?;

@@ -117,7 +117,11 @@ impl Executor for JsExecutor {
 mod tests {
     #[tokio::test]
     #[ignore]
-    async fn runs_script() {}
+    async fn runs_script() {
+        let script = r##"
+            
+        "##;
+    }
 
     #[tokio::test]
     #[ignore]

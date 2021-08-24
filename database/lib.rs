@@ -11,7 +11,7 @@ pub mod redis;
 pub mod transaction;
 pub mod vault;
 
-pub use self::{object_id::new_object_id, redis::RedisPool};
+pub use self::redis::RedisPool;
 
 use connection_manager::{Manager, WrappedConnection};
 
@@ -154,13 +154,6 @@ pub fn sql_insert_parameters<const NCOL: usize>(num_rows: usize) -> String {
 pub enum Error {
     #[error("Unable to execute serializable transaction")]
     SerializationFailure,
-
-    #[error("Tried to create object ID {id} with type {wanted} but it has type {saw}")]
-    ObjectIdTypeMismatch {
-        id: i64,
-        wanted: String,
-        saw: String,
-    },
 
     #[error("{0}")]
     StringError(String),

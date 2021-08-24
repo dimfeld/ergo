@@ -33,13 +33,6 @@ pub async fn make_key(
 
     let key = ergo_auth::api_key::ApiKeyData::new();
 
-    sqlx::query!(
-        "INSERT INTO user_entity_ids (user_entity_id) VALUES ($1)",
-        &key.api_key_id
-    )
-    .execute(&mut *conn)
-    .await?;
-
     sqlx::query!("INSERT INTO api_keys (api_key_id, prefix, hash, org_id, user_id, inherits_user_permissions,
         description)
         VALUES

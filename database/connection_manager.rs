@@ -42,8 +42,6 @@ impl<T: 'static + DeserializeOwned + Send + Sync + Debug> PostgresAuthRenewer
     }
 }
 
-pub type SharedRenewer<T> = Arc<RwLock<T>>;
-
 async fn refresh_loop(
     manager: Arc<ManagerInner>,
     mut shutdown: GracefulShutdownConsumer,

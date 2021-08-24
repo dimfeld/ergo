@@ -1,8 +1,7 @@
-use std::{any::Any, fmt::Debug, pin::Pin, sync::Arc};
+use std::{fmt::Debug, pin::Pin, sync::Arc};
 
 use futures::{
     future::{ready, FutureExt},
-    stream::StreamExt,
     Future,
 };
 use tokio::{sync::oneshot, time::error::Elapsed};

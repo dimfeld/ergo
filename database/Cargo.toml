@@ -22,7 +22,7 @@ path = "lib.rs"
 async-stream = "0.3.2"
 async-trait = "0.1.50"
 # backoff = { version = "0.3.0", features = ["tokio"] }
-# base64 = "0.13.0"
+base64 = "0.13.0"
 # chrono = { version = "0.4.19", features = ["serde"] }
 # config = "0.11.0"
 # console = "0.14.1"
@@ -49,7 +49,7 @@ log = "0.4.14"
 # rand_core = "0.6.2"
 redis = { version = "0.20.2", features = ["tokio-comp"] }
 # reqwest = { version="0.11.4", features=["rustls-tls"] }
-# schemars = { git="https://github.com/dimfeld/schemars", branch="sqlx-json", features=["smallvec", "uuid", "chrono", "preserve_order", "sqlx"] }
+schemars = { git="https://github.com/dimfeld/schemars", branch="sqlx-json", features=["smallvec", "uuid", "chrono", "preserve_order", "sqlx"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
 # serde_millis = "0.1.1"
@@ -66,5 +66,5 @@ tracing = "0.1.26"
 # tracing-futures = "0.2.5"
 # tracing-log = "0.1.2"
 # tracing-subscriber = { version = "0.2.19", features = ["registry", "env-filter"] }
-# uuid = { version = "0.8.2", features = ["serde", "v4"] }
+uuid = { version = "0.8.2", features = ["serde", "v4"] }
 

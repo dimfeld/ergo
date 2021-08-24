@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
+use ergo_database::object_id::{ActionCategoryId, OrgId, UserId};
 use lazy_static::lazy_static;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions, Executor, PgConnection};
+use std::str::FromStr;
 use uuid::Uuid;
 
 use ergo_api::{cmd::make_api_key, service_config::DatabaseConfiguration};
@@ -24,8 +26,9 @@ impl TestDatabase {
 }
 
 pub struct DatabaseUser {
-    pub org_id: Uuid,
-    pub user_id: Uuid,
+    pub org_id: OrgId,
+    pub user_id: UserId,
+    pub action_category_id: ActionCategoryId,
     pub password: Option<String>,
     pub api_key: String,
 }
@@ -42,7 +45,7 @@ fn password_sql(role: &str) -> String {
     }
 }
 
-pub async fn create_database() -> Result<(TestDatabase, Uuid, DatabaseUser)> {
+pub async fn create_database() -> Result<(TestDatabase, OrgId, DatabaseUser)> {
     dotenv::dotenv().ok();
     let host = std::env::var("TEST_DATABASE_HOST")
         .or_else(|_| std::env::var("DATABASE_HOST"))
@@ -137,21 +140,17 @@ pub const PASSWORD: &'static str = "test password";
 const PASSWORD_HASH: &'static str = "$argon2id$v=19$m=15360,t=2,p=1$PUpyHXvHTSOKvr9Sc6vK8g$GSyd7TMMKrS7bkObHL3+aOtRmULRJTNP1xLP4C/3zzY";
 
 lazy_static! {
-    static ref ADMIN_USER_ID: Uuid =
-        Uuid::parse_str(std::env::var("ADMIN_USER_ID").unwrap().as_str()).unwrap();
+    static ref ADMIN_USER_ID: UserId =
+        UserId::from_str(std::env::var("ADMIN_USER_ID").unwrap().as_str()).unwrap();
 }
 
 async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
     let user_id = ADMIN_USER_ID.clone();
-    let org_id = Uuid::new_v4();
+    let org_id = OrgId::new();
+    let action_category_id = ActionCategoryId::new();
 
     let query = format!(
         r##"
-        INSERT INTO user_entity_ids (user_entity_id) VALUES
-          ('{org_id}'),
-          ('{user_id}')
-          ON CONFLICT DO NOTHING;
-
         INSERT INTO orgs (org_id, name) VALUES
           ('{org_id}', 'Test Org');
 
@@ -159,13 +158,12 @@ async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
           ('{user_id}', '{org_id}', 'Test Admin User', 'user@example.com', '{password_hash}');
 
         -- Temporary until API supporst creating action categories.
-        INSERT INTO object_ids(object_id, type) VALUES
-            (1000000000, 'action_category');
         INSERT INTO action_categories(action_category_id, name) VALUES
-            (1000000000, 'General');
+            ('{action_category_id}', 'General');
         "##,
-        user_id = user_id,
-        org_id = org_id,
+        user_id = &user_id.0,
+        org_id = &org_id.0,
+        action_category_id = &action_category_id.0,
         password_hash = escape(PASSWORD_HASH)
     );
 
@@ -176,6 +174,7 @@ async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
     Ok(DatabaseUser {
         user_id,
         org_id,
+        action_category_id,
         password: Some(PASSWORD.to_string()),
         api_key: key,
     })
