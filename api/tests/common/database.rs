@@ -88,17 +88,17 @@ DO $$BEGIN
 END; $$;
 
 DO $$BEGIN
-  CREATE ROLE ergo_web NOINHERIT IN ROLE ergo_user {web_password};
+  CREATE ROLE ergo_web INHERIT IN ROLE ergo_user {web_password};
   EXCEPTION WHEN duplicate_object THEN NULL;
 END; $$;
 
 DO $$BEGIN
-  CREATE ROLE ergo_backend NOINHERIT IN ROLE ergo_user {backend_password};
+  CREATE ROLE ergo_backend INHERIT IN ROLE ergo_user {backend_password};
   EXCEPTION WHEN duplicate_object THEN NULL;
 END; $$;
 
 DO $$BEGIN
-  CREATE ROLE ergo_enqueuer NOINHERIT IN ROLE ergo_user {enqueuer_password};
+  CREATE ROLE ergo_enqueuer INHERIT IN ROLE ergo_user {enqueuer_password};
   EXCEPTION WHEN duplicate_object THEN NULL;
 END; $$;
             "##,

@@ -9,10 +9,17 @@ CREATE TABLE task_templates (
   source jsonb not null,
   compiled jsonb not null,
   initial_state jsonb not null,
+  deleted boolean not null default false,
   created timestamptz default now(),
   modified timestamptz default now(),
   PRIMARY KEY(task_template_id, task_template_version)
 );
+
+CREATE INDEX ON task_templates(org_id);
+CREATE INDEX ON task_templates(task_template_id);
+GRANT SELECT, UPDATE, DELETE, INSERT ON task_templates TO ergo_web;
+GRANT SELECT, UPDATE, DELETE, INSERT ON task_templates TO ergo_backend;
+GRANT SELECT ON task_templates to ergo_enqueuer;
 
 CREATE TEMPORARY TABLE task_template_transfer AS
   SELECT task_id, uuid_generate_v1mc() AS task_template_id from tasks;
@@ -23,7 +30,7 @@ INSERT INTO task_templates
 SELECT task_template_id, 0, org_id, name, description,
   json_build_object('type', 'StateMachine', 'data', state_machine_config),
   json_build_object('type', 'StateMachine', 'data', state_machine_config),
-  state_machine_states,
+  json_build_object('type', 'StateMachine', 'data', state_machine_states),
   created, modified
 FROM task_template_transfer
 JOIN tasks USING(task_id);

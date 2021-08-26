@@ -159,7 +159,19 @@ impl<'de, const PREFIX: usize> serde::de::Visitor<'de> for ObjectIdVisitor<PREFI
     where
         E: serde::de::Error,
     {
-        Self::Value::from_str(v).map_err(|_| E::invalid_value(serde::de::Unexpected::Str(v), &self))
+        eprintln!("deserialize {}", v);
+        match Self::Value::from_str(v) {
+            Ok(id) => Ok(id),
+            Err(e) => {
+                // See if it's in UUID format instead of the encoded format. This mostly happens when
+                // deserializing from a JSON object generated from inside Postgres.
+                Uuid::from_str(v)
+                    .map(|u| ObjectId::<PREFIX>::from_uuid(u))
+                    // Return the more descriptive original error instead of the UUID parsing error
+                    .map_err(|_| e)
+            }
+        }
+        .map_err(|_| E::invalid_value(serde::de::Unexpected::Str(v), &self))
     }
 }
 

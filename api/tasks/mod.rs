@@ -32,7 +32,7 @@ use uuid::Uuid;
 use self::state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData};
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "data")]
 pub enum TaskConfig {
     StateMachine(state_machine::StateMachineConfig),
     // JS(scripting::TaskJsConfig),

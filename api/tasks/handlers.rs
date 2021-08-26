@@ -69,7 +69,7 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
             ORDER BY created DESC
             LIMIT 1
         ) last_triggered ON true
-        WHERE tasks.org_id = $2 AND NOT deleted AND
+        WHERE tasks.org_id = $2 AND NOT tasks.deleted AND
             EXISTS (SELECT 1 FROM user_entity_permissions
                 WHERE permissioned_object IN (uuid_nil(), tasks.task_id)
                 AND user_entity_id = ANY($1)
@@ -147,7 +147,7 @@ async fn get_task(
             GROUP BY task_triggers.task_id
         ) tt ON true
 
-        WHERE task_id=$1 AND tasks.org_id=$3 AND NOT deleted
+        WHERE task_id=$1 AND tasks.org_id=$3 AND NOT tasks.deleted
         AND EXISTS(SELECT 1 FROM user_entity_permissions
             WHERE
             permissioned_object IN (uuid_nil(), task_id)

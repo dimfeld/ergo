@@ -11,17 +11,17 @@ DO $$BEGIN
 END; $$;
 
 DO $$BEGIN
-  CREATE ROLE ergo_web NOINHERIT IN ROLE ergo_user;
+  CREATE ROLE ergo_web INHERIT IN ROLE ergo_user;
   EXCEPTION WHEN duplicate_object THEN NULL;
 END; $$;
 
 DO $$BEGIN
-  CREATE ROLE ergo_backend NOINHERIT IN ROLE ergo_user;
+  CREATE ROLE ergo_backend INHERIT IN ROLE ergo_user;
   EXCEPTION WHEN duplicate_object THEN NULL;
 END; $$;
 
 DO $$BEGIN
-  CREATE ROLE ergo_enqueuer NOINHERIT IN ROLE ergo_user;
+  CREATE ROLE ergo_enqueuer INHERIT IN ROLE ergo_user;
   EXCEPTION WHEN duplicate_object THEN NULL;
 END; $$;
 
