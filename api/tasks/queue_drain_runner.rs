@@ -3,7 +3,10 @@
 use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 use crate::{
     error::Error,
-    queues::postgres_drain::{QueueStageDrain, QueueStageDrainStats},
+    queues::{
+        generic_stage,
+        postgres_drain::{QueueStageDrain, QueueStageDrainConfig, QueueStageDrainStats},
+    },
 };
 
 use ergo_database::{PostgresPool, RedisPool, RenewablePostgresPool};
@@ -14,6 +17,7 @@ use serde::Serialize;
 pub struct AllQueuesDrain {
     action_drain: QueueStageDrain,
     input_drain: QueueStageDrain,
+    generic_drain: QueueStageDrain,
 }
 
 #[derive(Debug, Serialize)]
@@ -30,6 +34,14 @@ impl AllQueuesDrain {
         redis_pool: RedisPool,
         shutdown: GracefulShutdownConsumer,
     ) -> Result<AllQueuesDrain, Error> {
+        let generic_drain = QueueStageDrain::new(QueueStageDrainConfig {
+            queue: None,
+            drainer: generic_stage::QueueDrainer {},
+            db_pool: pg_pool.clone(),
+            redis_pool: redis_pool.clone(),
+            shutdown: shutdown.clone(),
+        })?;
+
         let action_drain = super::actions::queue::new_drain(
             action_queue,
             pg_pool.clone(),
@@ -43,6 +55,7 @@ impl AllQueuesDrain {
         Ok(AllQueuesDrain {
             action_drain,
             input_drain,
+            generic_drain,
         })
     }
 

@@ -159,7 +159,6 @@ impl<'de, const PREFIX: usize> serde::de::Visitor<'de> for ObjectIdVisitor<PREFI
     where
         E: serde::de::Error,
     {
-        eprintln!("deserialize {}", v);
         match Self::Value::from_str(v) {
             Ok(id) => Ok(id),
             Err(e) => {

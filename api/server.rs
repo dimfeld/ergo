@@ -27,7 +27,7 @@ use actix_web::{
 };
 use ergo_auth::middleware::AuthenticateMiddlewareFactory;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
-use tracing::{event, Level};
+use tracing::{event, info, Level};
 use tracing_actix_web::TracingLogger;
 
 pub struct Config<'a> {
@@ -65,7 +65,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     let vault_client =
         ergo_database::vault::from_env(vault_approle.unwrap_or("AIO_SERVER"), shutdown.clone())
             .await;
-    tracing::info!(
+    info!(
         "Vault mode {}",
         vault_client
             .as_ref()
@@ -103,6 +103,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     let _queue_drain = if no_drain_queues {
         None
     } else {
+        info!("Starting postgres queue drain");
         Some(crate::tasks::queue_drain_runner::AllQueuesDrain::new(
             input_queue.clone(),
             action_queue.clone(),

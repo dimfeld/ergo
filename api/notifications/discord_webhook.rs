@@ -17,6 +17,7 @@ pub async fn send_discord_webhook(
     hook: &str,
     notification: &Notification,
 ) -> Result<()> {
+    let desc = notification.event.description();
     let fields = notification
         .fields()
         .into_iter()
@@ -30,6 +31,7 @@ pub async fn send_discord_webhook(
         .collect::<Vec<_>>();
 
     let payload = json!({
+        "content": desc,
         "embeds": [
             {
                 "color": color(notification.event.level()),

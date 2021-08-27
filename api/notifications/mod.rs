@@ -136,7 +136,7 @@ impl NotificationManager {
         Ok(notifications)
     }
 
-    pub fn start_dequeuer_loop(&mut self) -> Result<(), Error> {
+    pub fn start_task_queue_loop(&mut self) -> Result<(), Error> {
         self.0.queue.start_dequeuer_loop(
             self.0.shutdown.clone(),
             None,

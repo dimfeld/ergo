@@ -90,9 +90,7 @@ impl<'a, T: Serialize + Send + Sync> QueueJob<'a, T> {
     }
 }
 
-struct QueueDrainer {
-    pg_pool: PostgresPool,
-}
+pub struct QueueDrainer {}
 
 #[async_trait]
 impl Drainer for QueueDrainer {

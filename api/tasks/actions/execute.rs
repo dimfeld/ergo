@@ -366,7 +366,7 @@ async fn execute_action(
             if let Some(notifications) = notifications {
                 let notification = Notification {
                     task_id: invocation.task_id.clone(),
-                    event: NotifyEvent::ActionError,
+                    event: NotifyEvent::ActionSuccess,
                     payload: Some(invocation.payload.clone()),
                     error: None,
                     task_name: action.task_name.clone(),

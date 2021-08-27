@@ -78,6 +78,16 @@ impl NotifyEvent {
         }
     }
 
+    pub fn description(&self) -> &'static str {
+        match self {
+            Self::InputProcessed => "Processed Input",
+            Self::InputArrived => "Input Arrived",
+            Self::ActionError => "Action Error",
+            Self::ActionSuccess => "Action Finished",
+            Self::ActionStarted => "Action Started",
+        }
+    }
+
     pub fn local_object_type(&self) -> &'static str {
         match self {
             Self::InputArrived | Self::InputProcessed => "Input",
