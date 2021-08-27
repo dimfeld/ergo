@@ -1,5 +1,21 @@
 BEGIN;
 
+create or replace function objectid_to_uuid(text)
+returns uuid
+as $$
+select
+  encode(decode(
+    replace(replace(right($1, 22), '-', '+'), '_', '/') || '==',
+  'base64'), 'hex')::uuid
+$$
+language sql
+immutable
+returns null on null input
+parallel safe;
+
+-- Don't grant access to normal uses to discourage use by normal code which should just use the Rust serialization.
+COMMENT ON FUNCTION objectid_to_uuid IS 'A utility function to convert a text object ID to the underlying UUID.';
+
 CREATE TABLE input_categories (
   input_category_id uuid primary key,
   name text not null,

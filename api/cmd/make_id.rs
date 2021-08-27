@@ -23,6 +23,8 @@ pub enum ObjectIdType {
     Account,
     TaskTrigger,
     TaskTemplate,
+    NotifyEndpoint,
+    NotifyListener,
 }
 
 #[derive(Debug, StructOpt)]
@@ -48,6 +50,8 @@ pub async fn main(args: Args) -> Result<(), Error> {
                 ObjectIdType::Account => Box::new(AccountId::new()),
                 ObjectIdType::TaskTrigger => Box::new(TaskTriggerId::new()),
                 ObjectIdType::TaskTemplate => Box::new(TaskTemplateId::new()),
+                ObjectIdType::NotifyEndpoint => Box::new(NotifyEndpointId::new()),
+                ObjectIdType::NotifyListener => Box::new(NotifyListenerId::new()),
             };
             println!("{}", id);
         }

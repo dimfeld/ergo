@@ -38,10 +38,7 @@ pub struct JsExecutor {
 
 impl JsExecutor {
     pub fn new() -> JsExecutor {
-        let template_fields = vec![FIELD_NAME, FIELD_SCRIPT, FIELD_ARGS]
-            .into_iter()
-            .map(|val| (val.name.to_string(), val))
-            .collect::<TemplateFields>();
+        let template_fields = vec![FIELD_NAME, FIELD_SCRIPT, FIELD_ARGS];
 
         JsExecutor { template_fields }
     }

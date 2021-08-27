@@ -1,54 +1,60 @@
 {
   "$schema": "../../schemas/task_input.json",
-  "task_id": "B2fYLm2jRHaVDhsMOVp-9A",
   "name": "Echo Text",
   "description": "Run the echo command for testing. The output can be seen in the action logs",
   "enabled": true,
-  "state_machine_config": [
-    {
-      "name": "Handle Text",
-      "initial": "handler",
-      "states": {
-        "handler": {
-          "on": [
-            {
-              "trigger_id": "text",
-              "actions": [
-                {
-                  "task_action_local_id": "echo",
-                  "data": {
-                    "t": "FieldMap",
-                    "c": {
-                      "text": {
-                        "t": "Input",
-                        "c": ["/text", true]
+  "compiled": {
+    "type": "StateMachine",
+    "data": [
+      {
+        "name": "Handle Text",
+        "initial": "handler",
+        "states": {
+          "handler": {
+            "on": [
+              {
+                "trigger_id": "text",
+                "actions": [
+                  {
+                    "task_action_local_id": "echo",
+                    "data": {
+                      "t": "FieldMap",
+                      "c": {
+                        "text": {
+                          "t": "Input",
+                          "c": ["/text", true]
+                        }
                       }
                     }
                   }
-                }
-              ]
-            }
-          ]
+                ]
+              }
+            ]
+          }
         }
       }
-    }
-  ],
-  "state_machine_states": [
-    {
-      "state": "handler",
-      "context": {}
-    }
-  ],
-  "triggers":{
+    ]
+  },
+  "source": null,
+  "state": {
+    "type": "StateMachine",
+    "data": [
+      {
+        "state": "handler",
+        "context": {}
+      }
+    ]
+  },
+  "triggers": {
     "text": {
       "name": "Text",
-      "input_id": {{BASE_INPUT_ID}}02
+      "input_id": "{{TEXT_INPUT_ID}}"
     }
   },
   "actions": {
     "echo": {
       "name": "Echo Text",
-      "action_id": {{BASE_ACTION_ID}}02
+      "action_id": "{{ECHO_ACTION_ID}}"
     }
   }
 }

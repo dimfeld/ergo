@@ -96,10 +96,7 @@ impl HttpExecutor {
             FIELD_QUERY,
             FIELD_HEADERS,
             FIELD_RESULT_FORMAT,
-        ]
-        .into_iter()
-        .map(|val| (val.name.to_string(), val))
-        .collect::<TemplateFields>();
+        ];
 
         HttpExecutor { template_fields }
     }

@@ -1,6 +1,6 @@
 {
-  "action_id": {{BASE_ACTION_ID}}01,
-  "action_category_id": {{ACTION_CATEGORY_ID_GENERAL}},
+  "action_id": "{{YOUTUBE_DL_ACTION_ID}}",
+  "action_category_id": "{{ACTION_CATEGORY_ID_GENERAL}}",
   "name": "Youtube DL",
   "executor_id": "raw_command",
   "executor_template": {
@@ -16,8 +16,8 @@
       ]
     ]
   },
-  "template_fields": {
-    "url": { "format": { "type": "string" }, "optional": false }
-  },
+  "template_fields": [
+    { "name": "url", "format": { "type": "string" }, "optional": false }
+  ],
   "account_required": false
 }

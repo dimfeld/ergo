@@ -1,5 +1,5 @@
 {
-  "input_id": {{BASE_INPUT_ID}}02,
+  "input_id": "{{TEXT_INPUT_ID}}",
   "name": "Text",
   "payload_schema": {
     "$schema": "http://json-schema.org/draft-07/schema",

@@ -255,7 +255,7 @@ impl TemplateField {
     }
 }
 
-pub type TemplateFields = FxHashMap<String, TemplateField>;
+pub type TemplateFields = Vec<TemplateField>;
 
 #[derive(Debug)]
 pub enum TemplateValidationFailure {
@@ -335,13 +335,15 @@ pub fn validate(
 ) -> Result<(), TemplateError> {
     let errors = fields
         .iter()
-        .filter_map(|(name, field)| match (values.get(name), field.optional) {
-            (Some(v), _) => Some(field.format.validate(name, &v)),
-            (None, true) => None,
-            (None, false) => Some(Err(TemplateValidationFailure::Required(Cow::from(
-                name.to_string(),
-            )))),
-        })
+        .filter_map(
+            |field| match (values.get(field.name.as_ref()), field.optional) {
+                (Some(v), _) => Some(field.format.validate(field.name.as_ref(), &v)),
+                (None, true) => None,
+                (None, false) => Some(Err(TemplateValidationFailure::Required(
+                    field.name.to_owned(),
+                ))),
+            },
+        )
         .filter_map(|e| match e {
             Ok(_) => None,
             Err(e) => Some(e),

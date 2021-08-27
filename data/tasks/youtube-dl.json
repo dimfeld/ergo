@@ -1,53 +1,59 @@
 {
   "$schema": "../../schemas/task_input.json",
-  "task_id": "KhEz6o1LSSq15p7vgPc17g",
   "name": "Youtube DL",
   "enabled": true,
-  "state_machine_config": [
-    {
-      "name": "Handle URL",
-      "initial": "handler",
-      "states": {
-        "handler": {
-          "on": [
-            {
-              "trigger_id": "url",
-              "actions": [
-                {
-                  "task_action_local_id": "run",
-                  "data": {
-                    "t": "FieldMap",
-                    "c": {
-                      "url": {
-                        "t": "Input",
-                        "c": ["/url", true]
+  "compiled": {
+    "type": "StateMachine",
+    "data": [
+      {
+        "name": "Handle URL",
+        "initial": "handler",
+        "states": {
+          "handler": {
+            "on": [
+              {
+                "trigger_id": "url",
+                "actions": [
+                  {
+                    "task_action_local_id": "run",
+                    "data": {
+                      "t": "FieldMap",
+                      "c": {
+                        "url": {
+                          "t": "Input",
+                          "c": ["/url", true]
+                        }
                       }
                     }
                   }
-                }
-              ]
-            }
-          ]
+                ]
+              }
+            ]
+          }
         }
       }
-    }
-  ],
-  "state_machine_states": [
-    {
-      "state": "handler",
-      "context": {}
-    }
-  ],
-  "triggers":{
+    ]
+  },
+  "source": null,
+  "state": {
+    "type": "StateMachine",
+    "data": [
+      {
+        "state": "handler",
+        "context": {}
+      }
+    ]
+  },
+  "triggers": {
     "url": {
       "name": "URL",
-      "input_id": {{BASE_INPUT_ID}}01
+      "input_id": "{{URL_INPUT_ID}}"
     }
   },
   "actions": {
     "run": {
       "name": "Download",
-      "action_id": {{BASE_ACTION_ID}}01
+      "action_id": "{{YOUTUBE_DL_ACTION_ID}}"
     }
   }
 }
