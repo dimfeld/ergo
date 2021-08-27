@@ -1,5 +1,6 @@
 use crate::{
     error::Result,
+    notifications::NotificationManager,
     service_config::DatabaseConfiguration,
     status_server,
     tasks::{
@@ -12,6 +13,7 @@ use crate::{
             dequeue::{TaskExecutor, TaskExecutorConfig},
             queue::InputQueue,
         },
+        queue_drain_runner::AllQueuesDrain,
     },
     web_app_server,
 };
@@ -21,7 +23,6 @@ use std::{env, net::TcpListener, path::PathBuf};
 use actix_files::NamedFile;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{
-    dev::Server,
     web::{self, PathConfig},
     App, HttpServer,
 };
@@ -44,7 +45,22 @@ pub struct Config<'a> {
     pub shutdown: GracefulShutdownConsumer,
 }
 
-pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
+/// Tasks that run within the server. Keep this object alive for the duration of the process.
+pub struct ServerTasks {
+    notification_manager: NotificationManager,
+    queue_drain: Option<AllQueuesDrain>,
+    input_runner: TaskExecutor,
+    action_runner: ActionExecutor,
+}
+
+pub struct Server {
+    pub server: actix_web::dev::Server,
+    pub bind_address: String,
+    pub bind_port: u16,
+    pub tasks: ServerTasks,
+}
+
+pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
     let Config {
         bind_port,
         bind_address,
@@ -60,7 +76,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
 
     let bind_address = bind_address.unwrap_or_else(|| "127.0.0.1".to_string());
     let listener = TcpListener::bind(&format!("{}:{}", bind_address, bind_port))?;
-    let bound_port = listener.local_addr()?.port();
+    let bind_port = listener.local_addr()?.port();
 
     let vault_client =
         ergo_database::vault::from_env(vault_approle.unwrap_or("AIO_SERVER"), shutdown.clone())
@@ -84,11 +100,13 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
-    let notifications = crate::notifications::NotificationManager::new(
+    let mut notifications = crate::notifications::NotificationManager::new(
         backend_pg_pool.clone(),
         redis_pool.clone(),
         shutdown.clone(),
     )?;
+
+    notifications.start_task_queue_loop()?;
 
     let web_app_data = crate::web_app_server::app_data(web_pg_pool.clone());
     let backend_app_data = crate::backend_data::app_data(
@@ -100,7 +118,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
         immediate_actions,
     )?;
 
-    let _queue_drain = if no_drain_queues {
+    let queue_drain = if no_drain_queues {
         None
     } else {
         info!("Starting postgres queue drain");
@@ -113,7 +131,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
         )?)
     };
 
-    let _input_runner = TaskExecutor::new(TaskExecutorConfig {
+    let input_runner = TaskExecutor::new(TaskExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.clone(),
@@ -122,7 +140,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
         immediate_actions,
     })?;
 
-    let _action_runner = ActionExecutor::new(ActionExecutorConfig {
+    let action_runner = ActionExecutor::new(ActionExecutorConfig {
         redis_pool: redis_pool.clone(),
         pg_pool: backend_pg_pool.clone(),
         shutdown: shutdown.clone(),
@@ -188,5 +206,15 @@ pub async fn start<'a>(config: Config<'a>) -> Result<(Server, String, u16)> {
     .listen(listener)?
     .run();
 
-    Ok((server, bind_address, bound_port))
+    Ok(Server {
+        server,
+        bind_address,
+        bind_port,
+        tasks: ServerTasks {
+            notification_manager: notifications,
+            queue_drain,
+            input_runner,
+            action_runner,
+        },
+    })
 }

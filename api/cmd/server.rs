@@ -27,10 +27,15 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
 
     crate::tracing_config::configure("ergo", std::io::stdout);
 
-    let (server, bind_address, bind_port) = crate::server::start(config).await?;
-    event!(Level::INFO, "Listening on {}:{}", bind_address, bind_port);
+    let server = crate::server::start(config).await?;
+    event!(
+        Level::INFO,
+        "Listening on {}:{}",
+        server.bind_address,
+        server.bind_port
+    );
 
-    server.await?;
+    server.server.await?;
 
     shutdown.shutdown().await?;
     Ok(())
