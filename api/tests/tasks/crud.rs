@@ -107,14 +107,12 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             ("command".to_string(), json!("/bin/echo")),
             ("args".to_string(), json!(["{{text}}"])),
         ]),
-        template_fields: std::array::IntoIter::new([TemplateField {
+        template_fields: vec![TemplateField {
             name: Cow::from("text"),
             format: ergo_api::tasks::actions::template::TemplateFieldFormat::String,
             optional: false,
             description: None,
-        }])
-        .map(|v| (v.name.to_string(), v))
-        .collect::<FxHashMap<_, _>>(),
+        }],
         account_required: false,
         account_types: None,
     };

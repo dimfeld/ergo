@@ -1,6 +1,7 @@
 {
   "$schema": "../../schemas/task_input.json",
   "name": "Echo Text",
+  "alias": "echo",
   "description": "Run the echo command for testing. The output can be seen in the action logs",
   "enabled": true,
   "compiled": {

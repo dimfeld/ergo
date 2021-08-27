@@ -126,6 +126,7 @@ CREATE TYPE action_status AS ENUM (
 CREATE TABLE tasks (
   task_id uuid primary key,
   org_id uuid not null references orgs(org_id),
+  alias text,
   name text not null,
   description text,
   enabled boolean not null default false,
@@ -136,7 +137,9 @@ CREATE TABLE tasks (
   modified timestamptz not null default now()
 );
 
-CREATE UNIQUE INDEX ON tasks(org_id, task_id) WHERE NOT deleted;
+CREATE INDEX on tasks(org_id) WHERE NOT deleted;
+CREATE UNIQUE INDEX ON tasks(task_id) WHERE NOT deleted;
+CREATE UNIQUE INDEX ON tasks(org_id, alias) WHERE NOT deleted;
 
 GRANT SELECT, UPDATE, DELETE, INSERT ON tasks TO ergo_web;
 GRANT SELECT, UPDATE, DELETE, INSERT ON tasks TO ergo_backend;
@@ -237,6 +240,10 @@ CREATE TABLE notify_endpoints (
   enabled bool not null default true
 );
 
+GRANT SELECT, INSERT, DELETE, UPDATE ON notify_endpoints TO ergo_web;
+GRANT SELECT ON notify_endpoints TO ergo_backend;
+GRANT INSERT ON notify_endpoints TO ergo_enqueuer;
+
 CREATE TYPE notify_event AS ENUM (
   'input_arrived',
   'input_processed',
@@ -253,6 +260,10 @@ CREATE TABLE notify_listeners (
   org_id uuid not null references orgs ON DELETE CASCADE,
   enabled bool not null default true
 );
+
+GRANT SELECT, INSERT, DELETE, UPDATE ON notify_listeners TO ergo_web;
+GRANT SELECT ON notify_listeners TO ergo_backend;
+GRANT INSERT ON notify_listeners TO ergo_enqueuer;
 
 COMMENT ON COLUMN notify_listeners.object_id is 'The object to listen on, or the nil UUID for all applicable objects';
 

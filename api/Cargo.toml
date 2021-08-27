@@ -43,7 +43,7 @@ crossbeam = "0.8.1"
 deadpool = "0.8.1"
 deadpool-redis = "0.8.1"
 dotenv = "0.15.0"
-either = "1.6.1"
+either = { version="1.6.1", features=["serde"] }
 envoption = "0.2.1"
 ergo-auth = { version = "0.1.0", path="../auth" }
 ergo-database = { version = "0.1.0", path="../database" }

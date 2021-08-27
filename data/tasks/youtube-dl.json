@@ -1,6 +1,7 @@
 {
   "$schema": "../../schemas/task_input.json",
   "name": "Youtube DL",
+  "alias": "youtube-dl",
   "enabled": true,
   "compiled": {
     "type": "StateMachine",

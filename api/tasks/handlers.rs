@@ -8,8 +8,8 @@ use crate::{
 
 use actix_web::{
     delete, get, post, put,
-    web::{self, Path, Query},
-    HttpRequest, HttpResponse, Responder,
+    web::{self, Path},
+    Either, HttpRequest, HttpResponse, Responder,
 };
 use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
@@ -21,12 +21,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::{Connection, Postgres, Transaction};
+use std::str::FromStr;
 use tracing::{field, instrument};
 use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 struct TaskAndTriggerPath {
-    task_id: TaskId,
+    task_id: String,
     trigger_id: String,
 }
 
@@ -35,6 +36,7 @@ pub struct TaskDescription {
     pub task_id: TaskId,
     pub name: String,
     pub description: Option<String>,
+    pub alias: Option<String>,
     pub enabled: bool,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
@@ -49,7 +51,7 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
     let user_ids = auth.user_entity_ids();
     let tasks = sqlx::query_as!(
         TaskDescription,
-        r##"SELECT task_id AS "task_id: TaskId", name, description, enabled, created, modified,
+        r##"SELECT task_id AS "task_id: TaskId", name, description, alias, enabled, created, modified,
             last_triggered AS "last_triggered?",
             COALESCE(successes, 0) as "successes!",
             COALESCE(failures, 0) as "failures!",
@@ -89,6 +91,7 @@ pub struct TaskResult {
     pub task_id: TaskId,
     pub name: String,
     pub description: Option<String>,
+    pub alias: Option<String>,
     pub enabled: bool,
     pub task_template_version: i64,
     pub compiled: sqlx::types::Json<TaskConfig>,
@@ -114,7 +117,7 @@ async fn get_task(
     let task = sqlx::query_as!(
         TaskResult,
         r##"SELECT task_id as "task_id: TaskId",
-        tasks.name, tasks.description, enabled,
+        tasks.name, tasks.description, alias, enabled,
         task_template_version,
         compiled as "compiled!: _",
         source as "source!: _",
@@ -215,6 +218,7 @@ pub struct TaskTriggerInput {
 pub struct TaskInput {
     pub name: String,
     pub description: Option<String>,
+    pub alias: Option<String>,
     pub enabled: bool,
     pub compiled: TaskConfig,
     pub source: serde_json::Value,
@@ -248,11 +252,11 @@ async fn update_task(
     } = sqlx::query_as!(
         TaskUpdateResult,
         "UPDATE tasks SET
-        name=$2, description=$3, enabled=$4, state=$5, modified=now()
-        WHERE task_id=$1 AND org_id=$6 AND EXISTS (
+        name=$2, description=$3, alias=$4, enabled=$5, state=$6, modified=now()
+        WHERE task_id=$1 AND org_id=$7 AND EXISTS (
             SELECT 1 FROM user_entity_permissions
             WHERE permissioned_object IN (uuid_nil(), tasks.task_id)
-            AND user_entity_id=ANY($7)
+            AND user_entity_id=ANY($8)
             AND permission_type = 'write'
             )
         RETURNING task_template_id, task_template_version
@@ -260,6 +264,7 @@ async fn update_task(
         &task_id.0,
         &payload.name,
         &payload.description as _,
+        &payload.alias as _,
         payload.enabled,
         sqlx::types::Json(&payload.state) as _,
         &auth.org_id().0,
@@ -440,14 +445,15 @@ async fn new_task(
 
     sqlx::query!(
         "INSERT INTO tasks (task_id, org_id, task_template_id, task_template_version, name,
-        description, enabled, state) VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8)",
+        description, alias, enabled, state) VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         &task_id.0,
         &org_id.0,
         &task_template_id.0,
         0,
         payload.name,
         payload.description,
+        payload.alias,
         payload.enabled,
         sqlx::types::Json(&payload.state) as _
     )
@@ -507,17 +513,33 @@ async fn post_task_trigger(
         trigger_id,
     } = path.into_inner();
 
-    let trigger = sqlx::query!(
-        r##"SELECT tasks.task_id AS "task_id: TaskId",
+    let (task_query_field, task_query_value) = TaskId::from_str(&task_id)
+        .map(|s| ("task_id", s.as_uuid().to_string()))
+        .unwrap_or(("alias", task_id));
+
+    tracing::event!(tracing::Level::INFO, %task_query_field, %task_query_value);
+
+    #[derive(sqlx::FromRow)]
+    struct QueryResult {
+        task_id: TaskId,
+        task_name: String,
+        task_trigger_name: String,
+        task_trigger_id: TaskTriggerId,
+        input_id: InputId,
+        input_schema: serde_json::Value,
+    }
+
+    let trigger: QueryResult = sqlx::query_as(&format!(
+        r##"SELECT tasks.task_id,
             tasks.name as task_name,
             tt.name as task_trigger_name,
-            task_trigger_id AS "task_trigger_id: TaskTriggerId",
-            input_id AS "input_id: InputId",
+            task_trigger_id,
+            input_id,
             inputs.payload_schema as input_schema
         FROM task_triggers tt
         JOIN tasks USING(task_id)
         JOIN inputs USING(input_id)
-        WHERE org_id = $2 AND task_trigger_local_id = $3 AND task_id = $4
+        WHERE org_id = $2 AND task_trigger_local_id = $3 AND {} = $4
             AND EXISTS(
                 SELECT 1 FROM user_entity_permissions
                 WHERE user_entity_id = ANY($1)
@@ -525,11 +547,12 @@ async fn post_task_trigger(
                 AND permissioned_object IN(uuid_nil(), task_trigger_id)
             )
         "##,
-        ids.as_slice(),
-        &org_id.0,
-        &trigger_id,
-        &task_id.0
-    )
+        task_query_field
+    ))
+    .bind(ids.as_slice())
+    .bind(&org_id.0)
+    .bind(&trigger_id)
+    .bind(task_query_value)
     .fetch_optional(&data.pg)
     .await?
     .ok_or(Error::NotFound)?;
