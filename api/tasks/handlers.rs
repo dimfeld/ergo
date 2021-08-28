@@ -86,7 +86,7 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
     Ok(HttpResponse::Ok().json(tasks))
 }
 
-#[derive(Debug, Deserialize, Serialize, sqlx::FromRow)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema, sqlx::FromRow)]
 pub struct TaskResult {
     pub task_id: TaskId,
     pub name: String,

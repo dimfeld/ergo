@@ -254,6 +254,27 @@ export interface TaskTriggerInput {
   [k: string]: unknown;
 }
 
+export interface TaskResult {
+  task_id: String;
+  name: string;
+  description?: string | null;
+  alias?: string | null;
+  enabled: boolean;
+  task_template_version: number;
+  compiled: TaskConfig;
+  source: any;
+  state: TaskState;
+  created: string;
+  modified: string;
+  actions: {
+    [k: string]: TaskActionInput;
+  };
+  triggers: {
+    [k: string]: TaskTriggerInput;
+  };
+  [k: string]: unknown;
+}
+
 export interface TransitionCondition {
   target: string;
   cond: string;

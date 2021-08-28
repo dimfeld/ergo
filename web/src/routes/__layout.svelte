@@ -8,6 +8,7 @@
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
 
+  // Hack in the API key until we support actual user login.
   // @ts-ignore
   const apiClient = window.ERGO_API_KEY
     ? ky.extend({
@@ -21,7 +22,11 @@
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        queryFn: ({ queryKey }) => apiClient(`/api/${queryKey}`).json(),
+        queryFn: ({ queryKey }) => {
+          let path = Array.isArray(queryKey) ? queryKey.join('/') : queryKey;
+          console.dir({ path, queryKey });
+          return apiClient(`/api/${path}`).json();
+        },
         staleTime: 60000,
       },
     },
