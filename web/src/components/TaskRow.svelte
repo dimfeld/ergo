@@ -6,10 +6,13 @@
   export let task: TaskDescription;
 </script>
 
-<a href="/tasks/{task.id}" class="block hover:bg-accent-50 dark:hover:bg-gray-800">
+<a href="/tasks/{task.task_id}" class="block hover:bg-accent-50 dark:hover:bg-gray-800">
   <div class="px-4 py-4 sm:px-6">
     <div class="flex items-center justify-between">
-      <p class="text-sm font-medium text-accent-600 dark:text-accent-400 truncate">{task.name}</p>
+      <p class="text-sm font-medium text-accent-600 dark:text-accent-400 truncate">
+        {task.name}
+        {#if task.alias}({task.alias}){/if}
+      </p>
       <div class="ml-2 flex-shrink-0 flex items-center space-x-2">
         <span class="text-xs text-gray-500 dark:text-gray-400">Runs in last week</span>
         {#if task.successes}
@@ -27,7 +30,7 @@
     <div class="mt-2 sm:flex sm:justify-between">
       <div class="sm:flex">
         <p class="flex items-center text-sm text-gray-500 dark:text-gray-400">
-          ID: {task.id}
+          ID: {task.task_id}
         </p>
         <p class="mt-2 flex items-center text-sm text-gray-500 dark:text-gray-400 sm:mt-0 sm:ml-6">
           Updated {formatISO9075(new Date(task.modified), { representation: 'date' })}
@@ -49,10 +52,14 @@
           />
         </svg>
         <p>
-          Last run
-          <time datetime={task.last_triggered}
-            >{formatDistanceToNowStrict(new Date(task.last_triggered))}</time
-          > ago
+          {#if task.last_triggered}
+            Last run
+            <time datetime={task.last_triggered}
+              >{formatDistanceToNowStrict(new Date(task.last_triggered))}</time
+            > ago
+          {:else}
+            Never run
+          {/if}
         </p>
       </div>
     </div>

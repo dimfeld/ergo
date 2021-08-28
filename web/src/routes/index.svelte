@@ -17,7 +17,7 @@
     {#if $tasks.isLoading}
       <Loading />
     {:else}
-      {#each $tasks.data ?? [] as task (task.id)}
+      {#each $tasks.data ?? [] as task (task.task_id)}
         <TaskRow {task} />
       {/each}
     {/if}

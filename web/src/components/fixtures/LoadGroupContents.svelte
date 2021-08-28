@@ -1,9 +1,10 @@
 <script lang="ts">
   import { getContext } from 'svelte';
-  import { autoregisterLoadGroup } from '../loadGroup';
+  import type { Readable } from 'svelte/store';
+  import { autoregisterLoadGroup, LoadGroupStoreData } from '../loadGroup';
   export let name: string;
 
-  let groupStatus = getContext(name);
+  let groupStatus = getContext<Readable<LoadGroupStoreData>>(name);
   autoregisterLoadGroup(groupStatus, name);
 </script>
 
