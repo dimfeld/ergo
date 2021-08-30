@@ -6,6 +6,14 @@
   import type { TaskResult } from '^/api_types';
   import { getHeaderTextStore } from '^/header';
 
+  import ScriptEditor from '^/editors/Script.svelte';
+  import StateMachineEditor from '^/editors/StateMachine.svelte';
+
+  const taskEditors = {
+    Script: ScriptEditor,
+    StateMachine: StateMachineEditor,
+  };
+
   const headerText = getHeaderTextStore();
 
   const { page } = getStores();
@@ -15,6 +23,8 @@
   $: if (task) {
     headerText.set(task.name);
   }
+
+  $: taskSource = task?.source || task?.compiled;
 </script>
 
 {#if $taskQuery.isLoading}
@@ -29,5 +39,8 @@
     </div>
     <p>Description: {task.description || ''}</p>
     <p>Task {JSON.stringify(task)}</p>
+  </section>
+  <section class="mt-4">
+    <svelte:component this={taskEditors[taskSource.type]} data={taskSource.data} />
   </section>
 {/if}
