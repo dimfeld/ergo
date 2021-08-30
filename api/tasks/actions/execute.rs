@@ -6,6 +6,7 @@ use ergo_database::{
     object_id::{AccountId, ActionId, OrgId, TaskId},
     PostgresPool,
 };
+use futures::future::TryFutureExt;
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
@@ -18,7 +19,13 @@ use tracing::{event, instrument, Level};
 use crate::{
     error::{Error, Result},
     notifications::{Notification, NotificationManager, NotifyEvent},
-    tasks::{actions::ActionStatus, scripting},
+    tasks::{
+        actions::ActionStatus,
+        scripting::{
+            self, run_simple_with_args, run_simple_with_context_and_payload,
+            wrap_in_function_with_args,
+        },
+    },
 };
 
 use super::{
@@ -247,6 +254,7 @@ struct ExecuteActionData {
     action_executor_template: Json<ScriptOrTemplate>,
     action_template_fields: Json<TemplateFields>,
     account_required: bool,
+    postprocess_script: Option<String>,
     task_id: TaskId,
     task_name: String,
     task_action_local_id: String,
@@ -274,6 +282,7 @@ async fn execute_action(
         actions.executor_template as action_executor_template,
         actions.template_fields as action_template_fields,
         actions.account_required,
+        actions.postprocess_script,
         task_id as "task_id: TaskId",
         tasks.name AS task_name,
         task_actions.task_action_local_id,
@@ -356,8 +365,21 @@ async fn execute_action(
     event!(Level::TRACE, ?action_template_values);
 
     // Send the executor payload to the executor to actually run it.
+    let postprocess = action.postprocess_script.as_ref();
     let results = executor
         .execute(pg_pool.clone(), action_template_values)
+        .map_err(|e| e.into())
+        .and_then(|result| async move {
+            match postprocess {
+                Some(script) => run_simple_with_args::<serde_json::Value>(
+                    script,
+                    &[("result", &result), ("payload", &invocation.payload)],
+                )
+                .await
+                .map_err(|e| ExecuteErrorSource::ScriptError(e)),
+                None => Ok(result),
+            }
+        })
         .await
         .map_err(|e| ExecuteError::from_action_and_error(&action, e));
 

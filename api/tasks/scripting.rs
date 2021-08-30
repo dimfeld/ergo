@@ -4,6 +4,7 @@ use ergo_js::{
     BufferConsole, ConsoleMessage, Extension, Runtime, RuntimeOptions, RuntimePool,
     SerializedState, Snapshot,
 };
+use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -114,12 +115,26 @@ pub async fn run_simple_with_context_and_payload<
         .map(Cow::Borrowed)
         .unwrap_or(Cow::Owned(serde_json::Value::Null));
 
+    run_simple_with_args(
+        script,
+        &[
+            ("context", context_arg.as_ref()),
+            ("payload", payload_arg.as_ref()),
+        ],
+    )
+    .await
+}
+
+pub async fn run_simple_with_args<RESULT: DeserializeOwned + std::fmt::Debug + Send + 'static>(
+    script: &str,
+    args: &[(&str, &serde_json::Value)],
+) -> Result<RESULT, anyhow::Error> {
     let wrapped = format!(
-        r##"(function(payload, context) {{
+        r##"(function({arg_names}) {{
             {script}
-        }})({payload}, {context})"##,
-        payload = payload_arg,
-        context = context_arg,
+        }})({arg_values})"##,
+        arg_names = args.iter().map(|a| a.0).join(","),
+        arg_values = args.iter().map(|a| a.1).join(", "),
         script = script
     );
 

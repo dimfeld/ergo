@@ -41,6 +41,10 @@ pub struct Action {
     pub executor_template: serde_json::Map<String, serde_json::Value>,
     pub template_fields: TemplateFields,
     pub account_required: bool,
+    /// A synchronous script to postprocess the executor's result. The value returned from the
+    /// script will replace the result, or the script can throw an error to mark the whole
+    /// action as a failure.
+    pub postprocess_script: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
