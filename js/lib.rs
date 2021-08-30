@@ -163,47 +163,13 @@ impl Runtime {
         snapshot.as_ref().to_vec()
     }
 
-    /// When evaluating a raw expression like { a: 5 }, V8 sees the
-    /// first brace as entering a scope rather than creating an object.
-    /// Wrapping the expressison in parentheses prevents this.
-    fn safe_braces<'a>(mut expr: &'a str) -> Cow<'a, str> {
-        expr = expr.trim();
-
-        // Handle expressions that end in ;
-        if expr.ends_with(';') {
-            expr = &expr[0..expr.len() - 1];
-        }
-
-        // Get the final expression and wrap it if necessary.
-        let splits = expr.rsplit_once(';');
-        match splits {
-            Some((first, last)) => {
-                let l = last.trim();
-                if l.starts_with('{') && l.ends_with('}') {
-                    Cow::from(format!("{}; ({})", first, l))
-                } else {
-                    Cow::from(expr)
-                }
-            }
-            None => {
-                let trimmed = expr.trim();
-                if trimmed.starts_with('{') && trimmed.ends_with('}') {
-                    Cow::from(format!("({})", expr))
-                } else {
-                    Cow::from(expr)
-                }
-            }
-        }
-    }
-
     /** Run an expression and return the value */
     pub fn run_expression<T: DeserializeOwned>(
         &mut self,
         name: &str,
-        text: &str,
+        script: &str,
     ) -> Result<T, AnyError> {
-        let script = Self::safe_braces(text);
-        let result = self.runtime.execute_script(name, &script)?;
+        let result = self.runtime.execute_script(name, script)?;
         let mut scope = self.runtime.handle_scope();
         // Convert to a Local handle to work with from_v8.
         let local = v8::Local::new(&mut scope, result);
@@ -215,12 +181,11 @@ impl Runtime {
         &mut self,
         name: &str,
         value: &T,
-        expression: &str,
+        script: &str,
     ) -> Result<bool, AnyError> {
-        let script = Self::safe_braces(expression);
         self.set_global_value("value", value)?;
 
-        let result = self.runtime.execute_script(name, &script)?;
+        let result = self.runtime.execute_script(name, script)?;
         let mut scope = self.runtime.handle_scope();
         let local = result.get(&mut scope);
         Ok(local.boolean_value(&mut scope))
@@ -309,6 +274,39 @@ fn console_extension(console: Box<dyn Console>) -> deno_core::Extension {
         .build()
 }
 
+/// When evaluating a raw expression like { a: 5 }, V8 sees the
+/// first brace as entering a scope rather than creating an object.
+/// Wrapping the expressison in parentheses prevents this.
+pub fn safe_braces<'a>(mut expr: &'a str) -> Cow<'a, str> {
+    expr = expr.trim();
+
+    // Handle expressions that end in ;
+    if expr.ends_with(';') {
+        expr = &expr[0..expr.len() - 1];
+    }
+
+    // Get the final expression and wrap it if necessary.
+    let splits = expr.rsplit_once(';');
+    match splits {
+        Some((first, last)) => {
+            let l = last.trim();
+            if l.starts_with('{') && l.ends_with('}') {
+                Cow::from(format!("{}; ({})", first, l))
+            } else {
+                Cow::from(expr)
+            }
+        }
+        None => {
+            let trimmed = expr.trim();
+            if trimmed.starts_with('{') && trimmed.ends_with('}') {
+                Cow::from(format!("({})", expr))
+            } else {
+                Cow::from(expr)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,9 +350,9 @@ mod tests {
                 will_snapshot: false,
                 ..Default::default()
             });
-            let expression = "{ a: 5, b: { c: 6 } }";
+            let expression = safe_braces("{ a: 5, b: { c: 6 } }");
             let value = runtime
-                .run_expression::<serde_json::Value>("test_object", expression)
+                .run_expression::<serde_json::Value>("test_object", expression.as_ref())
                 .expect("Ok");
             assert_eq!(value, json!({ "a": 5, "b": { "c": 6 } }));
         }
@@ -379,9 +377,22 @@ mod tests {
             runtime.set_global_value("x", &input).unwrap();
 
             let result: OutputValue = runtime
-                .run_expression("test", "let a = x; { b: x.a + 1 };")
+                .run_expression("test", safe_braces("let a = x; { b: x.a + 1 };").as_ref())
                 .expect("Value converts");
             assert_eq!(result, OutputValue { b: 6 });
+        }
+
+        #[test]
+        fn iife() {
+            let mut runtime = Runtime::new(RuntimeOptions {
+                will_snapshot: false,
+                ..Default::default()
+            });
+
+            let script = r##"(function() { return 5; })()"##;
+
+            let result: i64 = runtime.run_expression("script", script).unwrap();
+            assert_eq!(result, 5);
         }
     }
 

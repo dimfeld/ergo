@@ -1,9 +1,11 @@
 use ergo_api::tasks::{
     actions::handlers::{ActionDescription, ActionPayload},
-    handlers::{NewTaskResult, TaskDescription, TaskInput, TaskResult},
+    handlers::{
+        InputsLogEntry, NewTaskResult, TaskDescription, TaskInput, TaskResult, TaskTriggerResponse,
+    },
     inputs::{handlers::InputPayload, Input},
 };
-use ergo_database::object_id::TaskId;
+use ergo_database::object_id::{ActionId, InputId, TaskId};
 
 use super::TestClient;
 use reqwest::{Response, Result};
@@ -49,6 +51,22 @@ impl TestClient {
         self.delete(url).send().await?.error_for_status()
     }
 
+    pub async fn run_task_trigger(
+        &self,
+        task: &str,
+        trigger: &str,
+        payload: serde_json::Value,
+    ) -> Result<TaskTriggerResponse> {
+        let url = format!("tasks/{}/trigger/{}", task, trigger);
+        self.post(url)
+            .json(&payload)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<_>()
+            .await
+    }
+
     pub async fn list_inputs(&self) -> Result<Vec<Input>> {
         self.get("inputs")
             .send()
@@ -68,7 +86,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn put_input(&self, input_id: i64, input: &InputPayload) -> Result<Input> {
+    pub async fn put_input(&self, input_id: &InputId, input: &InputPayload) -> Result<Input> {
         let url = format!("inputs/{}", input_id);
         self.put(url)
             .json(input)
@@ -79,7 +97,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn delete_input(&self, input_id: i64) -> Result<Response> {
+    pub async fn delete_input(&self, input_id: &InputId) -> Result<Response> {
         let url = format!("inputs/{}", input_id);
         self.delete(url).send().await?.error_for_status()
     }
@@ -103,13 +121,26 @@ impl TestClient {
             .await
     }
 
-    pub async fn put_action(&self, action_id: i64, action: &ActionPayload) -> Result<Response> {
+    pub async fn put_action(
+        &self,
+        action_id: &ActionId,
+        action: &ActionPayload,
+    ) -> Result<Response> {
         let url = format!("actions/{}", action_id);
         self.put(url).json(action).send().await?.error_for_status()
     }
 
-    pub async fn delete_action(&self, action_id: i64) -> Result<Response> {
+    pub async fn delete_action(&self, action_id: &ActionId) -> Result<Response> {
         let url = format!("actions/{}", action_id);
         self.delete(url).send().await?.error_for_status()
+    }
+
+    pub async fn get_recent_logs(&self) -> Result<Vec<InputsLogEntry>> {
+        self.get("logs")
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<_>()
+            .await
     }
 }

@@ -57,7 +57,7 @@ pub struct TaskAction {
     pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
-#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, sqlx::Type)]
+#[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq, sqlx::Type)]
 #[sqlx(type_name = "action_status", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum ActionStatus {

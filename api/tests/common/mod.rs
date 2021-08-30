@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Error, Result};
-use ergo_api::cmd::make_api_key;
+use anyhow::{anyhow, Result};
+use ergo_api::{cmd::make_api_key, server::Server};
 use ergo_database::object_id::{ActionCategoryId, OrgId, UserId};
 use futures::Future;
 use once_cell::sync::Lazy;
@@ -58,15 +58,21 @@ async fn start_app(
         redis_url: std::env::var("TEST_REDIS_URL").ok(),
         redis_queue_prefix: Some(redis_key_prefix.to_string()),
         vault_approle: None,
-        immediate_inputs: false,
-        immediate_actions: false,
+        immediate_inputs: true,
+        immediate_actions: true,
         no_drain_queues: false,
         shutdown: shutdown.consumer(),
     };
     Lazy::force(&TRACING);
-    let (server, addr, port) = ergo_api::server::start(config).await?;
+    let Server {
+        server,
+        bind_address,
+        bind_port,
+        tasks,
+    } = ergo_api::server::start(config).await?;
 
     tokio::task::spawn(async move {
+        let _tasks = tasks;
         let server_err = server.await;
         let shutdown_err = shutdown.shutdown().await;
         match (server_err, shutdown_err) {
@@ -76,7 +82,7 @@ async fn start_app(
         }
     });
 
-    let base_url = format!("http://{}:{}/api", addr, port);
+    let base_url = format!("http://{}:{}/api", bind_address, bind_port);
     let client = TestClient {
         base: base_url.clone(),
         client: reqwest::ClientBuilder::new()
@@ -96,7 +102,7 @@ async fn start_app(
             api_key: admin_user.api_key,
         },
         client,
-        address: format!("{}:{}", addr, port),
+        address: format!("{}:{}", bind_address, bind_port),
         base_action_category: admin_user.action_category_id,
         base_url,
     })

@@ -68,13 +68,14 @@ impl EventHandler {
             Some(actions) => {
                 let mut output = ActionInvocations::with_capacity(actions.len());
                 for def in actions {
-                    let payload = def.data.build(context, payload).await?;
+                    let built_payload = def.data.build(context, payload).await?;
+                    event!(Level::DEBUG, ?context, ?built_payload, "built payload");
                     let invocation = ActionInvocation {
                         input_arrival_id: input_arrival_id.clone(),
                         actions_log_id: uuid::Uuid::new_v4(),
                         task_id: task_id.clone(),
                         task_action_local_id: def.task_action_local_id.clone(),
-                        payload,
+                        payload: built_payload,
                     };
                     output.push(invocation);
                 }
@@ -169,9 +170,15 @@ impl ActionPayloadBuilder {
                 Ok(serde_json::Value::Object(output))
             }
             ActionPayloadBuilder::Script(s) => {
-                scripting::run_simple_with_context_and_payload(s.as_str(), Some(context), *payload)
-                    .await
-                    .map_err(StateMachineError::ScriptError)
+                let result = scripting::run_simple_with_context_and_payload(
+                    s.as_str(),
+                    Some(context),
+                    *payload,
+                )
+                .await
+                .map_err(StateMachineError::ScriptError);
+
+                result
             }
         }
     }

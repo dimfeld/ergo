@@ -7,6 +7,7 @@ use ergo_js::{
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use tracing::{event, Level};
 
 const NET_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/net");
 const CORE_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/core");
@@ -138,6 +139,8 @@ pub async fn run_simple_with_args<RESULT: DeserializeOwned + std::fmt::Debug + S
         script = script
     );
 
+    event!(Level::TRACE, script=%wrapped, "running script");
+
     POOL.run(move || async move {
         let mut runtime = create_simple_runtime();
         let result: RESULT = runtime.run_expression("script", wrapped.as_str())?;
@@ -148,7 +151,18 @@ pub async fn run_simple_with_args<RESULT: DeserializeOwned + std::fmt::Debug + S
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     #[tokio::test]
-    #[ignore]
-    async fn simple_runs() {}
+    async fn run_simple_with_context_and_payload() {
+        let input_script = r##"return payload.value"##;
+        let result: i64 = super::run_simple_with_context_and_payload(
+            input_script,
+            None,
+            Some(&json!({ "value": 5 })),
+        )
+        .await
+        .unwrap();
+        assert_eq!(result, 5);
+    }
 }

@@ -10,7 +10,7 @@ use ergo_database::PostgresPool;
 use ergo_js::ConsoleMessage;
 use futures::future::{ready, TryFutureExt};
 use fxhash::FxHashMap;
-use tracing::instrument;
+use tracing::{event, instrument, Level};
 
 const FIELD_NAME: TemplateField = TemplateField::from_static(
     "name",
@@ -77,6 +77,7 @@ impl Executor for JsExecutor {
                         })?;
                 }
 
+                event!(Level::DEBUG, %script, "executing script");
                 let run_result = ready(runtime.execute_script(name, script))
                     .and_then(|_| runtime.run_event_loop(false))
                     .await;

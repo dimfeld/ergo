@@ -101,6 +101,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         action_id: None,
         action_category_id: app.base_action_category.clone(),
         name: "Echo".to_string(),
+        postprocess_script: None,
         description: Some("Echo the input".to_string()),
         executor_id: "raw_command".to_string(),
         executor_template: ScriptOrTemplate::Template(vec![
@@ -175,6 +176,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
     let user1_tasks = vec![
         TaskInput {
             name: "task 1".to_string(),
+            alias: None,
             description: Some("task 1 description".to_string()),
             enabled: true,
             compiled: machine.clone(),
@@ -185,6 +187,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         },
         TaskInput {
             name: "task 2".to_string(),
+            alias: Some("task_2".to_string()),
             description: Some("a task 2 description".to_string()),
             enabled: true,
             compiled: machine.clone(),
@@ -195,6 +198,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         },
         TaskInput {
             name: "task 3".to_string(),
+            alias: None,
             description: None,
             enabled: false,
             compiled: machine.clone(),
@@ -207,6 +211,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
 
     let user2_task = TaskInput {
         name: "user2 task".to_string(),
+        alias: None,
         description: None,
         enabled: true,
         compiled: machine.clone(),
@@ -259,6 +264,7 @@ async fn list_tasks() {
                     task.name.clone(),
                     TaskDescription {
                         task_id: TaskId::new(),
+                        alias: task.alias.clone(),
                         name: task.name.clone(),
                         description: task.description.clone(),
                         enabled: task.enabled,
@@ -281,6 +287,7 @@ async fn list_tasks() {
                 .ok_or_else(|| anyhow!("API returned unexpected task {}", task.name.as_str()))?;
 
             assert_eq!(task.name, expected.name);
+            assert_eq!(task.alias, expected.alias);
             assert_eq!(task.description, expected.description);
             assert_eq!(task.enabled, expected.enabled);
             assert_eq!(task.last_triggered, expected.last_triggered);
@@ -481,6 +488,7 @@ async fn put_existing_task() {
 
         let updated = TaskInput {
             name: "new name".to_string(),
+            alias: None,
             description: Some("a new description".to_string()),
             enabled: false,
             compiled: config.clone(),
