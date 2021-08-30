@@ -13,6 +13,18 @@ async function main() {
 
   function addType(name, definition) {
     if (!schemas.has(name)) {
+      if (!('additionalProperties' in definition)) {
+        definition.additionalProperties = false;
+      }
+
+      if (definition.anyOf) {
+        for (let a of definition.anyOf) {
+          if (!('additionalProperties' in a)) {
+            a.additionalProperties = false;
+          }
+        }
+      }
+
       schemas.set(name, definition);
     }
   }
@@ -37,7 +49,12 @@ async function main() {
   // do it since we can't suppress generation of definition references.
   let compiledTypes = new Set();
   for (let [key, val] of schemas.entries()) {
-    let compiled = await compile({ ...val, definitions }, key, { bannerComment: '' });
+    let input = {
+      ...val,
+      definitions,
+    };
+
+    let compiled = await compile(input, key, { bannerComment: '' });
 
     let eachType = compiled.split('export');
     for (let type of eachType) {
