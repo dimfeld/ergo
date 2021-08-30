@@ -4,6 +4,7 @@
   import { setContext } from 'svelte';
   import { writable } from 'svelte/store';
   import { createDarkStore, cssDarkModePreference } from '../styles';
+  import { createHeaderTextStore } from '^/header';
   import ky from 'ky';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
@@ -24,7 +25,6 @@
       queries: {
         queryFn: ({ queryKey }) => {
           let path = Array.isArray(queryKey) ? queryKey.join('/') : queryKey;
-          console.dir({ path, queryKey });
           return apiClient(`/api/${path}`).json();
         },
         staleTime: 60000,
@@ -36,8 +36,7 @@
   $: darkMode = $darkModeStore ?? cssDarkModePreference();
   $: section = $page.path.split('/')[1];
 
-  let headerTextStore = writable('');
-  setContext('headerText', headerTextStore);
+  let headerText = createHeaderTextStore();
 </script>
 
 <QueryClientProvider client={queryClient}>
@@ -50,7 +49,7 @@
     <header class="bg-white dark:bg-black shadow-sm">
       <div class="mx-auto py-4 px-4 sm:px-6 lg:px-8">
         <h1 class="text-lg leading-6 font-semibold text-gray-900 dark:text-gray-100">
-          {$headerTextStore}
+          {$headerText}
         </h1>
       </div>
     </header>
