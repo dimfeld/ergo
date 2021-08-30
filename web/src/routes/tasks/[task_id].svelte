@@ -38,7 +38,9 @@
       <p>Alias: {task.alias || 'None'}</p>
     </div>
     <p>Description: {task.description || ''}</p>
-    <p>Task {JSON.stringify(task)}</p>
+    <p>Modified {task.modified}</p>
+    <p>Actions {JSON.stringify(task.actions)}</p>
+    <p>Triggers {JSON.stringify(task.triggers)}</p>
   </section>
   <section class="mt-4">
     <svelte:component this={taskEditors[taskSource.type]} data={taskSource.data} />
