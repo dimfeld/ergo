@@ -498,6 +498,11 @@ async fn new_task(
     Ok(HttpResponse::Created().json(NewTaskResult { task_id }))
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TaskTriggerResponse {
+    pub log_id: Uuid,
+}
+
 #[post("/tasks/{task_id}/trigger/{trigger_id}")]
 async fn post_task_trigger(
     path: Path<TaskAndTriggerPath>,
@@ -574,7 +579,9 @@ async fn post_task_trigger(
     })
     .await?;
 
-    Ok(HttpResponse::Accepted().json(json!({ "log_id": input_arrival_id })))
+    Ok(HttpResponse::Accepted().json(TaskTriggerResponse {
+        log_id: input_arrival_id,
+    }))
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]

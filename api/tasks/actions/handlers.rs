@@ -34,6 +34,11 @@ pub struct ActionPayload {
     pub executor_id: String,
     pub executor_template: ScriptOrTemplate,
     pub template_fields: TemplateFields,
+    /// A script that processes the executor's JSON result.
+    /// The result is exposed in the variable `result` and the action's payload
+    /// is exposed as `payload`. The value returned will replace the executor's
+    /// return value, or an error can be thrown to mark the action as failed.
+    pub postprocess_script: Option<String>,
     pub account_required: bool,
     pub account_types: Option<Vec<String>>,
 }
@@ -121,8 +126,9 @@ pub async fn new_action(
     let action_id = ActionId::new();
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
-        executor_id, executor_template, template_fields, account_required) VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8)",
+        executor_id, executor_template, template_fields, account_required,
+        postprocess_script) VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
         &action_id.0,
         &payload.action_category_id.0,
         &payload.name,
@@ -130,7 +136,8 @@ pub async fn new_action(
         &payload.executor_id,
         sqlx::types::Json(&payload.executor_template) as _,
         sqlx::types::Json(&payload.template_fields) as _,
-        &payload.account_required
+        &payload.account_required,
+        payload.postprocess_script.as_ref(),
     )
     .execute(&mut tx)
     .await?;
@@ -185,8 +192,9 @@ pub async fn write_action(
 
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
-            executor_id, executor_template, template_fields, account_required)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            executor_id, executor_template, template_fields, account_required,
+            postprocess_script)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT(action_id) DO UPDATE
         SET action_category_id=$2, name=$3, description=$4,
         executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8",
@@ -197,7 +205,8 @@ pub async fn write_action(
         &payload.executor_id,
         sqlx::types::Json(&payload.executor_template) as _,
         sqlx::types::Json(&payload.template_fields) as _,
-        &payload.account_required
+        &payload.account_required,
+        payload.postprocess_script.as_ref(),
     )
     .execute(&mut tx)
     .await?;

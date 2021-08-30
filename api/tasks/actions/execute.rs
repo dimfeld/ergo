@@ -21,10 +21,7 @@ use crate::{
     notifications::{Notification, NotificationManager, NotifyEvent},
     tasks::{
         actions::ActionStatus,
-        scripting::{
-            self, run_simple_with_args, run_simple_with_context_and_payload,
-            wrap_in_function_with_args,
-        },
+        scripting::{self, run_simple_with_args},
     },
 };
 
@@ -532,9 +529,9 @@ mod tests {
         async fn execute(
             &self,
             _pg_pool: PostgresPool,
-            template_values: FxHashMap<String, Value>,
+            _template_values: FxHashMap<String, Value>,
         ) -> Result<Value, ExecutorError> {
-            todo!()
+            Ok(self.return_value.clone())
         }
 
         fn template_fields(&self) -> &TemplateFields {
@@ -628,12 +625,4 @@ mod tests {
             "allow_missing=true: null value converts to empty string"
         );
     }
-
-    #[test]
-    #[ignore]
-    fn passing_action() {}
-
-    #[test]
-    #[ignore]
-    fn failing_action() {}
 }
