@@ -16,7 +16,7 @@ specifiers:
   '@storybook/svelte': ^6.3.7
   '@sveltejs/adapter-static': ~1.0.0-next.17
   '@sveltejs/adapter-vercel': ~1.0.0-next.27
-  '@sveltejs/kit': ~1.0.0-next.158
+  '@sveltejs/kit': ~1.0.0-next.159
   '@sveltestack/svelte-query': ~1.4.1
   '@tailwindcss/forms': ~0.3.3
   '@testing-library/jest-dom': ^5.14.1
@@ -45,12 +45,12 @@ specifiers:
   rimraf: ~3.0.2
   source-map-support: ^0.5.19
   storybook-tailwind-dark-mode: ^1.0.11
-  svelte: ^3.42.4
+  svelte: ~3.42.4
   svelte-check: ^2.2.5
   svelte-jester: ^1.8.2
   svelte-loader: ^3.1.2
   svelte-preprocess: ^4.8.0
-  tailwindcss: ^2.2.8
+  tailwindcss: ~2.2.9
   tippy.js: ^6.3.1
   ts-jest: ^27.0.5
   ts-node: ^10.2.1
@@ -76,8 +76,8 @@ devDependencies:
   '@storybook/svelte': 6.3.7_da30cb10feb06f6d47af36886dc7f440
   '@sveltejs/adapter-static': 1.0.0-next.17
   '@sveltejs/adapter-vercel': 1.0.0-next.27
-  '@sveltejs/kit': 1.0.0-next.158_svelte@3.42.4
-  '@tailwindcss/forms': 0.3.3_tailwindcss@2.2.8
+  '@sveltejs/kit': 1.0.0-next.159_svelte@3.42.4
+  '@tailwindcss/forms': 0.3.3_tailwindcss@2.2.9
   '@testing-library/jest-dom': 5.14.1
   '@testing-library/svelte': 3.0.3_svelte@3.42.4
   '@typescript-eslint/eslint-plugin': 4.29.3_5b13bab190e8051f191796d8c4619073
@@ -106,7 +106,7 @@ devDependencies:
   svelte-jester: 1.8.2_jest@27.1.0+svelte@3.42.4
   svelte-loader: 3.1.2_svelte@3.42.4
   svelte-preprocess: 4.8.0_c800ab9a35fc99a39701444064fbb227
-  tailwindcss: 2.2.8_b3faf9bce28c92b01a565e3ad3f28d12
+  tailwindcss: 2.2.9_b3faf9bce28c92b01a565e3ad3f28d12
   tippy.js: 6.3.1
   ts-jest: 27.0.5_70b4cb0fc33f2e366cf22a0a89a8643e
   ts-node: 10.2.1_typescript@4.4.2
@@ -3906,8 +3906,8 @@ packages:
       esbuild: 0.12.24
     dev: true
 
-  /@sveltejs/kit/1.0.0-next.158_svelte@3.42.4:
-    resolution: {integrity: sha512-jVpVeAFOVNOGDRDVvbWjHxco5s78OYsrCJhnEAKoOe690gkWA5Qc8FqPXo8HHiaIHKHmTP1vbrEhQ5jkX7fBAw==}
+  /@sveltejs/kit/1.0.0-next.159_svelte@3.42.4:
+    resolution: {integrity: sha512-aSq2zgnPmTFgiVBMtlkv5X/wnVBJDAmM9coRzk+qAKZoSLmLEmDteJbFt4m6IcAS7YoNKx/smSfC8QkdGjjrdg==}
     engines: {node: ^12.20 || >=14.13}
     hasBin: true
     peerDependencies:
@@ -3952,13 +3952,13 @@ packages:
       broadcast-channel: github.com/dimfeld/broadcast-channel/ab1a1ba861a47df7e27f123b25e7df0d4635feec
     dev: false
 
-  /@tailwindcss/forms/0.3.3_tailwindcss@2.2.8:
+  /@tailwindcss/forms/0.3.3_tailwindcss@2.2.9:
     resolution: {integrity: sha512-U8Fi/gq4mSuaLyLtFISwuDYzPB73YzgozjxOIHsK6NXgg/IWD1FLaHbFlWmurAMyy98O+ao74ksdQefsquBV1Q==}
     peerDependencies:
       tailwindcss: '>=2.0.0'
     dependencies:
       mini-svg-data-uri: 1.3.3
-      tailwindcss: 2.2.8_b3faf9bce28c92b01a565e3ad3f28d12
+      tailwindcss: 2.2.9_b3faf9bce28c92b01a565e3ad3f28d12
     dev: true
 
   /@testing-library/dom/7.31.2:
@@ -13691,8 +13691,8 @@ packages:
       strip-ansi: 6.0.0
     dev: true
 
-  /tailwindcss/2.2.8_b3faf9bce28c92b01a565e3ad3f28d12:
-    resolution: {integrity: sha512-sq6pKVIjklgtuj7OKn+6KD6UqNebYKZYUSx0oKx8aS1usdUXn1TLuwFyr/85HNYu5uHNduLFsXrtQJtkNmYlqQ==}
+  /tailwindcss/2.2.9_b3faf9bce28c92b01a565e3ad3f28d12:
+    resolution: {integrity: sha512-P8zCKFkEthfUvqcnun8DqGGXw4QqyDw971NAM23e8QQ+m5HW1agp4upq50rFGwGNtphVYvr+0zvVLSXo5/I9Qg==}
     engines: {node: '>=12.13.0'}
     hasBin: true
     peerDependencies:

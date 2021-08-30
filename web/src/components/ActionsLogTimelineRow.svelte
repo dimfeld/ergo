@@ -4,18 +4,37 @@
 
   export let parent: InputsLogEntry;
   export let entry: InputLogEntryAction;
+
+  interface ResultDescription {
+    action: string;
+    item: string | null;
+  }
+
+  let resultDescription: ResultDescription | undefined;
+  $: {
+    let description = entry?.result?.description;
+    if (typeof description === 'string') {
+      resultDescription = {
+        action: description,
+        item: null,
+      };
+    }
+
+    resultDescription = description;
+  }
+
   $: failed = entry.status === 'error';
 </script>
 
 <div class="relative">
-  <div class="relative flex space-x-3">
+  <div class="relative flex items-center space-x-3">
     <div>
       <span
-        class="h-8 w-8 rounded-full bg-accent-300 dark:bg-accent-500 flex items-center justify-center ring-8 ring-white dark:ring-gray-600"
+        class="h-6 w-6 mt-1 rounded-full bg-accent-300 dark:bg-accent-500 flex items-center justify-center ring-4 ring-white dark:ring-gray-600"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          class="h-5 w-5 text-white dark:text-gray-800"
+          class="h-4 w-4 text-white dark:text-gray-800"
           viewBox="0 0 20 20"
           fill="currentColor"
         >
@@ -28,9 +47,16 @@
     <div class="min-w-0 flex-1 pt-1.5 flex flex-col sm:flex-row justify-between sm:space-x-4">
       <div>
         <p class:failed class="title-row">
-          <span class="bolded">{parent.task_trigger_name}</span>
-          {failed ? 'failed to run' : 'ran action'}
-          <span class="bolded">{entry.task_action_name}</span>
+          {#if failed || !resultDescription}
+            <span class="bolded">{parent.task_trigger_name}</span>
+            {failed ? 'failed to run' : 'ran action'}
+            <span class="bolded">{entry.task_action_name}</span>
+          {:else}
+            <span>{resultDescription.action}</span>
+            {#if resultDescription.item}
+              <span class="bolded">{resultDescription.item}</span>
+            {/if}
+          {/if}
         </p>
       </div>
       <div class="text-left sm:text-right text-sm whitespace-nowrap text-gray-500">
