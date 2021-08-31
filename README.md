@@ -49,11 +49,13 @@ This project is in very early stages right now with no current plans for proper 
 ## 0.4
 
 - [ ] Long-running Javascript tasks
+- [ ] Ability to run Nomad jobs as actions
 
 ## 0.3
 
 - [ ] MVP of UI for editing tasks, actions, and inputs.
 - [ ] Implement last missing pieces of queue behavior.
+- [ ] Barebones user management
 
 ## 0.2
 
@@ -61,7 +63,6 @@ This project is in very early stages right now with no current plans for proper 
 - [X] Read-only Web UI with events timeline
 - [X] JavaScript execution as part of state machines, actions, and inputs.
 - [X] Set up foundations of serialized long-running tasks in V8.
-- [ ] Ability to run Nomad jobs as actions
 
 ## 0.1
 
