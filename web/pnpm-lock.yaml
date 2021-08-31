@@ -43,6 +43,7 @@ specifiers:
   prettier: ~2.3.2
   prettier-plugin-svelte: ^2.4.0
   rimraf: ~3.0.2
+  sorters: ~1.0.0
   source-map-support: ^0.5.19
   storybook-tailwind-dark-mode: ^1.0.11
   svelte: ~3.42.4
@@ -63,6 +64,7 @@ dependencies:
   date-fns: 2.22.1
   just-capitalize: 1.0.1
   ky: 0.28.5
+  sorters: 1.0.0
 
 devDependencies:
   '@babel/core': 7.15.0
@@ -13062,6 +13064,10 @@ packages:
       source-map-resolve: 0.5.3
       use: 3.1.1
     dev: true
+
+  /sorters/1.0.0:
+    resolution: {integrity: sha512-3Q9I4lGsmKz+urmVjRDLkGKJ9yRU4hpq+3aRMuahSP8tBw2o3LuePbxapoVNmsGTCFkwxiLmLU3Ct8nQx1Lodw==}
+    dev: false
 
   /source-list-map/2.0.1:
     resolution: {integrity: sha512-qnQ7gVMxGNxsiL4lEuJwe/To8UnK7fAnmbGEEH8RpLouuKbeEm0lhbQVFIrNSuB+G7tVrAlVsZgETT5nljf+Iw==}

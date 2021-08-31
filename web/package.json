@@ -80,10 +80,13 @@
     "@sveltestack/svelte-query": "~1.4.1",
     "date-fns": "~2.22.1",
     "just-capitalize": "~1.0.1",
-    "ky": "~0.28.5"
+    "ky": "~0.28.5",
+    "sorters": "~1.0.0"
   },
   "jest": {
-    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect"],
+    "setupFilesAfterEnv": [
+      "@testing-library/jest-dom/extend-expect"
+    ],
     "transform": {
       "^.+\\.svelte$": [
         "svelte-jester",

@@ -27,6 +27,10 @@ const config = {
     hostHeader: 'X-Forwarded-Host',
     ssr: false,
     vite: () => ({
+      // Vite SSR needs this for packages that expose native ESM exports to Node.
+      ssr: {
+        noExternal: ['sorters'],
+      },
       define: {
         'window.ERGO_API_KEY': `'${process.env.API_KEY}'`,
       },

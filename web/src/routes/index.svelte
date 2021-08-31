@@ -5,18 +5,23 @@
   import TaskRow from '^/components/TaskRow.svelte';
   import { useQuery } from '@sveltestack/svelte-query';
   import { getHeaderTextStore } from '^/header';
+  import sorter from 'sorters';
   getHeaderTextStore().set('Dashboard');
 
   const recentLogs = useQuery<InputsLogEntry[]>('logs');
-  const tasks = useQuery<TaskDescription[]>('tasks');
+  const taskQuery = useQuery<TaskDescription[]>('tasks');
+
+  $: tasks = ($taskQuery.data ?? [])
+    .slice()
+    .sort(sorter({ value: 'last_triggered', descending: true }));
 </script>
 
 <div class="flex">
   <section class="flex-grow min-w-max">
-    {#if $tasks.isLoading}
+    {#if $taskQuery.isLoading}
       <Loading />
     {:else}
-      {#each $tasks.data ?? [] as task (task.task_id)}
+      {#each tasks as task (task.task_id)}
         <TaskRow {task} />
       {/each}
     {/if}
