@@ -1,25 +1,13 @@
 <script lang="typescript">
   import '../app.css';
   import { page } from '$app/stores';
-  import { setContext } from 'svelte';
-  import { writable } from 'svelte/store';
   import { createDarkStore, cssDarkModePreference } from '../styles';
   import { createHeaderTextStore } from '^/header';
-  import ky from 'ky';
+  import { createApiClient } from '^/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
 
-  // Hack in the API key until we support actual user login.
-  // @ts-ignore
-  const apiClient = window.ERGO_API_KEY
-    ? ky.extend({
-        headers: {
-          // @ts-ignore
-          Authorization: 'Bearer ' + window.ERGO_API_KEY,
-        },
-      })
-    : ky;
-
+  const apiClient = createApiClient();
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {

@@ -1,9 +1,9 @@
 <script lang="ts">
   import { useQuery } from '@sveltestack/svelte-query';
-  import { getContext } from 'svelte';
   import { getStores } from '$app/stores';
   import Loading from '^/components/Loading.svelte';
   import type { TaskResult } from '^/api_types';
+  import { fetchOnceQuery } from '^/api';
   import { getHeaderTextStore } from '^/header';
 
   import ScriptEditor from '^/editors/Script.svelte';
@@ -17,7 +17,7 @@
   const headerText = getHeaderTextStore();
 
   const { page } = getStores();
-  $: taskQuery = useQuery<TaskResult>(['tasks', $page.params.task_id]);
+  $: taskQuery = fetchOnceQuery<TaskResult>(['tasks', $page.params.task_id]);
   $: task = $taskQuery.isSuccess ? $taskQuery.data : null;
 
   $: if (task) {
