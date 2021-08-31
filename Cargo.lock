@@ -1554,8 +1554,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "tracing-futures",
- "tracing-log",
  "url",
  "uuid",
  "wiremock",

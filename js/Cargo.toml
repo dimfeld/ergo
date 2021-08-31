@@ -45,8 +45,6 @@ slog = { version = "2.7.0", optional = true }
 thiserror = "1.0.26"
 tokio = { version = "1.9.0", features = ["full", "test-util"] }
 tracing = { version = "0.1.26", optional = true }
-tracing-futures = "0.2.5"
-tracing-log = "0.1.2"
 url = "2.2.2"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 wiremock = "0.5.6"
