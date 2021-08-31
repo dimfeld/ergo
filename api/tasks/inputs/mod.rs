@@ -43,7 +43,7 @@ pub struct InputsLog {
     pub time: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize, PartialEq, Eq, sqlx::Type)]
 #[sqlx(type_name = "input_status", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum InputStatus {

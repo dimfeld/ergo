@@ -368,12 +368,22 @@ async fn execute_action(
         .map_err(|e| e.into())
         .and_then(|result| async move {
             match postprocess {
-                Some(script) => run_simple_with_args::<serde_json::Value>(
-                    script,
-                    &[("output", &result), ("payload", &invocation.payload)],
-                )
-                .await
-                .map_err(|e| ExecuteErrorSource::ScriptError(e)),
+                Some(script) => {
+                    let processed: serde_json::Value = run_simple_with_args(
+                        script,
+                        &[("output", &result), ("payload", &invocation.payload)],
+                    )
+                    .await
+                    .map_err(|e| ExecuteErrorSource::ScriptError(e))?;
+
+                    if !processed.is_null() {
+                        Ok(processed)
+                    } else {
+                        // If the postprocess script didn't return anything then just
+                        // return the original result.
+                        Ok::<serde_json::Value, ExecuteErrorSource>(result)
+                    }
+                }
                 None => Ok(result),
             }
         })

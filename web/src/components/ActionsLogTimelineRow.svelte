@@ -12,15 +12,15 @@
 
   let resultDescription: ResultDescription | undefined;
   $: {
-    let description = entry?.result?.description;
+    let description = entry?.result?.output?.description;
     if (typeof description === 'string') {
       resultDescription = {
         action: description,
         item: null,
       };
+    } else if (description && 'action' in description) {
+      resultDescription = description;
     }
-
-    resultDescription = description;
   }
 
   $: failed = entry.status === 'error';
@@ -68,7 +68,7 @@
 
 <style lang="postcss">
   .title-row {
-    @apply text-sm text-gray-500;
+    @apply text-sm text-gray-600;
     &.failed {
       @apply text-red-500;
 
@@ -83,6 +83,8 @@
   }
 
   :global(.dark) .title-row {
+    @apply text-gray-400;
+
     &.failed .bolded {
       @apply text-red-300;
     }

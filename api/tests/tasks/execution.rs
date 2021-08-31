@@ -9,7 +9,7 @@ use ergo_api::tasks::{
         ActionStatus,
     },
     handlers::{TaskActionInput, TaskInput, TaskTriggerInput},
-    inputs::handlers::InputPayload,
+    inputs::{handlers::InputPayload, InputStatus},
     state_machine::{
         ActionInvokeDef, ActionPayloadBuilder, EventHandler, StateDefinition, StateMachine,
         StateMachineData,
@@ -193,6 +193,12 @@ async fn script_task() {
         }
 
         println!("{:?}", logs);
+        assert_eq!(logs[0].inputs_log_id, log_id);
+        assert_eq!(logs[0].input_status, InputStatus::Success);
+        assert_eq!(logs[0].task_trigger_name, "Run a script");
+        assert_eq!(logs[0].task_trigger_local_id, "run");
+        assert_eq!(logs[0].task_id, task_id);
+        assert_eq!(logs[0].actions.len(), 1);
         assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
         assert_eq!(
             logs[0].actions[0].result,
@@ -248,10 +254,77 @@ async fn postprocess_script() {
         }
 
         println!("{:?}", logs);
+        assert_eq!(logs[0].inputs_log_id, log_id);
+        assert_eq!(logs[0].input_status, InputStatus::Success);
+        assert_eq!(logs[0].task_trigger_name, "Run a script");
+        assert_eq!(logs[0].task_trigger_local_id, "run");
+        assert_eq!(logs[0].task_id, task_id);
+        assert_eq!(logs[0].actions.len(), 1);
         assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
         assert_eq!(
             logs[0].actions[0].result,
             json!({ "output": { "pp": 15, "result": {"value": 5 }, "console": [] } }),
+            "executor result"
+        );
+
+        Ok(())
+    })
+    .await
+}
+
+#[actix_rt::test]
+async fn postprocess_script_returns_nothing() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            org,
+            user,
+            script_input,
+            mut script_action,
+            task,
+            task_id,
+        } = bootstrap(&app).await?;
+
+        // Normally there would be more actual checking here.
+        script_action.postprocess_script = Some("return".to_string());
+        app.admin_user
+            .client
+            .put_action(&script_action.action_id.as_ref().unwrap(), &script_action)
+            .await
+            .unwrap();
+
+        let script = r##"result = { value: 5 }"##;
+
+        let log_id = user
+            .client
+            .run_task_trigger("run_script", "run", json!({ "script": script }))
+            .await?
+            .log_id;
+
+        let mut logs = user.client.get_recent_logs().await?;
+        println!("{:?}", logs);
+
+        while logs
+            .get(0)
+            .and_then(|i| i.actions.0.get(0))
+            .map(|a| a.status == ActionStatus::Error || a.status == ActionStatus::Success)
+            .unwrap_or(false)
+            == false
+        {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            logs = user.client.get_recent_logs().await?;
+        }
+
+        println!("{:?}", logs);
+        assert_eq!(logs[0].inputs_log_id, log_id);
+        assert_eq!(logs[0].input_status, InputStatus::Success);
+        assert_eq!(logs[0].task_trigger_name, "Run a script");
+        assert_eq!(logs[0].task_trigger_local_id, "run");
+        assert_eq!(logs[0].task_id, task_id);
+        assert_eq!(logs[0].actions.len(), 1);
+        assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
+        assert_eq!(
+            logs[0].actions[0].result,
+            json!({ "output": { "result": {"value": 5 }, "console": [] } }),
             "executor result"
         );
 
