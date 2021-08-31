@@ -17,20 +17,20 @@ This project is in very early stages right now with no current plans for proper 
 
 - [ ] Inputs
   - [X] from POST to an endpoint
-  - [ ] some events are sent based on some periodic check that triggers when it sees a condition
+  - [ ] send events based on some periodic check that triggers when it sees a condition
   - [ ] trigger events unconditionally on a schedule
 - [ ] Actions
   - [ ] Spawn docker containers (and/or Nomad jobs?)
   - [X] Query HTTP endpoints
   - [X] Run some local command
   - [X] Link actions to accounts when required
-  - [ ] Embedded scripting for actions
+  - [X] Embedded JavaScript for actions
   - [ ] Return data for use by the next task in the chain
 - [ ] Data Schemas
   - [X] Each action can specify the types of data that it accepts
   - [X] Duck typing for events
 - [ ] State machines will take data from an event, modify it somehow, and pass it on
-  - [ ] Embed JavaScript to write state machine logic
+  - [X] Embed JavaScript to write state machine logic
   - [ ] Persistent context for state machines
   - [ ] Optional schema input
   - [ ] Optional type checking on state machine return value
@@ -40,16 +40,27 @@ This project is in very early stages right now with no current plans for proper 
   - [X] Run state machines in response to events
   - [ ] Sequences - Tasks can be chained together and optionally pass information between them (file locations, etc.)
   - [ ] Tasks can clone themselves, and further inputs for that clone are routed to them. This will probably involve interaction with another process set up to be aware of how this works.
+  - [ ] Long-running JavaScript tasks that can trigger actions and go dormant as they wait, similar to Temporal workflows.
 - [X] Templates for events, actions, and state machines
 - [X] Extensive logging of events, actions, etc.
 
 # Roadmap
 
+## 0.4
+
+- [ ] Long-running Javascript tasks
+
+## 0.3
+
+- [ ] MVP of UI for editing tasks, actions, and inputs.
+- [ ] Implement last missing pieces of queue behavior.
+
 ## 0.2
 
 - [X] Add all missing tests
 - [X] Read-only Web UI with events timeline
-- [ ] Scripting
+- [X] JavaScript execution as part of state machines, actions, and inputs.
+- [X] Set up foundations of serialized long-running tasks in V8.
 - [ ] Ability to run Nomad jobs as actions
 
 ## 0.1
