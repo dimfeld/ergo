@@ -135,7 +135,7 @@ struct StageDrainTask<D: Drainer> {
 }
 
 const INITIAL_SLEEP: std::time::Duration = Duration::from_millis(25);
-const MAX_SLEEP: std::time::Duration = Duration::from_secs(5);
+const MAX_SLEEP: std::time::Duration = Duration::from_secs(1);
 
 /// Return the initial sleep value, perturbed a bit to prevent lockstep
 /// exponential retry.

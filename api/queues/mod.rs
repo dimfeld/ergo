@@ -332,7 +332,7 @@ impl Queue {
         ExponentialBackoff {
             current_interval: Duration::from_millis(50),
             initial_interval: Duration::from_millis(50),
-            max_interval: Duration::from_millis(5000),
+            max_interval: Duration::from_millis(1000),
             max_elapsed_time: None,
             ..Default::default()
         }
