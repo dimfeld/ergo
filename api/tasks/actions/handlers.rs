@@ -197,7 +197,8 @@ pub async fn write_action(
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         ON CONFLICT(action_id) DO UPDATE
         SET action_category_id=$2, name=$3, description=$4,
-        executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8",
+        executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8,
+        postprocess_script=$9",
         &action_id.0,
         &payload.action_category_id.0,
         &payload.name,

@@ -159,7 +159,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
 }
 
 #[actix_rt::test]
-async fn input_to_action() {
+async fn script_task() {
     run_app_test(|app| async move {
         let BootstrappedData {
             org,
@@ -194,6 +194,11 @@ async fn input_to_action() {
 
         println!("{:?}", logs);
         assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
+        assert_eq!(
+            logs[0].actions[0].result,
+            json!({ "output": { "result": {"value": 5 }, "console": [] } }),
+            "executor result"
+        );
 
         Ok(())
     })
@@ -201,5 +206,56 @@ async fn input_to_action() {
 }
 
 #[actix_rt::test]
-#[ignore]
-async fn postprocess_script() {}
+async fn postprocess_script() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            org,
+            user,
+            script_input,
+            mut script_action,
+            task,
+            task_id,
+        } = bootstrap(&app).await?;
+
+        script_action.postprocess_script =
+            Some(r##"return { ...output, pp: output.result.value + 10 };"##.to_string());
+        app.admin_user
+            .client
+            .put_action(&script_action.action_id.as_ref().unwrap(), &script_action)
+            .await
+            .unwrap();
+
+        let script = r##"result = { value: 5 }"##;
+
+        let log_id = user
+            .client
+            .run_task_trigger("run_script", "run", json!({ "script": script }))
+            .await?
+            .log_id;
+
+        let mut logs = user.client.get_recent_logs().await?;
+        println!("{:?}", logs);
+
+        while logs
+            .get(0)
+            .and_then(|i| i.actions.0.get(0))
+            .map(|a| a.status == ActionStatus::Error || a.status == ActionStatus::Success)
+            .unwrap_or(false)
+            == false
+        {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+            logs = user.client.get_recent_logs().await?;
+        }
+
+        println!("{:?}", logs);
+        assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
+        assert_eq!(
+            logs[0].actions[0].result,
+            json!({ "output": { "pp": 15, "result": {"value": 5 }, "console": [] } }),
+            "executor result"
+        );
+
+        Ok(())
+    })
+    .await
+}

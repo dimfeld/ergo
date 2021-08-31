@@ -370,7 +370,7 @@ async fn execute_action(
             match postprocess {
                 Some(script) => run_simple_with_args::<serde_json::Value>(
                     script,
-                    &[("result", &result), ("payload", &invocation.payload)],
+                    &[("output", &result), ("payload", &invocation.payload)],
                 )
                 .await
                 .map_err(|e| ExecuteErrorSource::ScriptError(e)),
