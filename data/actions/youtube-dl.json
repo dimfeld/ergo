@@ -19,5 +19,6 @@
   "template_fields": [
     { "name": "url", "format": { "type": "string" }, "optional": false }
   ],
-  "account_required": false
+  "account_required": false,
+  "postprocess_script": "let match = /Destination: ([^\\r\\n]+)/.exec(output.stdout)[1];\nif(!match) { return; }\nlet splits = match.split('/');\nlet filename = splits[splits.length - 1];\nreturn { ...output, description: { action: 'Downloaded', item: filename } };"
 }
