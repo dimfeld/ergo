@@ -20,5 +20,6 @@ module.exports = {
   rules: {
     'prefer-const': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
+    '@typescript-eslint/ban-ts-comment': 'off',
   },
 };

@@ -1,35 +1,44 @@
 import { useQuery } from '@sveltestack/svelte-query';
 import ky from 'ky';
 import { getContext, setContext } from 'svelte';
+import { get } from 'svelte/store';
 
 const KEY = 'ergo_api_client';
 
-export function createApiClient() {
+export function createApiClient(customFetch?: typeof fetch) {
   // Hack in the API key until we support actual user login.
   // @ts-ignore
-  const apiClient = window.ERGO_API_KEY
+  const apiKey: string | undefined = window.ERGO_API_KEY;
+
+  const apiClient = apiKey
     ? ky.extend({
+        fetch: customFetch,
         headers: {
-          // @ts-ignore
-          Authorization: 'Bearer ' + window.ERGO_API_KEY,
+          Authorization: 'Bearer ' + apiKey,
         },
       })
     : ky;
 
-  setContext(KEY, apiClient);
   return apiClient;
+}
+
+export function setApiClientContext(client: typeof ky) {
+  setContext(KEY, client);
 }
 
 export default function apiClient(): typeof ky {
   return getContext(KEY);
 }
 
-/** Create a query that never fetches automatically, except on mount. */
+/** Create a query that fetches once on creation and then never again except when told to.
+ * We use this instead of a normal fetch since it participates in the Svelte query cache. */
 export function fetchOnceQuery<T = unknown>(key: string | string[]) {
-  return useQuery<T>({
+  let query = useQuery<T>({
     queryKey: key,
-    refetchInterval: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    enabled: false,
   });
+
+  get(query).refetch();
+
+  return query;
 }

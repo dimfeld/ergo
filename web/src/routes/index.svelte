@@ -1,12 +1,12 @@
 <script lang="ts">
   import type { InputsLogEntry, TaskDescription } from '../api_types';
   import LogTimeline from '^/components/LogTimeline.svelte';
-  import Loading from '^/components/Loading.svelte';
+  import Query from '^/components/Query.svelte';
   import TaskRow from '^/components/TaskRow.svelte';
   import { useQuery } from '@sveltestack/svelte-query';
   import { getHeaderTextStore } from '^/header';
   import sorter from 'sorters';
-  getHeaderTextStore().set('Dashboard');
+  getHeaderTextStore().set(['Dashboard']);
 
   const recentLogs = useQuery<InputsLogEntry[]>('logs');
   const taskQuery = useQuery<TaskDescription[]>('tasks');
@@ -18,19 +18,15 @@
 
 <div class="flex">
   <section class="flex-grow min-w-max">
-    {#if $taskQuery.isLoading}
-      <Loading />
-    {:else}
+    <Query query={taskQuery}>
       {#each tasks as task (task.task_id)}
         <TaskRow {task} />
       {/each}
-    {/if}
+    </Query>
   </section>
   <section class="min-h-full ml-4">
-    {#if $recentLogs.isLoading}
-      <Loading />
-    {:else}
+    <Query query={recentLogs}>
       <LogTimeline entries={$recentLogs.data} />
-    {/if}
+    </Query>
   </section>
 </div>

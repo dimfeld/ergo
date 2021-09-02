@@ -36,7 +36,7 @@
           Updated {formatISO9075(new Date(task.modified), { representation: 'date' })}
         </p>
       </div>
-      <div class="mt-2 flex items-center text-sm text-gray-500 dark:text-gray-400 sm:mt-0">
+      <div class="mt-2 ml-4 flex items-center text-sm text-gray-500 dark:text-gray-400 sm:mt-0">
         <!-- Heroicon name: solid/calendar -->
         <svg
           class="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400 dark:text-gray-500"
