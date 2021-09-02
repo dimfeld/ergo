@@ -1,7 +1,10 @@
 use async_trait::async_trait;
 use backoff::backoff::Backoff;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
-use futures::stream::{FuturesUnordered, StreamExt};
+use futures::{
+    future::ready,
+    stream::{FuturesUnordered, StreamExt},
+};
 use serde::de::DeserializeOwned;
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
@@ -91,11 +94,15 @@ where
             }
 
             // Make sure we call this periodically so that futures are processed.
-            match active_tasks.next().await {
-                Some(Err(e)) => {
-                    event!(Level::ERROR, error=%e, "Job task panicked");
-                }
-                _ => {}
+            tokio::select! {
+                biased;
+                r = active_tasks.next() => match r {
+                    Some(Err(e)) => {
+                        event!(Level::ERROR, error=%e, "Job task panicked");
+                    }
+                    _ => {}
+                },
+                _ = ready(()) => {}
             };
         }
     })
