@@ -3,7 +3,16 @@
   import Loading from './Loading.svelte';
   import { derived } from 'svelte/store';
 
-  export let query: UseQueryStoreResult;
+  type DATA = $$Generic;
+  type ERROR = $$Generic;
+
+  interface $$Slots {
+    default: { data: DATA };
+    loading: {};
+    error: { error: ERROR };
+  }
+
+  export let query: UseQueryStoreResult<DATA, ERROR>;
   export let showLoading = true;
   export let showError = true;
   /** Show the loader after waiting for this long to load */
@@ -17,7 +26,7 @@
     false
   );
 
-  function handleError(_e: unknown) {
+  function handleError(_e: ERROR) {
     // TODO Handle 403, 404, etc. differently
     if (description) {
       return `Failed to load ${description}`;
