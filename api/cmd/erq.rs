@@ -4,7 +4,7 @@ use structopt::StructOpt;
 
 use crate::{
     error::Error,
-    queues::{Job, Queue},
+    queues::{Job, JobStatus, Queue},
 };
 
 #[derive(Debug, StructOpt)]
@@ -20,6 +20,12 @@ enum QueueCmd {
     Add { id: String, data: String },
     #[structopt(about = "Show information about the queue")]
     Show,
+    #[structopt(about = "List scheduled jobs")]
+    ListScheduled,
+    #[structopt(about = "List jobs waiting to run")]
+    ListPending,
+    #[structopt(about = "List jobs currently processing")]
+    ListProcessing,
     #[structopt(name = "show-job", about = "Show information about a job")]
     ShowJob { id: String },
     #[structopt(
@@ -64,8 +70,34 @@ pub async fn main(args: Args) -> Result<(), Error> {
             let status = queue.status().await?;
             println!("{:?}", status);
         }
+        QueueCmd::ListScheduled => {
+            let tasks = queue.list_scheduled().await?;
+            for (task_id, scheduled) in tasks {
+                println!("{}\t{}", task_id, scheduled);
+            }
+        }
+        QueueCmd::ListPending => {
+            let tasks = queue.list_pending().await?;
+            for task_id in tasks {
+                println!("{}", task_id);
+            }
+        }
+        QueueCmd::ListProcessing => {
+            let tasks = queue.list_processing().await?;
+            for (task_id, expires) in tasks {
+                println!("{}\t{}", task_id, expires);
+            }
+        }
         QueueCmd::Cancel { id } => {
-            queue.cancel_job(&id).await?;
+            let old_status = queue.cancel_job(&id).await?;
+            match old_status {
+                JobStatus::Done => println!("Job was already finished"),
+                JobStatus::Running => println!("Attempted to cancel running job"),
+                JobStatus::Scheduled => println!("Cancelled scheduled job"),
+                JobStatus::Pending => println!("Cancelled pending job"),
+                JobStatus::Errored => println!("Job already failed with error"),
+                JobStatus::Inactive => println!("Job not found"),
+            }
         }
         QueueCmd::Run { delay, error } => {
             run_job(&queue, delay, error).await?;

@@ -89,6 +89,9 @@ pub enum Error {
 
     #[error("{0}")]
     StringError(String),
+
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {

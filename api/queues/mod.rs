@@ -26,6 +26,8 @@ use backoff::{backoff::Backoff, ExponentialBackoff};
 use chrono::{DateTime, TimeZone, Utc};
 use ergo_database::RedisPool;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use itertools::Itertools;
+use redis::AsyncCommands;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tokio::{sync::oneshot, task::JoinHandle};
 use tracing::{event, Level};
@@ -121,7 +123,7 @@ impl Queue {
             done_list: format!("erq:{}:done", queue_name),
             stats_hash: format!("erq:{}:stats", queue_name),
             job_data_prefix: format!("erq:{}:job:", queue_name),
-            processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(30.0)),
+            processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(120.0)),
             max_retries: default_max_retries.unwrap_or(3),
             retry_backoff: default_retry_backoff.unwrap_or(Duration::from_millis(30000)),
             enqueue_scheduled_script: enqueue_scheduled::EnqueueScript::new(),
@@ -236,6 +238,46 @@ impl Queue {
             total_failed: total_failed.unwrap_or(0),
             total_errored: total_errored.unwrap_or(0),
         })
+    }
+
+    pub async fn list_scheduled(&self) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
+        let list: Vec<String> = self
+            .0
+            .pool
+            .get()
+            .await?
+            .zrange_withscores(&self.0.scheduled_list, 0, -1)
+            .await?;
+
+        list.into_iter()
+            .tuples::<(_, _)>()
+            .map(|chunk| Ok((chunk.0, Utc.timestamp_millis(chunk.1.parse::<i64>()?))))
+            .collect::<Result<Vec<_>, Error>>()
+    }
+
+    pub async fn list_processing(&self) -> Result<Vec<(String, DateTime<Utc>)>, Error> {
+        let list: Vec<String> = self
+            .0
+            .pool
+            .get()
+            .await?
+            .zrange_withscores(&self.0.processing_list, 0, -1)
+            .await?;
+
+        list.into_iter()
+            .tuples::<(_, _)>()
+            .map(|chunk| Ok((chunk.0, Utc.timestamp_millis(chunk.1.parse::<i64>()?))))
+            .collect::<Result<Vec<_>, Error>>()
+    }
+
+    pub async fn list_pending(&self) -> Result<Vec<String>, Error> {
+        self.0
+            .pool
+            .get()
+            .await?
+            .lrange(&self.0.pending_list, 0, -1)
+            .await
+            .map_err(Error::from)
     }
 
     pub async fn enqueue(&self, item: &'_ Job<'_>) -> Result<(), Error> {

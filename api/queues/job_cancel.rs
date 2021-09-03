@@ -18,7 +18,7 @@ const CANCEL_SCRIPT: &str = r##"
     local was_scheduled = redis.call("ZREM", KEYS[4], ARGV[1])
 
     local suc = false
-    if was_pending == false && was_processing == false && was_scheduled == false then
+    if was_pending == false and was_processing == false and was_scheduled == false then
         -- If the job wasn't running or set to run, then it already finished.
         local job_data = redis.call("HGET", KEYS[1], "suc")
         suc = job_data[1]
@@ -61,9 +61,9 @@ impl JobCancelScript {
             .await?;
 
         let status = match result {
-            (Some(_), _, _, _) => JobStatus::Pending,
-            (_, Some(_), _, _) => JobStatus::Running,
-            (_, _, Some(_), _) => JobStatus::Scheduled,
+            (Some(1), _, _, _) => JobStatus::Pending,
+            (_, Some(1), _, _) => JobStatus::Running,
+            (_, _, Some(1), _) => JobStatus::Scheduled,
             (_, _, _, Some(true)) => JobStatus::Done,
             (_, _, _, Some(false)) => JobStatus::Errored,
             _ => JobStatus::Inactive,
