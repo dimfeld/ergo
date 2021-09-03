@@ -325,6 +325,8 @@ impl Queue {
             return;
         }
 
+        event!(Level::INFO, queue=%self.0.name, "Starting scheduled jobs checker");
+
         let queue = self.clone();
         let (closer_tx, closer_rx) = oneshot::channel::<()>();
         let task = tokio::spawn(async move {
@@ -395,6 +397,8 @@ impl Queue {
         if self.0.job_dequeuer_task.lock().unwrap().is_some() {
             return;
         }
+
+        event!(Level::INFO, queue=%self.0.name, "Starting job processor");
 
         let backoff = backoff.unwrap_or(Box::new(Queue::default_backoff()));
 
