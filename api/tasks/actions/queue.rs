@@ -28,7 +28,7 @@ impl Drainer for QueueDrainer {
         let results = sqlx::query!(
             r##"SELECT action_queue_id, actions_log_id,
                 task_id as "task_id: TaskId",
-                task_action_local_id, input_arrival_id, payload
+                task_action_local_id, input_arrival_id, timeout, payload
             FROM action_queue ORDER BY action_queue_id LIMIT 50"##
         )
         .fetch_all(&mut *tx)
@@ -54,10 +54,14 @@ impl Drainer for QueueDrainer {
                     payload: row.payload.unwrap_or(serde_json::Value::Null),
                 };
 
-                let job = Job::from_json_payload(
+                let mut job = Job::from_json_payload(
                     JobId::Value(&row.action_queue_id.to_string()),
                     &payload,
                 )?;
+
+                job.timeout = row
+                    .timeout
+                    .map(|t| std::time::Duration::from_secs(t as u64));
 
                 Ok::<_, Error>((Cow::Borrowed(QUEUE_NAME), job))
             })

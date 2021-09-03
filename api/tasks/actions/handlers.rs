@@ -34,6 +34,7 @@ pub struct ActionPayload {
     pub executor_id: String,
     pub executor_template: ScriptOrTemplate,
     pub template_fields: TemplateFields,
+    pub timeout: Option<i32>,
     /// A script that processes the executor's JSON result.
     /// The result is exposed in the variable `result` and the action's payload
     /// is exposed as `payload`. The value returned will replace the executor's
@@ -89,6 +90,7 @@ pub struct ActionDescription {
     pub template_fields: sqlx::types::Json<TemplateFields>,
     pub account_required: bool,
     pub account_types: Option<Vec<String>>,
+    pub timeout: Option<i32>,
 }
 
 #[get("/actions")]
@@ -98,7 +100,8 @@ pub async fn list_actions(data: AppStateData) -> Result<impl Responder> {
         "SELECT action_id, action_category_id, name, description,
         template_fields,
         account_required,
-        array_agg(account_type_id) FILTER(WHERE account_type_id IS NOT NULL) account_types
+        array_agg(account_type_id) FILTER(WHERE account_type_id IS NOT NULL) account_types,
+        timeout
         FROM actions
         LEFT JOIN allowed_action_account_types USING(action_id)
         GROUP BY action_id",
@@ -127,8 +130,8 @@ pub async fn new_action(
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
         executor_id, executor_template, template_fields, account_required,
-        postprocess_script) VALUES
-        ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+        postprocess_script, timeout) VALUES
+        ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         &action_id.0,
         &payload.action_category_id.0,
         &payload.name,
@@ -138,6 +141,7 @@ pub async fn new_action(
         sqlx::types::Json(&payload.template_fields) as _,
         &payload.account_required,
         payload.postprocess_script.as_ref(),
+        payload.timeout,
     )
     .execute(&mut tx)
     .await?;
@@ -168,6 +172,7 @@ pub async fn new_action(
         template_fields: sqlx::types::Json(payload.template_fields),
         account_types: payload.account_types,
         account_required: payload.account_required,
+        timeout: payload.timeout,
     };
 
     Ok(HttpResponse::Created().json(output))
@@ -193,8 +198,8 @@ pub async fn write_action(
     sqlx::query!(
         "INSERT INTO actions (action_id, action_category_id, name, description,
             executor_id, executor_template, template_fields, account_required,
-            postprocess_script)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            postprocess_script, timeout)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT(action_id) DO UPDATE
         SET action_category_id=$2, name=$3, description=$4,
         executor_id=$5, executor_template=$6, template_fields=$7, account_required=$8,
@@ -208,6 +213,7 @@ pub async fn write_action(
         sqlx::types::Json(&payload.template_fields) as _,
         &payload.account_required,
         payload.postprocess_script.as_ref(),
+        payload.timeout
     )
     .execute(&mut tx)
     .await?;
