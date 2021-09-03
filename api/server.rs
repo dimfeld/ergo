@@ -100,6 +100,9 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
 
+    input_queue.start_scheduled_jobs_enqueuer(shutdown.clone());
+    action_queue.start_scheduled_jobs_enqueuer(shutdown.clone());
+
     let mut notifications = crate::notifications::NotificationManager::new(
         backend_pg_pool.clone(),
         redis_pool.clone(),

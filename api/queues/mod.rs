@@ -345,7 +345,9 @@ impl Queue {
 
                 match queue.enqueue_scheduled_items().await {
                     Ok(num) => {
-                        event!(Level::INFO, queue=%queue.0.name, count=%num, "Enqueued scheduled jobs");
+                        if num > 0 {
+                            event!(Level::INFO, queue=%queue.0.name, count=%num, "Enqueued scheduled jobs");
+                        }
                     }
                     Err(e) => {
                         event!(Level::ERROR, queue=%queue.0.name, error=%e, "Error enqueueing scheduled jobs");
