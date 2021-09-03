@@ -9,9 +9,10 @@
 <a href="/tasks/{task.task_id}" class="block hover:bg-accent-50 dark:hover:bg-gray-800">
   <div class="px-4 py-4 sm:px-6">
     <div class="flex items-center justify-between">
-      <p class="text-sm font-medium text-accent-600 dark:text-accent-400 truncate">
-        {task.name}
-        {#if task.alias}({task.alias}){/if}
+      <p class="flex space-x-2 text-sm font-medium text-accent-600 dark:text-accent-400 truncate">
+        <span class="truncate">{task.name}</span>
+        {#if task.alias}<span>({task.alias})</span>{/if}
+        {#if !task.enabled}<Badge style="error">Disabled</Badge>{/if}
       </p>
       <div class="ml-2 flex-shrink-0 flex items-center space-x-2">
         <span class="text-xs text-gray-500 dark:text-gray-400">Runs in last week</span>
