@@ -9,7 +9,7 @@ use crate::{
 use actix_web::{
     delete, get, post, put,
     web::{self, Path},
-    Either, HttpRequest, HttpResponse, Responder,
+    HttpRequest, HttpResponse, Responder,
 };
 use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
@@ -19,7 +19,6 @@ use ergo_database::object_id::{
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use sqlx::{Connection, Postgres, Transaction};
 use std::str::FromStr;
 use tracing::{field, instrument};
@@ -59,10 +58,11 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
         FROM tasks
         LEFT JOIN LATERAL(
             SELECT
-                SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS successes,
-                SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS failures
-            FROM inputs_log
-            WHERE inputs_log.task_id = tasks.task_id AND updated > (now() - '7 days'::interval)
+                SUM(CASE WHEN al.status = 'success' OR (al.status IS NULL AND il.status = 'success') THEN 1 ELSE 0 END) AS successes,
+                SUM(CASE WHEN al.status = 'error' OR (al.status IS NULL AND il.status = 'error') THEN 1 ELSE 0 END) AS failures
+            FROM inputs_log il
+            JOIN actions_log al USING(inputs_log_id)
+            WHERE il.task_id = tasks.task_id AND il.updated > (now() - '7 days'::interval)
         ) stat_counts ON true
         LEFT JOIN LATERAL (
             SELECT created AS last_triggered
