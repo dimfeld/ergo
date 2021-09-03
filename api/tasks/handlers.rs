@@ -61,7 +61,7 @@ async fn list_tasks(data: AppStateData, auth: Authenticated) -> Result<impl Resp
                 SUM(CASE WHEN al.status = 'success' OR (al.status IS NULL AND il.status = 'success') THEN 1 ELSE 0 END) AS successes,
                 SUM(CASE WHEN al.status = 'error' OR (al.status IS NULL AND il.status = 'error') THEN 1 ELSE 0 END) AS failures
             FROM inputs_log il
-            JOIN actions_log al USING(inputs_log_id)
+            LEFT JOIN actions_log al USING(inputs_log_id)
             WHERE il.task_id = tasks.task_id AND il.updated > (now() - '7 days'::interval)
         ) stat_counts ON true
         LEFT JOIN LATERAL (
