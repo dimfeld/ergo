@@ -3,8 +3,11 @@
   import EventHandler from './state_machine/EventHandler.svelte';
   export let data: StateMachine[];
   // This is totally unfinished but shows a very basic outline of the state machine.
+
+  $: data = data ?? [];
 </script>
 
+State machine editor
 {#each data as machine}
   <p>State Machine <strong>{machine.name}</strong></p>
   {#if machine.description}

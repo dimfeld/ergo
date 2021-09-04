@@ -80,6 +80,7 @@
     "@sveltestack/svelte-query": "~1.4.1",
     "date-fns": "~2.22.1",
     "just-capitalize": "~1.0.1",
+    "just-clone": "~3.2.1",
     "ky": "~0.28.5",
     "sorters": "~1.0.0"
   },

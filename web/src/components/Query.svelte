@@ -12,7 +12,7 @@
     error: { error: ERROR };
   }
 
-  export let query: UseQueryStoreResult<DATA, ERROR>;
+  export let query: UseQueryStoreResult<DATA, ERROR> | undefined;
   export let showLoading = true;
   export let showError = true;
   /** Show the loader after waiting for this long to load */
@@ -22,7 +22,7 @@
 
   const delayedLoading = derived(
     query,
-    (q, set) => void setTimeout(() => set(q.isLoading), loaderDelay),
+    (q, set) => void setTimeout(() => set(q?.isLoading), loaderDelay),
     false
   );
 
@@ -35,7 +35,9 @@
   }
 </script>
 
-{#if $query.isLoading}
+{#if !query || $query.isSuccess}
+  <slot data={$query?.data} />
+{:else if $query.isLoading}
   {#if showLoading && $delayedLoading}
     <slot name="loading"><Loading /></slot>
   {/if}
@@ -43,6 +45,4 @@
   {#if showError}
     <slot name="error" error={$query.error}>{handleError($query.error)}</slot>
   {/if}
-{:else if $query.isSuccess}
-  <slot data={$query.data} />
 {/if}
