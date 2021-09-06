@@ -5,6 +5,7 @@ members = [
   "auth",
   "database",
   "graceful_shutdown",
-  "js"
+  "js",
+  "wasm"
 ]
 resolver = "2"
