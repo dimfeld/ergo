@@ -21,6 +21,7 @@ specifiers:
   '@codemirror/search': ~0.19.0
   '@codemirror/state': ~0.19.1
   '@codemirror/text': ~0.19.3
+  '@codemirror/theme-one-dark': ~0.19.0
   '@codemirror/tooltip': ~0.19.2
   '@codemirror/view': ~0.19.4
   '@popperjs/core': ^2.9.3
@@ -94,6 +95,7 @@ dependencies:
   '@codemirror/search': 0.19.0
   '@codemirror/state': 0.19.1
   '@codemirror/text': 0.19.3
+  '@codemirror/theme-one-dark': 0.19.0
   '@codemirror/tooltip': 0.19.2
   '@codemirror/view': 0.19.4
   '@popperjs/core': 2.9.3
@@ -1719,6 +1721,14 @@ packages:
 
   /@codemirror/text/0.19.3:
     resolution: {integrity: sha512-A0HBPZRwQ72XVMN1tg/pVUnvS5CKboBeHZE7cylYw0ljx9eX+NoYaK7apPSJO/Fwh9XhH9m8Va06EGc11VOzUw==}
+    dev: false
+
+  /@codemirror/theme-one-dark/0.19.0:
+    resolution: {integrity: sha512-Xlk68ARreanFveE+KvZJY4HxecNr+VKDOR61O8l3kzlQ0qvxNXA0KAp1xu4p32pA9jzJqJi5haIgdfWSZogXZg==}
+    dependencies:
+      '@codemirror/highlight': 0.19.4
+      '@codemirror/state': 0.19.1
+      '@codemirror/view': 0.19.4
     dev: false
 
   /@codemirror/tooltip/0.19.2:

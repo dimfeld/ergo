@@ -22,7 +22,7 @@
 
   const delayedLoading = derived(
     query,
-    (q, set) => void setTimeout(() => set(q?.isLoading), loaderDelay),
+    (q, set) => void setTimeout(() => set(q?.isLoading ?? false), loaderDelay),
     false
   );
 

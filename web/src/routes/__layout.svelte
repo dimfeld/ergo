@@ -66,7 +66,7 @@
         </h1>
       </div>
     </header>
-    <main class="flex-grow w-full mx-auto py-10 px-4 sm:px-6 lg:px-8">
+    <main class="flex-grow w-full mx-auto py-10 px-4 sm:px-6 lg:px-8 flex flex-col">
       <slot />
     </main>
   </div>
