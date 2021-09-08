@@ -1,16 +1,14 @@
 //! Run all the queue drains
 
 use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
-use crate::{
-    error::Error,
-    queues::{
-        generic_stage,
-        postgres_drain::{QueueStageDrain, QueueStageDrainConfig, QueueStageDrainStats},
-    },
-};
+use crate::error::Error;
 
 use ergo_database::{PostgresPool, RedisPool, RenewablePostgresPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_queues::{
+    generic_stage,
+    postgres_drain::{QueueStageDrain, QueueStageDrainConfig, QueueStageDrainStats},
+};
 use serde::Serialize;
 
 /// Handle draining task staging tables for both actions and inputs.

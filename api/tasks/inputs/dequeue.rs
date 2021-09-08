@@ -5,11 +5,9 @@ use std::num::NonZeroU32;
 use async_trait::async_trait;
 use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_queues::{QueueJobProcessor, QueueWorkItem};
 
-use crate::{
-    error::Error,
-    queues::{QueueJobProcessor, QueueWorkItem},
-};
+use crate::error::Error;
 
 use super::{super::Task, queue::InputQueue, InputInvocation};
 
@@ -63,6 +61,8 @@ struct TaskExecutorJobProcessor {
 #[async_trait]
 impl QueueJobProcessor for TaskExecutorJobProcessor {
     type Payload = InputInvocation;
+    type Error = Error;
+
     async fn process(&self, item: &QueueWorkItem<InputInvocation>) -> Result<(), Error> {
         let invocation = &item.data;
         Task::apply_input(

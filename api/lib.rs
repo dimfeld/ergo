@@ -4,7 +4,6 @@ pub mod backend_data;
 pub mod cmd;
 pub mod error;
 pub mod notifications;
-pub mod queues;
 pub mod server;
 pub mod service_config;
 pub mod status_server;

@@ -8,13 +8,11 @@ use std::{borrow::Cow, sync::Arc};
 use smallvec::SmallVec;
 use sqlx::PgConnection;
 
-use crate::{
-    error::{Error, Result},
-    queues::{generic_stage::QueueJob, Queue, QueueJobProcessor},
-};
+use crate::error::{Error, Result};
 use async_trait::async_trait;
 use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_queues::{generic_stage::QueueJob, Queue, QueueJobProcessor};
 use serde::{Deserialize, Serialize};
 
 use self::discord_webhook::send_discord_webhook;
@@ -165,11 +163,9 @@ struct NotifyExecutor {
 #[async_trait]
 impl QueueJobProcessor for NotifyExecutor {
     type Payload = NotificationJob<'static>;
+    type Error = Error;
 
-    async fn process(
-        &self,
-        item: &crate::queues::QueueWorkItem<Self::Payload>,
-    ) -> Result<(), Error> {
+    async fn process(&self, item: &ergo_queues::QueueWorkItem<Self::Payload>) -> Result<(), Error> {
         let NotificationJob {
             service,
             destination,

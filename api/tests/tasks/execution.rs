@@ -80,6 +80,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         account_required: false,
         account_types: None,
         postprocess_script: None,
+        timeout: None,
     };
 
     app.admin_user

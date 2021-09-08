@@ -2,16 +2,14 @@ use std::time::Duration;
 
 use ergo_database::RedisPool;
 use ergo_graceful_shutdown::{GracefulShutdown, GracefulShutdownConsumer};
+use ergo_queues::{Job, JobId, Queue};
 use futures::future::try_join_all;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use tokio::{sync::watch, task::JoinHandle};
 
-use crate::{
-    error::Error,
-    queues::{Job, JobId, Queue},
-};
+use crate::error::Error;
 
 #[derive(Debug, StructOpt)]
 pub struct Args {

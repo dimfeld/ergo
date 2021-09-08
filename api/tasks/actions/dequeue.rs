@@ -1,12 +1,10 @@
 use async_trait::async_trait;
 use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_queues::{QueueJobProcessor, QueueWorkItem};
 use std::num::NonZeroU32;
 
-use crate::{
-    error::Error,
-    queues::{QueueJobProcessor, QueueWorkItem},
-};
+use crate::error::Error;
 
 use super::{execute::execute, queue::ActionQueue, ActionInvocation};
 
@@ -54,6 +52,7 @@ struct ActionExecutorJobProcessor {
 #[async_trait]
 impl QueueJobProcessor for ActionExecutorJobProcessor {
     type Payload = ActionInvocation;
+    type Error = Error;
 
     async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error> {
         execute(&self.pg_pool, self.notifications.as_ref(), &item.data).await?;

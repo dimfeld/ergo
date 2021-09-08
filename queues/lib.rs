@@ -5,6 +5,7 @@ pub mod work_item;
 
 mod dequeuer_loop;
 mod enqueue_scheduled;
+mod error;
 mod get_job;
 mod job_cancel;
 mod job_done;
@@ -14,7 +15,7 @@ mod start_work;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
 pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
-use crate::error::Error;
+pub use error::*;
 
 use std::{
     num::NonZeroU32,

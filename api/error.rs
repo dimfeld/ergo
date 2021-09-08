@@ -92,6 +92,9 @@ pub enum Error {
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error("Queue Error: {0}")]
+    QueueError(#[from] ergo_queues::Error),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {

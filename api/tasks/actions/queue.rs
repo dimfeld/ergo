@@ -1,22 +1,22 @@
 use std::{borrow::Cow, ops::Deref};
 
-use crate::{
-    error::Error,
-    queues::{
-        postgres_drain::{Drainer, QueueStageDrain, QueueStageDrainConfig},
-        Job, JobId, Queue,
-    },
-};
+use crate::error::Error;
 
 use async_trait::async_trait;
 use ergo_database::{object_id::TaskId, PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_queues::{
+    postgres_drain::{Drainer, QueueStageDrain, QueueStageDrainConfig},
+    Job, JobId, Queue,
+};
 use sqlx::{Postgres, Transaction};
 
 struct QueueDrainer {}
 
 #[async_trait]
 impl Drainer for QueueDrainer {
+    type Error = Error;
+
     fn lock_key(&self) -> i64 {
         67982349
     }
@@ -107,5 +107,5 @@ pub fn new_drain(
         shutdown,
     };
 
-    QueueStageDrain::new(config)
+    QueueStageDrain::new(config).map_err(|e| e.into())
 }

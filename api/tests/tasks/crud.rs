@@ -116,6 +116,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         }],
         account_required: false,
         account_types: None,
+        timeout: None,
     };
 
     let (url_input, echo_action) = join(

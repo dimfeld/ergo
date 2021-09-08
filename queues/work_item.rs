@@ -1,5 +1,6 @@
 use super::Queue;
 use crate::error::Error;
+use anyhow::anyhow;
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use std::future::Future;
@@ -63,7 +64,7 @@ impl<'a, T: Send + Sync> QueueWorkItem<T> {
         F: FnOnce(&'a Self) -> Fut,
         Fut: Future<Output = Result<R, E>>,
         T: Send,
-        E: Into<Error> + Send,
+        E: 'static + std::error::Error + Send + Sync,
     {
         match f(&self).await {
             Ok(val) => {
@@ -71,11 +72,11 @@ impl<'a, T: Send + Sync> QueueWorkItem<T> {
                 Ok(val)
             }
             Err(e) => {
-                let e: Error = e.into();
+                let e = anyhow!(e);
                 self.queue
                     .errored_job(self.id.as_str(), &self.expires, &e.to_string().as_str())
                     .await?;
-                Err(e)
+                Err(Error::JobError(e))
             }
         }
     }

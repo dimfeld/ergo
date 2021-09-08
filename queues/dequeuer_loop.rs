@@ -17,8 +17,9 @@ use crate::error::Error;
 #[async_trait]
 pub trait QueueJobProcessor: Clone + Sync + Send {
     type Payload: DeserializeOwned + Send + Sync;
+    type Error: Send + Sync + std::error::Error;
 
-    async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error>;
+    async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Self::Error>;
 }
 
 pub fn dequeuer_loop<P, T>(

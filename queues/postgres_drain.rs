@@ -1,5 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
+use anyhow::anyhow;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use ergo_database::{PostgresPool, RedisPool};
@@ -18,6 +19,8 @@ use ergo_graceful_shutdown::GracefulShutdownConsumer;
 
 #[async_trait]
 pub trait Drainer: Send + Sync {
+    type Error: 'static + std::error::Error + Send + Sync;
+
     /// An advisory lock key to use when draining
     fn lock_key(&self) -> i64;
 
@@ -25,7 +28,7 @@ pub trait Drainer: Send + Sync {
     async fn get(
         &'_ self,
         tx: &mut Transaction<Postgres>,
-    ) -> Result<Vec<(Cow<'static, str>, Job<'_>)>, Error>;
+    ) -> Result<Vec<(Cow<'static, str>, Job<'_>)>, Self::Error>;
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -193,7 +196,11 @@ impl<D: Drainer> StageDrainTask<D> {
         let now = Utc::now();
         self.stats.last_check = now;
 
-        let jobs = self.drainer.get(&mut tx).await?;
+        let jobs = self
+            .drainer
+            .get(&mut tx)
+            .await
+            .map_err(|e| Error::DrainError(anyhow!(e)))?;
 
         if jobs.is_empty() {
             return Ok(false);

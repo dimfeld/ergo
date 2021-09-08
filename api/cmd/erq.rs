@@ -1,11 +1,9 @@
 use std::{borrow::Cow, time::Duration};
 
+use ergo_queues::{Job, JobStatus, Queue};
 use structopt::StructOpt;
 
-use crate::{
-    error::Error,
-    queues::{Job, JobStatus, Queue},
-};
+use crate::error::Error;
 
 #[derive(Debug, StructOpt)]
 pub struct Args {
@@ -119,8 +117,8 @@ async fn run_job(queue: &Queue, delay: Option<u64>, error: Option<String>) -> Re
             println!("No jobs waiting to run");
             Ok(())
         }
-        Some(job) => {
-            job.process(|item| async move {
+        Some(job) => job
+            .process(|item| async move {
                 println!("Got job {} with payload {}", item.id, item.data.clone());
 
                 if let Some(d) = delay {
@@ -140,6 +138,6 @@ async fn run_job(queue: &Queue, delay: Option<u64>, error: Option<String>) -> Re
                 }
             })
             .await
-        }
+            .map_err(|e| e.into()),
     }
 }

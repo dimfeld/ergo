@@ -1,12 +1,8 @@
 use super::postgres_drain::Drainer;
-use crate::{
-    error::{Error, Result},
-    queues::Job,
-};
+use crate::{error::Error, Job};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use ergo_database::PostgresPool;
 use serde::Serialize;
 use sqlx::{PgConnection, Postgres, Transaction};
 use std::{borrow::Cow, time::Duration};
@@ -65,7 +61,7 @@ impl<'a, T: Serialize + Send + Sync> QueueJob<'a, T> {
         self
     }
 
-    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<i64> {
+    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<i64, Error> {
         let id = self
             .id
             .map(|s| Cow::Borrowed(s))
@@ -94,6 +90,8 @@ pub struct QueueDrainer {}
 
 #[async_trait]
 impl Drainer for QueueDrainer {
+    type Error = Error;
+
     fn lock_key(&self) -> i64 {
         80235523425
     }
