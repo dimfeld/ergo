@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { setContext } from 'svelte';
+  import { createEventDispatcher, setContext } from 'svelte';
   import {
     EditorView,
     keymap,
     highlightSpecialChars,
     drawSelection,
     highlightActiveLine,
+    ViewUpdate,
   } from '@codemirror/view';
   import type { Extension } from '@codemirror/state';
   import { Compartment, EditorState } from '@codemirror/state';
@@ -24,10 +25,14 @@
   import { json } from '@codemirror/lang-json';
   import { oneDark } from '@codemirror/theme-one-dark';
   import { darkModeStore, cssDarkModePreference } from '^/styles';
+  import throttle from 'just-throttle';
 
   export let contents: string;
   export let format: 'js' | 'json';
   export let enableWrapping = true;
+  export let notifyOnChange = false;
+
+  const dispatch = createEventDispatcher<{ change: string }>();
 
   let language = new Compartment();
   let lineWrapping = new Compartment();
@@ -44,6 +49,7 @@
     state: EditorState.create({
       doc: contents,
       extensions: [
+        EditorView.updateListener.of(viewUpdated),
         language.of(languages[format]()),
         lineWrapping.of([]),
         theme.of([]),
@@ -75,6 +81,16 @@
   });
 
   setContext('editorView', view);
+
+  const notifyDocChanged = throttle(() => dispatch('change', view.state.doc.toString()), 500, {
+    trailing: true,
+  });
+
+  function viewUpdated(update: ViewUpdate) {
+    if (notifyOnChange && update.docChanged) {
+      notifyDocChanged();
+    }
+  }
 
   function updateCompartment(compartment: Compartment, value: Extension) {
     view.dispatch({
