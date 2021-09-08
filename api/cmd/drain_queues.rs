@@ -1,9 +1,6 @@
-use crate::{
-    error::Result,
-    service_config::database_configuration_from_env,
-    tasks::{actions::queue::ActionQueue, inputs::queue::InputQueue},
-};
+use crate::{error::Result, service_config::database_configuration_from_env};
 use ergo_graceful_shutdown::GracefulShutdown;
+use ergo_tasks::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 
 pub async fn main() -> Result<()> {
     dotenv::dotenv().ok();
@@ -24,7 +21,7 @@ pub async fn main() -> Result<()> {
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
-    let _queue_drain = crate::tasks::queue_drain_runner::AllQueuesDrain::new(
+    let _queue_drain = ergo_tasks::queue_drain_runner::AllQueuesDrain::new(
         input_queue,
         action_queue,
         backend_pg_pool.clone(),

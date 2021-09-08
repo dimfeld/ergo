@@ -1,10 +1,9 @@
-use crate::tasks::scripting;
-
 use super::{
     execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
 
+use crate::scripting;
 use async_trait::async_trait;
 use ergo_database::PostgresPool;
 use ergo_js::ConsoleMessage;

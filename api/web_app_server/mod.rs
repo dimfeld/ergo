@@ -25,8 +25,6 @@ pub fn app_data(pg: RenewablePostgresPool) -> AppStateData {
     Data::new(AppState { pg })
 }
 
-pub fn config(cfg: &mut web::ServiceConfig) {}
-
 // pub fn new_server(
 //     address: String,
 //     port: u16,

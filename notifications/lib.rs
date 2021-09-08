@@ -1,5 +1,7 @@
 mod discord_webhook;
+mod error;
 mod notification;
+pub use error::*;
 pub use notification::*;
 use uuid::Uuid;
 
@@ -8,7 +10,6 @@ use std::{borrow::Cow, sync::Arc};
 use smallvec::SmallVec;
 use sqlx::PgConnection;
 
-use crate::error::{Error, Result};
 use async_trait::async_trait;
 use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
@@ -28,7 +29,7 @@ pub enum Level {
 
 #[async_trait]
 trait Notifier {
-    async fn notify(&self, notification: &Notification) -> Result<()>;
+    async fn notify(&self, notification: &Notification) -> Result<(), Error>;
 }
 
 const QUEUE_NAME: &'static str = "notifications";
@@ -66,7 +67,7 @@ impl NotificationManager {
         pg_pool: PostgresPool,
         redis_pool: RedisPool,
         shutdown: GracefulShutdownConsumer,
-    ) -> Result<NotificationManager> {
+    ) -> Result<NotificationManager, Error> {
         let queue_name = match redis_pool.key_prefix() {
             Some(prefix) => format!("{}-{}", prefix, QUEUE_NAME),
             None => QUEUE_NAME.to_string(),
@@ -87,7 +88,7 @@ impl NotificationManager {
         tx: &mut PgConnection,
         org_id: &uuid::Uuid,
         notification: Notification,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
         let notifications = self.get_notifiers(tx, org_id, &notification).await?;
 
         for sd in notifications {
@@ -109,7 +110,7 @@ impl NotificationManager {
         tx: &mut PgConnection,
         org_id: &uuid::Uuid,
         notification: &Notification,
-    ) -> Result<Vec<ServiceAndDestination>> {
+    ) -> Result<Vec<ServiceAndDestination>, Error> {
         let mut object_ids = SmallVec::<[Uuid; 3]>::new();
         object_ids.push(Uuid::nil());
         object_ids.push(notification.task_id.0);

@@ -1,11 +1,15 @@
-use crate::tasks::{
+use crate::routes::{
+    actions::ActionPayload,
+    inputs::InputPayload,
+    tasks::{InputsLogEntry, TaskDescription, TaskInput, TaskResult},
+};
+
+use ergo_tasks::{
     actions::{
         execute::ScriptOrTemplate,
-        handlers::ActionPayload,
         template::{TemplateField, TemplateFieldFormat},
     },
-    handlers::{InputsLogEntry, TaskDescription, TaskInput, TaskResult},
-    inputs::{handlers::InputPayload, Input},
+    inputs::Input,
     state_machine::{
         ActionInvokeDef, ActionInvokeDefDataField, ActionPayloadBuilder, EventHandler,
         StateDefinition, StateMachine, StateMachineData, TransitionCondition, TransitionTarget,

@@ -1,16 +1,15 @@
 use actix_web::web::Data;
 use ergo_auth::AuthData;
 use ergo_database::PostgresPool;
+use ergo_notifications::NotificationManager;
+use ergo_tasks::{actions::queue::ActionQueue, inputs::queue::InputQueue};
 
-use crate::{
-    error::Result,
-    tasks::{actions::queue::ActionQueue, inputs::queue::InputQueue},
-};
+use crate::error::Result;
 
 pub struct BackendAppState {
     pub pg: PostgresPool,
     pub auth: AuthData,
-    pub notifications: crate::notifications::NotificationManager,
+    pub notifications: NotificationManager,
     action_queue: ActionQueue,
     input_queue: InputQueue,
     pub immediate_inputs: bool,
@@ -21,7 +20,7 @@ pub type BackendAppStateData = Data<BackendAppState>;
 
 pub fn app_data(
     pg_pool: PostgresPool,
-    notifications: crate::notifications::NotificationManager,
+    notifications: NotificationManager,
     input_queue: InputQueue,
     action_queue: ActionQueue,
     immediate_inputs: bool,

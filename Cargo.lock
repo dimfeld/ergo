@@ -1415,7 +1415,9 @@ dependencies = [
  "ergo-database",
  "ergo-graceful-shutdown",
  "ergo-js",
+ "ergo-notifications",
  "ergo-queues",
+ "ergo-tasks",
  "futures",
  "fxhash",
  "handlebars",
@@ -1561,6 +1563,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ergo-notifications"
+version = "0.2.0"
+dependencies = [
+ "async-trait",
+ "chrono",
+ "dotenv",
+ "ergo-database",
+ "ergo-graceful-shutdown",
+ "ergo-queues",
+ "futures",
+ "reqwest",
+ "serde 1.0.126",
+ "serde_json",
+ "serde_millis",
+ "smallvec",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "ergo-queues"
 version = "0.2.0"
 dependencies = [
@@ -1595,9 +1620,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "ergo-tasks"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-trait",
+ "backoff",
+ "chrono",
+ "ergo-database",
+ "ergo-graceful-shutdown",
+ "ergo-js",
+ "ergo-notifications",
+ "ergo-queues",
+ "futures",
+ "fxhash",
+ "handlebars",
+ "itertools",
+ "jsonschema",
+ "lazy_static",
+ "once_cell",
+ "rand 0.8.4",
+ "rand_core 0.6.3",
+ "reqwest",
+ "schemars",
+ "serde 1.0.126",
+ "serde_json",
+ "serde_millis",
+ "smallvec",
+ "sqlx",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "uuid",
+ "wiremock",
+]
+
+[[package]]
 name = "ergo-wasm"
 version = "0.1.0"
 dependencies = [
+ "ergo-tasks",
  "json5",
  "serde 1.0.126",
  "serde_json",

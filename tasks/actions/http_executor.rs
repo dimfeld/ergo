@@ -247,7 +247,7 @@ mod tests {
         Mock, MockServer, ResponseTemplate,
     };
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn simple_request() {
         let mock_server = MockServer::start().await;
 
@@ -271,7 +271,7 @@ mod tests {
         assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn complex_request() {
         let mock_server = MockServer::start().await;
 
@@ -303,7 +303,7 @@ mod tests {
         assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn string_body() {
         let mock_server = MockServer::start().await;
 
@@ -331,7 +331,7 @@ mod tests {
         assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn json_body() {
         let mock_server = MockServer::start().await;
 
@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(result, json!({"response": "the response", "status": 200 }));
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn string_result() {
         let mock_server = MockServer::start().await;
 
@@ -389,7 +389,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn json_result() {
         let mock_server = MockServer::start().await;
 
@@ -424,7 +424,7 @@ mod tests {
         );
     }
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn error_result() {
         // Start a server that doesn't match on anything.
         let mock_server = MockServer::start().await;

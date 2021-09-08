@@ -1,15 +1,12 @@
 pub mod dequeue;
-pub mod handlers;
 pub mod queue;
 
-use crate::{
-    error::Error,
-    notifications::{Notification, NotifyEvent},
-};
+use crate::error::Error;
 use ergo_database::{
     object_id::{InputCategoryId, InputId, OrgId, TaskId, TaskTriggerId},
     PostgresPool,
 };
+use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
@@ -78,7 +75,7 @@ pub struct EnqueueInputOptions<'a> {
     /// instead of enqueueing them.
     pub immediate_actions: bool,
     pub pg: &'a PostgresPool,
-    pub notifications: Option<crate::notifications::NotificationManager>,
+    pub notifications: Option<NotificationManager>,
     pub org_id: OrgId,
     pub task_id: TaskId,
     pub task_name: String,

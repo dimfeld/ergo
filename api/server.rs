@@ -1,22 +1,4 @@
-use crate::{
-    error::Result,
-    notifications::NotificationManager,
-    service_config::DatabaseConfiguration,
-    status_server,
-    tasks::{
-        self,
-        actions::{
-            dequeue::{ActionExecutor, ActionExecutorConfig},
-            queue::ActionQueue,
-        },
-        inputs::{
-            dequeue::{TaskExecutor, TaskExecutorConfig},
-            queue::InputQueue,
-        },
-        queue_drain_runner::AllQueuesDrain,
-    },
-    web_app_server,
-};
+use crate::{error::Result, routes, service_config::DatabaseConfiguration, web_app_server};
 
 use std::{env, net::TcpListener, path::PathBuf};
 
@@ -28,6 +10,18 @@ use actix_web::{
 };
 use ergo_auth::middleware::AuthenticateMiddlewareFactory;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_notifications::NotificationManager;
+use ergo_tasks::{
+    actions::{
+        dequeue::{ActionExecutor, ActionExecutorConfig},
+        queue::ActionQueue,
+    },
+    inputs::{
+        dequeue::{TaskExecutor, TaskExecutorConfig},
+        queue::InputQueue,
+    },
+    queue_drain_runner::AllQueuesDrain,
+};
 use tracing::{event, info, Level};
 use tracing_actix_web::TracingLogger;
 
@@ -103,7 +97,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
     input_queue.start_scheduled_jobs_enqueuer(shutdown.clone());
     action_queue.start_scheduled_jobs_enqueuer(shutdown.clone());
 
-    let mut notifications = crate::notifications::NotificationManager::new(
+    let mut notifications = ergo_notifications::NotificationManager::new(
         backend_pg_pool.clone(),
         redis_pool.clone(),
         shutdown.clone(),
@@ -125,7 +119,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
         None
     } else {
         info!("Starting postgres queue drain");
-        Some(crate::tasks::queue_drain_runner::AllQueuesDrain::new(
+        Some(ergo_tasks::queue_drain_runner::AllQueuesDrain::new(
             input_queue.clone(),
             action_queue.clone(),
             backend_pg_pool.clone(),
@@ -187,9 +181,10 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
                 ))
                 .wrap(identity)
                 .wrap(TracingLogger::default())
-                .configure(web_app_server::config)
-                .configure(tasks::handlers::config)
-                .configure(status_server::config),
+                .configure(routes::actions::config)
+                .configure(routes::inputs::config)
+                .configure(routes::status::config)
+                .configure(routes::tasks::config),
         );
 
         if !serve_dir.is_empty() {

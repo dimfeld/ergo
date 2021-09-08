@@ -1,11 +1,12 @@
-use ergo_api::tasks::{
-    actions::handlers::{ActionDescription, ActionPayload},
-    handlers::{
+use ergo_api::routes::{
+    actions::{ActionDescription, ActionPayload},
+    inputs::InputPayload,
+    tasks::{
         InputsLogEntry, NewTaskResult, TaskDescription, TaskInput, TaskResult, TaskTriggerResponse,
     },
-    inputs::{handlers::InputPayload, Input},
 };
 use ergo_database::object_id::{ActionId, InputId, TaskId};
+use ergo_tasks::inputs::Input;
 
 use super::TestClient;
 use reqwest::{Response, Result};

@@ -49,6 +49,8 @@ ergo-auth = { version = "0.1.0", path="../auth" }
 ergo-database = { version = "0.1.0", path="../database" }
 ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown" }
 ergo-js = { version = "0.0.0", path="../js" }
+ergo-notifications = { version = "0.2.0", path="../notifications" }
+ergo-tasks = { version = "0.2.0", path="../tasks" }
 ergo-queues = { version = "0.2.0", path="../queues" }
 futures = "0.3.15"
 fxhash = "0.2.1"

@@ -8,6 +8,13 @@ use ergo_database::{
     object_id::{ActionCategoryId, ActionId},
     sql_insert_parameters,
 };
+use ergo_tasks::{
+    actions::{
+        execute::{ScriptOrTemplate, EXECUTOR_REGISTRY},
+        template::{validate, TemplateFields},
+    },
+    scripting,
+};
 use futures::future::ready;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -16,13 +23,7 @@ use sqlx::Connection;
 
 use crate::{
     error::{Error, Result},
-    tasks::scripting,
     web_app_server::AppStateData,
-};
-
-use super::{
-    execute::ScriptOrTemplate,
-    template::{validate, TemplateFields},
 };
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
@@ -46,7 +47,7 @@ pub struct ActionPayload {
 
 impl ActionPayload {
     async fn validate(&self) -> Result<()> {
-        let executor = super::execute::EXECUTOR_REGISTRY
+        let executor = EXECUTOR_REGISTRY
             .get(self.executor_id.as_str())
             .ok_or_else(|| Error::UnknownExecutor(self.executor_id.clone()))?;
 
@@ -258,4 +259,11 @@ pub async fn delete_action(
     .execute(&data.pg)
     .await?;
     Ok(HttpResponse::Ok().finish())
+}
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(list_actions)
+        .service(new_action)
+        .service(write_action)
+        .service(delete_action);
 }

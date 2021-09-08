@@ -1,5 +1,4 @@
-use super::{Level, Notification};
-use crate::error::Result;
+use super::{Error, Level, Notification};
 
 use serde_json::json;
 
@@ -16,7 +15,7 @@ pub async fn send_discord_webhook(
     client: &reqwest::Client,
     hook: &str,
     notification: &Notification,
-) -> Result<()> {
+) -> Result<(), Error> {
     let desc = notification.event.description();
     let fields = notification
         .fields()
@@ -50,9 +49,9 @@ mod tests {
     use ergo_database::object_id::TaskId;
     use uuid::Uuid;
 
-    use crate::notifications::NotifyEvent;
+    use crate::NotifyEvent;
 
-    #[actix_rt::test]
+    #[tokio::test]
     async fn sends_notification() {
         dotenv::dotenv().ok();
 

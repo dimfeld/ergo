@@ -1,7 +1,6 @@
 pub mod accounts;
 pub mod dequeue;
 pub mod execute;
-pub mod handlers;
 pub mod queue;
 pub mod template;
 

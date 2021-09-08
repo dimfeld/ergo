@@ -5,11 +5,12 @@ use actix_web::{
 };
 use ergo_auth::Authenticated;
 use ergo_database::object_id::{InputCategoryId, InputId};
+use ergo_tasks::inputs::Input;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 
-use crate::{error::Result, tasks::inputs::Input, web_app_server::AppStateData};
+use crate::{error::Result, web_app_server::AppStateData};
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct InputPayload {
@@ -131,4 +132,11 @@ pub async fn delete_input(
         .execute(&data.pg)
         .await?;
     Ok(HttpResponse::Ok().finish())
+}
+
+pub fn config(cfg: &mut web::ServiceConfig) {
+    cfg.service(list_inputs)
+        .service(new_input)
+        .service(write_input)
+        .service(delete_input);
 }

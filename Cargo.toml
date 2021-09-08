@@ -6,7 +6,9 @@ members = [
   "database",
   "graceful_shutdown",
   "js",
+  "notifications",
   "queues",
+  "tasks",
   "wasm"
 ]
 resolver = "2"

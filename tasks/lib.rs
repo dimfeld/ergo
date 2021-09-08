@@ -1,21 +1,15 @@
 pub mod actions;
-pub mod handlers;
+mod error;
 pub mod inputs;
 pub mod queue_drain_runner;
 pub mod scripting;
 pub mod state_machine;
 
-use smallvec::SmallVec;
-pub use state_machine::StateMachineError;
-use tracing::{event, instrument, Level};
+pub use error::*;
 
 use crate::{
-    error::Error,
-    notifications::{Notification, NotifyEvent},
-    tasks::{
-        actions::{execute::execute, ActionStatus},
-        inputs::InputStatus,
-    },
+    actions::{execute::execute, ActionStatus},
+    inputs::InputStatus,
 };
 use chrono::{DateTime, Utc};
 use ergo_database::{
@@ -24,9 +18,12 @@ use ergo_database::{
     transaction::serializable,
     PostgresPool,
 };
+use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow};
+pub use state_machine::StateMachineError;
+use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
 use self::state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData};
@@ -77,7 +74,7 @@ impl Task {
     #[instrument(skip(pool, notifications))]
     pub async fn apply_input(
         pool: &PostgresPool,
-        notifications: Option<crate::notifications::NotificationManager>,
+        notifications: Option<NotificationManager>,
         task_id: TaskId,
         input_id: InputId,
         task_trigger_id: TaskTriggerId,

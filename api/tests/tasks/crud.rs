@@ -3,21 +3,24 @@ use std::{borrow::Cow, collections::HashSet};
 use crate::common::{run_app_test, TestApp, TestUser};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use ergo_api::tasks::{
+use ergo_api::routes::{
+    actions::{ActionDescription, ActionPayload},
+    inputs::InputPayload,
+    tasks::{NewTaskResult, TaskActionInput, TaskDescription, TaskInput, TaskTriggerInput},
+};
+use ergo_database::object_id::{OrgId, TaskId, TaskTriggerId};
+use ergo_tasks::{
     actions::{
         execute::ScriptOrTemplate,
-        handlers::{ActionDescription, ActionPayload},
         template::{TemplateField, TemplateFields},
     },
-    handlers::{NewTaskResult, TaskActionInput, TaskDescription, TaskInput, TaskTriggerInput},
-    inputs::{handlers::InputPayload, Input},
+    inputs::Input,
     state_machine::{
         self, StateDefinition, StateMachine, StateMachineConfig, StateMachineData,
         StateMachineStates,
     },
     TaskConfig, TaskState,
 };
-use ergo_database::object_id::{OrgId, TaskId, TaskTriggerId};
 use futures::future::{join, join_all};
 use fxhash::FxHashMap;
 use serde_json::json;
@@ -110,7 +113,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         ]),
         template_fields: vec![TemplateField {
             name: Cow::from("text"),
-            format: ergo_api::tasks::actions::template::TemplateFieldFormat::String,
+            format: ergo_tasks::actions::template::TemplateFieldFormat::String,
             optional: false,
             description: None,
         }],

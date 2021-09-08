@@ -1,9 +1,8 @@
 //! Run all the queue drains
 
-use super::{actions::queue::ActionQueue, inputs::queue::InputQueue};
-use crate::error::Error;
+use crate::{actions::queue::ActionQueue, error::Error, inputs::queue::InputQueue};
 
-use ergo_database::{PostgresPool, RedisPool, RenewablePostgresPool};
+use ergo_database::{RedisPool, RenewablePostgresPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use ergo_queues::{
     generic_stage,

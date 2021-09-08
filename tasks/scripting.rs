@@ -9,8 +9,8 @@ use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::{event, Level};
 
-const NET_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/net");
-const CORE_SNAPSHOT: &'static [u8] = include_bytes!("../snapshots/core");
+const NET_SNAPSHOT: &'static [u8] = include_bytes!("./snapshots/net");
+const CORE_SNAPSHOT: &'static [u8] = include_bytes!("./snapshots/core");
 
 lazy_static::lazy_static! {
     pub static ref POOL : RuntimePool = RuntimePool::new(None);

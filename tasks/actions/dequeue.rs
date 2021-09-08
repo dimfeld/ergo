@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_notifications::NotificationManager;
 use ergo_queues::{QueueJobProcessor, QueueWorkItem};
 use std::num::NonZeroU32;
 
@@ -12,7 +13,7 @@ pub struct ActionExecutorConfig {
     pub pg_pool: PostgresPool,
     pub redis_pool: RedisPool,
     pub shutdown: GracefulShutdownConsumer,
-    pub notifications: Option<crate::notifications::NotificationManager>,
+    pub notifications: Option<NotificationManager>,
     /// The highest number of concurrent jobs to run. Defaults to twice the number of CPUs.
     pub max_concurrent_jobs: Option<usize>,
 }
@@ -46,7 +47,7 @@ impl ActionExecutor {
 #[derive(Clone)]
 struct ActionExecutorJobProcessor {
     pg_pool: PostgresPool,
-    notifications: Option<crate::notifications::NotificationManager>,
+    notifications: Option<NotificationManager>,
 }
 
 #[async_trait]

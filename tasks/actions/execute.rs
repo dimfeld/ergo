@@ -6,6 +6,7 @@ use ergo_database::{
     object_id::{AccountId, ActionId, OrgId, TaskId},
     PostgresPool,
 };
+use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use futures::future::TryFutureExt;
 use fxhash::{FxBuildHasher, FxHashMap};
 use lazy_static::lazy_static;
@@ -17,12 +18,9 @@ use thiserror::Error;
 use tracing::{event, instrument, Level};
 
 use crate::{
-    error::{Error, Result},
-    notifications::{Notification, NotificationManager, NotifyEvent},
-    tasks::{
-        actions::ActionStatus,
-        scripting::{self, run_simple_with_args},
-    },
+    actions::ActionStatus,
+    error::Error,
+    scripting::{self, run_simple_with_args},
 };
 
 use super::{
@@ -186,9 +184,9 @@ pub enum ScriptOrTemplate {
 #[instrument(name = "execute_action", level = "debug", skip(pg_pool, notifications))]
 pub async fn execute(
     pg_pool: &PostgresPool,
-    notifications: Option<&crate::notifications::NotificationManager>,
+    notifications: Option<&NotificationManager>,
     invocation: &ActionInvocation,
-) -> Result<serde_json::Value> {
+) -> Result<serde_json::Value, Error> {
     event!(Level::DEBUG, ?invocation);
 
     let actions_log_id = invocation.actions_log_id.clone();
@@ -265,7 +263,7 @@ struct ExecuteActionData {
 
 async fn execute_action(
     pg_pool: &PostgresPool,
-    notifications: Option<&crate::notifications::NotificationManager>,
+    notifications: Option<&NotificationManager>,
     invocation: &ActionInvocation,
 ) -> Result<serde_json::Value, Error> {
     let task_id = &invocation.task_id;
@@ -425,7 +423,7 @@ async fn notify_action_error(
     invocation: &ActionInvocation,
     action: ExecuteActionData,
     error: &ExecuteError,
-) -> Result<()> {
+) -> Result<(), Error> {
     if let Some(notifications) = notifications {
         let notification = Notification {
             task_id: invocation.task_id.clone(),

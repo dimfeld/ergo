@@ -5,6 +5,7 @@ use std::num::NonZeroU32;
 use async_trait::async_trait;
 use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
+use ergo_notifications::NotificationManager;
 use ergo_queues::{QueueJobProcessor, QueueWorkItem};
 
 use crate::error::Error;
@@ -19,7 +20,7 @@ pub struct TaskExecutorConfig {
     pub pg_pool: PostgresPool,
     pub redis_pool: RedisPool,
     pub shutdown: GracefulShutdownConsumer,
-    pub notifications: Option<crate::notifications::NotificationManager>,
+    pub notifications: Option<NotificationManager>,
     /// The highest number of concurrent jobs to run. Defaults to twice the number of CPUs.
     pub max_concurrent_jobs: Option<usize>,
     pub immediate_actions: bool,
@@ -54,7 +55,7 @@ impl TaskExecutor {
 #[derive(Clone)]
 struct TaskExecutorJobProcessor {
     pg_pool: PostgresPool,
-    notifications: Option<crate::notifications::NotificationManager>,
+    notifications: Option<NotificationManager>,
     immediate_actions: bool,
 }
 

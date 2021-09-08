@@ -1,8 +1,6 @@
-use super::{actions::ActionStatus, inputs::InputStatus, TaskConfig, TaskState};
 use crate::{
     backend_data::BackendAppStateData,
     error::{Error, Result},
-    tasks::inputs::EnqueueInputOptions,
     web_app_server::AppStateData,
 };
 
@@ -15,6 +13,11 @@ use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
 use ergo_database::object_id::{
     AccountId, ActionId, InputId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
+};
+use ergo_tasks::{
+    actions::ActionStatus,
+    inputs::{EnqueueInputOptions, InputStatus},
+    TaskConfig, TaskState,
 };
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -562,7 +565,7 @@ async fn post_task_trigger(
     .await?
     .ok_or(Error::NotFound)?;
 
-    let input_arrival_id = super::inputs::enqueue_input(EnqueueInputOptions {
+    let input_arrival_id = ergo_tasks::inputs::enqueue_input(EnqueueInputOptions {
         run_immediately: data.immediate_inputs,
         immediate_actions: data.immediate_actions,
         pg: &data.pg,
@@ -662,13 +665,5 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .service(new_task_handler)
         .service(update_task)
         .service(delete_task)
-        .service(super::inputs::handlers::list_inputs)
-        .service(super::inputs::handlers::new_input)
-        .service(super::inputs::handlers::write_input)
-        .service(super::inputs::handlers::delete_input)
-        .service(super::actions::handlers::list_actions)
-        .service(super::actions::handlers::new_action)
-        .service(super::actions::handlers::write_action)
-        .service(super::actions::handlers::delete_action)
         .service(get_logs);
 }

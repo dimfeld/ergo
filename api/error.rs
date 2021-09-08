@@ -1,11 +1,11 @@
 use std::str::ParseBoolError;
 
-use crate::tasks::{
+use actix_web::{http::StatusCode, HttpResponse};
+use envoption::EnvOptionError;
+use ergo_tasks::{
     actions::{execute::ExecuteError, template::TemplateError},
     StateMachineError,
 };
-use actix_web::{http::StatusCode, HttpResponse};
-use envoption::EnvOptionError;
 use redis::RedisError;
 use thiserror::Error;
 
@@ -61,9 +61,6 @@ pub enum Error {
     UnknownExecutor(String),
 
     #[error(transparent)]
-    ExecuteError(#[from] ExecuteError),
-
-    #[error(transparent)]
     TemplateError(#[from] TemplateError),
 
     #[error("Environment variable error: {0}")]
@@ -72,7 +69,7 @@ pub enum Error {
     #[error("Redis connection error {0}")]
     RedisPoolError(#[from] deadpool::managed::PoolError<::redis::RedisError>),
 
-    #[error("SQL Error")]
+    #[error("SQL Error: {0}")]
     SqlError(#[from] sqlx::error::Error),
 
     #[error(transparent)]
@@ -95,6 +92,12 @@ pub enum Error {
 
     #[error("Queue Error: {0}")]
     QueueError(#[from] ergo_queues::Error),
+
+    #[error(transparent)]
+    TasksError(#[from] ergo_tasks::Error),
+
+    #[error(transparent)]
+    NotificationError(#[from] ergo_notifications::Error),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
@@ -143,6 +146,7 @@ impl actix_web::error::ResponseError for Error {
             Error::NotFound => StatusCode::NOT_FOUND,
             Error::UnknownExecutor(_) => StatusCode::BAD_REQUEST,
             Error::ActixError { status_code, .. } => *status_code,
+            Error::TasksError(ergo_tasks::Error::NotFound) => StatusCode::NOT_FOUND,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
