@@ -2,14 +2,17 @@
   import type { StateMachine } from '^/api_types';
   import Editor from './Editor.svelte';
   import EventHandler from './state_machine/EventHandler.svelte';
-  export let data: StateMachine[];
+  import zip from 'just-zip-it';
+
+  export let compiled: StateMachine[];
+  export let source: string[];
   // This is totally unfinished but shows a very basic outline of the state machine.
 
-  $: data = data ?? [];
+  $: data = zip(compiled || [], source || []);
 </script>
 
 <div class="flex flex-col space-y-4">
-  {#each data as machine}
+  {#each data as [compiled, source]}
     <div class="flex-1 grid grid-rows-1 grid-cols-1 place-items-stretch">
       <!-- <p>State Machine <strong>{machine.name}</strong></p> -->
       <!-- {#if machine.description} -->
@@ -38,7 +41,7 @@
       <!--     {/each} -->
       <!--   </div> -->
       <!-- {/each} -->
-      <Editor format="json" contents={JSON.stringify(machine)} />
+      <Editor format="json" contents={source} />
     </div>
   {/each}
 </div>

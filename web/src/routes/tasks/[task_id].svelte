@@ -76,7 +76,11 @@
     <section class="flex flex-col flex-grow mt-4">
       {#if taskSource}
         <div class="flex-grow grid grid-rows-1 grid-cols-1 place-items-stretch">
-          <svelte:component this={taskEditors[taskSource.type]} bind:data={taskSource.data} />
+          <svelte:component
+            this={taskEditors[taskSource.type]}
+            source={$task?.source.data}
+            compiled={$task?.compiled?.data}
+          />
         </div>
       {/if}
       <p>
