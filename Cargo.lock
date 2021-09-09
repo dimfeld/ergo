@@ -1620,6 +1620,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ergo-task-types"
+version = "0.2.0"
+dependencies = [
+ "fxhash",
+ "schemars",
+ "serde 1.0.126",
+ "serde_json",
+ "serde_millis",
+ "smallvec",
+]
+
+[[package]]
 name = "ergo-tasks"
 version = "0.2.0"
 dependencies = [
@@ -1633,6 +1645,7 @@ dependencies = [
  "ergo-js",
  "ergo-notifications",
  "ergo-queues",
+ "ergo-task-types",
  "futures",
  "fxhash",
  "handlebars",
@@ -1660,7 +1673,7 @@ dependencies = [
 name = "ergo-wasm"
 version = "0.1.0"
 dependencies = [
- "ergo-tasks",
+ "ergo-task-types",
  "json5",
  "serde 1.0.126",
  "serde_json",

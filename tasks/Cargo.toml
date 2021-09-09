@@ -7,20 +7,17 @@ edition = "2018"
 [lib]
 path = "lib.rs"
 
-[features]
-default = ["full"]
-full = ["ergo-database", "ergo-graceful-shutdown", "ergo-js", "ergo-notifications", "ergo-queues"]
-
 [dependencies]
 anyhow = "1.0.42"
 async-trait = "0.1.50"
 backoff = { version = "0.3.0", features = ["tokio"] }
 chrono = { version = "0.4.19", features = ["serde"] }
-ergo-database = { version = "0.1.0", path="../database", optional=true }
-ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown", optional=true }
-ergo-js = { version = "0.0.0", path="../js", optional=true }
-ergo-notifications = { version = "0.2.0", path="../notifications", optional=true }
-ergo-queues = { version = "0.2.0", path="../queues", optional=true }
+ergo-database = { version = "0.1.0", path="../database" }
+ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown" }
+ergo-js = { version = "0.0.0", path="../js" }
+ergo-notifications = { version = "0.2.0", path="../notifications" }
+ergo-queues = { version = "0.2.0", path="../queues" }
+ergo-task-types = { version = "0.2.0", path="../task_types" }
 futures = "0.3.15"
 fxhash = "0.2.1"
 handlebars = "4.0.0"

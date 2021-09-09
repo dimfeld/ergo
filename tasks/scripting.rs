@@ -4,6 +4,7 @@ use ergo_js::{
     BufferConsole, ConsoleMessage, Extension, Runtime, RuntimeOptions, RuntimePool,
     SerializedState, Snapshot,
 };
+pub use ergo_task_types::scripting::*;
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -14,11 +15,6 @@ const CORE_SNAPSHOT: &'static [u8] = include_bytes!("./snapshots/core");
 
 lazy_static::lazy_static! {
     pub static ref POOL : RuntimePool = RuntimePool::new(None);
-}
-
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
-pub struct TaskJsConfig {
-    pub script: String,
 }
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
