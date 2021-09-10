@@ -41,7 +41,7 @@
       <!--     {/each} -->
       <!--   </div> -->
       <!-- {/each} -->
-      <Editor format="json" contents={source} />
+      <Editor format="json" contents={source || JSON.stringify(compiled)} />
     </div>
   {/each}
 </div>

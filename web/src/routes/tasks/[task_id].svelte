@@ -78,7 +78,7 @@
         <div class="flex-grow grid grid-rows-1 grid-cols-1 place-items-stretch">
           <svelte:component
             this={taskEditors[taskSource.type]}
-            source={$task?.source.data}
+            source={$task?.source?.data}
             compiled={$task?.compiled?.data}
           />
         </div>
