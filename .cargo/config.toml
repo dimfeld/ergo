@@ -1,3 +1,2 @@
 [build]
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold"]
 incremental = true

@@ -4,7 +4,7 @@ use actix_web::{http::StatusCode, HttpResponse};
 use envoption::EnvOptionError;
 use ergo_tasks::{
     actions::{execute::ExecuteError, template::TemplateError},
-    StateMachineError,
+    state_machine::StateMachineError,
 };
 use redis::RedisError;
 use thiserror::Error;

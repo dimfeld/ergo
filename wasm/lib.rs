@@ -1,4 +1,4 @@
-use ergo_task_types::{state_machine::StateMachineConfig, TaskConfig};
+use ergo_tasks::{state_machine::StateMachineConfig, TaskConfig};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]

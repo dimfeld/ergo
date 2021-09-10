@@ -1,32 +1,19 @@
+#[cfg(feature = "full")]
 pub mod actions;
 mod error;
+#[cfg(feature = "full")]
 pub mod inputs;
+#[cfg(feature = "full")]
 pub mod queue_drain_runner;
 pub mod scripting;
 pub mod state_machine;
 
 pub use error::*;
+#[cfg(feature = "full")]
+pub use full::*;
 
-use crate::{
-    actions::{execute::execute, ActionStatus},
-    inputs::InputStatus,
-};
-use chrono::{DateTime, Utc};
-use ergo_database::{
-    object_id::{InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId},
-    sql_insert_parameters,
-    transaction::serializable,
-    PostgresPool,
-};
-use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sqlx::{types::Json, FromRow};
-pub use state_machine::StateMachineError;
-use tracing::{event, instrument, Level};
-use uuid::Uuid;
-
-use self::state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData};
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "data")]
@@ -35,29 +22,52 @@ pub enum TaskConfig {
     // JS(scripting::TaskJsConfig),
 }
 
-#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
-#[serde(tag = "type", content = "data")]
-pub enum TaskState {
-    StateMachine(state_machine::StateMachineStates),
-    // JS(scripting::TaskJsState)
-}
+#[cfg(feature = "full")]
+mod full {
+    use crate::{
+        actions::{execute::execute, ActionStatus},
+        error::*,
+        inputs::InputStatus,
+        state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData},
+        TaskConfig,
+    };
+    use chrono::{DateTime, Utc};
+    use ergo_database::{
+        object_id::{InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId},
+        sql_insert_parameters,
+        transaction::serializable,
+        PostgresPool,
+    };
+    use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
+    use schemars::JsonSchema;
+    use serde::{Deserialize, Serialize};
+    use sqlx::{types::Json, FromRow};
+    use tracing::{event, instrument, Level};
+    use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, FromRow)]
-pub struct Task {
-    pub task_id: TaskId,
-    pub org_id: Uuid,
-    pub name: String,
-    pub description: Option<String>,
-    pub enabled: bool,
-    pub task_template_id: uuid::Uuid,
-    pub task_template_version: TaskTemplateId,
-    pub config: Json<TaskConfig>,
-    pub state: Json<TaskState>,
-    pub created: DateTime<Utc>,
-    pub modified: DateTime<Utc>,
-}
+    #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
+    #[serde(tag = "type", content = "data")]
+    pub enum TaskState {
+        StateMachine(StateMachineStates),
+        // JS(scripting::TaskJsState)
+    }
 
-const GET_TASK_QUERY: &'static str = r##"SELECT task_id as "task_id: TaskId",
+    #[derive(Serialize, Deserialize, FromRow)]
+    pub struct Task {
+        pub task_id: TaskId,
+        pub org_id: Uuid,
+        pub name: String,
+        pub description: Option<String>,
+        pub enabled: bool,
+        pub task_template_id: uuid::Uuid,
+        pub task_template_version: TaskTemplateId,
+        pub config: Json<TaskConfig>,
+        pub state: Json<TaskState>,
+        pub created: DateTime<Utc>,
+        pub modified: DateTime<Utc>,
+    }
+
+    const GET_TASK_QUERY: &'static str = r##"SELECT task_id as "task_id: TaskId",
               org_id, name,
               description, enabled,
               state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>",
@@ -65,31 +75,31 @@ const GET_TASK_QUERY: &'static str = r##"SELECT task_id as "task_id: TaskId",
               created, modified
             FROM tasks WHERE task_id = $1"##;
 
-impl Task {
-    /// Apply an input to a task.
-    /// Instead of acting on an existing task instance, this loads the task
-    /// and applies the input inside a serializable transaction, to ensure that
-    /// the applied input doesn't have a race condition with any other concurrent
-    /// inputs to the same task.
-    #[instrument(skip(pool, notifications))]
-    pub async fn apply_input(
-        pool: &PostgresPool,
-        notifications: Option<NotificationManager>,
-        task_id: TaskId,
-        input_id: InputId,
-        task_trigger_id: TaskTriggerId,
-        input_arrival_id: uuid::Uuid,
-        payload: serde_json::Value,
-        immediate_actions: bool,
-    ) -> Result<(), Error> {
-        let immediate_data = if immediate_actions {
-            Some(notifications.clone())
-        } else {
-            None
-        };
+    impl Task {
+        /// Apply an input to a task.
+        /// Instead of acting on an existing task instance, this loads the task
+        /// and applies the input inside a serializable transaction, to ensure that
+        /// the applied input doesn't have a race condition with any other concurrent
+        /// inputs to the same task.
+        #[instrument(skip(pool, notifications))]
+        pub async fn apply_input(
+            pool: &PostgresPool,
+            notifications: Option<NotificationManager>,
+            task_id: TaskId,
+            input_id: InputId,
+            task_trigger_id: TaskTriggerId,
+            input_arrival_id: uuid::Uuid,
+            payload: serde_json::Value,
+            immediate_actions: bool,
+        ) -> Result<(), Error> {
+            let immediate_data = if immediate_actions {
+                Some(notifications.clone())
+            } else {
+                None
+            };
 
-        let mut conn = pool.acquire().await?;
-        let result = serializable(&mut conn, 5, move |tx| {
+            let mut conn = pool.acquire().await?;
+            let result = serializable(&mut conn, 5, move |tx| {
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
             let notifications = notifications.clone();
@@ -240,47 +250,50 @@ impl Task {
         })
         .await;
 
-        let (log_error, status, retval) = match result {
-            Ok(actions) => {
-                if let Some(notifications) = immediate_data {
-                    for action in actions {
-                        let pool = pool.clone();
-                        let notifications = notifications.clone();
-                        tokio::task::spawn(async move {
-                            execute(&pool, notifications.as_ref(), &action).await
-                        });
+            let (log_error, status, retval) = match result {
+                Ok(actions) => {
+                    if let Some(notifications) = immediate_data {
+                        for action in actions {
+                            let pool = pool.clone();
+                            let notifications = notifications.clone();
+                            tokio::task::spawn(async move {
+                                execute(&pool, notifications.as_ref(), &action).await
+                            });
+                        }
                     }
+                    (None, InputStatus::Success, Ok(()))
                 }
-                (None, InputStatus::Success, Ok(()))
-            }
-            Err(e) => {
-                event!(Level::ERROR, err=?e, "Error applying input");
-                (
-                    Some(serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) })),
-                    InputStatus::Error,
-                    Err(e),
-                )
-            }
-        };
+                Err(e) => {
+                    event!(Level::ERROR, err=?e, "Error applying input");
+                    (
+                        Some(
+                            serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) }),
+                        ),
+                        InputStatus::Error,
+                        Err(e),
+                    )
+                }
+            };
 
-        event!(Level::INFO, %input_arrival_id, ?status, ?log_error, "Updating input status");
-        sqlx::query!(
-            "UPDATE inputs_log SET status=$2, error=$3, updated=now() WHERE inputs_log_id=$1",
-            input_arrival_id,
-            status as _,
-            log_error
-        )
-        .execute(pool)
-        .await?;
+            event!(Level::INFO, %input_arrival_id, ?status, ?log_error, "Updating input status");
+            sqlx::query!(
+                "UPDATE inputs_log SET status=$2, error=$3, updated=now() WHERE inputs_log_id=$1",
+                input_arrival_id,
+                status as _,
+                log_error
+            )
+            .execute(pool)
+            .await?;
 
-        retval
+            retval
+        }
     }
-}
 
-#[derive(Serialize, Deserialize)]
-pub struct TaskTrigger {
-    pub task_trigger_id: TaskTriggerId,
-    pub task_id: TaskId,
-    pub input_id: InputId,
-    pub last_payload: Option<Box<serde_json::value::RawValue>>,
+    #[derive(Serialize, Deserialize)]
+    pub struct TaskTrigger {
+        pub task_trigger_id: TaskTriggerId,
+        pub task_id: TaskId,
+        pub input_id: InputId,
+        pub last_payload: Option<Box<serde_json::value::RawValue>>,
+    }
 }
