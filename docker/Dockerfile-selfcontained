@@ -1,0 +1,41 @@
+# This Dockerfile builds an Ergo server that also serves the web app.
+ARG RUST_VERSION=1.54.0
+ARG NODE_VERSION=14.17.6
+
+FROM rust:$RUST_VERSION as planner
+WORKDIR app
+RUN cargo install cargo-chef
+COPY . .
+RUN cargo chef prepare  --recipe-path recipe.json
+
+FROM rust:$RUST_VERSION as cacher
+WORKDIR app
+RUN cargo install cargo-chef
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+FROM rust:$RUST_VERSION as server-builder
+WORKDIR app
+COPY . .
+# Copy over the cached dependencies
+COPY --from=cacher /app/target target
+COPY --from=cacher $CARGO_HOME $CARGO_HOME
+RUN cargo build --release --bin app
+
+FROM node:$NODE_VERSION AS web-base
+WORKDIR app
+RUN npm -g i pnpm@~6.10
+COPY web .
+RUN pnpm install
+
+FROM node:$NODE_VERSION AS web-builder
+WORKDIR app
+RUN pnpm build:svelte
+
+FROM debian:buster-slim as runtime
+WORKDIR app
+COPY --from=server-builder /app/target/release/app /usr/local/bin
+COPY --from=web-builder /app/build /app/web
+ENV SERVE=/app/web
+ENTRYPOINT ["/usr/local/bin/app"]
+CMD ["server"]
