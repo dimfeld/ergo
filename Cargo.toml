@@ -9,7 +9,6 @@ members = [
   "notifications",
   "queues",
   "tasks",
-  "task_types",
   "wasm"
 ]
 resolver = "2"

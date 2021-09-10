@@ -19,7 +19,6 @@ use ergo_database::{
     PostgresPool,
 };
 use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
-pub use ergo_task_types::TaskConfig;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, FromRow};
@@ -28,6 +27,13 @@ use tracing::{event, instrument, Level};
 use uuid::Uuid;
 
 use self::state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData};
+
+#[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", content = "data")]
+pub enum TaskConfig {
+    StateMachine(state_machine::StateMachineConfig),
+    // JS(scripting::TaskJsConfig),
+}
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 #[serde(tag = "type", content = "data")]
