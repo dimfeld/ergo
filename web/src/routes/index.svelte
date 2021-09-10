@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { InputsLogEntry, TaskDescription } from '../api_types';
+  import { InputsLogEntry, TaskDescription } from '../api_types';
   import LogTimeline from '^/components/LogTimeline.svelte';
   import Query from '^/components/Query.svelte';
   import TaskRow from '^/components/TaskRow.svelte';

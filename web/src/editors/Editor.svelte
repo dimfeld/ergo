@@ -8,8 +8,7 @@
     highlightActiveLine,
     ViewUpdate,
   } from '@codemirror/view';
-  import type { Extension } from '@codemirror/state';
-  import { Compartment, EditorState } from '@codemirror/state';
+  import { Compartment, EditorState, Extension } from '@codemirror/state';
   import { history, historyKeymap } from '@codemirror/history';
   import { indentOnInput } from '@codemirror/language';
   import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';

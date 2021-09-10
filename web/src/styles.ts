@@ -1,6 +1,5 @@
 import { getContext, setContext } from 'svelte';
-import type { Writable } from 'svelte/store';
-import { writable } from 'svelte/store';
+import { writable, Writable } from 'svelte/store';
 
 export function createDarkStore() {
   let initialDarkMode: boolean | null = null;

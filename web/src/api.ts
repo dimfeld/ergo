@@ -1,9 +1,7 @@
-import type { UseQueryStoreResult } from '@sveltestack/svelte-query';
-import { useQuery } from '@sveltestack/svelte-query';
+import { useQuery, UseQueryStoreResult } from '@sveltestack/svelte-query';
 import ky from 'ky';
 import { getContext, setContext } from 'svelte';
-import type { Writable } from 'svelte/store';
-import { get, writable } from 'svelte/store';
+import { get, writable, Writable } from 'svelte/store';
 import clone from 'just-clone';
 
 const KEY = 'ergo_api_client';

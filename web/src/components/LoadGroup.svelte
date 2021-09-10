@@ -1,8 +1,12 @@
 <script lang="ts">
   import { setContext } from 'svelte';
   import { readable, writable, derived } from 'svelte/store';
-  import { autoregisterLoadGroup } from './loadGroup';
-  import type { LoadGroupStore, LoadGroupManager, LoadGroupStoreData } from './loadGroup';
+  import {
+    autoregisterLoadGroup,
+    LoadGroupStore,
+    LoadGroupManager,
+    LoadGroupStoreData,
+  } from './loadGroup';
 
   /** The name to send to the parent load group, if any. This doesn't have to be unique but could be useful for debugging. */
   export let name: string = 'Load Group';

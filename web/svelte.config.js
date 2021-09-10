@@ -15,7 +15,11 @@ const config = {
   preprocess: [
     preprocess({
       postcss: postcssConfig,
-      typescript: true,
+      typescript: {
+        compilerOptions: {
+          target: 'esnext',
+        },
+      },
       sourceMap: true,
     }),
   ],

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { StateMachine } from '^/api_types';
+  import { StateMachine } from '^/api_types';
   import Editor from './Editor.svelte';
   import EventHandler from './state_machine/EventHandler.svelte';
   import zip from 'just-zip-it';

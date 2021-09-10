@@ -1,4 +1,4 @@
-import type { Readable } from 'svelte/store';
+import { Readable } from 'svelte/store';
 import { getContext, onDestroy } from 'svelte';
 
 export interface LoadGroupStoreData {

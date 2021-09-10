@@ -79,6 +79,11 @@ export interface ActionPayload {
   executor_id: string;
   executor_template: ScriptOrTemplate;
   template_fields: TemplateField[];
+  timeout?: number | null;
+  /**
+   * A script that processes the executor's JSON result. The result is exposed in the variable `result` and the action's payload is exposed as `payload`. The value returned will replace the executor's return value, or an error can be thrown to mark the action as failed.
+   */
+  postprocess_script?: string | null;
   account_required: boolean;
   account_types?: string[] | null;
 }

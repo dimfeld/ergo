@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { UseQueryStoreResult } from '@sveltestack/svelte-query';
+  import { UseQueryStoreResult } from '@sveltestack/svelte-query';
   import Loading from './Loading.svelte';
   import { derived } from 'svelte/store';
 

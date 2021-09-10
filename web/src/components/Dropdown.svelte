@@ -3,9 +3,8 @@
   import { cubicIn, cubicOut } from 'svelte/easing';
   import ChevronDown from './icons/ChevronDown.svelte';
   import Button from './Button.svelte';
-  import type { SvelteComponent } from 'svelte';
-  import type { Position } from './tippy';
-  import { showTippy } from './tippy';
+  import { SvelteComponent } from 'svelte';
+  import { showTippy, Position } from './tippy';
 
   export let open = false;
   export let disabled = false;
