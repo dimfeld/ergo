@@ -1661,8 +1661,9 @@ name = "ergo-wasm"
 version = "0.1.0"
 dependencies = [
  "ergo-tasks",
+ "fxhash",
+ "itertools",
  "js-sys",
- "json5",
  "serde 1.0.126",
  "serde-wasm-bindgen",
  "serde_json",
@@ -2300,17 +2301,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1866b355d9c878e5e607473cbe3f63282c0b7aad2db1dbebf55076c686918254"
 dependencies = [
  "wasm-bindgen",
-]
-
-[[package]]
-name = "json5"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3d993b17585f39e5e3bd98ff52bbd9e2a6d6b3f5b09d8abcec9d1873fb04cf3f"
-dependencies = [
- "pest",
- "pest_derive",
- "serde 1.0.126",
 ]
 
 [[package]]

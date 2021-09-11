@@ -1,18 +1,21 @@
-use ergo_tasks::{state_machine::StateMachineConfig, TaskConfig};
+use ergo_tasks::{TaskConfig, ValidateError};
+use fxhash::FxHashSet;
+use itertools::Itertools;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-#[derive(Clone)]
+#[wasm_bindgen(getter_with_clone)]
+#[derive(Clone, Default)]
 pub struct Location {
-    pub line: i32,
-    pub column: i32,
+    pub path: Option<String>,
+    pub line: Option<i32>,
+    pub column: Option<i32>,
 }
 
 #[wasm_bindgen]
 #[derive(Clone)]
 pub enum ErrorType {
     Json,
-    InvalidInitialState,
+    State,
 }
 
 #[wasm_bindgen(getter_with_clone)]
@@ -20,7 +23,7 @@ pub struct LintResult {
     pub message: String,
     #[wasm_bindgen(js_name = "type")]
     pub error_type: ErrorType,
-    pub invalid_value: Option<String>,
+    pub expected: Option<String>,
     pub location: Option<Location>,
 }
 
@@ -28,43 +31,55 @@ pub struct LintResult {
 pub struct LintResults(Vec<LintResult>);
 
 #[wasm_bindgen]
-pub fn lint_task_config(actions: &js_sys::Set, inputs: &js_sys::Set, content: &str) -> LintResults {
-    let parse_result = json5::from_str::<TaskConfig>(content);
-
-    let errors = match parse_result {
-        Ok(TaskConfig::StateMachine(m)) => lint_state_machines(actions, inputs, &m),
-        Err(json5::Error::Message { msg, location }) => vec![LintResult {
-            message: msg,
-            error_type: ErrorType::Json,
-            invalid_value: None,
-            location: location.map(|l| Location {
-                line: l.line as i32,
-                column: l.column as i32,
-            }),
-        }],
-    };
-
-    // serde_wasm_bindgen::to_value(&errors).map_err(|e| e.into())
-    LintResults(errors)
+pub struct Validator {
+    actions: FxHashSet<String>,
+    inputs: FxHashSet<String>,
 }
 
-fn lint_state_machines(
-    actions: &js_sys::Set,
-    inputs: &js_sys::Set,
-    m: &StateMachineConfig,
-) -> Vec<LintResult> {
-    let mut errors = vec![];
+#[wasm_bindgen]
+impl Validator {
+    #[wasm_bindgen(constructor)]
+    pub fn new(actions: &js_sys::Set, inputs: &js_sys::Set) -> Self {
+        let actions = actions
+            .values()
+            .into_iter()
+            .filter_map(|value| value.unwrap().as_string())
+            .collect::<FxHashSet<_>>();
+        let inputs = inputs
+            .values()
+            .into_iter()
+            .filter_map(|value| value.unwrap().as_string())
+            .collect::<FxHashSet<_>>();
 
-    for machine in m {
-        if !machine.states.contains_key(&machine.initial) {
-            errors.push(LintResult {
-                message: format!("Invalid initial state {}", machine.initial),
-                error_type: ErrorType::InvalidInitialState,
-                invalid_value: Some(machine.initial.clone()),
-                location: None,
-            })
-        }
+        Validator { actions, inputs }
     }
 
-    errors
+    pub fn validate_config(&self, content: JsValue) -> Result<LintResults, JsValue> {
+        let config = serde_wasm_bindgen::from_value::<TaskConfig>(content)?;
+
+        let errs = config
+            .validate()
+            .err()
+            .map(|e| e.0)
+            .unwrap_or_else(Vec::new)
+            .into_iter()
+            .map(|e| {
+                let error_type = match e {
+                    ValidateError::InvalidInitialState(_) => ErrorType::State,
+                };
+
+                LintResult {
+                    message: e.to_string(),
+                    error_type,
+                    expected: e.expected().cloned().map(|e| e.into_owned()),
+                    location: e.path().map(|p| Location {
+                        path: Some(p.into_iter().join(".")),
+                        ..Default::default()
+                    }),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Ok(LintResults(errs))
+    }
 }

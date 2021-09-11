@@ -7,6 +7,8 @@ use thiserror::Error;
 #[cfg(feature = "full")]
 pub use full::*;
 
+use crate::ValidateError;
+
 #[derive(Debug, Error)]
 pub enum StateMachineError {
     #[error("Machine {idx} unknown state {state}")]
@@ -89,6 +91,18 @@ pub enum ActionInvokeDefDataField {
     Constant(serde_json::Value),
     /// A script that calculates a value
     Script(String),
+}
+
+impl StateMachine {
+    pub fn validate(&self) -> Vec<ValidateError> {
+        let mut errors = Vec::new();
+
+        if !self.states.contains_key(&self.initial) {
+            errors.push(ValidateError::InvalidInitialState(self.initial.clone()));
+        }
+
+        errors
+    }
 }
 
 #[cfg(feature = "full")]

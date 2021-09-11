@@ -22,6 +22,26 @@ pub enum TaskConfig {
     // JS(scripting::TaskJsConfig),
 }
 
+impl TaskConfig {
+    pub fn validate(&self) -> Result<(), ValidateErrors> {
+        let errors = match self {
+            Self::StateMachine(machines) => {
+                let mut errors = Vec::new();
+                for m in machines {
+                    errors.extend_from_slice(m.validate().as_slice());
+                }
+                errors
+            }
+        };
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ValidateErrors(errors))
+        }
+    }
+}
+
 #[cfg(feature = "full")]
 mod full {
     use crate::{
@@ -49,7 +69,7 @@ mod full {
     #[serde(tag = "type", content = "data")]
     pub enum TaskState {
         StateMachine(StateMachineStates),
-        // JS(scripting::TaskJsState)
+        // JS(TaskJsState)
     }
 
     #[derive(Serialize, Deserialize, FromRow)]

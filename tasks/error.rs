@@ -1,4 +1,8 @@
+use std::{borrow::Cow, fmt::Display};
+
 use thiserror::Error;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -36,6 +40,9 @@ pub enum Error {
 
     #[error("Not found")]
     NotFound,
+
+    #[error("Task validation errors: {0}")]
+    ValidateError(#[from] ValidateErrors),
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
@@ -51,6 +58,38 @@ impl ergo_database::transaction::TryIntoSqlxError for Error {
         match self {
             Self::SqlError(e) => Ok(e),
             _ => Err(self),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ValidateErrors(pub Vec<ValidateError>);
+impl std::error::Error for ValidateErrors {}
+impl std::fmt::Display for ValidateErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for err in self.0.iter() {
+            writeln!(f, "{}", err)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, Error)]
+pub enum ValidateError {
+    #[error("Invalid initial state ({})", 0)]
+    InvalidInitialState(String),
+}
+
+impl ValidateError {
+    pub fn path(&self) -> Option<&Vec<Cow<'static, str>>> {
+        match self {
+            Self::InvalidInitialState(_) => None,
+        }
+    }
+
+    pub fn expected(&self) -> Option<&Cow<'static, str>> {
+        match self {
+            Self::InvalidInitialState(_) => None,
         }
     }
 }
