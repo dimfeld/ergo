@@ -58,7 +58,7 @@ impl Validator {
         let config = serde_wasm_bindgen::from_value::<TaskConfig>(content)?;
 
         let errs = config
-            .validate()
+            .validate(&self.actions, &self.inputs)
             .err()
             .map(|e| e.0)
             .unwrap_or_else(Vec::new)
@@ -66,12 +66,13 @@ impl Validator {
             .map(|e| {
                 let error_type = match e {
                     ValidateError::InvalidInitialState(_) => ErrorType::State,
+                    ValidateError::InvalidTriggerId { .. } => ErrorType::State,
                 };
 
                 LintResult {
                     message: e.to_string(),
                     error_type,
-                    expected: e.expected().cloned().map(|e| e.into_owned()),
+                    expected: e.expected().clone().map(|e| e.into_owned()),
                     location: e.path().map(|p| Location {
                         path: Some(p.into_iter().join(".")),
                         ..Default::default()

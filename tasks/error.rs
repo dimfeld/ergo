@@ -78,18 +78,37 @@ impl std::fmt::Display for ValidateErrors {
 pub enum ValidateError {
     #[error("Invalid initial state ({})", 0)]
     InvalidInitialState(String),
+
+    #[error(
+        "Event handler {source}.on[{index}] has unknown trigger id {trigger_id}",
+        source=.state.as_ref().map(|s| s.as_str()).unwrap_or("<root>")
+    )]
+    InvalidTriggerId {
+        trigger_id: String,
+        index: usize,
+        state: Option<String>,
+    },
 }
 
 impl ValidateError {
-    pub fn path(&self) -> Option<&Vec<Cow<'static, str>>> {
+    pub fn path(&self) -> Option<Vec<Cow<'static, str>>> {
         match self {
             Self::InvalidInitialState(_) => None,
+            Self::InvalidTriggerId { index, state, .. } => Some(vec![
+                state
+                    .as_ref()
+                    .map(|s| Cow::Owned(s.clone()))
+                    .unwrap_or(Cow::Borrowed("<root>")),
+                Cow::Borrowed("on"),
+                Cow::from(format!("{}", index)),
+            ]),
         }
     }
 
-    pub fn expected(&self) -> Option<&Cow<'static, str>> {
+    pub fn expected(&self) -> Option<Cow<'static, str>> {
         match self {
             Self::InvalidInitialState(_) => None,
+            Self::InvalidTriggerId { .. } => Some(Cow::from("valid trigger id for this task")),
         }
     }
 }

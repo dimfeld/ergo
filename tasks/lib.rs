@@ -12,6 +12,7 @@ pub use error::*;
 #[cfg(feature = "full")]
 pub use full::*;
 
+use fxhash::{FxHashMap, FxHashSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -23,12 +24,16 @@ pub enum TaskConfig {
 }
 
 impl TaskConfig {
-    pub fn validate(&self) -> Result<(), ValidateErrors> {
+    pub fn validate(
+        &self,
+        actions: &impl StringKeyContainer,
+        inputs: &impl StringKeyContainer,
+    ) -> Result<(), ValidateErrors> {
         let errors = match self {
             Self::StateMachine(machines) => {
                 let mut errors = Vec::new();
                 for m in machines {
-                    errors.extend_from_slice(m.validate().as_slice());
+                    errors.extend_from_slice(m.validate(actions, inputs).as_slice());
                 }
                 errors
             }
@@ -39,6 +44,22 @@ impl TaskConfig {
         } else {
             Err(ValidateErrors(errors))
         }
+    }
+}
+
+pub trait StringKeyContainer {
+    fn has(&self, key: &String) -> bool;
+}
+
+impl StringKeyContainer for FxHashSet<String> {
+    fn has(&self, key: &String) -> bool {
+        self.contains(key)
+    }
+}
+
+impl<V> StringKeyContainer for FxHashMap<String, V> {
+    fn has(&self, key: &String) -> bool {
+        self.contains_key(key)
     }
 }
 

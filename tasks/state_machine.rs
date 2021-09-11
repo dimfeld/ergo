@@ -7,7 +7,7 @@ use thiserror::Error;
 #[cfg(feature = "full")]
 pub use full::*;
 
-use crate::ValidateError;
+use crate::{StringKeyContainer, ValidateError};
 
 #[derive(Debug, Error)]
 pub enum StateMachineError {
@@ -94,12 +94,31 @@ pub enum ActionInvokeDefDataField {
 }
 
 impl StateMachine {
-    pub fn validate(&self) -> Vec<ValidateError> {
+    pub fn validate(
+        &self,
+        actions: &impl StringKeyContainer,
+        inputs: &impl StringKeyContainer,
+    ) -> Vec<ValidateError> {
         let mut errors = Vec::new();
 
         if !self.states.contains_key(&self.initial) {
             errors.push(ValidateError::InvalidInitialState(self.initial.clone()));
         }
+
+        for (index, handler) in self.on.iter().enumerate() {
+            if !inputs.has(&handler.trigger_id) {
+                errors.push(ValidateError::InvalidTriggerId {
+                    trigger_id: handler.trigger_id.clone(),
+                    state: None,
+                    index,
+                })
+            }
+
+            // TODO actions
+            // TODO Make sure transition target points to a valid state
+        }
+
+        // TODO self.states
 
         errors
     }
