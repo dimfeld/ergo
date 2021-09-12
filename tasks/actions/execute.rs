@@ -391,6 +391,14 @@ async fn execute_action(
     match results {
         Ok(results) => {
             if let Some(notifications) = notifications {
+                event!(Level::INFO,
+                    %task_id,
+                    %action.task_action_local_id,
+                    %action.action_id,
+                    %action.action_name,
+                    %action.task_action_name,
+                    "action succceeded"
+                );
                 let notification = Notification {
                     task_id: invocation.task_id.clone(),
                     event: NotifyEvent::ActionSuccess,
@@ -411,6 +419,15 @@ async fn execute_action(
             Ok(results)
         }
         Err(e) => {
+            event!(Level::ERROR,
+                %task_id,
+                %action.task_action_local_id,
+                %action.action_id,
+                %action.action_name,
+                %action.task_action_name,
+                err=?e,
+                "action failed"
+            );
             notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
             Err(e.into())
         }
