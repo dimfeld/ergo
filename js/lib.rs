@@ -33,7 +33,7 @@ pub fn net_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
         deno_web::init(BlobStore::default(), None),
         deno_crypto::init(crypto_seed),
         deno_net::init::<Permissions>(None, false, None),
-        deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None, None),
+        deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None, None, None),
     ]
 }
 
