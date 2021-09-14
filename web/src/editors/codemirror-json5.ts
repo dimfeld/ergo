@@ -1,5 +1,5 @@
 import { parser as lezerParser } from 'lezer-json5';
-import { parse as fullParser } from 'json5';
+import JSON5 from 'json5';
 import {
   continuedIndent,
   indentNodeProp,
@@ -13,7 +13,7 @@ import { EditorView } from '@codemirror/view';
 import { Diagnostic } from '@codemirror/lint';
 
 /// A language provider that provides JSON5 parsing.
-export const jsonLanguage = LRLanguage.define({
+export const json5Language = LRLanguage.define({
   parser: lezerParser.configure({
     props: [
       indentNodeProp.add({
@@ -25,9 +25,9 @@ export const jsonLanguage = LRLanguage.define({
       }),
       styleTags({
         String: t.string,
+        'Name!': t.propertyName,
         Number: t.number,
         'True False': t.bool,
-        Identifier: t.propertyName,
         null: t.null,
         ',': t.separator,
         '[ ]': t.squareBracket,
@@ -43,14 +43,15 @@ export const jsonLanguage = LRLanguage.define({
 
 /// JSON5 language support.
 export function json5() {
-  return new LanguageSupport(jsonLanguage);
+  return new LanguageSupport(json5Language);
 }
 
+/// JSON5 linting support
 export function json5Linter() {
   return (view: EditorView): Diagnostic[] => {
     let doc = view.state.doc;
     try {
-      fullParser(doc.toString());
+      JSON5.parse(doc.toString());
       return [];
     } catch (e: any) {
       let pos = 0;

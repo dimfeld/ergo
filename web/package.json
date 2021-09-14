@@ -108,9 +108,7 @@
     "sorters": "~1.0.0"
   },
   "jest": {
-    "setupFilesAfterEnv": [
-      "@testing-library/jest-dom/extend-expect"
-    ],
+    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect"],
     "transform": {
       "^.+\\.svelte$": [
         "svelte-jester",
