@@ -19,15 +19,16 @@
   import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
   import { commentKeymap } from '@codemirror/comment';
   import { defaultHighlightStyle } from '@codemirror/highlight';
-  import { lintKeymap } from '@codemirror/lint';
+  import { linter, lintKeymap } from '@codemirror/lint';
   import { javascript } from '@codemirror/lang-javascript';
-  import { json } from '@codemirror/lang-json';
+  import { json, jsonParseLinter } from '@codemirror/lang-json';
+  import { json5, json5Linter } from './codemirror-json5';
   import { oneDark } from '@codemirror/theme-one-dark';
   import { darkModeStore, cssDarkModePreference } from '^/styles';
   import throttle from 'just-throttle';
 
   export let contents: string;
-  export let format: 'js' | 'json';
+  export let format: 'js' | 'json' | 'json5';
   export let enableWrapping = true;
   export let notifyOnChange = false;
 
@@ -40,8 +41,9 @@
   const darkMode = darkModeStore();
 
   const languages = {
-    js: javascript,
-    json: json,
+    js: () => [javascript()],
+    json: () => [json(), linter(jsonParseLinter())],
+    json5: () => [json5(), linter(json5Linter())],
   };
 
   export const view = new EditorView({

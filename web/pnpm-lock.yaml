@@ -53,11 +53,13 @@ specifiers:
   jest: ^27.1.1
   jest-transform-css: ^2.1.0
   json-schema-to-typescript: ^10.1.4
+  json5: ~2.2.0
   just-capitalize: ~1.0.1
   just-clone: ~3.2.1
   just-throttle: ~2.3.1
   just-zip-it: ~2.1.0
   ky: ~0.28.5
+  lezer-json5: github:dimfeld/lezer-json5
   npm-run-all: ^4.1.5
   pkg-up: ^3.1.0
   postcss: ^8.3.6
@@ -103,11 +105,13 @@ dependencies:
   '@popperjs/core': 2.10.1
   '@sveltestack/svelte-query': 1.4.1
   date-fns: 2.22.1
+  json5: 2.2.0
   just-capitalize: 1.0.1
   just-clone: 3.2.1
   just-throttle: 2.3.1
   just-zip-it: 2.1.0
   ky: 0.28.5
+  lezer-json5: link:../../lezer-json5
   sorters: 1.0.0
 
 devDependencies:
@@ -10175,7 +10179,6 @@ packages:
     hasBin: true
     dependencies:
       minimist: 1.2.5
-    dev: true
 
   /jsonfile/2.4.0:
     resolution: {integrity: sha1-NzaitCi4e72gzIO1P6PWM6NcKug=}
@@ -10777,7 +10780,6 @@ packages:
 
   /minimist/1.2.5:
     resolution: {integrity: sha512-FM9nNUYrRBAELZQT3xeZQ7fmMOBg6nWNmJKTcgsJeaLstP/UODVpGsr5OhXhhXg6f+qtJ8uiZ+PUxkDWcgIXLw==}
-    dev: true
 
   /minipass-collect/1.0.2:
     resolution: {integrity: sha512-6T6lH0H8OG9kITm/Jm6tdooIbogG9e0tLgpY6mphXSm/A9u8Nq1ryBG+Qspiub9LjWlBPsPS3tWQ/Botq4FdxA==}

@@ -98,11 +98,13 @@
     "@popperjs/core": "^2.10.1",
     "@sveltestack/svelte-query": "~1.4.1",
     "date-fns": "~2.22.1",
+    "json5": "~2.2.0",
     "just-capitalize": "~1.0.1",
     "just-clone": "~3.2.1",
     "just-throttle": "~2.3.1",
     "just-zip-it": "~2.1.0",
     "ky": "~0.28.5",
+    "lezer-json5": "github:dimfeld/lezer-json5",
     "sorters": "~1.0.0"
   },
   "jest": {
