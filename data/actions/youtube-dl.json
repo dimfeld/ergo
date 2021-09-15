@@ -20,5 +20,5 @@
     { "name": "url", "format": { "type": "string" }, "optional": false }
   ],
   "account_required": false,
-  "postprocess_script": "let match = /Destination: ([^\\r\\n]+)/.exec(output.stdout)[1];\nif(!match) { return; }\nlet splits = match.split('/');\nlet filename = splits[splits.length - 1];\nreturn { ...output, description: { action: 'Downloaded', item: filename } };"
+  "postprocess_script": "let item;\n\nlet playlistMatch = /Finished downloading playlist: ([^\r\n]+)/.exec(output.stdout);\nif(playlistMatch) {\n  item = playlistMatch[1];\n}\n\nif(!item) {\n  let match = /Destination: ([^\r\n]+)/.exec(output.stdout);\n  if(match) {\n    let splits = match[1].split('/');\n    item = splits[splits.length - 1];\n  }\n}\n\nif(!item) { return; }\n\nreturn { ...output, description: { action: 'Downloaded', item } };\n\n"
 }
