@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fmt::Display};
 
+use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -17,11 +18,8 @@ pub enum Error {
     #[error("SQL Error: {0}")]
     SqlError(#[from] sqlx::error::Error),
 
-    #[error(transparent)]
-    JsonSchemaCompilationError(#[from] jsonschema::CompilationError),
-
     #[error("{0:?}")]
-    JsonSchemaValidationError(Vec<String>),
+    JsonSchemaValidationError(SmallVec<[String; 2]>),
 
     #[cfg(feature = "full")]
     #[error(transparent)]
@@ -47,8 +45,14 @@ pub enum Error {
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
     fn from(e: jsonschema::ErrorIterator<'a>) -> Error {
-        let inner = e.map(|e| e.to_string()).collect::<Vec<_>>();
+        let inner = e.map(|e| e.to_string()).collect::<SmallVec<_>>();
         Error::JsonSchemaValidationError(inner)
+    }
+}
+
+impl<'a> From<jsonschema::ValidationError<'a>> for Error {
+    fn from(e: jsonschema::ValidationError<'a>) -> Error {
+        Error::JsonSchemaValidationError(smallvec![e.to_string()])
     }
 }
 

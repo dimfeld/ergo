@@ -13,27 +13,27 @@ test_redis = []
 test_all = ["test_redis"]
 
 [dependencies]
-anyhow = "1.0.42"
-async-trait = "0.1.50"
+anyhow = "1.0.43"
+async-trait = "0.1.51"
 backoff = { version = "0.3.0", features = ["tokio"] }
 chrono = { version = "0.4.19", features = ["serde"] }
-deadpool = "0.8.1"
-deadpool-redis = "0.8.1"
+deadpool = "0.8.2"
+deadpool-redis = "0.9.0"
 ergo-database = { version = "0.1.0", path="../database" }
 ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown" }
-futures = "0.3.15"
+futures = "0.3.17"
 fxhash = "0.2.1"
-itertools = "0.10.0"
+itertools = "0.10.1"
 lazy_static = "1.4.0"
 num_cpus = "1.13.0"
-rand = "0.8.3"
-redis = { version = "0.20.2", features = ["tokio-comp"] }
-serde = { version = "1.0.126", features = ["derive"] }
-serde_json = "1.0.64"
+rand = "0.8.4"
+redis = { version = "0.21.2", features = ["tokio-comp"] }
+serde = { version = "1.0.130", features = ["derive"] }
+serde_json = "1.0.67"
 serde_millis = "0.1.1"
-sqlx = { version = "0.5.5", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
-thiserror = "1.0.25"
-tokio = { version = "1.9.0", features = ["full", "test-util"] }
+sqlx = { version = "0.5.7", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
+thiserror = "1.0.29"
+tokio = { version = "1.11.0", features = ["full", "test-util"] }
 tracing = "0.1.26"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
 

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use deadpool_redis::ConnectionWrapper;
+use deadpool_redis::Connection;
 use lazy_static::lazy_static;
 
 use crate::error::Error;
@@ -38,7 +38,7 @@ impl GetJobScript {
     pub async fn run(
         &self,
         queue: &Queue,
-        conn: &mut ConnectionWrapper,
+        conn: &mut Connection,
         now: &DateTime<Utc>,
     ) -> Result<Option<String>, Error> {
         let now_millis = now.timestamp_millis();

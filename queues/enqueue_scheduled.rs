@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use deadpool_redis::ConnectionWrapper;
+use deadpool_redis::Connection;
 use lazy_static::lazy_static;
 
 use crate::error::Error;
@@ -38,7 +38,7 @@ impl EnqueueScript {
     pub async fn run(
         &self,
         queue: &Queue,
-        conn: &mut ConnectionWrapper,
+        conn: &mut Connection,
         now: &DateTime<Utc>,
     ) -> Result<usize, Error> {
         let items_enqueued: usize = self

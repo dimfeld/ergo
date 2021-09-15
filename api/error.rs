@@ -7,6 +7,7 @@ use ergo_tasks::{
     state_machine::StateMachineError,
 };
 use redis::RedisError;
+use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -45,11 +46,8 @@ pub enum Error {
     #[error(transparent)]
     UuidError(#[from] uuid::Error),
 
-    #[error(transparent)]
-    JsonSchemaCompilationError(#[from] jsonschema::CompilationError),
-
     #[error("{0:?}")]
-    JsonSchemaValidationError(Vec<String>),
+    JsonSchemaValidationError(SmallVec<[String; 2]>),
 
     #[error("State Machine Error: {0}")]
     StateMachineError(#[from] StateMachineError),
@@ -108,8 +106,14 @@ impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
     fn from(e: jsonschema::ErrorIterator<'a>) -> Error {
-        let inner = e.map(|e| e.to_string()).collect::<Vec<_>>();
+        let inner = e.map(|e| e.to_string()).collect::<SmallVec<_>>();
         Error::JsonSchemaValidationError(inner)
+    }
+}
+
+impl<'a> From<jsonschema::ValidationError<'a>> for Error {
+    fn from(e: jsonschema::ValidationError<'a>) -> Error {
+        Error::JsonSchemaValidationError(smallvec![e.to_string()])
     }
 }
 

@@ -427,7 +427,7 @@ impl Queue {
 
     async fn start_working<T: DeserializeOwned + Send + Sync>(
         &self,
-        conn: &mut deadpool_redis::ConnectionWrapper,
+        conn: &mut deadpool_redis::Connection,
         job_id: &str,
         job_id_key: &str,
         now: &DateTime<Utc>,

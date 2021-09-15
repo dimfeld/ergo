@@ -1,5 +1,5 @@
 use chrono::{DateTime, TimeZone, Utc};
-use deadpool_redis::ConnectionWrapper;
+use deadpool_redis::Connection;
 use lazy_static::lazy_static;
 
 use crate::error::Error;
@@ -42,7 +42,7 @@ impl StartWorkScript {
     pub async fn run(
         &self,
         queue: &Queue,
-        conn: &mut ConnectionWrapper,
+        conn: &mut Connection,
         job_id: &str,
         job_id_key: &str,
         now: &DateTime<Utc>,

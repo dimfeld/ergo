@@ -43,7 +43,7 @@ impl JobDoneScript {
     pub async fn run(
         &self,
         queue: &Queue,
-        conn: &mut deadpool_redis::ConnectionWrapper,
+        conn: &mut deadpool_redis::Connection,
         job_id: &str,
         job_data_key: &str,
         now: &DateTime<Utc>,
