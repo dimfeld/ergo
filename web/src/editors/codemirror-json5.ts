@@ -47,7 +47,7 @@ export function json5() {
 }
 
 /// JSON5 linting support
-export function json5Linter() {
+export function json5ParseLinter() {
   return (view: EditorView): Diagnostic[] => {
     let doc = view.state.doc;
     try {

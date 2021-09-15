@@ -29,7 +29,7 @@
   import { Diagnostic, linter as makeLinter, lintKeymap } from '@codemirror/lint';
   import { javascript } from '@codemirror/lang-javascript';
   import { json, jsonParseLinter } from '@codemirror/lang-json';
-  import { json5, json5Linter } from './codemirror-json5';
+  import { json5, json5ParseLinter } from './codemirror-json5';
   import { oneDark } from '@codemirror/theme-one-dark';
   import { darkModeStore, cssDarkModePreference } from '^/styles';
   import throttle from 'just-throttle';
@@ -57,7 +57,7 @@
 
   const linters = {
     json: jsonParseLinter,
-    json5: json5Linter,
+    json5: json5ParseLinter,
   };
 
   export const view = new EditorView({
