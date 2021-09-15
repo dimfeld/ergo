@@ -55,8 +55,7 @@ impl<const PREFIX: usize> ObjectId<PREFIX> {
     }
 
     pub fn new() -> Self {
-        // Use UUIDv7 once it's supported.
-        Self(Uuid::new_v4())
+        Self(ulid::Ulid::new().into())
     }
 
     pub fn from_uuid(u: Uuid) -> Self {
@@ -163,7 +162,7 @@ impl<'de, const PREFIX: usize> serde::de::Visitor<'de> for ObjectIdVisitor<PREFI
             Ok(id) => Ok(id),
             Err(e) => {
                 // See if it's in UUID format instead of the encoded format. This mostly happens when
-                // deserializing from a JSON object generated from inside Postgres.
+                // deserializing from a JSON object generated in Postgres with jsonb_build_object.
                 Uuid::from_str(v)
                     .map(|u| ObjectId::<PREFIX>::from_uuid(u))
                     // Return the more descriptive original error instead of the UUID parsing error
