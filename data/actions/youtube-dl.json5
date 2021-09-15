@@ -11,7 +11,7 @@
         [
           "--no-playlist",
           "--format",
-          "bestvideo[ext=mp4][vcodec!*=av01]+bestaudio[ext=m4a]",
+          "bestvideo[vcodec!*=av01]+bestaudio/best[vcodec!*=av01]",
           "-o",
           "{{YOUTUBE_DL_OUTPUT_DIR}}/%(title)s.%(ext)s",
           {{{{raw}}}}"{{url}}"{{{{/raw}}}}
