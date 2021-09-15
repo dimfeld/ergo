@@ -1,3 +1,10 @@
+<script context="module" lang="ts">
+  // This is the same as CodeMirror's LintSource type but it's not currently exported.
+  export type LintSource = (
+    view: EditorView
+  ) => readonly Diagnostic[] | Promise<readonly Diagnostic[]>;
+</script>
+
 <script lang="ts">
   import { createEventDispatcher, setContext } from 'svelte';
   import {
@@ -19,7 +26,7 @@
   import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
   import { commentKeymap } from '@codemirror/comment';
   import { defaultHighlightStyle } from '@codemirror/highlight';
-  import { linter, lintKeymap } from '@codemirror/lint';
+  import { Diagnostic, linter as makeLinter, lintKeymap } from '@codemirror/lint';
   import { javascript } from '@codemirror/lang-javascript';
   import { json, jsonParseLinter } from '@codemirror/lang-json';
   import { json5, json5Linter } from './codemirror-json5';
@@ -32,6 +39,8 @@
   export let enableWrapping = true;
   export let notifyOnChange = false;
 
+  export let linter: LintSource | undefined = undefined;
+
   const dispatch = createEventDispatcher<{ change: string }>();
 
   let language = new Compartment();
@@ -41,9 +50,14 @@
   const darkMode = darkModeStore();
 
   const languages = {
-    js: () => [javascript()],
-    json: () => [json(), linter(jsonParseLinter())],
-    json5: () => [json5(), linter(json5Linter())],
+    js: javascript,
+    json,
+    json5,
+  };
+
+  const linters = {
+    json: jsonParseLinter,
+    json5: json5Linter,
   };
 
   export const view = new EditorView({
@@ -51,7 +65,7 @@
       doc: contents,
       extensions: [
         EditorView.updateListener.of(viewUpdated),
-        language.of(languages[format]()),
+        language.of([]),
         lineWrapping.of([]),
         theme.of([]),
         lineNumbers(),
@@ -99,7 +113,13 @@
     });
   }
 
-  $: updateCompartment(language, languages[format]());
+  $: activeLinter = linter ?? linters[format]();
+  $: languageComponents = [
+    languages[format](),
+    activeLinter ? makeLinter(activeLinter) : undefined,
+  ].filter(Boolean);
+
+  $: updateCompartment(language, languageComponents);
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
   $: updateCompartment(theme, $darkMode ?? cssDarkModePreference() ? [oneDark] : []);
 

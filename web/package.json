@@ -104,7 +104,7 @@
     "just-throttle": "~2.3.1",
     "just-zip-it": "~2.1.0",
     "ky": "~0.28.5",
-    "lezer-json5": "github:dimfeld/lezer-json5",
+    "lezer-json5": "~1.0.0",
     "sorters": "~1.0.0"
   },
   "jest": {
