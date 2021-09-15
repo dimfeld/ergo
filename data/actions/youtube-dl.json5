@@ -1,0 +1,44 @@
+{
+  "action_id": "{{YOUTUBE_DL_ACTION_ID}}",
+  "action_category_id": "{{ACTION_CATEGORY_ID_GENERAL}}",
+  "name": "Youtube DL",
+  "executor_id": "raw_command",
+  "executor_template": {
+    "t": "Template",
+    "c": [
+      ["command", "/usr/local/bin/youtube-dl"],
+      ["args",
+        [
+          "--no-playlist",
+          "--format",
+          "bestvideo[ext=mp4][vcodec!*=av01]+bestaudio[ext=m4a]",
+          "-o",
+          "{{YOUTUBE_DL_OUTPUT_DIR}}/%(title)s.%(ext)s",
+          {{{{raw}}}}"{{url}}"{{{{/raw}}}}
+        ]
+      ]
+    ]
+  },
+  "template_fields": [
+    { "name": "url", "format": { "type": "string" }, "optional": false }
+  ],
+  "account_required": false,
+  "postprocess_script": "let item;\
+  let playlistMatch = /Finished downloading playlist: ([^\\r\\n]+)/.exec(output.stdout);\
+  if(playlistMatch) {\
+    item = playlistMatch[1];\
+  }\
+  \
+  if(!item) {\
+    let match = /Destination: ([^\\r\\n]+)/.exec(output.stdout);\
+    if(match) {\
+      let splits = match[1].split('/');\
+      item = splits[splits.length - 1];\
+    }\
+  }\
+  \
+  if(!item) { return; }\
+  \
+  return { ...output, description: { action: 'Downloaded', item } };\
+  "
+}
