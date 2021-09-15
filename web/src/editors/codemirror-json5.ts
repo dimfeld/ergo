@@ -46,13 +46,23 @@ export function json5() {
   return new LanguageSupport(json5Language);
 }
 
-/// JSON5 linting support
-export function json5ParseLinter() {
-  return (view: EditorView): Diagnostic[] => {
+/** A function to provide additional linting functionality on the parsed version of the object */
+export type StructureLinter<T = unknown> = (
+  view: EditorView,
+  parsed: T
+) => Diagnostic[] | Promise<Diagnostic[]>;
+
+/**
+ * JSON5 linting support
+ *
+ * @param structureLinter Perform additional linting on the parsed object
+ **/
+export function json5ParseLinter<T = unknown>(structureLinter?: StructureLinter<T>) {
+  return (view: EditorView): Diagnostic[] | Promise<Diagnostic[]> => {
     let doc = view.state.doc;
     try {
-      JSON5.parse(doc.toString());
-      return [];
+      let parsed = JSON5.parse(doc.toString());
+      return structureLinter?.(view, parsed) ?? [];
     } catch (e: any) {
       let pos = 0;
       if ('lineNumber' in e && 'columnNumber' in e) {

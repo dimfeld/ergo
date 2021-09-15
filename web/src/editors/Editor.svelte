@@ -34,6 +34,8 @@
   import { darkModeStore, cssDarkModePreference } from '^/styles';
   import throttle from 'just-throttle';
 
+  import { autocompleter } from './editor';
+
   export let contents: string;
   export let format: 'js' | 'json' | 'json5';
   export let enableWrapping = true;
@@ -78,7 +80,10 @@
         defaultHighlightStyle.fallback,
         bracketMatching(),
         closeBrackets(),
-        autocompletion(),
+        autocompletion({
+          activateOnTyping: true,
+          override: [autocompleter([])],
+        }),
         highlightActiveLine(),
         highlightSelectionMatches(),
         keymap.of([
