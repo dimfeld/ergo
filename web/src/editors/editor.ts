@@ -29,7 +29,7 @@ function memberKey(state: EditorState, node: SyntaxNode) {
   if (node.name !== 'Member') {
     return null;
   }
-  let key = node.getChild('Name');
+  let key = node.getChild('PropertyName');
   if (!key) {
     return null;
   }
@@ -75,7 +75,19 @@ export function autocompleter<T>(specs: AutocompleteSpec<T>[]) {
     let tree = syntaxTree(context.state);
     let pos = tree.resolveInner(context.pos, -1);
     let path = getTreePath(context.state, pos);
-    console.dir({ pos, tree, path });
+
+    let nodeName = pos.name;
+    if (nodeName === 'Member') {
+      // We're somewhere in whitespace inside the Member, so figure out what the
+      // previous node was.
+      let childBeforeCursor = pos.childBefore(context.pos);
+      if (childBeforeCursor) {
+        nodeName = childBeforeCursor.name;
+      }
+    }
+
+    let isKey = pos.name === 'PropertyName';
+    console.dir({ pos, tree, path, name: nodeName, isKey });
     return null;
   };
 }

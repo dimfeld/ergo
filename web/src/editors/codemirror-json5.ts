@@ -25,7 +25,7 @@ export const json5Language = LRLanguage.define({
       }),
       styleTags({
         String: t.string,
-        'Name!': t.propertyName,
+        'PropertyName!': t.propertyName,
         Number: t.number,
         'True False': t.bool,
         null: t.null,

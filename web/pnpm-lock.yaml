@@ -61,7 +61,7 @@ specifiers:
   just-throttle: ~2.3.1
   just-zip-it: ~2.1.0
   ky: ~0.28.5
-  lezer-json5: ~1.0.0
+  lezer-json5: ~1.0.1
   npm-run-all: ^4.1.5
   pkg-up: ^3.1.0
   postcss: ^8.3.6
@@ -115,7 +115,7 @@ dependencies:
   just-throttle: 2.3.1
   just-zip-it: 2.1.0
   ky: 0.28.5
-  lezer-json5: 1.0.0
+  lezer-json5: 1.0.1
   sorters: 1.0.0
 
 devDependencies:
@@ -10298,8 +10298,8 @@ packages:
       type-check: 0.4.0
     dev: true
 
-  /lezer-json5/1.0.0:
-    resolution: {integrity: sha512-53HjSsdl1qSeXrgHLUb+ziVOQzwLM+BEX2iMM4lhLdi4yCEcuRJeqgcstXGTrPySuFXKbWcSNY1tZcEYGuIk+w==}
+  /lezer-json5/1.0.1:
+    resolution: {integrity: sha512-kJ+eY0NsQlzNe7VZLvyzoG+rjj7cVsygXV4Sm/SZHyHKystyEeU96bXQHbGoK/7jAPlYATQ9mTKD4ndFdbmlkA==}
     dependencies:
       '@lezer/lr': 0.15.2
     dev: false
