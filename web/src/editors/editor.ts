@@ -1,12 +1,12 @@
+import { Diagnostic } from '@codemirror/lint';
 import { EditorState } from '@codemirror/state';
-import { CompletionContext } from '@codemirror/autocomplete';
-import { syntaxTree } from '@codemirror/language';
+import { EditorView } from '@codemirror/view';
 import { SyntaxNode, Tree } from '@lezer/common';
 
-export interface AutocompleteSpec<T = unknown> {
-  tokensBefore?: string[];
-  values: (obj: T, currentPath: string[]) => string[];
-}
+// This is the same as CodeMirror's LintSource type but it's not currently exported.
+export type LintSource = (
+  view: EditorView
+) => readonly Diagnostic[] | Promise<readonly Diagnostic[]>;
 
 function stripQuotes(s: string) {
   let first = s[0];
@@ -18,7 +18,6 @@ function stripQuotes(s: string) {
 }
 
 function propertyKey(state: EditorState, node: SyntaxNode) {
-  console.log('propertyKey', node.name);
   if (node.name !== 'Property') {
     return null;
   }
@@ -54,7 +53,7 @@ function getParentProperty(node: SyntaxNode) {
   return cursor.node;
 }
 
-function getPathAtNode(state: EditorState, node: SyntaxNode) {
+export function getPathAtNode(state: EditorState, node: SyntaxNode) {
   let keys: (string | number)[] = [];
 
   while (true) {
@@ -62,8 +61,6 @@ function getPathAtNode(state: EditorState, node: SyntaxNode) {
     if (!parent) {
       break;
     }
-
-    console.log('Parent', parent.name, state.sliceDoc(parent.from, parent.to));
 
     if (parent.name === 'Array') {
       let thisPos = node.from;
@@ -104,7 +101,6 @@ function validNodeLookRight(node: SyntaxNode | null) {
 }
 
 function findObjectProperty(state: EditorState, node: SyntaxNode | null, name: string) {
-  console.log('findObjectProperty', node?.name);
   if (node?.name === 'Property') {
     node = propertyValueNode(node);
   }
@@ -132,7 +128,6 @@ function findArrayIndex(node: SyntaxNode | null, index: number) {
     node = propertyValueNode(node);
   }
 
-  console.log('findArrayIndex', node?.name, index);
   if (node?.name !== 'Array') {
     return null;
   }
@@ -152,7 +147,7 @@ function findArrayIndex(node: SyntaxNode | null, index: number) {
 }
 
 // TODO Cache partial tree lookups for multiple calls on a tree.
-function nodeFromPath(state: EditorState, tree: Tree, path: (string | number)[]) {
+export function nodeFromPath(state: EditorState, tree: Tree, path: (string | number)[]) {
   let node: SyntaxNode | null = tree.topNode.firstChild;
 
   let i: number;
@@ -192,34 +187,5 @@ function nodeFromPath(state: EditorState, tree: Tree, path: (string | number)[])
           text: state.sliceDoc(value.from, value.to),
         }
       : null,
-  };
-}
-
-export function autocompleter<T>(specs: AutocompleteSpec<T>[]) {
-  return (context: CompletionContext) => {
-    let tree = syntaxTree(context.state);
-    let pos = tree.resolveInner(context.pos, -1);
-    let path = getPathAtNode(context.state, pos);
-
-    let nodeName = pos.name;
-    if (nodeName === 'Property') {
-      // We're somewhere in whitespace inside the Property, so figure out what the
-      // previous node was.
-      let childBeforeCursor = pos.childBefore(context.pos);
-      if (childBeforeCursor) {
-        nodeName = childBeforeCursor.name;
-      }
-    }
-
-    let isKey = pos.name === 'PropertyName';
-    console.dir({
-      pos,
-      tree,
-      path,
-      name: nodeName,
-      isKey,
-      lookup: nodeFromPath(context.state, tree, path),
-    });
-    return null;
   };
 }

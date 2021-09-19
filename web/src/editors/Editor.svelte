@@ -1,10 +1,3 @@
-<script context="module" lang="ts">
-  // This is the same as CodeMirror's LintSource type but it's not currently exported.
-  export type LintSource = (
-    view: EditorView
-  ) => readonly Diagnostic[] | Promise<readonly Diagnostic[]>;
-</script>
-
 <script lang="ts">
   import { createEventDispatcher, setContext } from 'svelte';
   import {
@@ -34,7 +27,8 @@
   import { darkModeStore, cssDarkModePreference } from '^/styles';
   import throttle from 'just-throttle';
 
-  import { autocompleter } from './editor';
+  import { autocompleter } from './autocomplete';
+  import { LintSource } from './editor';
 
   export let contents: string;
   export let format: 'js' | 'json' | 'json5';

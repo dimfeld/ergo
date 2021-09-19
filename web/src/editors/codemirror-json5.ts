@@ -11,6 +11,7 @@ import {
 import { styleTags, tags as t } from '@codemirror/highlight';
 import { EditorView } from '@codemirror/view';
 import { Diagnostic } from '@codemirror/lint';
+import { StateField, Text, Transaction } from '@codemirror/state';
 
 /// A language provider that provides JSON5 parsing.
 export const json5Language = LRLanguage.define({
@@ -50,7 +51,7 @@ export const json5Language = LRLanguage.define({
 
 /// JSON5 language support.
 export function json5() {
-  return new LanguageSupport(json5Language);
+  return new LanguageSupport(json5Language, json5ParseCache.extension);
 }
 
 /** A function to provide additional linting functionality on the parsed version of the object */
@@ -58,6 +59,27 @@ export type StructureLinter<T = unknown> = (
   view: EditorView,
   parsed: T
 ) => Diagnostic[] | Promise<Diagnostic[]>;
+
+interface Json5SyntaxError extends SyntaxError {
+  lineNumber: number;
+  columnNumber: number;
+}
+
+function handleParseError(doc: Text, e: Error | Json5SyntaxError): Diagnostic[] {
+  let pos = 0;
+  if ('lineNumber' in e && 'columnNumber' in e) {
+    pos = Math.min(doc.line(e.lineNumber).from + e.columnNumber - 1, doc.length);
+  }
+
+  return [
+    {
+      from: pos,
+      to: pos,
+      message: e.message,
+      severity: 'error',
+    },
+  ];
+}
 
 /**
  * JSON5 linting support
@@ -67,23 +89,50 @@ export type StructureLinter<T = unknown> = (
 export function json5ParseLinter<T = unknown>(structureLinter?: StructureLinter<T>) {
   return (view: EditorView): Diagnostic[] | Promise<Diagnostic[]> => {
     let doc = view.state.doc;
+    let cached = view.state.field(json5ParseCache, false);
+
+    if (cached) {
+      if (cached.err) {
+        return handleParseError(doc, cached.err);
+      } else if (cached.obj !== undefined) {
+        return structureLinter?.(view, cached.obj as T) ?? [];
+      }
+    }
+
     try {
       let parsed = JSON5.parse(doc.toString());
       return structureLinter?.(view, parsed) ?? [];
-    } catch (e: any) {
-      let pos = 0;
-      if ('lineNumber' in e && 'columnNumber' in e) {
-        pos = Math.min(doc.line(e.lineNumber).from + e.columnNumber - 1, doc.length);
-      }
-
-      return [
-        {
-          from: pos,
-          to: pos,
-          message: e.message,
-          severity: 'error',
-        },
-      ];
+    } catch (e: unknown) {
+      return handleParseError(doc, e as Json5SyntaxError);
     }
   };
 }
+
+/** The parsed JSON5 value from the editor buffer */
+export interface Json5ParseCache {
+  err: Json5SyntaxError | null;
+  obj: unknown | undefined;
+}
+
+/** A cache to allow linters, autocomplete, etc. to not have to parse the
+ * same text over and over again. */
+export const json5ParseCache = StateField.define<Json5ParseCache | null>({
+  create() {
+    return null;
+  },
+  update(oldValue, tx: Transaction) {
+    if (!tx.docChanged) {
+      return oldValue;
+    }
+
+    try {
+      let parsed = JSON5.parse(tx.newDoc.toString());
+      return { err: null, obj: parsed };
+    } catch (e: unknown) {
+      return {
+        err: e as Json5SyntaxError,
+        obj: oldValue?.obj,
+      };
+    }
+  },
+});

@@ -3,12 +3,27 @@
   import Editor from './Editor.svelte';
   import EventHandler from './state_machine/EventHandler.svelte';
   import zip from 'just-zip-it';
+  import { EditorView } from '@codemirror/view';
+  import { objectLinter, ObjectLintResult } from './lint';
 
   export let compiled: StateMachine[];
   export let source: string[];
   // This is totally unfinished but shows a very basic outline of the state machine.
 
-  $: data = zip(compiled || [], source || []);
+  $: data = zip(compiled || [], source || []) as [StateMachine, string][];
+
+  function lint(obj: StateMachine): ObjectLintResult[] {
+    let errors: ObjectLintResult[] = [];
+    if (!(obj.initial in obj.states)) {
+      errors.push({
+        path: ['initial'],
+        key: false,
+        message: 'Initial state must be present in states',
+        severity: 'error',
+      });
+    }
+    return errors;
+  }
 </script>
 
 <div class="flex flex-col space-y-4">
@@ -41,7 +56,11 @@
       <!--     {/each} -->
       <!--   </div> -->
       <!-- {/each} -->
-      <Editor format="json5" contents={source || JSON.stringify(compiled)} />
+      <Editor
+        format="json5"
+        contents={source || JSON.stringify(compiled)}
+        linter={objectLinter(lint)}
+      />
     </div>
   {/each}
 </div>
