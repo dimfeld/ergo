@@ -151,6 +151,33 @@ pub enum ValidateError {
         index: usize,
         state: Option<String>,
     },
+
+    #[error(
+        "Event handler {source}.on[{index}] has invalid target {target}",
+        source=.state.as_ref().map(|s| s.as_str()).unwrap_or("<root>")
+    )]
+    InvalidTarget {
+        state: Option<String>,
+        index: usize,
+        target: String,
+    },
+}
+
+fn path_segment_for_state(state: &Option<String>) -> SmallVec<[ValidatePathSegment; 4]> {
+    let state_name = ValidatePathSegment::String(
+        state
+            .as_ref()
+            .map(|s| Cow::Owned(s.clone()))
+            .unwrap_or(Cow::Borrowed("<root>")),
+    );
+
+    match state.is_some() {
+        true => smallvec![
+            ValidatePathSegment::String(Cow::Borrowed("states")),
+            state_name
+        ],
+        false => smallvec![state_name],
+    }
 }
 
 impl ValidateError {
@@ -161,16 +188,24 @@ impl ValidateError {
                     Cow::Borrowed("initial")
                 )]))
             }
-            Self::InvalidTriggerId { index, state, .. } => Some(ValidatePath(smallvec![
-                ValidatePathSegment::String(
-                    state
-                        .as_ref()
-                        .map(|s| Cow::Owned(s.clone()))
-                        .unwrap_or(Cow::Borrowed("<root>")),
-                ),
-                ValidatePathSegment::String(Cow::Borrowed("on")),
-                ValidatePathSegment::Index(*index),
-            ])),
+            Self::InvalidTriggerId { index, state, .. } => {
+                let mut path = path_segment_for_state(state);
+                path.extend([
+                    ValidatePathSegment::String(Cow::Borrowed("on")),
+                    ValidatePathSegment::Index(*index),
+                    ValidatePathSegment::String(Cow::Borrowed("trigger_id")),
+                ]);
+                Some(ValidatePath(path))
+            }
+            Self::InvalidTarget { state, index, .. } => {
+                let mut path = path_segment_for_state(state);
+                path.extend([
+                    ValidatePathSegment::String(Cow::from("on")),
+                    ValidatePathSegment::Index(*index),
+                    ValidatePathSegment::String(Cow::from("target")),
+                ]);
+                Some(ValidatePath(path))
+            }
         }
     }
 
@@ -178,6 +213,7 @@ impl ValidateError {
         match self {
             Self::InvalidInitialState(_) => Some(Cow::from("a state in the `states` object")),
             Self::InvalidTriggerId { .. } => Some(Cow::from("valid trigger id for this task")),
+            Self::InvalidTarget { .. } => Some(Cow::from("a state in the `states` object")),
         }
     }
 }

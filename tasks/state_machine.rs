@@ -105,22 +105,50 @@ impl StateMachine {
             errors.push(ValidateError::InvalidInitialState(self.initial.clone()));
         }
 
-        for (index, handler) in self.on.iter().enumerate() {
+        self.validate_handlers(actions, inputs, &mut errors, None, &self.on);
+
+        for (state_name, state) in self.states.iter() {
+            self.validate_handlers(actions, inputs, &mut errors, Some(state_name), &state.on);
+        }
+
+        errors
+    }
+
+    fn validate_handlers(
+        &self,
+        actions: &impl StringKeyContainer,
+        inputs: &impl StringKeyContainer,
+        errors: &mut Vec<ValidateError>,
+        state: Option<&String>,
+        handlers: &[EventHandler],
+    ) {
+        for (index, handler) in handlers.iter().enumerate() {
             if !inputs.has(&handler.trigger_id) {
                 errors.push(ValidateError::InvalidTriggerId {
                     trigger_id: handler.trigger_id.clone(),
-                    state: None,
+                    state: state.cloned(),
                     index,
-                })
+                });
             }
 
             // TODO actions
-            // TODO Make sure transition target points to a valid state
+
+            // Make sure transition target points to a valid state
+            match handler.target.as_ref() {
+                Some(TransitionTarget::One(s)) => {
+                    if !self.states.contains_key(s) {
+                        errors.push(ValidateError::InvalidTarget {
+                            state: state.cloned(),
+                            index,
+                            target: s.clone(),
+                        });
+                    }
+                }
+                // TODO What can we do here?
+                Some(TransitionTarget::Script(_)) => {}
+                None => {}
+            }
         }
-
-        // TODO self.states
-
-        errors
     }
 }
 
