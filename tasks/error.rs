@@ -1,4 +1,7 @@
-use std::{borrow::Cow, fmt::Display};
+use std::{
+    borrow::Cow,
+    fmt::{Display, Write},
+};
 
 use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
@@ -78,9 +81,65 @@ impl std::fmt::Display for ValidateErrors {
     }
 }
 
+pub struct ValidatePath(SmallVec<[ValidatePathSegment; 4]>);
+
+impl ValidatePath {
+    pub fn as_inner(&self) -> &SmallVec<[ValidatePathSegment; 4]> {
+        &self.0
+    }
+}
+
+impl ToString for ValidatePath {
+    fn to_string(&self) -> String {
+        let needed_size = self
+            .0
+            .iter()
+            .map(|p| match p {
+                // Enough for brackets plus the digits.
+                ValidatePathSegment::Index(i) => {
+                    if *i < 10 {
+                        3
+                    } else if *i < 100 {
+                        4
+                    } else {
+                        5
+                    }
+                }
+                // path segment plus dot
+                ValidatePathSegment::String(s) => s.len() + 1,
+            })
+            .sum();
+
+        let mut output = String::with_capacity(needed_size);
+        let mut first = true;
+        for p in &self.0 {
+            match p {
+                ValidatePathSegment::String(s) => {
+                    if !first {
+                        output.write_char('.').ok();
+                    }
+
+                    output.write_str(s.as_ref()).ok();
+                }
+                ValidatePathSegment::Index(i) => {
+                    write!(output, "[{}]", i).ok();
+                }
+            }
+            first = false;
+        }
+
+        output
+    }
+}
+
+pub enum ValidatePathSegment {
+    String(Cow<'static, str>),
+    Index(usize),
+}
+
 #[derive(Clone, Debug, Error)]
 pub enum ValidateError {
-    #[error("Invalid initial state ({})", 0)]
+    #[error("Invalid initial state: {}", .0)]
     InvalidInitialState(String),
 
     #[error(
@@ -95,23 +154,29 @@ pub enum ValidateError {
 }
 
 impl ValidateError {
-    pub fn path(&self) -> Option<Vec<Cow<'static, str>>> {
+    pub fn path(&self) -> Option<ValidatePath> {
         match self {
-            Self::InvalidInitialState(_) => None,
-            Self::InvalidTriggerId { index, state, .. } => Some(vec![
-                state
-                    .as_ref()
-                    .map(|s| Cow::Owned(s.clone()))
-                    .unwrap_or(Cow::Borrowed("<root>")),
-                Cow::Borrowed("on"),
-                Cow::from(format!("{}", index)),
-            ]),
+            Self::InvalidInitialState(_) => {
+                Some(ValidatePath(smallvec![ValidatePathSegment::String(
+                    Cow::Borrowed("initial")
+                )]))
+            }
+            Self::InvalidTriggerId { index, state, .. } => Some(ValidatePath(smallvec![
+                ValidatePathSegment::String(
+                    state
+                        .as_ref()
+                        .map(|s| Cow::Owned(s.clone()))
+                        .unwrap_or(Cow::Borrowed("<root>")),
+                ),
+                ValidatePathSegment::String(Cow::Borrowed("on")),
+                ValidatePathSegment::Index(*index),
+            ])),
         }
     }
 
     pub fn expected(&self) -> Option<Cow<'static, str>> {
         match self {
-            Self::InvalidInitialState(_) => None,
+            Self::InvalidInitialState(_) => Some(Cow::from("a state in the `states` object")),
             Self::InvalidTriggerId { .. } => Some(Cow::from("valid trigger id for this task")),
         }
     }

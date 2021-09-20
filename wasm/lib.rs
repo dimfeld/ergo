@@ -1,43 +1,42 @@
-use ergo_tasks::{TaskConfig, ValidateError};
+use std::borrow::Cow;
+
+use ergo_tasks::{TaskConfig, ValidatePathSegment};
 use fxhash::FxHashSet;
-use itertools::Itertools;
+use serde::Serialize;
+use serde_path_to_error::Segment;
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen(getter_with_clone)]
-#[derive(Clone, Default)]
-pub struct Location {
-    pub path: Option<String>,
-    pub line: Option<i32>,
-    pub column: Option<i32>,
+#[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LintSeverity {
+    Error,
+    Warning,
+    Info,
 }
 
-#[wasm_bindgen]
-#[derive(Clone)]
-pub enum ErrorType {
-    Json,
-    State,
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum PathSegment<'a> {
+    String(Cow<'a, str>),
+    Index(usize),
 }
 
-#[wasm_bindgen(getter_with_clone)]
-pub struct LintResult {
+#[derive(Serialize)]
+pub struct LintResult<'a> {
     pub message: String,
-    #[wasm_bindgen(js_name = "type")]
-    pub error_type: ErrorType,
-    pub expected: Option<String>,
-    pub location: Option<Location>,
+    pub key: bool,
+    pub path: Vec<PathSegment<'a>>,
+    pub severity: LintSeverity,
 }
 
 #[wasm_bindgen]
-pub struct LintResults(Vec<LintResult>);
-
-#[wasm_bindgen]
-pub struct Validator {
+pub struct TaskConfigValidator {
     actions: FxHashSet<String>,
     inputs: FxHashSet<String>,
 }
 
 #[wasm_bindgen]
-impl Validator {
+impl TaskConfigValidator {
     #[wasm_bindgen(constructor)]
     pub fn new(actions: &js_sys::Set, inputs: &js_sys::Set) -> Self {
         let actions = actions
@@ -51,36 +50,72 @@ impl Validator {
             .filter_map(|value| value.unwrap().as_string())
             .collect::<FxHashSet<_>>();
 
-        Validator { actions, inputs }
+        TaskConfigValidator { actions, inputs }
     }
 
-    pub fn validate_config(&self, content: JsValue) -> Result<LintResults, JsValue> {
-        let config = serde_wasm_bindgen::from_value::<TaskConfig>(content)?;
+    pub fn validate_config(&self, content: JsValue) -> Result<JsValue, JsValue> {
+        let de = serde_wasm_bindgen::Deserializer::from(content);
+        let config: TaskConfig = match serde_path_to_error::deserialize(de) {
+            Ok(c) => c,
+            Err(e) => {
+                let path = e
+                    .path()
+                    .iter()
+                    .map(|seg| match seg {
+                        Segment::Seq { index } => PathSegment::Index(*index),
+                        Segment::Map { key } => PathSegment::String(Cow::from(key.as_str())),
+                        Segment::Enum { variant } => {
+                            PathSegment::String(Cow::from(variant.as_str()))
+                        }
+                        _ => PathSegment::String(Cow::from("<unknown>")),
+                    })
+                    .collect::<Vec<_>>();
+
+                return serde_wasm_bindgen::to_value(&vec![LintResult {
+                    key: false,
+                    path,
+                    severity: LintSeverity::Error,
+                    message: e.to_string(),
+                }])
+                .map_err(|e| e.into());
+            }
+        };
 
         let errs = config
             .validate(&self.actions, &self.inputs)
             .err()
             .map(|e| e.0)
             .unwrap_or_else(Vec::new)
-            .into_iter()
+            .iter()
             .map(|e| {
-                let error_type = match e {
-                    ValidateError::InvalidInitialState(_) => ErrorType::State,
-                    ValidateError::InvalidTriggerId { .. } => ErrorType::State,
+                let message = match e.expected() {
+                    Some(ex) => format!("{}\nExpected {}", e.to_string(), ex),
+                    None => e.to_string(),
                 };
 
                 LintResult {
-                    message: e.to_string(),
-                    error_type,
-                    expected: e.expected().clone().map(|e| e.into_owned()),
-                    location: e.path().map(|p| Location {
-                        path: Some(p.into_iter().join(".")),
-                        ..Default::default()
-                    }),
+                    message,
+                    severity: LintSeverity::Error,
+                    path: e
+                        .path()
+                        .as_ref()
+                        .map(|p| {
+                            p.as_inner()
+                                .iter()
+                                .map(|s| match s {
+                                    ValidatePathSegment::Index(i) => PathSegment::Index(*i),
+                                    ValidatePathSegment::String(s) => {
+                                        PathSegment::String(Cow::from(s.clone()))
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_else(Vec::new),
+                    key: false,
                 }
             })
             .collect::<Vec<_>>();
 
-        Ok(LintResults(errs))
+        serde_wasm_bindgen::to_value(&errs).map_err(|e| e.into())
     }
 }

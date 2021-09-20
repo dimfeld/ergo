@@ -33,12 +33,15 @@ const config = {
     vite: () => ({
       // Vite SSR needs this for packages that expose native ESM exports to Node.
       ssr: {
-        noExternal: ['sorters'],
+        noExternal: ['ergo-wasm', 'sorters'],
       },
       define: {
         'window.ERGO_API_KEY': `'${process.env.API_KEY}'`,
       },
       server: {
+        fs: {
+          allow: ['.', '../wasm/pkg'],
+        },
         proxy: {
           '/api': `http://localhost:${process.env.BIND_PORT || 6543}`,
         },

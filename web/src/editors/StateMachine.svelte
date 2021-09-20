@@ -1,28 +1,43 @@
 <script lang="ts">
   import { StateMachine } from '^/api_types';
   import Editor from './Editor.svelte';
-  import EventHandler from './state_machine/EventHandler.svelte';
   import zip from 'just-zip-it';
-  import { EditorView } from '@codemirror/view';
   import { objectLinter, ObjectLintResult } from './lint';
-
+  import initWasm from '../wasm';
+  import { onDestroy } from 'svelte';
+  import { TaskConfigValidator } from 'ergo-wasm';
   export let compiled: StateMachine[];
   export let source: string[];
   // This is totally unfinished but shows a very basic outline of the state machine.
 
   $: data = zip(compiled || [], source || []) as [StateMachine, string][];
 
+  let wasmLoaded = false;
+  initWasm().then(() => (wasmLoaded = true));
+
+  let validator: TaskConfigValidator | undefined;
+  $: if (wasmLoaded) {
+    validator?.free();
+    validator = new TaskConfigValidator(new Set(), new Set());
+  }
+
+  onDestroy(() => {
+    wasmLoaded = false;
+    validator?.free();
+  });
+
   function lint(obj: StateMachine): ObjectLintResult[] {
-    let errors: ObjectLintResult[] = [];
-    if (!(obj.initial in obj.states)) {
-      errors.push({
-        path: ['initial'],
-        key: false,
-        message: 'Initial state must be present in states',
-        severity: 'error',
-      });
+    let vals = validator?.validate_config({ type: 'StateMachine', data: [obj] }) ?? [];
+
+    // Remove the leading 'data[0]' from each path since we inserted it above.
+    for (let v of vals) {
+      if (v.path?.[0] === 'data') {
+        v.path.shift();
+        v.path.shift();
+      }
     }
-    return errors;
+
+    return vals;
   }
 </script>
 
