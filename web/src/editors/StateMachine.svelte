@@ -6,6 +6,8 @@
   import initWasm from '../wasm';
   import { onDestroy } from 'svelte';
   import { TaskConfigValidator } from 'ergo-wasm';
+  import prettier from 'prettier/standalone';
+  import prettierBabel from 'prettier/parser-babel';
   export let compiled: StateMachine[];
   export let source: string[];
   // This is totally unfinished but shows a very basic outline of the state machine.
@@ -73,7 +75,8 @@
       <!-- {/each} -->
       <Editor
         format="json5"
-        contents={source || JSON.stringify(compiled)}
+        contents={source ||
+          prettier.format(JSON.stringify(compiled), { parser: 'json5', plugins: [prettierBabel] })}
         linter={objectLinter(lint)}
       />
     </div>

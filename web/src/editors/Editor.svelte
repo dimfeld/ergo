@@ -8,7 +8,7 @@
     highlightActiveLine,
     ViewUpdate,
   } from '@codemirror/view';
-  import { Compartment, EditorState, Extension } from '@codemirror/state';
+  import { Compartment, EditorSelection, EditorState, Extension } from '@codemirror/state';
   import { history, historyKeymap } from '@codemirror/history';
   import { indentOnInput } from '@codemirror/language';
   import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';
@@ -24,8 +24,13 @@
   import { json, jsonParseLinter } from '@codemirror/lang-json';
   import { json5, json5ParseLinter } from './codemirror-json5';
   import { oneDark } from '@codemirror/theme-one-dark';
+  import prettier from 'prettier/standalone';
+  import prettierBabel from 'prettier/parser-babel';
+
   import { darkModeStore, cssDarkModePreference } from '^/styles';
   import throttle from 'just-throttle';
+
+  import Button from '^/components/Button.svelte';
 
   import { autocompleter } from './autocomplete';
   import { LintSource } from './editor';
@@ -112,11 +117,26 @@
     });
   }
 
-  $: activeLinter = linter ?? linters[format]();
+  function runPrettier() {
+    let currentCursor = view.state.selection.ranges[view.state.selection.mainIndex].to;
+    let newText = prettier.formatWithCursor(view.state.doc.toString(), {
+      cursorOffset: currentCursor,
+      parser: format,
+      plugins: [prettierBabel],
+    });
+
+    view.dispatch({
+      changes: [{ from: 0, to: view.state.doc.length, insert: newText.formatted }],
+      selection: EditorSelection.cursor(newText.cursorOffset),
+    });
+    view.focus();
+  }
+
+  $: activeLinter = linter ?? linters[format]?.();
   $: languageComponents = [
     languages[format](),
     activeLinter ? makeLinter(activeLinter) : undefined,
-  ].filter(Boolean);
+  ].filter(Boolean) as Extension[];
 
   $: updateCompartment(language, languageComponents);
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
@@ -131,8 +151,9 @@
 </script>
 
 <div class="editor h-full flex flex-col">
-  <div class="h-6 py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
-    <div class="ml-auto">
+  <div class="py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
+    <div class="ml-auto flex flex-row space-x-4 items-center">
+      <Button size="xs" on:click={runPrettier}>Format</Button>
       <label><input type="checkbox" bind:checked={enableWrapping} /> Wrap</label>
     </div>
   </div>
