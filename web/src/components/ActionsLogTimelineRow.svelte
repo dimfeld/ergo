@@ -23,6 +23,13 @@
     }
   }
 
+  const statusMessages = {
+    error: 'failed to run',
+    running: 'is running',
+    pending: 'is waiting to run',
+    success: 'ran action',
+  };
+  $: statusVerb = statusMessages[entry.status] ?? statusMessages.success;
   $: failed = entry.status === 'error';
 </script>
 
@@ -49,7 +56,7 @@
         <p class:failed class="title-row">
           {#if failed || !resultDescription}
             <span class="bolded">{parent.task_trigger_name}</span>
-            {failed ? 'failed to run' : 'ran action'}
+            {statusVerb}
             <span class="bolded">{entry.task_action_name}</span>
           {:else}
             <span>{resultDescription.action}</span>

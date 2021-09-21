@@ -1,13 +1,40 @@
+<script context="module" lang="ts">
+  import { createApiClient } from '^/api';
+
+  /**
+   * @type {import('@sveltejs/kit').Load}
+   */
+  export async function load({ fetch, page }) {
+    const client = createApiClient();
+
+    if (page.params.task_id === 'new') {
+      return {
+        props: {},
+      };
+    }
+
+    let task = await client.get(`/api/tasks/${page.params.task_id}`).json<TaskResult>();
+
+    return {
+      props: {
+        task,
+      },
+    };
+  }
+</script>
+
 <script lang="ts">
-  import { getStores } from '$app/stores';
-  import Query from '^/components/Query.svelte';
+  import { invalidate } from '$app/navigation';
+  import { getStores, page } from '$app/stores';
   import TextField from '^/components/TextField.svelte';
   import type { TaskResult } from '^/api_types';
   import { getHeaderTextStore } from '^/header';
 
   import ScriptEditor from '^/editors/Script.svelte';
   import StateMachineEditor from '^/editors/StateMachine.svelte';
-  import { fetchOnceQuery, objectEditor } from '^/api';
+  import { baseData } from '../../data';
+
+  export let task: TaskResult = defaultTask();
 
   const taskEditors = {
     Script: ScriptEditor,
@@ -15,6 +42,7 @@
   };
 
   const { page } = getStores();
+  const { inputs, actions } = baseData();
 
   function defaultTask(): TaskResult {
     let created = new Date().toISOString();
@@ -36,61 +64,83 @@
   }
 
   $: newTask = $page.params.task_id === 'new';
-  $: taskQuery = newTask ? null : fetchOnceQuery<TaskResult>(['tasks', $page.params.task_id]);
-  $: task = objectEditor(taskQuery, defaultTask);
 
-  const headerText = getHeaderTextStore();
-  $: if ($task) {
-    headerText.set(['Tasks', $task.name || 'New Task']);
-  }
-
-  function initializeSource(type: string) {
-    if ($task) {
-      $task.source = { type, data: null };
+  function revert() {
+    if (newTask) {
+      task = defaultTask();
+    } else {
+      invalidate(`/api/tasks/${$page.params.task_id}`);
     }
   }
 
-  $: taskSource = $task?.source || $task?.compiled;
+  const headerText = getHeaderTextStore();
+  $: headerText.set(['Tasks', task.name || 'New Task']);
+
+  function initializeSource(type: string) {
+    task.source = { type, data: null };
+  }
+
+  $: taskSource = task.source || task.compiled;
+
+  $: taskActions = Object.entries(task.actions).map(([localId, action]) => {
+    return {
+      localId,
+      taskAction: action,
+      action: $actions.get(action.action_id),
+    };
+  });
+
+  $: taskTriggers = Object.entries(task.triggers).map(([localId, trigger]) => {
+    return {
+      localId,
+      trigger,
+      input: $inputs.get(trigger.input_id),
+    };
+  });
 </script>
 
 <div class="flex flex-col flex-grow">
-  <Query query={taskQuery}>
-    <section
-      class="flex flex-col space-y-2 w-full p-2 rounded border border-gray-200 dark:border-gray-400 shadow-md"
-    >
-      <div class="flex w-full justify-between">
-        <p class="text-sm">
-          ID: <span class:text-gray-500={!$task.task_id}>{$task.task_id || 'New Task'}</span>
-        </p>
-        <p>
-          <span class="font-medium text-sm text-gray-700 dark:text-gray-300">Alias</span>
-          <TextField type="text" bind:value={$task.alias} placeholder="None" class="ml-2" />
-        </p>
-      </div>
-      <p>Description: {$task.description || ''}</p>
-      <p>Modified {$task.modified}</p>
-      <p>Actions {JSON.stringify($task.actions)}</p>
-      <p>Triggers {JSON.stringify($task.triggers)}</p>
-    </section>
-
-    <section class="flex flex-col flex-grow mt-4">
-      {#if taskSource}
-        <div class="flex-grow grid grid-rows-1 grid-cols-1 place-items-stretch">
-          <svelte:component
-            this={taskEditors[taskSource.type]}
-            source={$task?.source?.data}
-            compiled={$task?.compiled?.data}
-          />
-        </div>
-      {/if}
+  <section
+    class="flex flex-col space-y-2 w-full p-2 rounded border border-gray-200 dark:border-gray-400 shadow-md"
+  >
+    <div class="flex w-full justify-between">
+      <p class="text-sm">
+        ID: <span class:text-gray-500={!task.task_id}>{task.task_id || 'New Task'}</span>
+      </p>
       <p>
-        {#if taskSource}Change the task type{:else}Select a task type{/if}
+        <span class="font-medium text-sm text-gray-700 dark:text-gray-300">Alias</span>
+        <TextField type="text" bind:value={task.alias} placeholder="None" class="ml-2" />
       </p>
-      <p class="flex space-x-2">
-        <button on:click={() => initializeSource('StateMachine')}>State Machine</button>
-        <button on:click={() => initializeSource('Script')}>Script</button>
-        <button on:click={() => initializeSource('Flowchart')}>FlowChart</button>
-      </p>
-    </section>
-  </Query>
+    </div>
+    <p>Description: {task.description || ''}</p>
+    <p>Modified {task.modified}</p>
+    <p class="font-medium text-gray-700 dark:text-gray-300">Actions</p>
+    {#each taskActions as action (action.localId)}
+      <p>{JSON.stringify(action)}</p>
+    {/each}
+    <p class="font-medium text-gray-700 dark:text-gray-300">Triggers</p>
+    {#each taskTriggers as trigger (trigger.localId)}
+      <p>{JSON.stringify(trigger)}</p>
+    {/each}
+  </section>
+
+  <section class="flex flex-col flex-grow mt-4">
+    {#if taskSource}
+      <div class="flex-grow grid grid-rows-1 grid-cols-1 place-items-stretch">
+        <svelte:component
+          this={taskEditors[taskSource.type]}
+          source={task.source?.data}
+          compiled={task.compiled?.data}
+        />
+      </div>
+    {/if}
+    <p>
+      {#if taskSource}Change the task type{:else}Select a task type{/if}
+    </p>
+    <p class="flex space-x-2">
+      <button on:click={() => initializeSource('StateMachine')}>State Machine</button>
+      <button on:click={() => initializeSource('Script')}>Script</button>
+      <button on:click={() => initializeSource('Flowchart')}>FlowChart</button>
+    </p>
+  </section>
 </div>

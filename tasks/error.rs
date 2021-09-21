@@ -81,10 +81,11 @@ impl std::fmt::Display for ValidateErrors {
     }
 }
 
-pub struct ValidatePath(SmallVec<[ValidatePathSegment; 4]>);
+pub type ValidatePathSegments = SmallVec<[ValidatePathSegment; 8]>;
+pub struct ValidatePath(ValidatePathSegments);
 
 impl ValidatePath {
-    pub fn as_inner(&self) -> &SmallVec<[ValidatePathSegment; 4]> {
+    pub fn as_inner(&self) -> &ValidatePathSegments {
         &self.0
     }
 }
@@ -163,21 +164,16 @@ pub enum ValidateError {
     },
 }
 
-fn path_segment_for_state(state: &Option<String>) -> SmallVec<[ValidatePathSegment; 4]> {
-    let state_name = ValidatePathSegment::String(
-        state
-            .as_ref()
-            .map(|s| Cow::Owned(s.clone()))
-            .unwrap_or(Cow::Borrowed("<root>")),
-    );
-
-    match state.is_some() {
-        true => smallvec![
-            ValidatePathSegment::String(Cow::Borrowed("states")),
-            state_name
-        ],
-        false => smallvec![state_name],
-    }
+fn path_segment_for_state(state: &Option<String>) -> ValidatePathSegments {
+    state
+        .as_ref()
+        .map(|state_name| {
+            smallvec![
+                ValidatePathSegment::String(Cow::Borrowed("states")),
+                ValidatePathSegment::String(Cow::from(state_name.clone()))
+            ]
+        })
+        .unwrap_or_else(SmallVec::new)
 }
 
 impl ValidateError {

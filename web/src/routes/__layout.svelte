@@ -1,11 +1,40 @@
+<script context="module" lang="ts">
+  import { createApiClient } from '^/api';
+
+  /**
+   * @type {import('@sveltejs/kit').Load}
+   */
+  export async function load({ fetch }) {
+    const client = createApiClient(fetch);
+    let [inputs, actions] = await Promise.all([
+      client.get('/api/inputs').json(),
+      client.get('/api/actions').json(),
+    ]);
+
+    return {
+      props: {
+        inputs,
+        actions,
+      },
+    };
+  }
+</script>
+
 <script lang="typescript">
   import '../app.css';
   import { page } from '$app/stores';
   import { createDarkStore, cssDarkModePreference } from '../styles';
   import { createHeaderTextStore } from '^/header';
-  import { createApiClient, setApiClientContext } from '^/api';
+  import { setApiClientContext } from '^/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
+  import { Input, ActionPayload } from '../api_types';
+  import { setBaseData } from '../data';
+
+  export let inputs: Input[];
+  export let actions: ActionPayload[];
+
+  setBaseData(inputs, actions);
 
   const apiClient = createApiClient();
   setApiClientContext(apiClient);

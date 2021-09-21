@@ -53,6 +53,7 @@ specifiers:
   eslint: ^7.32.0
   eslint-config-prettier: ^8.3.0
   eslint-plugin-svelte3: ^3.2.1
+  fast-deep-equal: ~3.1.3
   jest: ^27.1.1
   jest-transform-css: ^2.1.0
   json-schema-to-typescript: ^10.1.4
@@ -113,6 +114,7 @@ dependencies:
   ajv: 8.6.3
   date-fns: 2.22.1
   ergo-wasm: link:../wasm/pkg
+  fast-deep-equal: 3.1.3
   json5: 2.2.0
   just-capitalize: 1.0.1
   just-clone: 3.2.1
