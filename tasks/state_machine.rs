@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 use thiserror::Error;
 
-#[cfg(feature = "full")]
-pub use full::*;
+#[cfg(not(target_family = "wasm"))]
+pub use native::*;
 
-use crate::{StringKeyContainer, ValidateError};
+use crate::{StringKeyContainer, TaskValidateError};
 
 #[derive(Debug, Error)]
 pub enum StateMachineError {
@@ -98,11 +98,11 @@ impl StateMachine {
         &self,
         actions: &impl StringKeyContainer,
         inputs: &impl StringKeyContainer,
-    ) -> Vec<ValidateError> {
+    ) -> Vec<TaskValidateError> {
         let mut errors = Vec::new();
 
         if !self.states.contains_key(&self.initial) {
-            errors.push(ValidateError::InvalidInitialState(self.initial.clone()));
+            errors.push(TaskValidateError::InvalidInitialState(self.initial.clone()));
         }
 
         self.validate_handlers(actions, inputs, &mut errors, None, &self.on);
@@ -118,13 +118,13 @@ impl StateMachine {
         &self,
         actions: &impl StringKeyContainer,
         inputs: &impl StringKeyContainer,
-        errors: &mut Vec<ValidateError>,
+        errors: &mut Vec<TaskValidateError>,
         state: Option<&String>,
         handlers: &[EventHandler],
     ) {
         for (index, handler) in handlers.iter().enumerate() {
             if !inputs.has(&handler.trigger_id) {
-                errors.push(ValidateError::InvalidTriggerId {
+                errors.push(TaskValidateError::InvalidTriggerId {
                     trigger_id: handler.trigger_id.clone(),
                     state: state.cloned(),
                     index,
@@ -137,7 +137,7 @@ impl StateMachine {
             match handler.target.as_ref() {
                 Some(TransitionTarget::One(s)) => {
                     if !self.states.contains_key(s) {
-                        errors.push(ValidateError::InvalidTarget {
+                        errors.push(TaskValidateError::InvalidTarget {
                             state: state.cloned(),
                             index,
                             target: s.clone(),
@@ -152,8 +152,8 @@ impl StateMachine {
     }
 }
 
-#[cfg(feature = "full")]
-mod full {
+#[cfg(not(target_family = "wasm"))]
+mod native {
     use ergo_database::object_id::TaskId;
     use smallvec::SmallVec;
     use tracing::{event, instrument, Level};

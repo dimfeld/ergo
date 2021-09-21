@@ -1,32 +1,15 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use ergo_database::{
-    object_id::{AccountId, ActionId, OrgId, TaskId},
-    PostgresPool,
-};
-use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
-use futures::future::TryFutureExt;
-use fxhash::{FxBuildHasher, FxHashMap};
+#[cfg(not(target_family = "wasm"))]
+use ergo_database::PostgresPool;
+use fxhash::FxHashMap;
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
-use sqlx::types::Json;
 use thiserror::Error;
-use tracing::{event, instrument, Level};
 
-use crate::{
-    actions::ActionStatus,
-    error::Error,
-    scripting::{self, run_simple_with_args},
-};
-
-use super::{
-    template::{self, TemplateFields, TemplateValidationFailure},
-    ActionInvocation,
-};
+use super::template::{TemplateFields, TemplateValidationFailure};
 
 pub fn json_primitive_as_string<'a>(
     field: &str,
@@ -104,52 +87,9 @@ impl From<TemplateValidationFailure> for ExecutorError {
     }
 }
 
-#[derive(Debug, Error)]
-#[error("Action {task_action_name} ({task_id}:{task_action_local_id}): {error}")]
-pub struct ExecuteError {
-    task_id: TaskId,
-    task_action_local_id: String,
-    task_action_name: String,
-    error: ExecuteErrorSource,
-}
-
-impl ExecuteError {
-    fn from_action_and_error(
-        action: &ExecuteActionData,
-        error: impl Into<ExecuteErrorSource>,
-    ) -> Self {
-        ExecuteError {
-            task_id: action.task_id.clone(),
-            task_action_local_id: action.task_action_local_id.clone(),
-            task_action_name: action.task_action_name.clone(),
-            error: error.into(),
-        }
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum ExecuteErrorSource {
-    #[error(transparent)]
-    TemplateError(#[from] super::template::TemplateError),
-
-    #[error("Script error: {0}")]
-    ScriptError(anyhow::Error),
-
-    #[error(transparent)]
-    ExecutorError(#[from] ExecutorError),
-
-    #[error("Unknown executor {0}")]
-    MissingExecutor(String),
-
-    #[error("Action requires an account")]
-    AccountRequired,
-
-    #[error("SQL Error")]
-    SqlError(#[from] sqlx::error::Error),
-}
-
 #[async_trait]
 pub trait Executor: std::fmt::Debug + Send + Sync {
+    #[cfg(not(target_family = "wasm"))]
     async fn execute(
         &self,
         pg_pool: PostgresPool,
@@ -181,96 +121,125 @@ pub enum ScriptOrTemplate {
     Script(String),
 }
 
-#[instrument(name = "execute_action", level = "debug", skip(pg_pool, notifications))]
-pub async fn execute(
-    pg_pool: &PostgresPool,
-    notifications: Option<&NotificationManager>,
-    invocation: &ActionInvocation,
-) -> Result<serde_json::Value, Error> {
-    event!(Level::DEBUG, ?invocation);
+#[cfg(not(target_family = "wasm"))]
+pub use native::*;
 
-    let actions_log_id = invocation.actions_log_id.clone();
-    sqlx::query!(
-        "UPDATE actions_log SET status='running', updated=now() WHERE actions_log_id=$1",
-        invocation.actions_log_id
-    )
-    .execute(pg_pool)
-    .await
-    .map_err(|e| ExecuteError {
-        task_id: invocation.task_id.clone(),
-        task_action_local_id: invocation.task_action_local_id.clone(),
-        // We don't actually know the task action name here, but that's ok.
-        task_action_name: String::new(),
-        error: e.into(),
-    })?;
+#[cfg(not(target_family = "wasm"))]
+mod native {
+    use chrono::{DateTime, Utc};
+    use ergo_database::{
+        object_id::{AccountId, ActionId, OrgId, TaskId},
+        PostgresPool,
+    };
+    use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
+    use futures::future::TryFutureExt;
+    use fxhash::{FxBuildHasher, FxHashMap};
+    use serde_json::json;
+    use sqlx::types::Json;
+    use thiserror::Error;
+    use tracing::{event, instrument, Level};
 
-    let result = execute_action(pg_pool, notifications, invocation).await;
-    event!(Level::DEBUG, ?result);
-
-    let (status, response) = match &result {
-        Ok(r) => (ActionStatus::Success, json!({ "output": r })),
-        Err(e) => {
-            event!(Level::ERROR, err=?e, "Action error");
-            (
-                ActionStatus::Error,
-                json!({
-                    "error": e.to_string(),
-                    "info": format!("{:?}", e),
-                }),
-            )
-        }
+    use crate::{
+        actions::{
+            template::{self, TemplateError, TemplateFields},
+            ActionInvocation, ActionStatus,
+        },
+        error::Error,
+        scripting::{self, run_simple_with_args},
     };
 
-    sqlx::query!(
-        "UPDATE actions_log SET status=$2, result=$3, updated=now()
+    use super::*;
+
+    #[instrument(name = "execute_action", level = "debug", skip(pg_pool, notifications))]
+    pub async fn execute(
+        pg_pool: &PostgresPool,
+        notifications: Option<&NotificationManager>,
+        invocation: &ActionInvocation,
+    ) -> Result<serde_json::Value, Error> {
+        event!(Level::DEBUG, ?invocation);
+
+        let actions_log_id = invocation.actions_log_id.clone();
+        sqlx::query!(
+            "UPDATE actions_log SET status='running', updated=now() WHERE actions_log_id=$1",
+            invocation.actions_log_id
+        )
+        .execute(pg_pool)
+        .await
+        .map_err(|e| ExecuteError {
+            task_id: invocation.task_id.clone(),
+            task_action_local_id: invocation.task_action_local_id.clone(),
+            // We don't actually know the task action name here, but that's ok.
+            task_action_name: String::new(),
+            error: e.into(),
+        })?;
+
+        let result = execute_action(pg_pool, notifications, invocation).await;
+        event!(Level::DEBUG, ?result);
+
+        let (status, response) = match &result {
+            Ok(r) => (ActionStatus::Success, json!({ "output": r })),
+            Err(e) => {
+                event!(Level::ERROR, err=?e, "Action error");
+                (
+                    ActionStatus::Error,
+                    json!({
+                        "error": e.to_string(),
+                        "info": format!("{:?}", e),
+                    }),
+                )
+            }
+        };
+
+        sqlx::query!(
+            "UPDATE actions_log SET status=$2, result=$3, updated=now()
         WHERE actions_log_id=$1",
-        actions_log_id,
-        status as _,
-        response
-    )
-    .execute(pg_pool)
-    .await
-    .map_err(|e| ExecuteError {
-        task_id: invocation.task_id.clone(),
-        task_action_local_id: invocation.task_action_local_id.clone(),
-        // We don't actually know the task action name here, but that's ok.
-        task_action_name: String::new(),
-        error: e.into(),
-    })?;
+            actions_log_id,
+            status as _,
+            response
+        )
+        .execute(pg_pool)
+        .await
+        .map_err(|e| ExecuteError {
+            task_id: invocation.task_id.clone(),
+            task_action_local_id: invocation.task_action_local_id.clone(),
+            // We don't actually know the task action name here, but that's ok.
+            task_action_name: String::new(),
+            error: e.into(),
+        })?;
 
-    result
-}
+        result
+    }
 
-#[derive(Debug, sqlx::FromRow)]
-struct ExecuteActionData {
-    executor_id: String,
-    action_id: ActionId,
-    action_name: String,
-    action_executor_template: Json<ScriptOrTemplate>,
-    action_template_fields: Json<TemplateFields>,
-    account_required: bool,
-    postprocess_script: Option<String>,
-    task_id: TaskId,
-    task_name: String,
-    task_action_local_id: String,
-    task_action_name: String,
-    task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
-    account_id: Option<AccountId>,
-    account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
-    account_expires: Option<DateTime<Utc>>,
-    org_id: OrgId,
-}
+    #[derive(Debug, sqlx::FromRow)]
+    struct ExecuteActionData {
+        executor_id: String,
+        action_id: ActionId,
+        action_name: String,
+        action_executor_template: Json<ScriptOrTemplate>,
+        action_template_fields: Json<TemplateFields>,
+        account_required: bool,
+        postprocess_script: Option<String>,
+        task_id: TaskId,
+        task_name: String,
+        task_action_local_id: String,
+        task_action_name: String,
+        task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
+        account_id: Option<AccountId>,
+        account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
+        account_expires: Option<DateTime<Utc>>,
+        org_id: OrgId,
+    }
 
-async fn execute_action(
-    pg_pool: &PostgresPool,
-    notifications: Option<&NotificationManager>,
-    invocation: &ActionInvocation,
-) -> Result<serde_json::Value, Error> {
-    let task_id = &invocation.task_id;
-    let task_action_local_id = &invocation.task_action_local_id;
-    let mut action: ExecuteActionData = sqlx::query_as_unchecked!(
-        ExecuteActionData,
-        r##"SELECT
+    async fn execute_action(
+        pg_pool: &PostgresPool,
+        notifications: Option<&NotificationManager>,
+        invocation: &ActionInvocation,
+    ) -> Result<serde_json::Value, Error> {
+        let task_id = &invocation.task_id;
+        let task_action_local_id = &invocation.task_action_local_id;
+        let mut action: ExecuteActionData = sqlx::query_as_unchecked!(
+            ExecuteActionData,
+            r##"SELECT
         executor_id,
         action_id as "action_id: ActionId",
         actions.name as action_name,
@@ -294,243 +263,288 @@ async fn execute_action(
         LEFT JOIN accounts USING(account_id)
 
         WHERE task_id=$1 AND task_action_local_id=$2"##,
-        task_id,
-        &task_action_local_id
-    )
-    .fetch_one(pg_pool)
-    .await
-    .map_err(|e| ExecuteError {
-        task_id: task_id.clone(),
-        task_action_local_id: invocation.task_action_local_id.clone(),
-        task_action_name: String::new(),
-        error: e.into(),
-    })?;
-
-    event!(Level::TRACE, ?action);
-    event!(Level::INFO,
-        %task_id,
-        %action.task_action_local_id,
-        %action.action_id,
-        %action.action_name,
-        %action.task_action_name,
-        "executing action"
-    );
-
-    if let Some(notifications) = &notifications {
-        let mut conn = pg_pool.acquire().await?;
-        let notification = Notification {
-            task_id: action.task_id.clone(),
-            event: NotifyEvent::ActionStarted,
-            payload: Some(invocation.payload.clone()),
-            error: None,
-            task_name: action.task_name.clone(),
-            log_id: Some(invocation.actions_log_id.clone()),
-            local_id: action.task_action_local_id.clone(),
-            local_object_id: None,
-            local_object_name: action.task_action_name.clone(),
-        };
-
-        notifications
-            .notify(&mut conn, &action.org_id, notification)
-            .await?;
-    }
-
-    let executor = EXECUTOR_REGISTRY
-        .get(action.executor_id.as_str())
-        .ok_or_else(|| {
-            ExecuteError::from_action_and_error(
-                &action,
-                ExecuteErrorSource::MissingExecutor(action.executor_id.clone()),
-            )
+            task_id,
+            &task_action_local_id
+        )
+        .fetch_one(pg_pool)
+        .await
+        .map_err(|e| ExecuteError {
+            task_id: task_id.clone(),
+            task_action_local_id: invocation.task_action_local_id.clone(),
+            task_action_name: String::new(),
+            error: e.into(),
         })?;
 
-    let prepare_result = prepare_invocation(executor, &invocation.payload, &mut action)
-        .await
-        .map(|values| (executor, values))
-        .map_err(|e| ExecuteError::from_action_and_error(&action, e));
+        event!(Level::TRACE, ?action);
+        event!(Level::INFO,
+            %task_id,
+            %action.task_action_local_id,
+            %action.action_id,
+            %action.action_name,
+            %action.task_action_name,
+            "executing action"
+        );
 
-    let (executor, action_template_values) = match prepare_result {
-        Ok(v) => v,
-        Err(e) => {
-            notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
-            return Err(e.into());
+        if let Some(notifications) = &notifications {
+            let mut conn = pg_pool.acquire().await?;
+            let notification = Notification {
+                task_id: action.task_id.clone(),
+                event: NotifyEvent::ActionStarted,
+                payload: Some(invocation.payload.clone()),
+                error: None,
+                task_name: action.task_name.clone(),
+                log_id: Some(invocation.actions_log_id.clone()),
+                local_id: action.task_action_local_id.clone(),
+                local_object_id: None,
+                local_object_name: action.task_action_name.clone(),
+            };
+
+            notifications
+                .notify(&mut conn, &action.org_id, notification)
+                .await?;
         }
-    };
 
-    event!(Level::TRACE, ?action_template_values);
+        let executor = EXECUTOR_REGISTRY
+            .get(action.executor_id.as_str())
+            .ok_or_else(|| {
+                ExecuteError::from_action_and_error(
+                    &action,
+                    ExecuteErrorSource::MissingExecutor(action.executor_id.clone()),
+                )
+            })?;
 
-    // Send the executor payload to the executor to actually run it.
-    let postprocess = action.postprocess_script.as_ref();
-    let results = executor
-        .execute(pg_pool.clone(), action_template_values)
-        .map_err(|e| e.into())
-        .and_then(|result| async move {
-            match postprocess {
-                Some(script) => {
-                    let processed: serde_json::Value = run_simple_with_args(
-                        script,
-                        &[("output", &result), ("payload", &invocation.payload)],
-                    )
-                    .await
-                    .map_err(|e| ExecuteErrorSource::ScriptError(e))?;
+        let prepare_result = prepare_invocation(executor, &invocation.payload, &mut action)
+            .await
+            .map(|values| (executor, values))
+            .map_err(|e| ExecuteError::from_action_and_error(&action, e));
 
-                    if !processed.is_null() {
-                        Ok(processed)
-                    } else {
-                        // If the postprocess script didn't return anything then just
-                        // return the original result.
-                        Ok::<serde_json::Value, ExecuteErrorSource>(result)
-                    }
-                }
-                None => Ok(result),
+        let (executor, action_template_values) = match prepare_result {
+            Ok(v) => v,
+            Err(e) => {
+                notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
+                return Err(e.into());
             }
-        })
-        .await
-        .map_err(|e| ExecuteError::from_action_and_error(&action, e));
+        };
 
-    match results {
-        Ok(results) => {
-            if let Some(notifications) = notifications {
-                event!(Level::INFO,
+        event!(Level::TRACE, ?action_template_values);
+
+        // Send the executor payload to the executor to actually run it.
+        let postprocess = action.postprocess_script.as_ref();
+        let results = executor
+            .execute(pg_pool.clone(), action_template_values)
+            .map_err(|e| e.into())
+            .and_then(|result| async move {
+                match postprocess {
+                    Some(script) => {
+                        let processed: serde_json::Value = run_simple_with_args(
+                            script,
+                            &[("output", &result), ("payload", &invocation.payload)],
+                        )
+                        .await
+                        .map_err(|e| ExecuteErrorSource::ScriptError(e))?;
+
+                        if !processed.is_null() {
+                            Ok(processed)
+                        } else {
+                            // If the postprocess script didn't return anything then just
+                            // return the original result.
+                            Ok::<serde_json::Value, ExecuteErrorSource>(result)
+                        }
+                    }
+                    None => Ok(result),
+                }
+            })
+            .await
+            .map_err(|e| ExecuteError::from_action_and_error(&action, e));
+
+        match results {
+            Ok(results) => {
+                if let Some(notifications) = notifications {
+                    event!(Level::INFO,
+                        %task_id,
+                        %action.task_action_local_id,
+                        %action.action_id,
+                        %action.action_name,
+                        %action.task_action_name,
+                        "action succceeded"
+                    );
+                    let notification = Notification {
+                        task_id: invocation.task_id.clone(),
+                        event: NotifyEvent::ActionSuccess,
+                        payload: Some(invocation.payload.clone()),
+                        error: None,
+                        task_name: action.task_name.clone(),
+                        log_id: Some(invocation.actions_log_id.clone()),
+                        local_id: action.task_action_local_id.clone(),
+                        local_object_id: None,
+                        local_object_name: action.task_action_name.clone(),
+                    };
+                    let mut conn = pg_pool.acquire().await?;
+                    notifications
+                        .notify(&mut conn, &action.org_id, notification)
+                        .await?;
+                }
+
+                Ok(results)
+            }
+            Err(e) => {
+                event!(Level::ERROR,
                     %task_id,
                     %action.task_action_local_id,
                     %action.action_id,
                     %action.action_name,
                     %action.task_action_name,
-                    "action succceeded"
+                    err=?e,
+                    "action failed"
                 );
-                let notification = Notification {
-                    task_id: invocation.task_id.clone(),
-                    event: NotifyEvent::ActionSuccess,
-                    payload: Some(invocation.payload.clone()),
-                    error: None,
-                    task_name: action.task_name.clone(),
-                    log_id: Some(invocation.actions_log_id.clone()),
-                    local_id: action.task_action_local_id.clone(),
-                    local_object_id: None,
-                    local_object_name: action.task_action_name.clone(),
-                };
-                let mut conn = pg_pool.acquire().await?;
-                notifications
-                    .notify(&mut conn, &action.org_id, notification)
-                    .await?;
+                notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
+                Err(e.into())
             }
-
-            Ok(results)
-        }
-        Err(e) => {
-            event!(Level::ERROR,
-                %task_id,
-                %action.task_action_local_id,
-                %action.action_id,
-                %action.action_name,
-                %action.task_action_name,
-                err=?e,
-                "action failed"
-            );
-            notify_action_error(pg_pool, notifications, invocation, action, &e).await?;
-            Err(e.into())
         }
     }
-}
 
-async fn notify_action_error(
-    pool: &PostgresPool,
-    notifications: Option<&NotificationManager>,
-    invocation: &ActionInvocation,
-    action: ExecuteActionData,
-    error: &ExecuteError,
-) -> Result<(), Error> {
-    if let Some(notifications) = notifications {
-        let notification = Notification {
-            task_id: invocation.task_id.clone(),
-            event: NotifyEvent::ActionError,
-            payload: Some(invocation.payload.clone()),
-            error: Some(error.to_string()),
-            task_name: action.task_name.clone(),
-            log_id: Some(invocation.actions_log_id.clone()),
-            local_id: action.task_action_local_id.clone(),
-            local_object_id: None,
-            local_object_name: action.task_action_name.clone(),
+    async fn notify_action_error(
+        pool: &PostgresPool,
+        notifications: Option<&NotificationManager>,
+        invocation: &ActionInvocation,
+        action: ExecuteActionData,
+        error: &ExecuteError,
+    ) -> Result<(), Error> {
+        if let Some(notifications) = notifications {
+            let notification = Notification {
+                task_id: invocation.task_id.clone(),
+                event: NotifyEvent::ActionError,
+                payload: Some(invocation.payload.clone()),
+                error: Some(error.to_string()),
+                task_name: action.task_name.clone(),
+                log_id: Some(invocation.actions_log_id.clone()),
+                local_id: action.task_action_local_id.clone(),
+                local_object_id: None,
+                local_object_name: action.task_action_name.clone(),
+            };
+
+            let mut conn = pool.acquire().await?;
+            notifications
+                .notify(&mut conn, &action.org_id, notification)
+                .await?;
+        }
+
+        Ok(())
+    }
+
+    async fn prepare_invocation(
+        executor: &Box<dyn Executor>,
+        invocation_payload: &serde_json::Value,
+        action: &mut ExecuteActionData,
+    ) -> Result<FxHashMap<String, serde_json::Value>, ExecuteErrorSource> {
+        if action.account_required && action.account_id.is_none() {
+            return Err(ExecuteErrorSource::AccountRequired);
+        }
+
+        // 1. Merge the invocation payload with action_template and account_fields, if present.
+
+        let mut action_payload = FxHashMap::with_capacity_and_hasher(
+            action.action_template_fields.0.len(),
+            FxBuildHasher::default(),
+        );
+
+        if let Some(task_action_fields) = action.task_action_template.take() {
+            for (k, v) in task_action_fields.0 {
+                action_payload.insert(k, v);
+            }
+        }
+
+        if let serde_json::Value::Object(invocation_payload) = invocation_payload {
+            for (k, v) in invocation_payload {
+                action_payload.insert(k.clone(), v.clone());
+            }
+        }
+
+        if let Some(account_fields) = action.account_fields.take() {
+            for (k, v) in account_fields.0 {
+                action_payload.insert(k, v);
+            }
+        }
+
+        // 2. Verify that it all matches the action template_fields.
+        let action_template_values = match action.action_executor_template.0.clone() {
+            ScriptOrTemplate::Template(t) => template::validate_and_apply(
+                "action",
+                &action.action_id,
+                &action.action_template_fields.0,
+                &t,
+                &action_payload,
+            )?,
+            ScriptOrTemplate::Script(s) => {
+                scripting::POOL
+                    .run(move || async move {
+                        let mut runtime = scripting::create_simple_runtime();
+                        runtime
+                            .set_global_value("args", &action_payload)
+                            .map_err(ExecuteErrorSource::ScriptError)?;
+                        let values: FxHashMap<String, serde_json::Value> = runtime
+                            .run_expression("<action executor template>", s.as_str())
+                            .map_err(ExecuteErrorSource::ScriptError)?;
+                        Ok::<_, ExecuteErrorSource>(values)
+                    })
+                    .await?
+            }
         };
 
-        let mut conn = pool.acquire().await?;
-        notifications
-            .notify(&mut conn, &action.org_id, notification)
-            .await?;
+        // 3. Make sure the resulting template matches what the executor expects.
+        template::validate(
+            "executor",
+            Some(&action.executor_id),
+            executor.template_fields(),
+            &action_template_values,
+        )?;
+
+        Ok(action_template_values)
     }
 
-    Ok(())
-}
-
-async fn prepare_invocation(
-    executor: &Box<dyn Executor>,
-    invocation_payload: &serde_json::Value,
-    action: &mut ExecuteActionData,
-) -> Result<FxHashMap<String, serde_json::Value>, ExecuteErrorSource> {
-    if action.account_required && action.account_id.is_none() {
-        return Err(ExecuteErrorSource::AccountRequired);
+    #[derive(Debug, Error)]
+    #[error("Action {task_action_name} ({task_id}:{task_action_local_id}): {error}")]
+    pub struct ExecuteError {
+        task_id: TaskId,
+        task_action_local_id: String,
+        task_action_name: String,
+        error: ExecuteErrorSource,
     }
 
-    // 1. Merge the invocation payload with action_template and account_fields, if present.
-
-    let mut action_payload = FxHashMap::with_capacity_and_hasher(
-        action.action_template_fields.0.len(),
-        FxBuildHasher::default(),
-    );
-
-    if let Some(task_action_fields) = action.task_action_template.take() {
-        for (k, v) in task_action_fields.0 {
-            action_payload.insert(k, v);
+    impl ExecuteError {
+        fn from_action_and_error(
+            action: &ExecuteActionData,
+            error: impl Into<ExecuteErrorSource>,
+        ) -> Self {
+            ExecuteError {
+                task_id: action.task_id.clone(),
+                task_action_local_id: action.task_action_local_id.clone(),
+                task_action_name: action.task_action_name.clone(),
+                error: error.into(),
+            }
         }
     }
 
-    if let serde_json::Value::Object(invocation_payload) = invocation_payload {
-        for (k, v) in invocation_payload {
-            action_payload.insert(k.clone(), v.clone());
-        }
+    #[derive(Debug, Error)]
+    pub enum ExecuteErrorSource {
+        #[error(transparent)]
+        TemplateError(#[from] TemplateError),
+
+        #[error("Script error: {0}")]
+        ScriptError(anyhow::Error),
+
+        #[error(transparent)]
+        ExecutorError(#[from] ExecutorError),
+
+        #[error("Unknown executor {0}")]
+        MissingExecutor(String),
+
+        #[error("Action requires an account")]
+        AccountRequired,
+
+        #[error("SQL Error")]
+        SqlError(#[from] sqlx::error::Error),
     }
-
-    if let Some(account_fields) = action.account_fields.take() {
-        for (k, v) in account_fields.0 {
-            action_payload.insert(k, v);
-        }
-    }
-
-    // 2. Verify that it all matches the action template_fields.
-    let action_template_values = match action.action_executor_template.0.clone() {
-        ScriptOrTemplate::Template(t) => template::validate_and_apply(
-            "action",
-            &action.action_id,
-            &action.action_template_fields.0,
-            &t,
-            &action_payload,
-        )?,
-        ScriptOrTemplate::Script(s) => {
-            scripting::POOL
-                .run(move || async move {
-                    let mut runtime = scripting::create_simple_runtime();
-                    runtime
-                        .set_global_value("args", &action_payload)
-                        .map_err(ExecuteErrorSource::ScriptError)?;
-                    let values: FxHashMap<String, serde_json::Value> = runtime
-                        .run_expression("<action executor template>", s.as_str())
-                        .map_err(ExecuteErrorSource::ScriptError)?;
-                    Ok::<_, ExecuteErrorSource>(values)
-                })
-                .await?
-        }
-    };
-
-    // 3. Make sure the resulting template matches what the executor expects.
-    template::validate(
-        "executor",
-        Some(&action.executor_id),
-        executor.template_fields(),
-        &action_template_values,
-    )?;
-
-    Ok(action_template_values)
 }
 
 #[cfg(test)]

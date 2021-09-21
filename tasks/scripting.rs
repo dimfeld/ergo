@@ -1,16 +1,16 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "full")]
-pub use full::*;
+#[cfg(not(target_family = "wasm"))]
+pub use native::*;
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct TaskJsConfig {
     pub script: String,
 }
 
-#[cfg(feature = "full")]
-mod full {
+#[cfg(not(target_family = "wasm"))]
+mod native {
     use std::borrow::Cow;
 
     use ergo_js::{
@@ -61,7 +61,7 @@ mod full {
         })
     }
 
-    /// Create a full-features, non-serialized runtime.
+    /// Create a full-featured, non-serialized runtime.
     pub fn create_executor_runtime() -> Runtime {
         let (snapshot, extensions) = snapshot_and_extensions(true, None);
         Runtime::new(RuntimeOptions {

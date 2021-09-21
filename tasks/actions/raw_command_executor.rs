@@ -4,6 +4,7 @@ use super::{
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
+#[cfg(not(target_family = "wasm"))]
 use ergo_database::PostgresPool;
 use fxhash::FxHashMap;
 use serde_json::json;
@@ -57,6 +58,7 @@ impl Executor for RawCommandExecutor {
         "raw_command"
     }
 
+    #[cfg(not(target_family = "wasm"))]
     #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(_pg_pool))]
     async fn execute(
         &self,

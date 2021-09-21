@@ -1,16 +1,14 @@
-#[cfg(feature = "full")]
 pub mod actions;
 mod error;
-#[cfg(feature = "full")]
 pub mod inputs;
-#[cfg(feature = "full")]
+#[cfg(not(target_family = "wasm"))]
 pub mod queue_drain_runner;
 pub mod scripting;
 pub mod state_machine;
 
 pub use error::*;
-#[cfg(feature = "full")]
-pub use full::*;
+#[cfg(not(target_family = "wasm"))]
+pub use native::*;
 
 use fxhash::{FxHashMap, FxHashSet};
 use schemars::JsonSchema;
@@ -28,7 +26,7 @@ impl TaskConfig {
         &self,
         actions: &impl StringKeyContainer,
         inputs: &impl StringKeyContainer,
-    ) -> Result<(), ValidateErrors> {
+    ) -> Result<(), TaskValidateErrors> {
         let errors = match self {
             Self::StateMachine(machines) => {
                 let mut errors = Vec::new();
@@ -42,7 +40,7 @@ impl TaskConfig {
         if errors.is_empty() {
             Ok(())
         } else {
-            Err(ValidateErrors(errors))
+            Err(TaskValidateErrors(errors))
         }
     }
 }
@@ -63,8 +61,8 @@ impl<V> StringKeyContainer for FxHashMap<String, V> {
     }
 }
 
-#[cfg(feature = "full")]
-mod full {
+#[cfg(not(target_family = "wasm"))]
+mod native {
     use crate::{
         actions::{execute::execute, ActionStatus},
         error::*,

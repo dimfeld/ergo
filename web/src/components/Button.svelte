@@ -15,8 +15,10 @@
   };
 
   const styles = {
-    primary: 'border-accent-300 dark:border-accent-700',
-    normal: 'border-gray-300 dark:borde-gray-700',
+    primary:
+      'border-accent-300 dark:border-accent-700 bg-accent-100 dark:bg-black hover:bg-accent-200 dark:hover:bg-gray-900',
+    normal:
+      'border-gray-300 dark:border-gray-700 bg-white dark:bg-black hover:bg-accent-50 dark:hover:bg-gray-900 ',
   };
 
   $: dynamicClasses = `${sizes[size]} ${styles[style]} ${classNames}`;
@@ -27,7 +29,7 @@
   type="button"
   {disabled}
   on:click
-  class="inline-flex justify-center border shadow-sm bg-white dark:bg-black text-sm font-medium text-gray-700 disabled:text-gray-400 dark:text-gray-300 dark:disabled:text-gray-400 hover:bg-accent-50 dark:hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 focus:ring-accent-500 dark:focus:ring-accent-700 {dynamicClasses}"
+  class="inline-flex justify-center border shadow-sm font-medium text-gray-700 disabled:text-gray-400 dark:text-gray-300 dark:disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 focus:ring-accent-500 dark:focus:ring-accent-700 {dynamicClasses}"
   class:cursor-not-allowed={disabled}
   ><slot />
 </button>

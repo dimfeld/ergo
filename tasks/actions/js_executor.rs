@@ -3,12 +3,17 @@ use super::{
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
 
+#[cfg(not(target_family = "wasm"))]
 use crate::scripting;
 use async_trait::async_trait;
+#[cfg(not(target_family = "wasm"))]
 use ergo_database::PostgresPool;
+
+#[cfg(not(target_family = "wasm"))]
 use ergo_js::ConsoleMessage;
 use futures::future::{ready, TryFutureExt};
 use fxhash::FxHashMap;
+#[cfg(not(target_family = "wasm"))]
 use tracing::{event, instrument, Level};
 
 const FIELD_NAME: TemplateField = TemplateField::from_static(
@@ -49,6 +54,7 @@ impl Executor for JsExecutor {
         "js"
     }
 
+    #[cfg(not(target_family = "wasm"))]
     async fn execute(
         &self,
         _pg_pool: PostgresPool,

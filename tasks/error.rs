@@ -1,41 +1,38 @@
-use std::{
-    borrow::Cow,
-    fmt::{Display, Write},
-};
+use std::{borrow::Cow, fmt::Write};
 
 use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
-#[cfg(feature = "wasm")]
-use wasm_bindgen::prelude::*;
+
+use crate::actions::template::TemplateError;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[cfg(feature = "full")]
+    #[cfg(not(target_family = "wasm"))]
     #[error("Queue Error {0}")]
     QueueError(#[from] ergo_queues::Error),
 
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
 
-    #[cfg(feature = "full")]
+    #[cfg(not(target_family = "wasm"))]
     #[error("SQL Error: {0}")]
     SqlError(#[from] sqlx::error::Error),
 
     #[error("{0:?}")]
     JsonSchemaValidationError(SmallVec<[String; 2]>),
 
-    #[cfg(feature = "full")]
+    #[cfg(not(target_family = "wasm"))]
     #[error(transparent)]
     DatabaseError(#[from] ergo_database::Error),
 
     #[error("State Machine Error: {0}")]
     StateMachineError(#[from] crate::state_machine::StateMachineError),
 
-    #[cfg(feature = "full")]
+    #[cfg(not(target_family = "wasm"))]
     #[error(transparent)]
     NotificationError(#[from] ergo_notifications::Error),
 
-    #[cfg(feature = "full")]
+    #[cfg(not(target_family = "wasm"))]
     #[error(transparent)]
     ExecuteError(#[from] crate::actions::execute::ExecuteError),
 
@@ -43,7 +40,10 @@ pub enum Error {
     NotFound,
 
     #[error("Task validation errors: {0}")]
-    ValidateError(#[from] ValidateErrors),
+    TaskValidateError(#[from] TaskValidateErrors),
+
+    #[error("Action validation errors: {0}")]
+    ActionValidateError(#[from] ActionValidateErrors),
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
@@ -59,7 +59,7 @@ impl<'a> From<jsonschema::ValidationError<'a>> for Error {
     }
 }
 
-#[cfg(feature = "sqlx")]
+#[cfg(not(target_family = "wasm"))]
 impl ergo_database::transaction::TryIntoSqlxError for Error {
     fn try_into_sqlx_error(self) -> Result<sqlx::Error, Self> {
         match self {
@@ -70,9 +70,9 @@ impl ergo_database::transaction::TryIntoSqlxError for Error {
 }
 
 #[derive(Debug)]
-pub struct ValidateErrors(pub Vec<ValidateError>);
-impl std::error::Error for ValidateErrors {}
-impl std::fmt::Display for ValidateErrors {
+pub struct TaskValidateErrors(pub Vec<TaskValidateError>);
+impl std::error::Error for TaskValidateErrors {}
+impl std::fmt::Display for TaskValidateErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for err in self.0.iter() {
             writeln!(f, "{}", err)?;
@@ -138,8 +138,26 @@ pub enum ValidatePathSegment {
     Index(usize),
 }
 
+impl From<String> for ValidatePathSegment {
+    fn from(s: String) -> Self {
+        Self::String(Cow::Owned(s))
+    }
+}
+
+impl From<&'static str> for ValidatePathSegment {
+    fn from(s: &'static str) -> Self {
+        Self::String(Cow::Borrowed(s))
+    }
+}
+
+impl From<usize> for ValidatePathSegment {
+    fn from(i: usize) -> Self {
+        Self::Index(i)
+    }
+}
+
 #[derive(Clone, Debug, Error)]
-pub enum ValidateError {
+pub enum TaskValidateError {
     #[error("Invalid initial state: {}", .0)]
     InvalidInitialState(String),
 
@@ -167,16 +185,11 @@ pub enum ValidateError {
 fn path_segment_for_state(state: &Option<String>) -> ValidatePathSegments {
     state
         .as_ref()
-        .map(|state_name| {
-            smallvec![
-                ValidatePathSegment::String(Cow::Borrowed("states")),
-                ValidatePathSegment::String(Cow::from(state_name.clone()))
-            ]
-        })
+        .map(|state_name| smallvec!["states".into(), state_name.clone().into(),])
         .unwrap_or_else(SmallVec::new)
 }
 
-impl ValidateError {
+impl TaskValidateError {
     pub fn path(&self) -> Option<ValidatePath> {
         match self {
             Self::InvalidInitialState(_) => {
@@ -186,20 +199,12 @@ impl ValidateError {
             }
             Self::InvalidTriggerId { index, state, .. } => {
                 let mut path = path_segment_for_state(state);
-                path.extend([
-                    ValidatePathSegment::String(Cow::Borrowed("on")),
-                    ValidatePathSegment::Index(*index),
-                    ValidatePathSegment::String(Cow::Borrowed("trigger_id")),
-                ]);
+                path.extend(["on".into(), (*index).into(), "trigger_id".into()]);
                 Some(ValidatePath(path))
             }
             Self::InvalidTarget { state, index, .. } => {
                 let mut path = path_segment_for_state(state);
-                path.extend([
-                    ValidatePathSegment::String(Cow::from("on")),
-                    ValidatePathSegment::Index(*index),
-                    ValidatePathSegment::String(Cow::from("target")),
-                ]);
+                path.extend(["on".into(), (*index).into(), "target".into()]);
                 Some(ValidatePath(path))
             }
         }
@@ -211,5 +216,64 @@ impl ValidateError {
             Self::InvalidTriggerId { .. } => Some(Cow::from("valid trigger id for this task")),
             Self::InvalidTarget { .. } => Some(Cow::from("a state in the `states` object")),
         }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum ActionValidateError {
+    #[error("Unknown executor {0}")]
+    UnknownExecutor(String),
+
+    #[error("Script error: {0}")]
+    ScriptError(anyhow::Error),
+
+    #[error("Template error: {0}")]
+    TemplateError(#[from] TemplateError),
+}
+
+impl ActionValidateError {
+    pub fn path(&self) -> Option<ValidatePath> {
+        match self {
+            Self::UnknownExecutor(_) => Some(ValidatePath(smallvec!["executor_id".into()])),
+            Self::ScriptError(_) => Some(ValidatePath(smallvec![
+                "executor_template".into(),
+                "c".into(),
+            ])),
+            Self::TemplateError(TemplateError::Validation(err)) => {
+                // TODO Take data from the template error
+                Some(ValidatePath(smallvec![
+                    "executor_template".into(),
+                    "c".into(),
+                ]))
+            }
+            Self::TemplateError(_) => None,
+        }
+    }
+
+    pub fn expected(&self) -> Option<Cow<'static, str>> {
+        match self {
+            Self::UnknownExecutor(_) => None,
+            Self::ScriptError(_) => None,
+            // TODO Take info from the template error
+            Self::TemplateError(_) => None,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct ActionValidateErrors(pub SmallVec<[ActionValidateError; 1]>);
+impl std::error::Error for ActionValidateErrors {}
+impl std::fmt::Display for ActionValidateErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for err in self.0.iter() {
+            writeln!(f, "{}", err)?;
+        }
+        Ok(())
+    }
+}
+
+impl From<ActionValidateError> for ActionValidateErrors {
+    fn from(err: ActionValidateError) -> Self {
+        Self(smallvec![err])
     }
 }

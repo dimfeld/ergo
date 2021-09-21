@@ -1,5 +1,4 @@
 use crate::routes::{
-    actions::ActionPayload,
     inputs::InputPayload,
     tasks::{InputsLogEntry, TaskDescription, TaskInput, TaskResult},
 };
@@ -8,6 +7,7 @@ use ergo_tasks::{
     actions::{
         execute::ScriptOrTemplate,
         template::{TemplateField, TemplateFieldFormat},
+        Action,
     },
     inputs::Input,
     state_machine::{
@@ -51,8 +51,8 @@ pub fn main() -> crate::error::Result<()> {
     let schema = schema_for!(TemplateFieldFormat);
     write(&dir, "template_field_format", &schema)?;
 
-    let schema = schema_for!(ActionPayload);
-    write(&dir, "action_payload", &schema)?;
+    let schema = schema_for!(Action);
+    write(&dir, "action", &schema)?;
 
     let schema = schema_for!(ActionPayloadBuilder);
     write(&dir, "action_payload_builder", &schema)?;

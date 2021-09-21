@@ -1,15 +1,14 @@
-use std::{borrow::Cow, convert::TryFrom};
+use std::borrow::Cow;
 
+#[cfg(not(target_family = "wasm"))]
 use ergo_database::PostgresPool;
 
 use super::{
     execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
 };
-use anyhow::anyhow;
 use async_trait::async_trait;
 use fxhash::FxHashMap;
-use serde_json::json;
 use tracing::instrument;
 
 const FIELD_URL: TemplateField = TemplateField::from_static(
@@ -100,122 +99,6 @@ impl HttpExecutor {
 
         HttpExecutor { template_fields }
     }
-
-    async fn execute_internal(
-        &self,
-        payload: FxHashMap<String, serde_json::Value>,
-    ) -> Result<serde_json::Value, ExecutorError> {
-        let user_agent = FIELD_USER_AGENT.extract_str(&payload)?.unwrap_or("Ergo");
-
-        let timeout: u64 = FIELD_TIMEOUT.extract(&payload)?.unwrap_or(30);
-        let client = reqwest::ClientBuilder::new()
-            .user_agent(user_agent)
-            .timeout(std::time::Duration::from_secs(timeout))
-            .build()
-            .map_err(|e| ExecutorError::CommandError {
-                source: anyhow!(e),
-                result: serde_json::Value::Null,
-            })?;
-
-        let method =
-            reqwest::Method::try_from(FIELD_METHOD.extract_str(&payload)?.unwrap_or("GET"))
-                .map_err(|_| ExecutorError::FieldFormatError {
-                    field: "method".to_string(),
-                    subfield: None,
-                    expected: "Valid HTTP method".to_string(),
-                })?;
-
-        let url = FIELD_URL.extract_str(&payload)?.unwrap_or("");
-
-        let req = client.request(method, url);
-
-        let req = match payload.get("headers") {
-            Some(serde_json::Value::Object(o)) => {
-                let header_map = o
-                    .iter()
-                    .map(|(k, v)| {
-                        let name = reqwest::header::HeaderName::try_from(k).map_err(|_| {
-                            ExecutorError::FieldFormatError {
-                                field: "headers".to_string(),
-                                subfield: Some(k.to_string()),
-                                expected: "Valid HTTP header name".to_string(),
-                            }
-                        })?;
-
-                        let value = v
-                            .as_str()
-                            .and_then(|s| reqwest::header::HeaderValue::from_str(s).ok())
-                            .ok_or_else(|| ExecutorError::FieldFormatError {
-                                field: "headers".to_string(),
-                                subfield: Some(k.to_string()),
-                                expected: "Valid HTTP header string value".to_string(),
-                            })?;
-
-                        Ok((name, value))
-                    })
-                    .collect::<Result<reqwest::header::HeaderMap, ExecutorError>>()?;
-
-                req.headers(header_map)
-            }
-            _ => req,
-        };
-
-        let req = if let Some(q) = FIELD_QUERY.extract_object(&payload)? {
-            req.query(q)
-        } else {
-            req
-        };
-
-        let body = payload
-            .get("body")
-            .and_then(|s| s.as_str())
-            .map(|s| s.to_string());
-        let req = match (payload.get("json"), body) {
-            (Some(json), _) => req.json(json),
-            (None, Some(body)) => req.body(body),
-            _ => req,
-        };
-
-        let result = req
-            .send()
-            .await
-            .and_then(|r| r.error_for_status())
-            .map_err(|e| ExecutorError::CommandError {
-                source: anyhow!(e),
-                result: json!(null),
-            })?;
-
-        let status = result.status().as_u16();
-
-        let output = match payload
-            .get("result_format")
-            .and_then(|v| v.as_array())
-            .and_then(|v| v.get(0))
-            .and_then(|b| b.as_str())
-        {
-            Some("string") => {
-                let r = result
-                    .text()
-                    .await
-                    .map_err(|e| ExecutorError::CommandError {
-                        source: anyhow!(e),
-                        result: json!(null),
-                    })?;
-                json!({ "response": r, "status": status })
-            }
-            _ => {
-                let r = result.json::<serde_json::Value>().await.map_err(|e| {
-                    ExecutorError::CommandError {
-                        source: anyhow!(e),
-                        result: json!(null),
-                    }
-                })?;
-                json!({ "response": r, "status": status })
-            }
-        };
-
-        Ok(output)
-    }
 }
 
 #[async_trait]
@@ -224,6 +107,7 @@ impl Executor for HttpExecutor {
         "http"
     }
 
+    #[cfg(not(target_family = "wasm"))]
     #[instrument(level = "debug", name = "HttpExecutor::execute", skip(_pg_pool))]
     async fn execute(
         &self,
@@ -235,6 +119,135 @@ impl Executor for HttpExecutor {
 
     fn template_fields(&self) -> &TemplateFields {
         &self.template_fields
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+mod execute {
+    use std::convert::TryFrom;
+
+    use super::*;
+    use crate::actions::execute::ExecutorError;
+    use anyhow::anyhow;
+    use fxhash::FxHashMap;
+    use serde_json::json;
+
+    impl HttpExecutor {
+        pub async fn execute_internal(
+            &self,
+            payload: FxHashMap<String, serde_json::Value>,
+        ) -> Result<serde_json::Value, ExecutorError> {
+            let user_agent = FIELD_USER_AGENT.extract_str(&payload)?.unwrap_or("Ergo");
+
+            let timeout: u64 = FIELD_TIMEOUT.extract(&payload)?.unwrap_or(30);
+            let client = reqwest::ClientBuilder::new()
+                .user_agent(user_agent)
+                .timeout(std::time::Duration::from_secs(timeout))
+                .build()
+                .map_err(|e| ExecutorError::CommandError {
+                    source: anyhow!(e),
+                    result: serde_json::Value::Null,
+                })?;
+
+            let method =
+                reqwest::Method::try_from(FIELD_METHOD.extract_str(&payload)?.unwrap_or("GET"))
+                    .map_err(|_| ExecutorError::FieldFormatError {
+                        field: "method".to_string(),
+                        subfield: None,
+                        expected: "Valid HTTP method".to_string(),
+                    })?;
+
+            let url = FIELD_URL.extract_str(&payload)?.unwrap_or("");
+
+            let req = client.request(method, url);
+
+            let req = match payload.get("headers") {
+                Some(serde_json::Value::Object(o)) => {
+                    let header_map = o
+                        .iter()
+                        .map(|(k, v)| {
+                            let name = reqwest::header::HeaderName::try_from(k).map_err(|_| {
+                                ExecutorError::FieldFormatError {
+                                    field: "headers".to_string(),
+                                    subfield: Some(k.to_string()),
+                                    expected: "Valid HTTP header name".to_string(),
+                                }
+                            })?;
+
+                            let value = v
+                                .as_str()
+                                .and_then(|s| reqwest::header::HeaderValue::from_str(s).ok())
+                                .ok_or_else(|| ExecutorError::FieldFormatError {
+                                    field: "headers".to_string(),
+                                    subfield: Some(k.to_string()),
+                                    expected: "Valid HTTP header string value".to_string(),
+                                })?;
+
+                            Ok((name, value))
+                        })
+                        .collect::<Result<reqwest::header::HeaderMap, ExecutorError>>()?;
+
+                    req.headers(header_map)
+                }
+                _ => req,
+            };
+
+            let req = if let Some(q) = FIELD_QUERY.extract_object(&payload)? {
+                req.query(q)
+            } else {
+                req
+            };
+
+            let body = payload
+                .get("body")
+                .and_then(|s| s.as_str())
+                .map(|s| s.to_string());
+            let req = match (payload.get("json"), body) {
+                (Some(json), _) => req.json(json),
+                (None, Some(body)) => req.body(body),
+                _ => req,
+            };
+
+            let result = req
+                .send()
+                .await
+                .and_then(|r| r.error_for_status())
+                .map_err(|e| ExecutorError::CommandError {
+                    source: anyhow!(e),
+                    result: json!(null),
+                })?;
+
+            let status = result.status().as_u16();
+
+            let output = match payload
+                .get("result_format")
+                .and_then(|v| v.as_array())
+                .and_then(|v| v.get(0))
+                .and_then(|b| b.as_str())
+            {
+                Some("string") => {
+                    let r = result
+                        .text()
+                        .await
+                        .map_err(|e| ExecutorError::CommandError {
+                            source: anyhow!(e),
+                            result: json!(null),
+                        })?;
+                    json!({ "response": r, "status": status })
+                }
+                _ => {
+                    let r = result.json::<serde_json::Value>().await.map_err(|e| {
+                        ExecutorError::CommandError {
+                            source: anyhow!(e),
+                            result: json!(null),
+                        }
+                    })?;
+                    json!({ "response": r, "status": status })
+                }
+            };
+
+            Ok(output)
+        }
     }
 }
 

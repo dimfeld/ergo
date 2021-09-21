@@ -12,6 +12,7 @@ use ergo_tasks::{
     actions::{
         execute::{ScriptOrTemplate, EXECUTOR_REGISTRY},
         template::{validate, TemplateFields},
+        Action,
     },
     scripting,
 };
@@ -25,62 +26,6 @@ use crate::{
     error::{Error, Result},
     web_app_server::AppStateData,
 };
-
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
-pub struct ActionPayload {
-    pub action_id: Option<ActionId>,
-    pub action_category_id: ActionCategoryId,
-    pub name: String,
-    pub description: Option<String>,
-    pub executor_id: String,
-    pub executor_template: ScriptOrTemplate,
-    pub template_fields: TemplateFields,
-    pub timeout: Option<i32>,
-    /// A script that processes the executor's JSON result.
-    /// The result is exposed in the variable `result` and the action's payload
-    /// is exposed as `payload`. The value returned will replace the executor's
-    /// return value, or an error can be thrown to mark the action as failed.
-    pub postprocess_script: Option<String>,
-    pub account_required: bool,
-    pub account_types: Option<Vec<String>>,
-}
-
-impl ActionPayload {
-    async fn validate(&self) -> Result<()> {
-        let executor = EXECUTOR_REGISTRY
-            .get(self.executor_id.as_str())
-            .ok_or_else(|| Error::UnknownExecutor(self.executor_id.clone()))?;
-
-        let values_map = match &self.executor_template {
-            ScriptOrTemplate::Template(values) => {
-                values.iter().cloned().collect::<FxHashMap<_, _>>()
-            }
-            ScriptOrTemplate::Script(s) => {
-                let s = s.clone();
-                scripting::POOL
-                    .run(move || {
-                        let mut runtime = scripting::create_simple_runtime();
-                        let values = runtime
-                            .run_expression::<FxHashMap<String, serde_json::Value>>(
-                                "<action template>",
-                                &s,
-                            );
-                        ready(values)
-                    })
-                    .await
-                    .map_err(Error::ScriptError)?
-            }
-        };
-
-        validate(
-            "action",
-            self.action_id.as_ref(),
-            executor.template_fields(),
-            &values_map,
-        )?;
-        Ok(())
-    }
-}
 
 #[derive(Clone, Debug, Deserialize, Serialize, sqlx::FromRow, PartialEq, Eq)]
 pub struct ActionDescription {
@@ -117,12 +62,15 @@ pub async fn list_actions(data: AppStateData) -> Result<impl Responder> {
 pub async fn new_action(
     data: AppStateData,
     auth: Authenticated,
-    payload: web::Json<ActionPayload>,
+    payload: web::Json<Action>,
 ) -> Result<impl Responder> {
     auth.expect_admin()?;
 
     let payload = payload.into_inner();
-    payload.validate().await?;
+    payload
+        .validate()
+        .await
+        .map_err(ergo_tasks::Error::ActionValidateError)?;
 
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
@@ -184,14 +132,17 @@ pub async fn write_action(
     data: AppStateData,
     auth: Authenticated,
     action_id: Path<ActionId>,
-    payload: web::Json<ActionPayload>,
+    payload: web::Json<Action>,
 ) -> Result<impl Responder> {
     auth.expect_admin()?;
 
     let action_id = action_id.into_inner();
     let payload = payload.into_inner();
 
-    payload.validate().await?;
+    payload
+        .validate()
+        .await
+        .map_err(ergo_tasks::Error::ActionValidateError)?;
 
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;

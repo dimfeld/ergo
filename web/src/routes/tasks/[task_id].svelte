@@ -24,15 +24,17 @@
 </script>
 
 <script lang="ts">
-  import { invalidate } from '$app/navigation';
+  import { goto, invalidate } from '$app/navigation';
   import { getStores, page } from '$app/stores';
+  import Button from '^/components/Button.svelte';
   import TextField from '^/components/TextField.svelte';
   import type { TaskResult } from '^/api_types';
   import { getHeaderTextStore } from '^/header';
 
   import ScriptEditor from '^/editors/Script.svelte';
   import StateMachineEditor from '^/editors/StateMachine.svelte';
-  import { baseData } from '../../data';
+  import { baseData } from '^/data';
+  import apiClient from '^/api';
 
   export let task: TaskResult = defaultTask();
 
@@ -43,6 +45,7 @@
 
   const { page } = getStores();
   const { inputs, actions } = baseData();
+  const client = apiClient();
 
   function defaultTask(): TaskResult {
     let created = new Date().toISOString();
@@ -73,6 +76,16 @@
     }
   }
 
+  async function save() {
+    if (newTask) {
+      let result = await client.post(`/api/tasks`, { json: task }).json<{ task_id: string }>();
+      task.task_id = result.task_id;
+      goto(result.task_id, { replaceState: true, noscroll: true, keepfocus: true });
+    } else {
+      await client.put(`/api/tasks/${$page.params.task_id}`, { json: task });
+    }
+  }
+
   const headerText = getHeaderTextStore();
   $: headerText.set(['Tasks', task.name || 'New Task']);
 
@@ -100,8 +113,12 @@
 </script>
 
 <div class="flex flex-col flex-grow">
+  <section class="flex flex-row justify-end space-x-4">
+    <Button on:click={revert}>Revert</Button>
+    <Button style="primary" on:click={save}>Save</Button>
+  </section>
   <section
-    class="flex flex-col space-y-2 w-full p-2 rounded border border-gray-200 dark:border-gray-400 shadow-md"
+    class="mt-2 flex flex-col space-y-2 w-full p-2 rounded border border-gray-200 dark:border-gray-400 shadow-md"
   >
     <div class="flex w-full justify-between">
       <p class="text-sm">

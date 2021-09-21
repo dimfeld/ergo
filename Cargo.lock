@@ -1653,6 +1653,7 @@ dependencies = [
  "fxhash",
  "handlebars",
  "itertools",
+ "js-sys",
  "jsonschema",
  "lazy_static",
  "once_cell",
@@ -1661,6 +1662,7 @@ dependencies = [
  "reqwest",
  "schemars",
  "serde 1.0.130",
+ "serde-wasm-bindgen",
  "serde_json",
  "serde_millis",
  "smallvec",
@@ -1669,6 +1671,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uuid",
+ "wasm-bindgen",
  "wiremock",
 ]
 

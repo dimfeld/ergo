@@ -5,7 +5,9 @@ use sqlx::{
     Database, Describe, Error, Execute, Executor, Postgres,
 };
 
-impl<'c> Executor<'c> for &'c mut super::WrappedConnection {
+use crate::connection_manager::WrappedConnection;
+
+impl<'c> Executor<'c> for &'c mut WrappedConnection {
     type Database = Postgres;
 
     #[inline]

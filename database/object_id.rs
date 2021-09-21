@@ -1,3 +1,4 @@
+#[cfg(not(target_family = "wasm"))]
 use sqlx::{postgres::PgTypeInfo, Database};
 use std::{ops::Deref, str::FromStr};
 use thiserror::Error;
@@ -194,12 +195,14 @@ impl<const PREFIX: usize> schemars::JsonSchema for ObjectId<PREFIX> {
 }
 
 /// Store and retrieve in Postgres as a raw UUID
+#[cfg(not(target_family = "wasm"))]
 impl<const PREFIX: usize> sqlx::Type<sqlx::Postgres> for ObjectId<PREFIX> {
     fn type_info() -> <sqlx::Postgres as Database>::TypeInfo {
         PgTypeInfo::with_name("uuid")
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl<'q, const PREFIX: usize> sqlx::Encode<'q, sqlx::Postgres> for ObjectId<PREFIX> {
     fn encode_by_ref(
         &self,
@@ -209,6 +212,7 @@ impl<'q, const PREFIX: usize> sqlx::Encode<'q, sqlx::Postgres> for ObjectId<PREF
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl<'r, const PREFIX: usize> sqlx::Decode<'r, sqlx::Postgres> for ObjectId<PREFIX> {
     fn decode(
         value: <sqlx::Postgres as sqlx::database::HasValueRef<'r>>::ValueRef,

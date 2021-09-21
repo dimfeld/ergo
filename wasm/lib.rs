@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
-use ergo_tasks::{TaskConfig, ValidatePathSegment};
-use fxhash::FxHashSet;
+use ergo_tasks::{actions::Action, inputs::Input, TaskConfig, ValidatePathSegment};
+use fxhash::FxHashMap;
 use serde::Serialize;
 use serde_path_to_error::Segment;
 use wasm_bindgen::prelude::*;
@@ -31,26 +31,21 @@ pub struct LintResult<'a> {
 
 #[wasm_bindgen]
 pub struct TaskConfigValidator {
-    actions: FxHashSet<String>,
-    inputs: FxHashSet<String>,
+    actions: FxHashMap<String, Input>,
+    inputs: FxHashMap<String, Action>,
 }
 
 #[wasm_bindgen]
 impl TaskConfigValidator {
     #[wasm_bindgen(constructor)]
-    pub fn new(actions: &js_sys::Set, inputs: &js_sys::Set) -> Self {
-        let actions = actions
-            .values()
-            .into_iter()
-            .filter_map(|value| value.unwrap().as_string())
-            .collect::<FxHashSet<_>>();
-        let inputs = inputs
-            .values()
-            .into_iter()
-            .filter_map(|value| value.unwrap().as_string())
-            .collect::<FxHashSet<_>>();
+    pub fn new(
+        actions: &js_sys::Map,
+        inputs: &js_sys::Map,
+    ) -> Result<TaskConfigValidator, JsValue> {
+        let actions = serde_wasm_bindgen::from_value(actions.into())?;
+        let inputs = serde_wasm_bindgen::from_value(inputs.into())?;
 
-        TaskConfigValidator { actions, inputs }
+        Ok(TaskConfigValidator { actions, inputs })
     }
 
     pub fn validate_config(&self, content: JsValue) -> Result<JsValue, JsValue> {
