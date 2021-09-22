@@ -42,10 +42,10 @@ pub struct Executor {
     pub template_fields: TemplateFields,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, JsonSchema)]
 #[cfg_attr(not(target_family = "wasm"), derive(sqlx::FromRow))]
 pub struct Action {
-    pub action_id: Option<ActionId>,
+    pub action_id: ActionId,
     pub action_category_id: ActionCategoryId,
     pub name: String,
     pub description: Option<String>,
@@ -59,7 +59,8 @@ pub struct Action {
     /// return value, or an error can be thrown to mark the action as failed.
     pub postprocess_script: Option<String>,
     pub account_required: bool,
-    pub account_types: Option<Vec<String>>,
+    #[serde(default)]
+    pub account_types: Vec<String>,
 }
 
 impl Action {
@@ -79,7 +80,7 @@ impl Action {
 
         self::template::validate(
             "action",
-            self.action_id.as_ref(),
+            Some(&self.action_id),
             executor.template_fields(),
             &values_map,
         )
@@ -114,7 +115,7 @@ pub struct TaskAction {
     pub task_id: TaskId,
     pub account_id: Option<AccountId>,
     pub name: String,
-    pub action_template: Option<serde_json::Map<String, serde_json::Value>>,
+    pub action_template: Option<Vec<(String, serde_json::Value)>>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]

@@ -1,31 +1,27 @@
 use std::{borrow::Cow, collections::HashSet};
 
-use crate::common::{run_app_test, TestApp, TestUser};
+use crate::{
+    common::{run_app_test, TestApp, TestUser},
+    compare_hashmaps,
+};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use ergo_api::routes::{
-    actions::{ActionDescription, ActionPayload},
+    actions::ActionPayload,
     inputs::InputPayload,
     tasks::{NewTaskResult, TaskActionInput, TaskDescription, TaskInput, TaskTriggerInput},
 };
-use ergo_database::object_id::{OrgId, TaskId, TaskTriggerId};
+use ergo_database::object_id::{OrgId, TaskId};
 use ergo_tasks::{
-    actions::{
-        execute::ScriptOrTemplate,
-        template::{TemplateField, TemplateFields},
-    },
+    actions::{execute::ScriptOrTemplate, template::TemplateField, Action},
     inputs::Input,
-    state_machine::{
-        self, StateDefinition, StateMachine, StateMachineConfig, StateMachineData,
-        StateMachineStates,
-    },
+    state_machine::{StateDefinition, StateMachine, StateMachineData},
     TaskConfig, TaskState,
 };
 use futures::future::{join, join_all};
 use fxhash::FxHashMap;
 use serde_json::json;
 use smallvec::smallvec;
-use uuid::Uuid;
 
 pub fn simple_state_machine() -> (TaskConfig, TaskState) {
     let machine = StateMachine {
@@ -59,7 +55,7 @@ struct BootstrappedInputs {
 }
 
 struct BootstrappedActions {
-    echo: ActionDescription,
+    echo: Action,
 }
 
 struct BootstrappedData {
@@ -79,7 +75,6 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
     let user2 = app.add_user(&org_id, "User 2").await?;
 
     let url_input_payload = InputPayload {
-        input_id: None,
         input_category_id: None,
         name: "URL".to_string(),
         description: None,
@@ -101,7 +96,6 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
     };
 
     let echo_action_payload = ActionPayload {
-        action_id: None,
         action_category_id: app.base_action_category.clone(),
         name: "Echo".to_string(),
         postprocess_script: None,
@@ -116,9 +110,10 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             format: ergo_tasks::actions::template::TemplateFieldFormat::String,
             optional: false,
             description: None,
-        }],
+        }]
+        .into(),
         account_required: false,
-        account_types: None,
+        account_types: vec![],
         timeout: None,
     };
 
@@ -360,13 +355,16 @@ async fn get_task() {
                 "Task {}: modified time should be after reference time",
                 i
             );
-            assert_eq!(
-                task.triggers.0, input.triggers,
+
+            compare_hashmaps!(
+                input.triggers,
+                task.triggers.0,
                 "Task {}: triggers list should match",
                 i
             );
-            assert_eq!(
-                task.actions.0, input.actions,
+            compare_hashmaps!(
+                input.actions,
+                task.actions.0,
                 "Task {}: actions list should match",
                 i
             );
@@ -552,8 +550,9 @@ async fn update_task_triggers() {
             .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with added trigger");
-        assert_eq!(
-            added_trigger_result.triggers.0, task.triggers,
+        compare_hashmaps!(
+            task.triggers,
+            added_trigger_result.triggers.0,
             "trigger was added successfully"
         );
 
@@ -568,8 +567,9 @@ async fn update_task_triggers() {
             .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with removed trigger");
-        assert_eq!(
-            removed_trigger_result.triggers.0, task.triggers,
+        compare_hashmaps!(
+            task.triggers,
+            removed_trigger_result.triggers.0,
             "trigger was added successfully"
         );
 
@@ -593,8 +593,9 @@ async fn update_task_triggers() {
             .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with updated trigger");
-        assert_eq!(
-            updated_trigger_result.triggers.0, task.triggers,
+        compare_hashmaps!(
+            task.triggers,
+            updated_trigger_result.triggers.0,
             "trigger was added successfully"
         );
 
@@ -636,8 +637,9 @@ async fn update_task_triggers() {
             .get_task(&user1_tasks[1].0.task_id)
             .await
             .expect("Retrieving task with multiple updates");
-        assert_eq!(
-            updated_trigger_result.triggers.0, task2.triggers,
+        compare_hashmaps!(
+            task2.triggers,
+            updated_trigger_result.triggers.0,
             "triggers were updated"
         );
 
@@ -676,8 +678,9 @@ async fn update_task_actions() {
             .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with added action");
-        assert_eq!(
-            added_action_result.actions.0, task.actions,
+        compare_hashmaps!(
+            task.actions,
+            added_action_result.actions.0,
             "action was added successfully"
         );
 
@@ -692,8 +695,9 @@ async fn update_task_actions() {
             .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with removed action");
-        assert_eq!(
-            removed_action_result.actions.0, task.actions,
+        compare_hashmaps!(
+            task.actions,
+            removed_action_result.actions.0,
             "action was removed successfully"
         );
 
@@ -717,8 +721,9 @@ async fn update_task_actions() {
             .get_task(&user1_tasks[0].0.task_id)
             .await
             .expect("Retrieving task with modified action");
-        assert_eq!(
-            modified_action_result.actions.0, task.actions,
+        compare_hashmaps!(
+            task.actions,
+            modified_action_result.actions.0,
             "action was modified successfully"
         );
 
@@ -763,8 +768,9 @@ async fn update_task_actions() {
             .get_task(&user1_tasks[1].0.task_id)
             .await
             .expect("Retrieving task with modified action");
-        assert_eq!(
-            result.actions.0, task2.actions,
+        compare_hashmaps!(
+            task2.actions,
+            result.actions.0,
             "actions were modified successfully"
         );
 
@@ -813,6 +819,7 @@ async fn list_actions() {
     run_app_test(|app| async move {
         let BootstrappedData { user1, actions, .. } =
             bootstrap_data(&app).await.expect("Bootstrapping");
+
         let action_list = user1
             .client
             .list_actions()
@@ -821,10 +828,12 @@ async fn list_actions() {
             .into_iter()
             .map(|i| (i.action_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
+
         let expected_actions = std::array::IntoIter::new([actions.echo.clone()])
             .map(|i| (i.action_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
-        assert_eq!(action_list, expected_actions, "actions match expected list");
+
+        assert_eq!(expected_actions, action_list, "actions match expected list");
 
         Ok(())
     })

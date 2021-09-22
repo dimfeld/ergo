@@ -1,12 +1,12 @@
 use ergo_api::routes::{
-    actions::{ActionDescription, ActionPayload},
+    actions::ActionPayload,
     inputs::InputPayload,
     tasks::{
         InputsLogEntry, NewTaskResult, TaskDescription, TaskInput, TaskResult, TaskTriggerResponse,
     },
 };
 use ergo_database::object_id::{ActionId, InputId, TaskId};
-use ergo_tasks::inputs::Input;
+use ergo_tasks::{actions::Action, inputs::Input};
 
 use super::TestClient;
 use reqwest::{Response, Result};
@@ -103,7 +103,7 @@ impl TestClient {
         self.delete(url).send().await?.error_for_status()
     }
 
-    pub async fn list_actions(&self) -> Result<Vec<ActionDescription>> {
+    pub async fn list_actions(&self) -> Result<Vec<Action>> {
         self.get("actions")
             .send()
             .await?
@@ -112,7 +112,7 @@ impl TestClient {
             .await
     }
 
-    pub async fn new_action(&self, action: &ActionPayload) -> Result<ActionDescription> {
+    pub async fn new_action(&self, action: &ActionPayload) -> Result<Action> {
         self.post("actions")
             .json(action)
             .send()
@@ -122,13 +122,15 @@ impl TestClient {
             .await
     }
 
-    pub async fn put_action(
-        &self,
-        action_id: &ActionId,
-        action: &ActionPayload,
-    ) -> Result<Response> {
+    pub async fn put_action(&self, action_id: &ActionId, action: &ActionPayload) -> Result<Action> {
         let url = format!("actions/{}", action_id);
-        self.put(url).json(action).send().await?.error_for_status()
+        self.put(url)
+            .json(action)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<_>()
+            .await
     }
 
     pub async fn delete_action(&self, action_id: &ActionId) -> Result<Response> {

@@ -14,11 +14,22 @@ use crate::{error::Result, web_app_server::AppStateData};
 
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 pub struct InputPayload {
-    pub input_id: Option<InputId>,
     pub input_category_id: Option<InputCategoryId>,
     pub name: String,
     pub description: Option<String>,
     pub payload_schema: serde_json::Value,
+}
+
+impl InputPayload {
+    pub fn into_input(self, input_id: InputId) -> Input {
+        Input {
+            input_id,
+            input_category_id: self.input_category_id,
+            name: self.name,
+            description: self.description,
+            payload_schema: self.payload_schema,
+        }
+    }
 }
 
 #[get("/inputs")]
@@ -44,7 +55,7 @@ pub async fn new_input(
 ) -> Result<impl Responder> {
     auth.expect_admin()?;
 
-    let payload = payload.into_inner();
+    let payload = payload.into_inner().into_input(InputId::new());
 
     // Make sure the schema is valid.
     jsonschema::JSONSchema::compile(&payload.payload_schema)?;
@@ -52,11 +63,10 @@ pub async fn new_input(
     let mut conn = data.pg.acquire().await?;
     let mut tx = conn.begin().await?;
 
-    let input_id = InputId::new();
     sqlx::query!(
         "INSERT INTO inputs (input_id, input_category_id, name, description, payload_schema) VALUES
         ($1, $2, $3, $4, $5)",
-        &input_id.0,
+        &payload.input_id.0,
         &payload.input_category_id as _,
         &payload.name,
         &payload.description as _,
@@ -67,13 +77,7 @@ pub async fn new_input(
 
     tx.commit().await?;
 
-    Ok(HttpResponse::Created().json(Input {
-        input_id,
-        input_category_id: payload.input_category_id,
-        name: payload.name,
-        description: payload.description,
-        payload_schema: payload.payload_schema,
-    }))
+    Ok(HttpResponse::Created().json(payload))
 }
 
 #[put("/inputs/{input_id}")]

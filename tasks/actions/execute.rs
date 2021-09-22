@@ -115,7 +115,7 @@ lazy_static! {
     };
 }
 
-#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[derive(Clone, Debug, JsonSchema, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ScriptOrTemplate {
     Template(Vec<(String, serde_json::Value)>),
@@ -555,7 +555,7 @@ mod native {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use serde_json::Value;
+    use serde_json::{json, Value};
 
     #[derive(Debug)]
     struct MockExecutor {

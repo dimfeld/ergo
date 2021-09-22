@@ -214,11 +214,28 @@ pub struct TaskActionInput {
     pub action_template: Option<Vec<(String, serde_json::Value)>>,
 }
 
+impl PartialEq<TaskAction> for TaskActionInput {
+    fn eq(&self, other: &TaskAction) -> bool {
+        self.name == other.name
+            && self.action_id == other.action_id
+            && self.account_id == other.account_id
+            && self.action_template == other.action_template
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskTriggerInput {
     pub input_id: InputId,
     pub name: String,
     pub description: Option<String>,
+}
+
+impl PartialEq<TaskTrigger> for TaskTriggerInput {
+    fn eq(&self, other: &TaskTrigger) -> bool {
+        self.input_id == other.input_id
+            && self.name == other.name
+            && self.description == other.description
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize)]

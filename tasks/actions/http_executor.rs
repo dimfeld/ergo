@@ -256,6 +256,7 @@ mod execute {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
+    use serde_json::json;
     use wiremock::{
         matchers::{self, method, path},
         Mock, MockServer, ResponseTemplate,

@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use ergo_api::{cmd::make_api_key, server::Server};
 use ergo_database::object_id::{ActionCategoryId, OrgId, UserId};
 use futures::Future;
+use fxhash::FxHashMap;
 use once_cell::sync::Lazy;
 
 mod client;
@@ -187,6 +188,49 @@ impl TestApp {
     pub async fn add_user(&self, org_id: &OrgId, name: &str) -> Result<TestUser> {
         self.add_user_with_password(org_id, name, None).await
     }
+}
+
+/** Compare hashmaps that have different value types, if those types implement PartialEq
+ * on each other. */
+#[macro_export]
+macro_rules! compare_hashmaps {
+    ($a: expr, $b: expr, $str: expr) => {
+        if let Err(mismatch) = crate::common::do_compare_hashmap(&$a, &$b) {
+            panic!("{}\n{}", $str, mismatch);
+        }
+    };
+    ($a: expr, $b: expr, $str: expr, $($fmt_args: expr),*) => {
+        if let Err(mismatch) = crate::common::do_compare_hashmap(&$a, &$b) {
+            let msg = format!($str, $($fmt_args)*);
+            panic!("{}\n{}", msg, mismatch);
+        }
+    };
+}
+
+pub fn do_compare_hashmap<K, A, B>(a: &FxHashMap<K, A>, b: &FxHashMap<K, B>) -> Result<(), String>
+where
+    K: std::hash::Hash + PartialEq + Eq + std::fmt::Debug,
+    A: PartialEq<B> + std::fmt::Debug,
+    B: std::fmt::Debug,
+{
+    if a.len() != b.len() {
+        return Err(format!("{:?} was not equal to {:?}", a, b));
+    }
+
+    for (k, a_value) in a.iter() {
+        let b_value = b.get(k).ok_or_else(|| format!(
+            "key {:?} with value {:?} was present in left but not in right\nleft:  {:?}\nright: {:?}",
+             k, a_value, a, b
+        ))?;
+        if a_value != b_value {
+            return Err(format!(
+                "key {:?} had  different value value\nleft:  {:?}\nright: {:?}",
+                k, a_value, b_value
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 // #[proc_macro_attribute]

@@ -256,7 +256,7 @@ impl TemplateField {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TemplateFields(pub Vec<TemplateField>);
 
 impl std::ops::Deref for TemplateFields {
@@ -335,22 +335,6 @@ impl Display for TemplateValidationError {
         Ok(())
     }
 }
-
-// pub trait MapGetter {
-//     fn get(&self, key: &String) -> Option<&serde_json::Value>;
-// }
-//
-// impl MapGetter for std::collections::HashMap<String, serde_json::Value> {
-//     fn get(&self, key: &String) -> Option<&serde_json::Value> {
-//         std::collections::HashMap::get(self, key)
-//     }
-// }
-//
-// impl MapGetter for serde_json::Map<String, serde_json::Value> {
-//     fn get(&self, key: &String) -> Option<&serde_json::Value> {
-//         serde_json::Map::get(self, key)
-//     }
-// }
 
 pub fn validate(
     object: &'static str,

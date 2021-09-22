@@ -11,9 +11,9 @@ use ergo_tasks::{
     actions::{
         execute::ScriptOrTemplate,
         template::{TemplateField, TemplateFieldFormat},
-        ActionStatus,
+        Action, ActionStatus,
     },
-    inputs::InputStatus,
+    inputs::{Input, InputStatus},
     state_machine::{
         ActionInvokeDef, ActionPayloadBuilder, EventHandler, StateDefinition, StateMachine,
         StateMachineData,
@@ -29,8 +29,10 @@ use crate::common::{run_app_test, TestApp, TestUser};
 struct BootstrappedData {
     org: OrgId,
     user: TestUser,
-    script_input: InputPayload,
-    script_action: ActionPayload,
+    script_input: Input,
+    script_input_payload: InputPayload,
+    script_action: Action,
+    script_action_payload: ActionPayload,
     task: TaskInput,
     task_id: TaskId,
 }
@@ -38,10 +40,10 @@ struct BootstrappedData {
 async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
     let org = app.add_org("user org").await?;
     let user = app.add_user(&org, "user 1").await?;
-    let script_input = InputPayload {
+    let script_input_id = InputId::new();
+    let script_input_payload = InputPayload {
         name: "run script".to_string(),
         description: None,
-        input_id: Some(InputId::new()),
         input_category_id: None,
         payload_schema: json!({
           "$schema": "http://json-schema.org/draft-07/schema",
@@ -59,13 +61,15 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         }),
     };
 
-    app.admin_user
+    let script_input = app
+        .admin_user
         .client
-        .put_input(script_input.input_id.as_ref().unwrap(), &script_input)
-        .await?;
+        .put_input(&script_input_id, &script_input_payload)
+        .await
+        .expect("bootstrap: writing script_input_payload");
 
-    let script_action = ActionPayload {
-        action_id: Some(ActionId::new()),
+    let script_action_id = ActionId::new();
+    let script_action_payload = ActionPayload {
         action_category_id: app.base_action_category.clone(),
         name: "Run script".to_string(),
         description: None,
@@ -79,17 +83,20 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
             format: TemplateFieldFormat::String,
             optional: false,
             description: None,
-        }],
+        }]
+        .into(),
         account_required: false,
-        account_types: None,
+        account_types: vec![],
         postprocess_script: None,
         timeout: None,
     };
 
-    app.admin_user
+    let script_action = app
+        .admin_user
         .client
-        .put_action(script_action.action_id.as_ref().unwrap(), &script_action)
-        .await?;
+        .put_action(&script_action_id, &script_action_payload)
+        .await
+        .expect("bootstrap: writing script_action_payload");
 
     let task = TaskInput {
         name: "Run script".to_string(),
@@ -130,7 +137,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
             "run".to_string(),
             TaskActionInput {
                 name: "Run the script".to_string(),
-                action_id: script_action.action_id.clone().unwrap(),
+                action_id: script_action_id.clone(),
                 account_id: None,
                 action_template: None,
             },
@@ -141,7 +148,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         triggers: vec![(
             "run".to_string(),
             TaskTriggerInput {
-                input_id: script_input.input_id.clone().unwrap(),
+                input_id: script_input_id.clone(),
                 name: "Run a script".to_string(),
                 description: None,
             },
@@ -150,13 +157,20 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         .collect::<FxHashMap<_, _>>(),
     };
 
-    let task_id = user.client.new_task(&task).await?.task_id;
+    let task_id = user
+        .client
+        .new_task(&task)
+        .await
+        .expect("bootstrap: writing task")
+        .task_id;
 
     Ok(BootstrappedData {
         org,
         user,
         script_input,
+        script_input_payload,
         script_action,
+        script_action_payload,
         task,
         task_id,
     })
@@ -165,14 +179,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
 #[actix_rt::test]
 async fn script_task() {
     run_app_test(|app| async move {
-        let BootstrappedData {
-            org,
-            user,
-            script_input,
-            script_action,
-            task,
-            task_id,
-        } = bootstrap(&app).await?;
+        let BootstrappedData { user, task_id, .. } = bootstrap(&app).await?;
 
         let script = r##"result = { value: 5 }"##;
 
@@ -219,19 +226,18 @@ async fn script_task() {
 async fn postprocess_script() {
     run_app_test(|app| async move {
         let BootstrappedData {
-            org,
             user,
-            script_input,
-            mut script_action,
-            task,
+            script_action,
+            mut script_action_payload,
             task_id,
+            ..
         } = bootstrap(&app).await?;
 
-        script_action.postprocess_script =
+        script_action_payload.postprocess_script =
             Some(r##"return { ...output, pp: output.result.value + 10 };"##.to_string());
         app.admin_user
             .client
-            .put_action(&script_action.action_id.as_ref().unwrap(), &script_action)
+            .put_action(&script_action.action_id, &script_action_payload)
             .await
             .unwrap();
 
@@ -280,28 +286,28 @@ async fn postprocess_script() {
 async fn postprocess_script_returns_nothing() {
     run_app_test(|app| async move {
         let BootstrappedData {
-            org,
             user,
-            script_input,
-            mut script_action,
-            task,
+            script_action,
+            mut script_action_payload,
             task_id,
-        } = bootstrap(&app).await?;
+            ..
+        } = bootstrap(&app).await.expect("bootstrapping app");
 
         // Normally there would be more actual checking here.
-        script_action.postprocess_script = Some("return".to_string());
+        script_action_payload.postprocess_script = Some("return".to_string());
         app.admin_user
             .client
-            .put_action(&script_action.action_id.as_ref().unwrap(), &script_action)
+            .put_action(&script_action.action_id, &script_action_payload)
             .await
-            .unwrap();
+            .expect("writing action");
 
         let script = r##"result = { value: 5 }"##;
 
         let log_id = user
             .client
             .run_task_trigger("run_script", "run", json!({ "script": script }))
-            .await?
+            .await
+            .expect("running task trigger")
             .log_id;
 
         let mut logs = user.client.get_recent_logs().await?;
