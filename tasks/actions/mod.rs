@@ -42,7 +42,8 @@ pub struct Executor {
     pub template_fields: TemplateFields,
 }
 
-#[derive(Debug, Serialize, Deserialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(not(target_family = "wasm"), derive(sqlx::FromRow))]
 pub struct Action {
     pub action_id: Option<ActionId>,
     pub action_category_id: ActionCategoryId,
@@ -106,7 +107,7 @@ async fn run_script(s: &str) -> Result<FxHashMap<String, serde_json::Value>, any
     serde_wasm_bindgen::from_value(js_value).map_err(|e| anyhow!("{:?}", e))
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct TaskAction {
     pub action_id: ActionId,
     pub task_local_id: String,

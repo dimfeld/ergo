@@ -1,38 +1,3 @@
-export type ActionPayloadBuilder =
-  | {
-      t: "FieldMap";
-      c: {
-        [k: string]: ActionInvokeDefDataField;
-      };
-    }
-  | {
-      t: "Script";
-      c: string;
-    };
-
-export type ActionInvokeDefDataField =
-  | {
-      t: "Input";
-      c: [string, boolean];
-    }
-  | {
-      t: "Context";
-      c: [string, boolean];
-    }
-  | {
-      t: "Constant";
-      c: any;
-    }
-  | {
-      t: "Script";
-      c: string;
-    };
-
-export interface ActionInvokeDef {
-  task_action_local_id: string;
-  data: ActionPayloadBuilder;
-}
-
 export type String = string;
 
 export type ScriptOrTemplate =
@@ -71,14 +36,16 @@ export type TemplateFieldFormat =
       max?: number | null;
     };
 
-export interface ActionPayload {
+export type TemplateFields = TemplateField[];
+
+export interface Action {
   action_id?: String | null;
   action_category_id: String;
   name: string;
   description?: string | null;
   executor_id: string;
   executor_template: ScriptOrTemplate;
-  template_fields: TemplateField[];
+  template_fields: TemplateFields;
   timeout?: number | null;
   /**
    * A script that processes the executor's JSON result. The result is exposed in the variable `result` and the action's payload is exposed as `payload`. The value returned will replace the executor's return value, or an error can be thrown to mark the action as failed.
@@ -93,6 +60,41 @@ export interface TemplateField {
   format: TemplateFieldFormat;
   optional: boolean;
   description?: string | null;
+}
+
+export type ActionPayloadBuilder =
+  | {
+      t: "FieldMap";
+      c: {
+        [k: string]: ActionInvokeDefDataField;
+      };
+    }
+  | {
+      t: "Script";
+      c: string;
+    };
+
+export type ActionInvokeDefDataField =
+  | {
+      t: "Input";
+      c: [string, boolean];
+    }
+  | {
+      t: "Context";
+      c: [string, boolean];
+    }
+  | {
+      t: "Constant";
+      c: any;
+    }
+  | {
+      t: "Script";
+      c: string;
+    };
+
+export interface ActionInvokeDef {
+  task_action_local_id: string;
+  data: ActionPayloadBuilder;
 }
 
 export type TransitionTarget =
@@ -238,11 +240,31 @@ export interface TaskResult {
   created: string;
   modified: string;
   actions: {
-    [k: string]: TaskActionInput;
+    [k: string]: TaskAction;
   };
   triggers: {
-    [k: string]: TaskTriggerInput;
+    [k: string]: TaskTrigger;
   };
+}
+
+export interface TaskAction {
+  action_id: String;
+  task_local_id: string;
+  task_id: String;
+  account_id?: String | null;
+  name: string;
+  action_template?: {
+    [k: string]: unknown;
+  } | null;
+}
+
+export interface TaskTrigger {
+  task_trigger_id: String;
+  task_id: String;
+  input_id: String;
+  name: string;
+  description?: string | null;
+  last_payload?: string | null;
 }
 
 export interface TransitionCondition {

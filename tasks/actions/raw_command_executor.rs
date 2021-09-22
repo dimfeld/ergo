@@ -46,7 +46,8 @@ pub struct RawCommandExecutor {
 
 impl RawCommandExecutor {
     pub fn new() -> RawCommandExecutor {
-        let template_fields = vec![FIELD_COMMAND, FIELD_ARGS, FIELD_ENV, FIELD_ALLOW_FAILURE];
+        let template_fields =
+            vec![FIELD_COMMAND, FIELD_ARGS, FIELD_ENV, FIELD_ALLOW_FAILURE].into();
 
         RawCommandExecutor { template_fields }
     }

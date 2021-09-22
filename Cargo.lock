@@ -1679,6 +1679,8 @@ dependencies = [
 name = "ergo-wasm"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "ergo-database",
  "ergo-tasks",
  "fxhash",
  "itertools",

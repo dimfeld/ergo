@@ -30,11 +30,14 @@
   import TextField from '^/components/TextField.svelte';
   import type { TaskResult } from '^/api_types';
   import { getHeaderTextStore } from '^/header';
+  import { onDestroy } from 'svelte';
 
   import ScriptEditor from '^/editors/Script.svelte';
   import StateMachineEditor from '^/editors/StateMachine.svelte';
   import { baseData } from '^/data';
   import apiClient from '^/api';
+  import { TaskConfigValidator } from 'ergo-wasm';
+  import initWasm from '^/wasm';
 
   export let task: TaskResult = defaultTask();
 
@@ -110,6 +113,19 @@
       input: $inputs.get(trigger.input_id),
     };
   });
+
+  let validator: TaskConfigValidator | undefined;
+  let wasmLoaded = false;
+  initWasm().then(() => (wasmLoaded = true));
+  $: if (wasmLoaded) {
+    validator?.free();
+    validator = new TaskConfigValidator($actions, $inputs, task.triggers, task.actions);
+  }
+
+  onDestroy(() => {
+    wasmLoaded = false;
+    validator?.free();
+  });
 </script>
 
 <div class="flex flex-col flex-grow">
@@ -148,6 +164,7 @@
           this={taskEditors[taskSource.type]}
           source={task.source?.data}
           compiled={task.compiled?.data}
+          {validator}
         />
       </div>
     {/if}

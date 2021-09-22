@@ -95,7 +95,8 @@ impl HttpExecutor {
             FIELD_QUERY,
             FIELD_HEADERS,
             FIELD_RESULT_FORMAT,
-        ];
+        ]
+        .into();
 
         HttpExecutor { template_fields }
     }

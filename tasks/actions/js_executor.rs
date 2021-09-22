@@ -42,7 +42,7 @@ pub struct JsExecutor {
 
 impl JsExecutor {
     pub fn new() -> JsExecutor {
-        let template_fields = vec![FIELD_NAME, FIELD_SCRIPT, FIELD_ARGS];
+        let template_fields = vec![FIELD_NAME, FIELD_SCRIPT, FIELD_ARGS].into();
 
         JsExecutor { template_fields }
     }

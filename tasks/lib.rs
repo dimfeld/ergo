@@ -6,11 +6,14 @@ pub mod queue_drain_runner;
 pub mod scripting;
 pub mod state_machine;
 
+use actions::{Action, TaskAction};
+use ergo_database::object_id::{InputId, TaskId, TaskTriggerId};
 pub use error::*;
+use inputs::Input;
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
 
-use fxhash::{FxHashMap, FxHashSet};
+use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -24,14 +27,19 @@ pub enum TaskConfig {
 impl TaskConfig {
     pub fn validate(
         &self,
-        actions: &impl StringKeyContainer,
-        inputs: &impl StringKeyContainer,
+        actions: &FxHashMap<String, Action>,
+        inputs: &FxHashMap<String, Input>,
+        task_triggers: &FxHashMap<String, TaskTrigger>,
+        task_actions: &FxHashMap<String, TaskAction>,
     ) -> Result<(), TaskValidateErrors> {
         let errors = match self {
             Self::StateMachine(machines) => {
                 let mut errors = Vec::new();
                 for m in machines {
-                    errors.extend_from_slice(m.validate(actions, inputs).as_slice());
+                    errors.extend_from_slice(
+                        m.validate(actions, inputs, task_triggers, task_actions)
+                            .as_slice(),
+                    );
                 }
                 errors
             }
@@ -45,27 +53,22 @@ impl TaskConfig {
     }
 }
 
-pub trait StringKeyContainer {
-    fn has(&self, key: &String) -> bool;
-}
-
-impl StringKeyContainer for FxHashSet<String> {
-    fn has(&self, key: &String) -> bool {
-        self.contains(key)
-    }
-}
-
-impl<V> StringKeyContainer for FxHashMap<String, V> {
-    fn has(&self, key: &String) -> bool {
-        self.contains_key(key)
-    }
+#[derive(Debug, JsonSchema, Serialize, Deserialize)]
+pub struct TaskTrigger {
+    pub task_trigger_id: TaskTriggerId,
+    pub task_id: TaskId,
+    pub input_id: InputId,
+    pub name: String,
+    pub description: Option<String>,
+    #[schemars(with = "Option<String>")]
+    pub last_payload: Option<Box<serde_json::value::RawValue>>,
 }
 
 #[cfg(not(target_family = "wasm"))]
 mod native {
+    use super::*;
     use crate::{
         actions::{execute::execute, ActionStatus},
-        error::*,
         inputs::InputStatus,
         state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData},
         TaskConfig,
@@ -326,13 +329,5 @@ mod native {
 
             retval
         }
-    }
-
-    #[derive(Serialize, Deserialize)]
-    pub struct TaskTrigger {
-        pub task_trigger_id: TaskTriggerId,
-        pub task_id: TaskId,
-        pub input_id: InputId,
-        pub last_payload: Option<Box<serde_json::value::RawValue>>,
     }
 }

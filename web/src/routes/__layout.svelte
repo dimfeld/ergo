@@ -28,11 +28,11 @@
   import { setApiClientContext } from '^/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import { Input, ActionPayload } from '../api_types';
+  import { Input, Action } from '../api_types';
   import { setBaseData } from '../data';
 
   export let inputs: Input[];
-  export let actions: ActionPayload[];
+  export let actions: Action[];
 
   setBaseData(inputs, actions);
 

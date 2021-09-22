@@ -3,6 +3,7 @@ use std::{
     fmt::Display,
 };
 
+use ergo_database::sqlx_json_decode;
 use fxhash::FxHashMap;
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -255,7 +256,31 @@ impl TemplateField {
     }
 }
 
-pub type TemplateFields = Vec<TemplateField>;
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+pub struct TemplateFields(pub Vec<TemplateField>);
+
+impl std::ops::Deref for TemplateFields {
+    type Target = Vec<TemplateField>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Into<Vec<TemplateField>> for TemplateFields {
+    fn into(self) -> Vec<TemplateField> {
+        self.0
+    }
+}
+
+impl From<Vec<TemplateField>> for TemplateFields {
+    fn from(v: Vec<TemplateField>) -> Self {
+        TemplateFields(v)
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+sqlx_json_decode!(TemplateFields);
 
 #[derive(Debug)]
 pub enum TemplateValidationFailure {

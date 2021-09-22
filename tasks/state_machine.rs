@@ -7,7 +7,11 @@ use thiserror::Error;
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
 
-use crate::{StringKeyContainer, TaskValidateError};
+use crate::{
+    actions::{Action, TaskAction},
+    inputs::Input,
+    TaskTrigger, TaskValidateError,
+};
 
 #[derive(Debug, Error)]
 pub enum StateMachineError {
@@ -96,8 +100,10 @@ pub enum ActionInvokeDefDataField {
 impl StateMachine {
     pub fn validate(
         &self,
-        actions: &impl StringKeyContainer,
-        inputs: &impl StringKeyContainer,
+        actions: &FxHashMap<String, Action>,
+        inputs: &FxHashMap<String, Input>,
+        task_triggers: &FxHashMap<String, TaskTrigger>,
+        task_actions: &FxHashMap<String, TaskAction>,
     ) -> Vec<TaskValidateError> {
         let mut errors = Vec::new();
 
@@ -105,10 +111,26 @@ impl StateMachine {
             errors.push(TaskValidateError::InvalidInitialState(self.initial.clone()));
         }
 
-        self.validate_handlers(actions, inputs, &mut errors, None, &self.on);
+        self.validate_handlers(
+            actions,
+            inputs,
+            task_triggers,
+            task_actions,
+            &mut errors,
+            None,
+            &self.on,
+        );
 
         for (state_name, state) in self.states.iter() {
-            self.validate_handlers(actions, inputs, &mut errors, Some(state_name), &state.on);
+            self.validate_handlers(
+                actions,
+                inputs,
+                task_triggers,
+                task_actions,
+                &mut errors,
+                Some(state_name),
+                &state.on,
+            );
         }
 
         errors
@@ -116,14 +138,16 @@ impl StateMachine {
 
     fn validate_handlers(
         &self,
-        actions: &impl StringKeyContainer,
-        inputs: &impl StringKeyContainer,
+        actions: &FxHashMap<String, Action>,
+        inputs: &FxHashMap<String, Input>,
+        task_triggers: &FxHashMap<String, TaskTrigger>,
+        task_actions: &FxHashMap<String, TaskAction>,
         errors: &mut Vec<TaskValidateError>,
         state: Option<&String>,
         handlers: &[EventHandler],
     ) {
         for (index, handler) in handlers.iter().enumerate() {
-            if !inputs.has(&handler.trigger_id) {
+            if !task_triggers.contains_key(&handler.trigger_id) {
                 errors.push(TaskValidateError::InvalidTriggerId {
                     trigger_id: handler.trigger_id.clone(),
                     state: state.cloned(),

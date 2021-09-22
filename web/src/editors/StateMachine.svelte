@@ -3,30 +3,16 @@
   import Editor from './Editor.svelte';
   import zip from 'just-zip-it';
   import { objectLinter, ObjectLintResult } from './lint';
-  import initWasm from '../wasm';
-  import { onDestroy } from 'svelte';
-  import { TaskConfigValidator } from 'ergo-wasm';
   import prettier from 'prettier/standalone';
   import prettierBabel from 'prettier/parser-babel';
+  import { TaskConfigValidator } from 'ergo-wasm';
+
   export let compiled: StateMachine[];
   export let source: string[];
+  export let validator: TaskConfigValidator;
   // This is totally unfinished but shows a very basic outline of the state machine.
 
   $: data = zip(compiled || [], source || []) as [StateMachine, string][];
-
-  let wasmLoaded = false;
-  initWasm().then(() => (wasmLoaded = true));
-
-  let validator: TaskConfigValidator | undefined;
-  $: if (wasmLoaded) {
-    validator?.free();
-    validator = new TaskConfigValidator(new Set(), new Set());
-  }
-
-  onDestroy(() => {
-    wasmLoaded = false;
-    validator?.free();
-  });
 
   function lint(obj: StateMachine): ObjectLintResult[] {
     let vals = validator?.validate_config({ type: 'StateMachine', data: [obj] }) ?? [];

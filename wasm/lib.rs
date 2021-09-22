@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 
-use ergo_tasks::{actions::Action, inputs::Input, TaskConfig, ValidatePathSegment};
+use ergo_tasks::{
+    actions::{Action, TaskAction},
+    inputs::Input,
+    TaskConfig, TaskTrigger, ValidatePathSegment,
+};
 use fxhash::FxHashMap;
 use serde::Serialize;
 use serde_path_to_error::Segment;
@@ -31,21 +35,43 @@ pub struct LintResult<'a> {
 
 #[wasm_bindgen]
 pub struct TaskConfigValidator {
-    actions: FxHashMap<String, Input>,
-    inputs: FxHashMap<String, Action>,
+    actions: FxHashMap<String, Action>,
+    inputs: FxHashMap<String, Input>,
+    task_triggers: FxHashMap<String, TaskTrigger>,
+    task_actions: FxHashMap<String, TaskAction>,
 }
 
 #[wasm_bindgen]
 impl TaskConfigValidator {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        actions: &js_sys::Map,
-        inputs: &js_sys::Map,
+        actions: JsValue,
+        inputs: JsValue,
+        task_triggers: JsValue,
+        task_actions: JsValue,
     ) -> Result<TaskConfigValidator, JsValue> {
-        let actions = serde_wasm_bindgen::from_value(actions.into())?;
-        let inputs = serde_wasm_bindgen::from_value(inputs.into())?;
+        let actions_de = serde_wasm_bindgen::Deserializer::from(actions);
+        let actions = serde_path_to_error::deserialize(actions_de)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        Ok(TaskConfigValidator { actions, inputs })
+        let inputs_de = serde_wasm_bindgen::Deserializer::from(inputs);
+        let inputs = serde_path_to_error::deserialize(inputs_de)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let task_triggers_de = serde_wasm_bindgen::Deserializer::from(task_triggers);
+        let task_triggers = serde_path_to_error::deserialize(task_triggers_de)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let task_actions_de = serde_wasm_bindgen::Deserializer::from(task_actions);
+        let task_actions = serde_path_to_error::deserialize(task_actions_de)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        Ok(TaskConfigValidator {
+            actions,
+            inputs,
+            task_triggers,
+            task_actions,
+        })
     }
 
     pub fn validate_config(&self, content: JsValue) -> Result<JsValue, JsValue> {
@@ -77,7 +103,12 @@ impl TaskConfigValidator {
         };
 
         let errs = config
-            .validate(&self.actions, &self.inputs)
+            .validate(
+                &self.actions,
+                &self.inputs,
+                &self.task_triggers,
+                &self.task_actions,
+            )
             .err()
             .map(|e| e.0)
             .unwrap_or_else(Vec::new)

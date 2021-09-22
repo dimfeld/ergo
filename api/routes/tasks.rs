@@ -15,9 +15,9 @@ use ergo_database::object_id::{
     AccountId, ActionId, InputId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
 };
 use ergo_tasks::{
-    actions::ActionStatus,
+    actions::{ActionStatus, TaskAction},
     inputs::{EnqueueInputOptions, InputStatus},
-    TaskConfig, TaskState,
+    TaskConfig, TaskState, TaskTrigger,
 };
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -102,8 +102,8 @@ pub struct TaskResult {
     pub state: sqlx::types::Json<TaskState>,
     pub created: DateTime<Utc>,
     pub modified: DateTime<Utc>,
-    pub actions: sqlx::types::Json<FxHashMap<String, TaskActionInput>>,
-    pub triggers: sqlx::types::Json<FxHashMap<String, TaskTriggerInput>>,
+    pub actions: sqlx::types::Json<FxHashMap<String, TaskAction>>,
+    pub triggers: sqlx::types::Json<FxHashMap<String, TaskTrigger>>,
 }
 
 #[get("/tasks/{task_id}")]
@@ -134,6 +134,8 @@ async fn get_task(
         LEFT JOIN LATERAL (
             SELECT jsonb_object_agg(task_action_local_id, jsonb_build_object(
                 'action_id', action_id,
+                'task_local_id', task_action_local_id,
+                'task_id', task_actions.task_id,
                 'account_id', account_id,
                 'name', task_actions.name,
                 'action_template', task_actions.action_template
@@ -145,6 +147,8 @@ async fn get_task(
 
         LEFT JOIN LATERAL (
             SELECT jsonb_object_agg(task_trigger_local_id, jsonb_build_object(
+                'task_trigger_id', task_triggers.task_trigger_id,
+                'task_id', task_triggers.task_id,
                 'input_id', input_id,
                 'name', task_triggers.name,
                 'description', task_triggers.description

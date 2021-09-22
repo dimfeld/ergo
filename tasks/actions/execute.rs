@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
+use ergo_database::sqlx_json_decode;
 #[cfg(not(target_family = "wasm"))]
 use ergo_database::PostgresPool;
 use fxhash::FxHashMap;
@@ -120,6 +121,9 @@ pub enum ScriptOrTemplate {
     Template(Vec<(String, serde_json::Value)>),
     Script(String),
 }
+
+#[cfg(not(target_family = "wasm"))]
+sqlx_json_decode!(ScriptOrTemplate);
 
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;

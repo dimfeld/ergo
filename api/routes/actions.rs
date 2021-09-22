@@ -8,49 +8,30 @@ use ergo_database::{
     object_id::{ActionCategoryId, ActionId},
     sql_insert_parameters,
 };
-use ergo_tasks::{
-    actions::{
-        execute::{ScriptOrTemplate, EXECUTOR_REGISTRY},
-        template::{validate, TemplateFields},
-        Action,
-    },
-    scripting,
-};
-use futures::future::ready;
-use fxhash::FxHashMap;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use ergo_tasks::actions::{execute::ScriptOrTemplate, template::TemplateFields, Action};
 use sqlx::Connection;
 
-use crate::{
-    error::{Error, Result},
-    web_app_server::AppStateData,
-};
-
-#[derive(Clone, Debug, Deserialize, Serialize, sqlx::FromRow, PartialEq, Eq)]
-pub struct ActionDescription {
-    pub action_id: ActionId,
-    pub action_category_id: ActionCategoryId,
-    pub name: String,
-    pub description: Option<String>,
-    pub template_fields: sqlx::types::Json<TemplateFields>,
-    pub account_required: bool,
-    pub account_types: Option<Vec<String>>,
-    pub timeout: Option<i32>,
-}
+use crate::{error::Result, web_app_server::AppStateData};
 
 #[get("/actions")]
 pub async fn list_actions(data: AppStateData) -> Result<impl Responder> {
-    let actions = sqlx::query_as_unchecked!(
-        ActionDescription,
-        "SELECT action_id, action_category_id, name, description,
-        template_fields,
+    let actions = sqlx::query_as!(
+        Action,
+        r##"SELECT
+        action_id as "action_id: Option<ActionId>",
+        action_category_id as "action_category_id: ActionCategoryId",
+        name,
+        description,
+        executor_id,
+        executor_template as "executor_template: ScriptOrTemplate",
+        template_fields as "template_fields: TemplateFields",
+        timeout,
+        postprocess_script,
         account_required,
-        array_agg(account_type_id) FILTER(WHERE account_type_id IS NOT NULL) account_types,
-        timeout
+        array_agg(account_type_id) FILTER(WHERE account_type_id IS NOT NULL) account_types
         FROM actions
         LEFT JOIN allowed_action_account_types USING(action_id)
-        GROUP BY action_id",
+        GROUP BY action_id"##,
     )
     .fetch_all(&data.pg)
     .await?;
@@ -113,15 +94,9 @@ pub async fn new_action(
 
     tx.commit().await?;
 
-    let output = ActionDescription {
-        action_id,
-        action_category_id: payload.action_category_id,
-        name: payload.name,
-        description: payload.description,
-        template_fields: sqlx::types::Json(payload.template_fields),
-        account_types: payload.account_types,
-        account_required: payload.account_required,
-        timeout: payload.timeout,
+    let output = Action {
+        action_id: Some(action_id),
+        ..payload
     };
 
     Ok(HttpResponse::Created().json(output))
