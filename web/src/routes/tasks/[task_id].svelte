@@ -27,6 +27,7 @@
   import { goto, invalidate } from '$app/navigation';
   import { getStores, page } from '$app/stores';
   import Button from '^/components/Button.svelte';
+  import Card from '^/components/Card.svelte';
   import TextField from '^/components/TextField.svelte';
   import type { TaskResult } from '^/api_types';
   import { getHeaderTextStore } from '^/header';
@@ -130,12 +131,11 @@
 
 <div class="flex flex-col flex-grow">
   <section class="flex flex-row justify-end space-x-4">
+    <!-- TODO add confirmation dropdown -->
     <Button on:click={revert}>Revert</Button>
     <Button style="primary" on:click={save}>Save</Button>
   </section>
-  <section
-    class="mt-2 flex flex-col space-y-2 w-full p-2 rounded border border-gray-200 dark:border-gray-400 shadow-md"
-  >
+  <Card class="mt-2 flex flex-col">
     <div class="flex w-full justify-between">
       <p class="text-sm">
         ID: <span class:text-gray-500={!task.task_id}>{task.task_id || 'New Task'}</span>
@@ -147,17 +147,37 @@
     </div>
     <p>Description: {task.description || ''}</p>
     <p>Modified {task.modified}</p>
-    <p class="font-medium text-gray-700 dark:text-gray-300">Actions</p>
-    {#each taskActions as action (action.localId)}
-      <p>{JSON.stringify(action)}</p>
-    {/each}
-    <p class="font-medium text-gray-700 dark:text-gray-300">Triggers</p>
-    {#each taskTriggers as trigger (trigger.localId)}
-      <p>{JSON.stringify(trigger)}</p>
-    {/each}
-  </section>
+  </Card>
 
-  <section class="flex flex-col flex-grow mt-4">
+  <Card class="mt-4 flex flex-col">
+    <p class="font-bold text-gray-700 dark:text-gray-300">Actions</p>
+    <div id="task-actions">
+      <span class="header">Local ID</span>
+      <span class="header">Local Action Name</span>
+      <span class="header">Action Name</span>
+      {#each taskActions as action (action.localId)}
+        <span>{action.localId}</span>
+        <span>{action.taskAction.name}</span>
+        <span>{action.action.name}</span>
+      {/each}
+    </div>
+  </Card>
+
+  <Card class="mt-4 flex flex-col">
+    <p class="font-bold text-gray-700 dark:text-gray-300">Triggers</p>
+    <div id="task-triggers">
+      <span class="header">Local ID</span>
+      <span class="header">Local Trigger Name</span>
+      <span class="header">Input Name</span>
+      {#each taskTriggers as trigger (trigger.localId)}
+        <span>{trigger.localId}</span>
+        <span>{trigger.trigger.name}</span>
+        <span>{trigger.input.name}</span>
+      {/each}
+    </div>
+  </Card>
+
+  <Card class="flex flex-col flex-grow mt-4 h-[64em]">
     {#if taskSource}
       <div class="flex-grow grid grid-rows-1 grid-cols-1 place-items-stretch">
         <svelte:component
@@ -168,13 +188,30 @@
         />
       </div>
     {/if}
-    <p>
+    <p class="mt-4">
       {#if taskSource}Change the task type{:else}Select a task type{/if}
     </p>
     <p class="flex space-x-2">
-      <button on:click={() => initializeSource('StateMachine')}>State Machine</button>
-      <button on:click={() => initializeSource('Script')}>Script</button>
-      <button on:click={() => initializeSource('Flowchart')}>FlowChart</button>
+      <Button on:click={() => initializeSource('StateMachine')}>State Machine</Button>
+      <Button on:click={() => initializeSource('Script')}>Script</Button>
+      <Button on:click={() => initializeSource('Flowchart')}>FlowChart</Button>
     </p>
-  </section>
+  </Card>
 </div>
+
+<style lang="postcss">
+  #task-actions,
+  #task-triggers {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto;
+  }
+
+  #task-actions .header,
+  #task-triggers .header {
+    @apply font-medium text-gray-800 dark:text-gray-200;
+  }
+  .section-header {
+    @apply font-bold text-gray-700 dark:text-gray-300;
+  }
+</style>
