@@ -12,6 +12,8 @@ import { styleTags, tags as t } from '@codemirror/highlight';
 import { EditorView } from '@codemirror/view';
 import { Diagnostic } from '@codemirror/lint';
 import { StateField, Text, Transaction } from '@codemirror/state';
+import { getPathAtNode, nodeAtCursor } from './editor';
+import { SyntaxNode } from '@lezer/common';
 
 /// A language provider that provides JSON5 parsing.
 export const json5Language = LRLanguage.define({
@@ -51,7 +53,7 @@ export const json5Language = LRLanguage.define({
 
 /// JSON5 language support.
 export function json5() {
-  return new LanguageSupport(json5Language, json5ParseCache.extension);
+  return new LanguageSupport(json5Language, [json5ParseCache.extension, jsonCursorPath.extension]);
 }
 
 /** A function to provide additional linting functionality on the parsed version of the object */
@@ -134,5 +136,27 @@ export const json5ParseCache = StateField.define<Json5ParseCache | null>({
         obj: oldValue?.obj,
       };
     }
+  },
+});
+
+export interface JsonCursorPath {
+  path: (string | number)[] | null;
+  node: SyntaxNode | null;
+}
+
+/** A cache to allow linters, autocomplete, etc. to not have to parse the
+ * same text over and over again. */
+export const jsonCursorPath = StateField.define<JsonCursorPath>({
+  create() {
+    return { path: null, node: null };
+  },
+  update(oldValue, tx: Transaction) {
+    let cursorPos = tx.state.selection.main.to;
+    let currentNode = nodeAtCursor(tx.state, cursorPos);
+    let currentPath = currentNode ? getPathAtNode(tx.state, currentNode) : null;
+    return {
+      path: currentPath ?? null,
+      node: currentNode,
+    };
   },
 });

@@ -179,7 +179,7 @@
 
   <Card class="flex flex-col flex-grow mt-4 h-[64em]">
     {#if taskSource}
-      <div class="flex-grow grid grid-rows-1 grid-cols-1 place-items-stretch">
+      <div class="flex-1 grid grid-rows-1 grid-cols-1 place-items-stretch">
         <svelte:component
           this={taskEditors[taskSource.type]}
           source={task.source?.data}

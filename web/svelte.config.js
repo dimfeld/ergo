@@ -17,13 +17,12 @@ const config = {
       postcss: postcssConfig,
       typescript: {
         compilerOptions: {
-          target: 'esnext',
+          target: 'es2021',
         },
       },
       sourceMap: true,
     }),
   ],
-
   kit: {
     adapter: adapter({
       fallback: 'index.html',
@@ -48,6 +47,7 @@ const config = {
       },
       resolve: {
         dedupe: ['svelte'],
+        // Since some packages assume that "module" means Node :(
         alias: {
           '^': path.resolve(process.cwd(), 'src'),
           svelte: path.resolve(process.cwd(), 'node_modules/svelte'),

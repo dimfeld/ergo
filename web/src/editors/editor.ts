@@ -1,3 +1,4 @@
+import { syntaxTree } from '@codemirror/language';
 import { Diagnostic } from '@codemirror/lint';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
@@ -30,7 +31,7 @@ function propertyKey(state: EditorState, node: SyntaxNode) {
   return stripQuotes(state.sliceDoc(key.from, key.to));
 }
 
-function propertyValueNode(node: SyntaxNode) {
+function propertyValueNode(node: SyntaxNode | null) {
   if (!node || node.name !== 'Property') {
     return null;
   }
@@ -188,4 +189,9 @@ export function nodeFromPath(state: EditorState, tree: Tree, path: (string | num
         }
       : null,
   };
+}
+
+export function nodeAtCursor(state: EditorState, cursorPos: number): SyntaxNode {
+  let tree = syntaxTree(state);
+  return tree.resolveInner(cursorPos, -1);
 }

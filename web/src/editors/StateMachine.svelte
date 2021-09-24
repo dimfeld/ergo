@@ -7,6 +7,8 @@
   import prettierBabel from 'prettier/parser-babel';
   import { TaskConfigValidator } from 'ergo-wasm';
 
+  import stateMachineSchema from '^/../../schemas/state_machine.json';
+
   export let compiled: StateMachine[];
   export let source: string[];
   export let validator: TaskConfigValidator;
@@ -27,43 +29,23 @@
 
     return vals;
   }
+
+  function prettierFormat(s: object | string) {
+    return prettier.format(typeof s === 'string' ? s : JSON.stringify(s), {
+      parser: 'json5',
+      plugins: [prettierBabel],
+    });
+  }
 </script>
 
-<div class="flex flex-col space-y-4">
+<div class="flex flex-col space-y-4 h-full">
   {#each data as [compiled, source]}
-    <div class="flex-1 grid grid-rows-1 grid-cols-1 place-items-stretch">
-      <!-- <p>State Machine <strong>{machine.name}</strong></p> -->
-      <!-- {#if machine.description} -->
-      <!--   <p>{machine.description}</p> -->
-      <!-- {/if} -->
-      <!-- <p>Initial State: {machine.initial}</p> -->
-
-      <!-- <p>Global Handlers</p> -->
-      <!-- {#each machine.on as on} -->
-      <!--   <div class="ml-4"> -->
-      <!--     <EventHandler handler={on} /> -->
-      <!--   </div> -->
-      <!-- {/each} -->
-
-      <!-- <p>States</p> -->
-      <!-- {#each Object.entries(machine.states) as [name, state] (name)} -->
-      <!--   <div class="ml-4"> -->
-      <!--     <p> -->
-      <!--       <span class="font-bold text-accent-700 dark:text-accent-200">{name}</span -->
-      <!--       >{#if state.description} - {state.description}{/if} -->
-      <!--     </p> -->
-      <!--     {#each state.on as on} -->
-      <!--       <div class="ml-4"> -->
-      <!--         <EventHandler handler={on} /> -->
-      <!--       </div> -->
-      <!--     {/each} -->
-      <!--   </div> -->
-      <!-- {/each} -->
+    <div class="flex-1">
       <Editor
         format="json5"
-        contents={source ||
-          prettier.format(JSON.stringify(compiled), { parser: 'json5', plugins: [prettierBabel] })}
+        contents={source || prettierFormat(compiled)}
         linter={objectLinter(lint)}
+        jsonSchema={stateMachineSchema}
       />
     </div>
   {/each}

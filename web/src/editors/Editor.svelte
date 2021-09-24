@@ -32,13 +32,17 @@
 
   import Button from '^/components/Button.svelte';
 
-  import { autocompleter } from './autocomplete';
+  import { autocompleter, AutocompleteSpec } from './autocomplete';
   import { LintSource } from './editor';
+  import { PanelConstructor, showPanel } from '@codemirror/panel';
+  import { jsonSchemaSupport } from './json_schema';
+  import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
 
   export let contents: string;
   export let format: 'js' | 'json' | 'json5';
   export let enableWrapping = true;
   export let notifyOnChange = false;
+  export let jsonSchema: JSONSchema4 | JSONSchema6 | JSONSchema7 | undefined = undefined;
 
   export let linter: LintSource | undefined = undefined;
 
@@ -79,10 +83,6 @@
         defaultHighlightStyle.fallback,
         bracketMatching(),
         closeBrackets(),
-        autocompletion({
-          activateOnTyping: true,
-          override: [autocompleter([])],
-        }),
         highlightActiveLine(),
         highlightSelectionMatches(),
         keymap.of([
@@ -133,9 +133,24 @@
   }
 
   $: activeLinter = linter ?? linters[format]?.();
+  $: lintExtension = activeLinter ? makeLinter(activeLinter) : undefined;
+
+  $: jsonSchemaComponents = jsonSchema ? jsonSchemaSupport(jsonSchema) : null;
+
+  $: autocompleteExtension = autocompletion({
+    activateOnTyping: true,
+    override: [
+      autocompleter([jsonSchemaComponents?.autocomplete].filter(Boolean) as AutocompleteSpec[]),
+    ],
+  });
+  $: jsonSchemaPanel = jsonSchemaComponents?.panel
+    ? showPanel.of(jsonSchemaComponents.panel)
+    : null;
   $: languageComponents = [
     languages[format](),
-    activeLinter ? makeLinter(activeLinter) : undefined,
+    lintExtension,
+    autocompleteExtension,
+    jsonSchemaPanel,
   ].filter(Boolean) as Extension[];
 
   $: updateCompartment(language, languageComponents);

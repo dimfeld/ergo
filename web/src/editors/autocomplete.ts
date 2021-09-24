@@ -1,36 +1,38 @@
 import { CompletionContext } from '@codemirror/autocomplete';
 import { syntaxTree } from '@codemirror/language';
-import { getPathAtNode, nodeFromPath } from './editor';
+import { jsonCursorPath } from './codemirror-json5';
+import { nodeFromPath } from './editor';
 
 export interface AutocompleteSpec<T = unknown> {
-  path: string[] | string | RegExp;
+  path?: string[] | string | RegExp;
   values: (obj: T, currentPath: string[]) => string[];
 }
 
 export function autocompleter<T>(specs: AutocompleteSpec<T>[]) {
   return (context: CompletionContext) => {
-    let tree = syntaxTree(context.state);
-    let pos = tree.resolveInner(context.pos, -1);
-    let path = getPathAtNode(context.state, pos);
+    let { path, node } = context.state.field(jsonCursorPath);
+    if (!node) {
+      return null;
+    }
 
-    let nodeName = pos.name;
+    let nodeName = node.name;
     if (nodeName === 'Property') {
       // We're somewhere in whitespace inside the Property, so figure out what the
       // previous node was.
-      let childBeforeCursor = pos.childBefore(context.pos);
+      let childBeforeCursor = node.childBefore(context.pos);
       if (childBeforeCursor) {
         nodeName = childBeforeCursor.name;
       }
     }
 
-    let inKey = pos.name === 'PropertyName';
+    let inKey = node.name === 'PropertyName';
+    let tree = syntaxTree(context.state);
     console.dir({
-      pos,
-      tree,
+      node,
       path,
       name: nodeName,
       inKey,
-      lookup: nodeFromPath(context.state, tree, path),
+      lookup: path ? nodeFromPath(context.state, tree, path) : null,
     });
     return null;
   };

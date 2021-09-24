@@ -17,6 +17,7 @@ specifiers:
   '@codemirror/language': ~0.19.3
   '@codemirror/lint': ~0.19.1
   '@codemirror/matchbrackets': ~0.19.1
+  '@codemirror/panel': ~0.19.0
   '@codemirror/rangeset': ~0.19.1
   '@codemirror/search': ~0.19.2
   '@codemirror/state': ~0.19.2
@@ -41,6 +42,7 @@ specifiers:
   '@tailwindcss/forms': ~0.3.3
   '@testing-library/jest-dom': ^5.14.1
   '@testing-library/svelte': ^3.0.3
+  '@types/json-schema': ~7.0.9
   '@typescript-eslint/eslint-plugin': ^4.31.0
   '@typescript-eslint/parser': ^4.31.0
   ajv: ~8.6.3
@@ -101,6 +103,7 @@ dependencies:
   '@codemirror/language': 0.19.3
   '@codemirror/lint': 0.19.1
   '@codemirror/matchbrackets': 0.19.1
+  '@codemirror/panel': 0.19.0
   '@codemirror/rangeset': 0.19.1
   '@codemirror/search': 0.19.2
   '@codemirror/state': 0.19.2
@@ -111,6 +114,7 @@ dependencies:
   '@lezer/common': 0.15.5
   '@popperjs/core': 2.10.1
   '@sveltestack/svelte-query': 1.4.1
+  '@types/json-schema': 7.0.9
   ajv: 8.6.3
   date-fns: 2.22.1
   ergo-wasm: link:../wasm/pkg
@@ -4418,7 +4422,6 @@ packages:
 
   /@types/json-schema/7.0.9:
     resolution: {integrity: sha512-qcUXuemtEu+E5wZSJHNxUXeCZhAfXKQ41D+duX+VYPde7xyEVZci+/oXKJL13tnRs9lR2pr4fod59GT6/X1/yQ==}
-    dev: true
 
   /@types/lodash/4.14.172:
     resolution: {integrity: sha512-/BHF5HAx3em7/KkzVKm3LrsD6HZAXuXO1AJZQ3cRRBZj4oHZDviWPYu0aEplAqDFNHZPW6d3G7KN+ONcCCC7pw==}
