@@ -150,7 +150,7 @@
   </Card>
 
   <Card class="mt-4 flex flex-col">
-    <p class="font-bold text-gray-700 dark:text-gray-300">Actions</p>
+    <p class="section-header">Actions</p>
     <div id="task-actions">
       <span class="header">Local ID</span>
       <span class="header">Local Action Name</span>
@@ -164,7 +164,7 @@
   </Card>
 
   <Card class="mt-4 flex flex-col">
-    <p class="font-bold text-gray-700 dark:text-gray-300">Triggers</p>
+    <p class="section-header">Triggers</p>
     <div id="task-triggers">
       <span class="header">Local ID</span>
       <span class="header">Local Trigger Name</span>
