@@ -40,7 +40,7 @@ export const json5Language = LRLanguage.define({
   }),
   languageData: {
     closeBrackets: { brackets: ['[', '{', '"', `'`] },
-    indentOnInput: /^\s*[\}\]]$/,
+    indentOnInput: /^\s*[}\]]$/,
     commentTokens: {
       line: '//',
       block: {
