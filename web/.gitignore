@@ -4,3 +4,4 @@ node_modules
 /package
 .pnpm-debug.log
 build
+.svench

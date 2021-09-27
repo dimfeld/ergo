@@ -1,0 +1,17 @@
+<script>
+  import { View } from 'svench';
+  import DropdownWithMenu from './fixtures/DropdownWithMenu.svelte';
+  import ChevronRight from './icons/ChevronRight.svelte';
+</script>
+
+<View name="Default">
+  <DropdownWithMenu label="Menu" />
+</View>
+
+<View name="Right Arrow" >
+  <DropdownWithMenu label='Menu' position='right-start' arrow={ChevronRight} />
+</View>
+
+<View name="No arrow">
+  <DropdownWithMenu label='Menu' arrow={false} />
+</View>
