@@ -18,10 +18,10 @@ export type Position =
   | 'auto-end';
 
 export interface TippyOptions {
-  trigger: HTMLElement;
+  trigger?: HTMLElement;
   position: Position;
   fixed?: boolean;
-  interactive: boolean;
+  interactive?: boolean;
   role?: string;
   close?: () => void;
 }
@@ -31,7 +31,7 @@ export function showTippy(
   { trigger, position, fixed, interactive, role, close }: TippyOptions
 ) {
   let tippyInstance = tippy(trigger, {
-    interactive,
+    interactive: interactive ?? false,
     animation: false,
     hideOnClick: 'toggle',
     trigger: 'manual',
