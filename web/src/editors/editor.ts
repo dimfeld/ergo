@@ -193,5 +193,18 @@ export function nodeFromPath(state: EditorState, tree: Tree, path: (string | num
 
 export function nodeAtCursor(state: EditorState, cursorPos: number): SyntaxNode {
   let tree = syntaxTree(state);
-  return tree.resolveInner(cursorPos, -1);
+  let node = tree.resolveInner(cursorPos, -1);
+
+  // If we're in whitespace between nodes, `resolveInner` will match on the parent node of the children
+  // the cursor is between, so find the actual closest node.
+  while (true) {
+    let child = node.childBefore(cursorPos);
+    if (!child) {
+      break;
+    }
+
+    node = child;
+  }
+
+  return node;
 }
