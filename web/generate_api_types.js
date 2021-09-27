@@ -11,16 +11,20 @@ async function main() {
 
   let schemas = new Map();
 
+  const definitionKeys = ['anyOf', 'oneOf'];
+
   function addType(name, definition) {
     if (!schemas.has(name)) {
       if (!('additionalProperties' in definition)) {
         definition.additionalProperties = false;
       }
 
-      if (definition.anyOf) {
-        for (let a of definition.anyOf) {
-          if (!('additionalProperties' in a)) {
-            a.additionalProperties = false;
+      for (let key of definitionKeys) {
+        if (definition[key]) {
+          for (let a of definition[key]) {
+            if (!('additionalProperties' in a)) {
+              a.additionalProperties = false;
+            }
           }
         }
       }

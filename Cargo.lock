@@ -3498,8 +3498,8 @@ dependencies = [
 
 [[package]]
 name = "schemars"
-version = "0.8.3"
-source = "git+https://github.com/dimfeld/schemars?branch=sqlx-json#290fe816162ae6b2846adb409ebd269ba79df76f"
+version = "0.8.6"
+source = "git+https://github.com/dimfeld/schemars#b767de656b14e5a6e66c4964cf0f407ffa924be0"
 dependencies = [
  "chrono",
  "dyn-clone",
@@ -3514,8 +3514,8 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "0.8.3"
-source = "git+https://github.com/dimfeld/schemars?branch=sqlx-json#290fe816162ae6b2846adb409ebd269ba79df76f"
+version = "0.8.6"
+source = "git+https://github.com/dimfeld/schemars#b767de656b14e5a6e66c4964cf0f407ffa924be0"
 dependencies = [
  "proc-macro2",
  "quote",
