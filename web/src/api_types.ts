@@ -39,7 +39,7 @@ export type TemplateFieldFormat =
 export type TemplateFields = TemplateField[];
 
 export interface Action {
-  action_id?: String | null;
+  action_id: String;
   action_category_id: String;
   name: string;
   description?: string | null;
@@ -52,7 +52,7 @@ export interface Action {
    */
   postprocess_script?: string | null;
   account_required: boolean;
-  account_types?: string[] | null;
+  account_types?: string[];
 }
 
 export interface TemplateField {
@@ -122,7 +122,6 @@ export interface Input {
 }
 
 export interface InputPayload {
-  input_id?: String | null;
   input_category_id?: String | null;
   name: string;
   description?: string | null;
@@ -253,9 +252,7 @@ export interface TaskAction {
   task_id: String;
   account_id?: String | null;
   name: string;
-  action_template?: {
-    [k: string]: unknown;
-  } | null;
+  action_template?: [string, true][] | null;
 }
 
 export interface TaskTrigger {

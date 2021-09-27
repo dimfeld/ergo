@@ -1,11 +1,9 @@
 <script context="module" lang="ts">
   import { createApiClient } from '^/api';
+  import type { Load } from '@sveltejs/kit';
 
-  /**
-   * @type {import('@sveltejs/kit').Load}
-   */
-  export async function load({ fetch, page }) {
-    const client = createApiClient();
+  export const load: Load = async function load({ fetch, page }) {
+    const client = createApiClient(fetch);
 
     if (page.params.task_id === 'new') {
       return {
@@ -20,12 +18,14 @@
         task,
       },
     };
-  }
+  };
 </script>
 
 <script lang="ts">
   import { goto, invalidate } from '$app/navigation';
   import { getStores, page } from '$app/stores';
+  import TaskTriggerList from './_TaskTriggerList.svelte';
+  import TaskActionList from './_TaskActionList.svelte';
   import Button from '^/components/Button.svelte';
   import Card from '^/components/Card.svelte';
   import TextField from '^/components/TextField.svelte';
@@ -99,22 +99,6 @@
 
   $: taskSource = task.source || task.compiled;
 
-  $: taskActions = Object.entries(task.actions).map(([localId, action]) => {
-    return {
-      localId,
-      taskAction: action,
-      action: $actions.get(action.action_id),
-    };
-  });
-
-  $: taskTriggers = Object.entries(task.triggers).map(([localId, trigger]) => {
-    return {
-      localId,
-      trigger,
-      input: $inputs.get(trigger.input_id),
-    };
-  });
-
   let validator: TaskConfigValidator | undefined;
   let wasmLoaded = false;
   initWasm().then(() => (wasmLoaded = true));
@@ -151,30 +135,12 @@
 
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Actions</p>
-    <div id="task-actions">
-      <span class="header">Local ID</span>
-      <span class="header">Local Action Name</span>
-      <span class="header">Action Name</span>
-      {#each taskActions as action (action.localId)}
-        <span>{action.localId}</span>
-        <span>{action.taskAction.name}</span>
-        <span>{action.action.name}</span>
-      {/each}
-    </div>
+    <TaskActionList bind:taskActions={task.actions} />
   </Card>
 
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Triggers</p>
-    <div id="task-triggers">
-      <span class="header">Local ID</span>
-      <span class="header">Local Trigger Name</span>
-      <span class="header">Input Name</span>
-      {#each taskTriggers as trigger (trigger.localId)}
-        <span>{trigger.localId}</span>
-        <span>{trigger.trigger.name}</span>
-        <span>{trigger.input.name}</span>
-      {/each}
-    </div>
+    <TaskTriggerList bind:triggers={task.triggers} />
   </Card>
 
   <Card class="flex flex-col flex-grow mt-4 h-[64em]">
@@ -200,17 +166,6 @@
 </div>
 
 <style lang="postcss">
-  #task-actions,
-  #task-triggers {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: auto;
-  }
-
-  #task-actions .header,
-  #task-triggers .header {
-    @apply font-medium text-gray-800 dark:text-gray-200;
-  }
   .section-header {
     @apply font-bold text-gray-700 dark:text-gray-300;
   }

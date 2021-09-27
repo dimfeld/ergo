@@ -18,7 +18,7 @@
     "format": "prettier --write --plugin-search-dir=. .",
     "storybook": "start-storybook -p 6006",
     "build-storybook": "build-storybook",
-    "generate-api-types": "../car run --release dev make-json-schema && node generate_api_types.js"
+    "generate-api-types": "rimraf ../schemas/*.json && ../car run --release dev make-json-schema && node generate_api_types.js"
   },
   "pnpm": {
     "overrides": {

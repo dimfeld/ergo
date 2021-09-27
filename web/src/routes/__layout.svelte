@@ -1,10 +1,8 @@
 <script context="module" lang="ts">
   import { createApiClient } from '^/api';
+  import type { Load } from '@sveltejs/kit';
 
-  /**
-   * @type {import('@sveltejs/kit').Load}
-   */
-  export async function load({ fetch }) {
+  export const load: Load = async function load({ fetch }) {
     const client = createApiClient(fetch);
     let [inputs, actions] = await Promise.all([
       client.get('/api/inputs').json(),
@@ -17,7 +15,7 @@
         actions,
       },
     };
-  }
+  };
 </script>
 
 <script lang="typescript">
