@@ -1,0 +1,24 @@
+<script>
+  import { View } from 'svench';
+  import InlineEditTextField from './InlineEditTextField.svelte';
+
+  function mustBeNumber(value) {
+    let valid = /^\d*$/.test(value);
+    if(!valid) {
+      return 'Value must be a number';
+    }
+  }
+
+  let value = 'value';
+</script>
+
+<View name="Default">
+  <InlineEditTextField bind:value={value} placeholder="A value" />
+  <p class="mt-4 text-sm">Saved value is {value}</p>
+</View>
+
+<View name="Validation for Numeric Value">
+  <div class="h-32">
+    <InlineEditTextField value={"123"} placeholder="A value" validate={mustBeNumber} />
+  </div>
+</View>
