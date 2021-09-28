@@ -1,12 +1,12 @@
 <script context="module" lang="ts">
-  import { createApiClient } from '^/api';
+  import { createApiClient, loadFetch } from '^/api';
   import type { Load } from '@sveltejs/kit';
 
   export const load: Load = async function load({ fetch }) {
-    const client = createApiClient(fetch);
+    fetch = loadFetch(fetch);
     let [inputs, actions] = await Promise.all([
-      client.get('/api/inputs').json(),
-      client.get('/api/actions').json(),
+      fetch('/api/inputs').then((r) => r.json()),
+      fetch('/api/actions').then((r) => r.json()),
     ]);
 
     return {

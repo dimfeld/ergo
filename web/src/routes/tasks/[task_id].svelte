@@ -1,9 +1,9 @@
 <script context="module" lang="ts">
-  import { createApiClient } from '^/api';
+  import { loadFetch } from '^/api';
   import type { Load } from '@sveltejs/kit';
 
   export const load: Load = async function load({ fetch, page }) {
-    const client = createApiClient(fetch);
+    fetch = loadFetch(fetch);
 
     if (page.params.task_id === 'new') {
       return {
@@ -11,7 +11,7 @@
       };
     }
 
-    let task = await client.get(`/api/tasks/${page.params.task_id}`).json<TaskResult>();
+    let task: TaskResult = await fetch(`/api/tasks/${page.params.task_id}`).then((r) => r.json());
 
     return {
       props: {
