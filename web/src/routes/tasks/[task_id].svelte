@@ -137,6 +137,7 @@
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Actions</p>
     <TaskActionList
+      taskId={task.task_id}
       bind:taskActions={task.actions}
       on:change={() => (task.actions = task.actions)}
     />
@@ -145,6 +146,7 @@
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Triggers</p>
     <TaskTriggerList
+      taskId={task.task_id}
       bind:triggers={task.triggers}
       on:change={() => (task.triggers = task.triggers)}
     />

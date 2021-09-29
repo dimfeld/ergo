@@ -11,7 +11,9 @@
   export let placeholder: string | undefined = undefined;
   export let error: string | null | undefined = undefined;
   export let validateOn: 'save' | 'input' = 'input';
-  export let validate: ((value: string) => string | null | undefined) | undefined = undefined;
+  export let validate:
+    | ((value: string, existingValue: string) => string | null | undefined)
+    | undefined = undefined;
 
   export let editingClasses =
     'border ring-accent-500 border-accent-500 focus:ring-accent-500 focus:border-accent-500';
@@ -24,7 +26,7 @@
   let currentInput = value;
   function handleInput(e: InputEvent) {
     if (validate && validateOn === 'input') {
-      error = validate((e.currentTarget as HTMLInputElement)?.value);
+      error = validate((e.currentTarget as HTMLInputElement)?.value, value);
     }
   }
 
@@ -52,11 +54,12 @@
 
   function cancel() {
     editing = false;
+    error = null;
     currentInput = value;
   }
 
   function save() {
-    error = validate?.(currentInput);
+    error = validate?.(currentInput, value);
     if (error) {
       textField?.focus();
       return false;
@@ -99,7 +102,7 @@
   />
   {#if editing}
     <div
-      class="absolute inset-y-0 right-0 m-px
+      class="absolute inset-y-0 right-0 rounded-r-md m-px 
        pr-2 z-10 flex flex-row items-center
        bg-white dark:bg-gray-800"
     >
@@ -118,7 +121,7 @@
 
   {#if error}
     <div
-      class="bg-red-200 rounded-lg px-4 py-2"
+      class="bg-red-200 dark:bg-red-400 dark:text-black rounded-lg px-4 py-2"
       use:showTippy={{ trigger: textField, position: 'bottom' }}
     >
       {error}

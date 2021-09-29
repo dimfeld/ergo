@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use ergo_database::object_id::TaskTriggerId;
 use ergo_tasks::{
     actions::{Action, TaskAction},
     inputs::Input,
@@ -144,4 +145,9 @@ impl TaskConfigValidator {
 
         serde_wasm_bindgen::to_value(&errs).map_err(|e| e.into())
     }
+}
+
+#[wasm_bindgen]
+pub fn new_task_trigger_id() -> String {
+    TaskTriggerId::new().to_string()
 }

@@ -157,13 +157,7 @@
 
   $: updateCompartment(language, languageComponents);
 
-  $: {
-    updateCompartment(lintCompartment, [lintExtension].filter(Boolean) as Extension[]);
-    if (lintExtension) {
-      console.log('force lint');
-      forceLinting(view);
-    }
-  }
+  $: updateCompartment(lintCompartment, [lintExtension].filter(Boolean) as Extension[]);
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
   $: updateCompartment(theme, $darkMode ?? cssDarkModePreference() ? [oneDark] : []);
 
