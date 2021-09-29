@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { StateMachine } from '^/api_types';
+  import { StateMachine } from '$lib/api_types';
   import Editor from './Editor.svelte';
   import zip from 'just-zip-it';
   import { objectLinter, ObjectLintResult } from './lint';
@@ -7,7 +7,7 @@
   import prettierBabel from 'prettier/parser-babel';
   import { TaskConfigValidator } from 'ergo-wasm';
 
-  import stateMachineSchema from '^/../../schemas/state_machine.json';
+  import stateMachineSchema from '$lib/../../schemas/state_machine.json';
 
   export let compiled: StateMachine[];
   export let source: string[];
@@ -16,8 +16,9 @@
 
   $: data = zip(compiled || [], source || []) as [StateMachine, string][];
 
-  function lint(obj: StateMachine): ObjectLintResult[] {
+  $: lint = (obj: StateMachine): ObjectLintResult[] => {
     let vals = validator?.validate_config({ type: 'StateMachine', data: [obj] }) ?? [];
+    console.log('linting', obj, vals);
 
     // Remove the leading 'data[0]' from each path since we inserted it above.
     for (let v of vals) {
@@ -28,7 +29,7 @@
     }
 
     return vals;
-  }
+  };
 
   function prettierFormat(s: object | string) {
     return prettier.format(typeof s === 'string' ? s : JSON.stringify(s), {

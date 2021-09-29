@@ -19,7 +19,7 @@
   import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
   import { commentKeymap } from '@codemirror/comment';
   import { defaultHighlightStyle } from '@codemirror/highlight';
-  import { Diagnostic, linter as makeLinter, lintKeymap } from '@codemirror/lint';
+  import { Diagnostic, forceLinting, linter as makeLinter, lintKeymap } from '@codemirror/lint';
   import { javascript } from '@codemirror/lang-javascript';
   import { json, jsonParseLinter } from '@codemirror/lang-json';
   import { json5, json5ParseLinter } from './codemirror-json5';
@@ -27,10 +27,10 @@
   import prettier from 'prettier/standalone';
   import prettierBabel from 'prettier/parser-babel';
 
-  import { darkModeStore, cssDarkModePreference } from '^/styles';
+  import { darkModeStore, cssDarkModePreference } from '$lib/styles';
   import throttle from 'just-throttle';
 
-  import Button from '^/components/Button.svelte';
+  import Button from '$lib/components/Button.svelte';
 
   import { autocompleter, AutocompleteSpec } from './autocomplete';
   import { LintSource } from './editor';
@@ -49,6 +49,7 @@
   const dispatch = createEventDispatcher<{ change: string }>();
 
   let language = new Compartment();
+  let lintCompartment = new Compartment();
   let lineWrapping = new Compartment();
   let theme = new Compartment();
 
@@ -71,6 +72,7 @@
       extensions: [
         EditorView.updateListener.of(viewUpdated),
         language.of([]),
+        lintCompartment.of([]),
         lineWrapping.of([]),
         theme.of([]),
         lineNumbers(),
@@ -154,6 +156,14 @@
   ].filter(Boolean) as Extension[];
 
   $: updateCompartment(language, languageComponents);
+
+  $: {
+    updateCompartment(lintCompartment, [lintExtension].filter(Boolean) as Extension[]);
+    if (lintExtension) {
+      console.log('force lint');
+      forceLinting(view);
+    }
+  }
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
   $: updateCompartment(theme, $darkMode ?? cssDarkModePreference() ? [oneDark] : []);
 

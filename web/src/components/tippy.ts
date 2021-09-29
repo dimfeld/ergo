@@ -30,7 +30,7 @@ export function showTippy(
   node: HTMLDivElement,
   { trigger, position, fixed, interactive, role, close }: TippyOptions
 ) {
-  let tippyInstance = tippy(trigger ?? node, {
+  let tippyInstance = tippy(trigger ?? node.parentElement ?? node, {
     interactive: interactive ?? false,
     animation: false,
     hideOnClick: 'toggle',

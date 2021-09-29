@@ -1,8 +1,10 @@
 <script lang="ts">
   import { showTippy } from './tippy';
-  import { tick } from 'svelte';
-  import XIcon from '^/components/icons/X.svelte';
-  import CheckIcon from '^/components/icons/Check.svelte';
+  import { createEventDispatcher, tick } from 'svelte';
+  import XIcon from '$lib/components/icons/X.svelte';
+  import CheckIcon from '$lib/components/icons/Check.svelte';
+
+  const dispatch = createEventDispatcher<{ change: string }>();
 
   export let value: string;
   export let editing = false;
@@ -14,7 +16,7 @@
   export let editingClasses =
     'border ring-accent-500 border-accent-500 focus:ring-accent-500 focus:border-accent-500';
   export let normalClasses =
-    "border cursor-pointer border-transparent hover:border-gray-200 dark:hover:border-gray-700';";
+    'border cursor-pointer border-transparent ring-accent-500 focus:ring-accent-500 focus:border-transparent hover:border-gray-400';
 
   $: classNames = editing ? editingClasses : normalClasses;
 
@@ -61,7 +63,10 @@
     }
 
     editing = false;
-    value = currentInput;
+    if (value !== currentInput) {
+      value = currentInput;
+      dispatch('change', value);
+    }
     return true;
   }
 
@@ -71,31 +76,24 @@
       return;
     }
 
-    let savedSuccessful = save();
-    if (!savedSuccessful) {
-      (e.target as HTMLInputElement)?.focus();
-    }
+    save();
   }
 
   let container: HTMLDivElement;
 </script>
 
-<div
-  bind:this={container}
-  class="relative"
-  on:focusout={handleBlur}
-  on:focusin={startEditing}
-  on:click={startEditing}
->
+<div bind:this={container} class="relative" on:focusout={handleBlur}>
   <input
     bind:this={textField}
     type="text"
     readonly={!editing}
-    class="bg-white dark-bg-gray-800 sm:text-sm {classNames}"
+    class="w-full {classNames}"
     class:border-red-500={editing && Boolean(error)}
     bind:value={currentInput}
     {placeholder}
     on:input={handleInput}
+    on:focus={startEditing}
+    on:click={startEditing}
     on:keyup={handleKeyUp}
     title={editing ? '' : 'Click to edit'}
   />

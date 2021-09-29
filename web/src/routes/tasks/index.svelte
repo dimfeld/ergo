@@ -1,10 +1,10 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import type { TaskDescription } from '^/api_types';
+  import type { TaskDescription } from '$lib/api_types';
   import { useQuery } from '@sveltestack/svelte-query';
-  import Query from '^/components/Query.svelte';
-  import TaskRow from '^/components/TaskRow.svelte';
-  import { getHeaderTextStore } from '^/header';
+  import Query from '$lib/components/Query.svelte';
+  import TaskRow from '$lib/components/TaskRow.svelte';
+  import { getHeaderTextStore } from '$lib/header';
   import sorter from 'sorters';
   getHeaderTextStore().set(['Tasks']);
 

@@ -1,4 +1,15 @@
 @tailwind base;
+
 /* Write your global styles here, in PostCSS syntax */
+
+select {
+  @apply sm:text-sm dark:bg-gray-800 rounded-md focus:border-accent-500 focus:ring-accent-500 dark:border-gray-600;
+}
+
+input[type='text'],
+input[type='number'] {
+  @apply bg-white dark:bg-gray-800 focus:ring-accent-500 focus:border-accent-500 sm:text-sm rounded-md;
+}
+
 @tailwind components;
 @tailwind utilities;

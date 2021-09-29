@@ -2,8 +2,8 @@
   import { scale } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
   import { darkModeStore } from '../styles';
-  import Dropdown from '^/components/Dropdown.svelte';
-  import MenuItem from '^/components/MenuItem.svelte';
+  import Dropdown from '$lib/components/Dropdown.svelte';
+  import MenuItem from '$lib/components/MenuItem.svelte';
 
   export let section: string;
 

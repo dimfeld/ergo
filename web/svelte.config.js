@@ -29,6 +29,9 @@ const config = {
     }),
     hostHeader: 'X-Forwarded-Host',
     ssr: false,
+    files: {
+      lib: path.resolve(process.cwd(), 'src'),
+    },
     vite: () => ({
       // Vite SSR needs this for packages that expose native ESM exports to Node.
       ssr: {
@@ -45,11 +48,13 @@ const config = {
           '/api': `http://localhost:${process.env.BIND_PORT || 6543}`,
         },
       },
+      optimizeDeps: {
+        exclude: ['0http', 'regexparam', 'cheap-watch'],
+      },
       resolve: {
         dedupe: ['svelte'],
         // Since some packages assume that "module" means Node :(
         alias: {
-          '^': path.resolve(process.cwd(), 'src'),
           svelte: path.resolve(process.cwd(), 'node_modules/svelte'),
         },
       },

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { InputsLogEntry, TaskDescription } from '../api_types';
-  import LogTimeline from '^/components/LogTimeline.svelte';
-  import Query from '^/components/Query.svelte';
-  import TaskRow from '^/components/TaskRow.svelte';
+  import LogTimeline from '$lib/components/LogTimeline.svelte';
+  import Query from '$lib/components/Query.svelte';
+  import TaskRow from '$lib/components/TaskRow.svelte';
   import { useQuery } from '@sveltestack/svelte-query';
-  import { getHeaderTextStore } from '^/header';
+  import { getHeaderTextStore } from '$lib/header';
   import sorter from 'sorters';
   getHeaderTextStore().set(['Dashboard']);
 

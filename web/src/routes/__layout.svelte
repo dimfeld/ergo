@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-  import { createApiClient, loadFetch } from '^/api';
+  import { createApiClient, loadFetch } from '$lib/api';
   import type { Load } from '@sveltejs/kit';
 
   export const load: Load = async function load({ fetch }) {
@@ -22,8 +22,8 @@
   import '../app.css';
   import { page } from '$app/stores';
   import { createDarkStore, cssDarkModePreference } from '../styles';
-  import { createHeaderTextStore } from '^/header';
-  import { setApiClientContext } from '^/api';
+  import { createHeaderTextStore } from '$lib/header';
+  import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
   import { Input, Action } from '../api_types';

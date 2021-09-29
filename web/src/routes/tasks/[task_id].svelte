@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-  import { loadFetch } from '^/api';
+  import { loadFetch } from '$lib/api';
   import type { Load } from '@sveltejs/kit';
 
   export const load: Load = async function load({ fetch, page }) {
@@ -26,19 +26,19 @@
   import { getStores, page } from '$app/stores';
   import TaskTriggerList from './_TaskTriggerList.svelte';
   import TaskActionList from './_TaskActionList.svelte';
-  import Button from '^/components/Button.svelte';
-  import Card from '^/components/Card.svelte';
-  import TextField from '^/components/TextField.svelte';
-  import type { TaskResult } from '^/api_types';
-  import { getHeaderTextStore } from '^/header';
+  import Button from '$lib/components/Button.svelte';
+  import Card from '$lib/components/Card.svelte';
+  import TextField from '$lib/components/TextField.svelte';
+  import type { TaskResult } from '$lib/api_types';
+  import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
 
-  import ScriptEditor from '^/editors/Script.svelte';
-  import StateMachineEditor from '^/editors/StateMachine.svelte';
-  import { baseData } from '^/data';
-  import apiClient from '^/api';
+  import ScriptEditor from '$lib/editors/Script.svelte';
+  import StateMachineEditor from '$lib/editors/StateMachine.svelte';
+  import { baseData } from '$lib/data';
+  import apiClient from '$lib/api';
   import { TaskConfigValidator } from 'ergo-wasm';
-  import initWasm from '^/wasm';
+  import initWasm from '$lib/wasm';
 
   export let task: TaskResult = defaultTask();
 
@@ -105,6 +105,7 @@
   $: if (wasmLoaded) {
     validator?.free();
     validator = new TaskConfigValidator($actions, $inputs, task.triggers, task.actions);
+    console.log('rebuilt validator', task);
   }
 
   onDestroy(() => {
@@ -126,7 +127,7 @@
       </p>
       <p>
         <span class="font-medium text-sm text-gray-700 dark:text-gray-300">Alias</span>
-        <TextField type="text" bind:value={task.alias} placeholder="None" class="ml-2" />
+        <input type="text" bind:value={task.alias} placeholder="None" class="ml-2" />
       </p>
     </div>
     <p>Description: {task.description || ''}</p>
@@ -135,12 +136,18 @@
 
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Actions</p>
-    <TaskActionList bind:taskActions={task.actions} />
+    <TaskActionList
+      bind:taskActions={task.actions}
+      on:change={() => (task.actions = task.actions)}
+    />
   </Card>
 
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Triggers</p>
-    <TaskTriggerList bind:triggers={task.triggers} />
+    <TaskTriggerList
+      bind:triggers={task.triggers}
+      on:change={() => (task.triggers = task.triggers)}
+    />
   </Card>
 
   <Card class="flex flex-col flex-grow mt-4 h-[64em]">
