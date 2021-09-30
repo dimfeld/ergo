@@ -1,7 +1,7 @@
 //! This code is inspired by the serialize/deserialize functions in deno/core/bindings.rs.
 use rusty_v8 as v8;
 use thiserror::Error;
-use v8::{Local, Value};
+use v8::{Local, Value, ValueDeserializerHelper, ValueSerializerHelper};
 
 #[derive(Debug, Error)]
 pub enum RawSerdeError {
@@ -34,6 +34,7 @@ pub fn serialize(
 ) -> Result<Vec<u8>, RawSerdeError> {
     let serialize_deserialize = Box::new(SerializeDeserialize {});
     let mut value_serializer = v8::ValueSerializer::new(scope, serialize_deserialize);
+    value_serializer.write_header();
     match value_serializer.write_value(scope.get_current_context(), value) {
         Some(true) => Ok(value_serializer.release()),
         _ => Err(RawSerdeError::Serialize),
@@ -47,6 +48,13 @@ pub fn deserialize<'a>(
 ) -> Result<Local<'a, Value>, RawSerdeError> {
     let serialize_deserialize = Box::new(SerializeDeserialize {});
     let mut value_deserializer = v8::ValueDeserializer::new(scope, serialize_deserialize, data);
+
+    let parsed = value_deserializer
+        .read_header(scope.get_current_context())
+        .unwrap_or_default();
+    if !parsed {
+        return Err(RawSerdeError::Deserialize);
+    }
 
     value_deserializer
         .read_value(scope.get_current_context())
