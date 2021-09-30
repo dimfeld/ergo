@@ -21,7 +21,8 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type", content = "data")]
 pub enum TaskConfig {
     StateMachine(state_machine::StateMachineConfig),
-    // JS(scripting::TaskJsConfig),
+    Js(scripting::TaskJsConfig),
+    // SerializedJs(scripting::TaskSerializedState),
 }
 
 impl TaskConfig {
@@ -43,6 +44,9 @@ impl TaskConfig {
                 }
                 errors
             }
+            // TODO Some sort of validation for scripts.
+            // At least do a syntax check.
+            Self::Js(_) => Vec::new(),
         };
 
         if errors.is_empty() {
@@ -70,6 +74,7 @@ mod native {
     use crate::{
         actions::{execute::execute, ActionStatus},
         inputs::InputStatus,
+        scripting::TaskJsState,
         state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData},
         TaskConfig,
     };
@@ -91,7 +96,8 @@ mod native {
     #[serde(tag = "type", content = "data")]
     pub enum TaskState {
         StateMachine(StateMachineStates),
-        // JS(TaskJsState)
+        Js(TaskJsState),
+        // SerializedJs(TaskSerializedState),
     }
 
     #[derive(Serialize, Deserialize, FromRow)]
@@ -207,6 +213,9 @@ mod native {
                             }
 
                       (TaskState::StateMachine(new_data), actions, changed)
+                  }
+                  (TaskConfig::Js(config), TaskState::Js(state)) => {
+                      let run_result = scripting::immediate::run_task(config, state).await?;
                   }
                 };
 

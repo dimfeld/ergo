@@ -18,6 +18,7 @@ use futures::future::ready;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::{scripting, ActionValidateError, ActionValidateErrors};
@@ -140,3 +141,5 @@ pub struct ActionInvocation {
     pub input_arrival_id: Option<Uuid>,
     pub payload: serde_json::Value,
 }
+
+pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;

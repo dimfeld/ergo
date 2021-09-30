@@ -15,7 +15,9 @@ fn build_snapshot(dir: &path::Path, name: &str, extensions: Vec<ergo_js::Extensi
 fn main() {
     println!("cargo:rerun-if-changed=../js");
     println!("cargo:rerun-if-changed=build.rs");
-    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("snapshots");
+    let dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("scripting")
+        .join("snapshots");
     let e = std::fs::DirBuilder::new().create(&dir);
     if let Err(e) = e {
         if e.kind() != std::io::ErrorKind::AlreadyExists {

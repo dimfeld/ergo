@@ -179,16 +179,13 @@ impl StateMachine {
 #[cfg(not(target_family = "wasm"))]
 mod native {
     use ergo_database::object_id::TaskId;
-    use smallvec::SmallVec;
     use tracing::{event, instrument, Level};
 
     use super::*;
     use crate::{
-        actions::ActionInvocation,
+        actions::{ActionInvocation, ActionInvocations},
         scripting::{self, run_simple_with_context_and_payload},
     };
-
-    pub type ActionInvocations = SmallVec<[ActionInvocation; 4]>;
 
     #[derive(Debug)]
     pub struct StateMachineWithData {

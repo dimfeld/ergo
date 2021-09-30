@@ -25,6 +25,7 @@ serde_millis = "0.1.1"
 smallvec = { version = "1.6.1", features = ["serde", "union"] }
 thiserror = "1.0.29"
 tracing = "0.1.26"
+url = "2.2.2"
 uuid = { version = "0.8.2", features = ["serde"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
