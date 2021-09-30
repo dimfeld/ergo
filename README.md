@@ -53,8 +53,10 @@ This project is in very early stages right now with no current plans for proper 
 
 ## 0.3
 
-- [ ] MVP of UI for editing tasks, actions, and inputs.
-- [ ] Implement last missing pieces of queue behavior.
+- [ ] MVP of UI for editing tasks
+- [ ] MVP of UI for editing actions and inputs.
+- [ ] Periodic tasks 
+- [X] Implement last missing pieces of queue behavior.
 - [ ] Barebones user management
 
 ## 0.2
