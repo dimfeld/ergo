@@ -9,6 +9,7 @@ name = "ergo_js"
 path = "lib.rs"
 
 [dependencies]
+anyhow = "1.0.44"
 async-channel = "1.6.1"
 async-trait = "0.1.51"
 chrono = { version = "0.4.19", features = ["serde"] }

@@ -10,10 +10,12 @@ pub use pool::RuntimePool;
 pub use serialized_execution::SerializedState;
 
 pub use deno_core::{Extension, Snapshot};
+use url::Url;
 
 use std::{
     borrow::Cow,
     ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 use deno_core::{error::AnyError, op_sync, JsRuntime, OpState};
@@ -100,15 +102,17 @@ impl DerefMut for Runtime {
 
 impl Runtime {
     pub fn new(mut options: RuntimeOptions) -> Self {
-        if let Some(console) = options.console {
-            options.extensions.push(console_extension(console));
-        }
+        let console = options
+            .console
+            .unwrap_or_else(|| Box::new(NullConsole::new()));
+        options.extensions.push(console_extension(console));
 
         let has_snapshot = options.snapshot.is_some();
         let deno_runtime = JsRuntime::new(deno_core::RuntimeOptions {
             will_snapshot: options.will_snapshot,
             extensions: options.extensions,
             startup_snapshot: options.snapshot,
+            module_loader: Some(Rc::new(module_loader::TrivialModuleLoader {})),
             ..deno_core::RuntimeOptions::default()
         });
 
@@ -232,6 +236,13 @@ impl Runtime {
         }
 
         Some(scope.escape(object))
+    }
+
+    pub async fn run_main_module(&mut self, url: Url, source: String) -> Result<(), AnyError> {
+        let mod_id = self.load_main_module(&url, Some(source)).await?;
+        let mod_done = self.mod_evaluate(mod_id);
+        self.run_event_loop(false).await?;
+        mod_done.await?
     }
 }
 
@@ -402,10 +413,7 @@ mod tests {
 
         #[test]
         fn simple() {
-            let mut runtime = Runtime::new(RuntimeOptions {
-                will_snapshot: false,
-                ..Default::default()
-            });
+            let mut runtime = Runtime::new(RuntimeOptions::default());
             let result = runtime
                 .run_boolean_expression("script", &5, "value === 5")
                 .unwrap();
@@ -419,10 +427,7 @@ mod tests {
 
         #[test]
         fn object() {
-            let mut runtime = Runtime::new(RuntimeOptions {
-                will_snapshot: false,
-                ..Default::default()
-            });
+            let mut runtime = Runtime::new(RuntimeOptions::default());
             let test_value = json!({
                 "x": {"y": 1 }
             });
@@ -431,5 +436,28 @@ mod tests {
                 .unwrap();
             assert_eq!(result, true, "comparison passed");
         }
+    }
+
+    #[tokio::test]
+    async fn run_main_module() {
+        let mut runtime = Runtime::new(RuntimeOptions {
+            extensions: core_extensions(None),
+            ..Default::default()
+        });
+        let code = r##"
+            // Top-level await just to make sure it works.
+            await Promise.resolve();
+            globalThis.loaded = true;
+            "##;
+        let main_url = Url::parse("https://ergo/script").expect("creating url");
+        runtime
+            .run_main_module(main_url, code.to_string())
+            .await
+            .expect("run_main_module");
+        let loaded: bool = runtime
+            .get_global_value("loaded")
+            .expect("retrieving result")
+            .expect("result should be present");
+        assert_eq!(loaded, true, "loaded is true");
     }
 }

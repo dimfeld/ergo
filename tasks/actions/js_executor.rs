@@ -15,6 +15,7 @@ use futures::future::{ready, TryFutureExt};
 use fxhash::FxHashMap;
 #[cfg(not(target_family = "wasm"))]
 use tracing::{event, instrument, Level};
+use url::Url;
 
 const FIELD_NAME: TemplateField = TemplateField::from_static(
     "name",
@@ -83,9 +84,15 @@ impl Executor for JsExecutor {
                 }
 
                 event!(Level::DEBUG, %script, "executing script");
-                let run_result = ready(runtime.execute_script(name, script))
-                    .and_then(|_| runtime.run_event_loop(false))
-                    .await;
+                let name_url =
+                    Url::parse(&format!("https://ergo/executor/{}", name)).map_err(|_| {
+                        ExecutorError::FieldFormatError {
+                            field: "name".to_string(),
+                            subfield: None,
+                            expected: "A formattable name".to_string(),
+                        }
+                    })?;
+                let run_result = runtime.run_main_module(name_url, script.to_string()).await;
                 let mut console = serde_json::to_value(runtime.take_console_messages())
                     .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
 

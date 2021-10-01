@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fmt::Write};
 
+use ergo_js::ConsoleMessage;
 use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
 
@@ -44,6 +45,19 @@ pub enum Error {
 
     #[error("Action validation errors: {0}")]
     ActionValidateError(#[from] ActionValidateErrors),
+
+    #[error("Config is for task type {0} and state is of a different type")]
+    ConfigStateMismatch(&'static str),
+
+    #[error("Setting up task script: {0}")]
+    TaskScriptSetup(anyhow::Error),
+
+    #[error("Task script error: {error}")]
+    TaskScript {
+        #[source]
+        error: anyhow::Error,
+        console: Vec<ConsoleMessage>,
+    },
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {

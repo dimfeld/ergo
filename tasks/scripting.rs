@@ -17,5 +17,5 @@ pub struct TaskJsConfig {
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TaskJsState {
-    pub context: serde_json::Value,
+    pub context: String,
 }

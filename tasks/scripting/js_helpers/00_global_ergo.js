@@ -1,0 +1,1 @@
+globalThis.Ergo = (globalThis.Ergo || {});

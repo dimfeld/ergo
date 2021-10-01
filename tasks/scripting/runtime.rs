@@ -35,7 +35,10 @@ fn snapshot_and_extensions(
 
 /// Create a runtime suitable for running tasks, with serialized execution and optional network
 /// access. If `state` is `None`, a new [SerializedState] will be created.
-pub fn create_task_script_runtime(state: Option<SerializedState>, allow_net: bool) -> Runtime {
+pub fn create_serialized_task_script_runtime(
+    state: Option<SerializedState>,
+    allow_net: bool,
+) -> Runtime {
     let state = state.unwrap_or_else(Default::default);
     let (snapshot, extensions) = snapshot_and_extensions(allow_net, Some(state.random_seed));
 
@@ -44,6 +47,19 @@ pub fn create_task_script_runtime(state: Option<SerializedState>, allow_net: boo
         extensions,
         snapshot: Some(Snapshot::Static(snapshot)),
         serialized_state: Some(state),
+        ..Default::default()
+    })
+}
+
+/// Create a runtime suitable for running tasks, with serialized execution and optional network
+/// access. If `state` is `None`, a new [SerializedState] will be created.
+pub fn create_nonserialized_task_script_runtime(allow_net: bool) -> Runtime {
+    let (snapshot, extensions) = snapshot_and_extensions(allow_net, None);
+
+    Runtime::new(RuntimeOptions {
+        console: Some(Box::new(BufferConsole::new(ergo_js::ConsoleLevel::Debug))),
+        extensions,
+        snapshot: Some(Snapshot::Static(snapshot)),
         ..Default::default()
     })
 }

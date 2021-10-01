@@ -72,10 +72,10 @@ pub struct TaskTrigger {
 mod native {
     use super::*;
     use crate::{
-        actions::{execute::execute, ActionStatus},
+        actions::{execute::execute, ActionInvocations, ActionStatus},
         inputs::InputStatus,
         scripting::TaskJsState,
-        state_machine::{ActionInvocations, StateMachineStates, StateMachineWithData},
+        state_machine::{StateMachineStates, StateMachineWithData},
         TaskConfig,
     };
     use chrono::{DateTime, Utc};
@@ -114,14 +114,6 @@ mod native {
         pub created: DateTime<Utc>,
         pub modified: DateTime<Utc>,
     }
-
-    const GET_TASK_QUERY: &'static str = r##"SELECT task_id as "task_id: TaskId",
-              org_id, name,
-              description, enabled,
-              state_machine_config as "state_machine_config: Json<state_machine::StateMachineConfig>",
-              state_machine_states as "state_machine_states: Json<state_machine::StateMachineStates>",
-              created, modified
-            FROM tasks WHERE task_id = $1"##;
 
     impl Task {
         /// Apply an input to a task.
@@ -166,7 +158,7 @@ mod native {
 
                 let task = sqlx::query_as!(TaskInputData,
                         r##"SELECT task_trigger_local_id,
-                        compiled as "config!: Json<TaskConfig>",
+                       compiled as "config!: Json<TaskConfig>",
                         state as "state!: Json<TaskState>",
                         tasks.org_id as "org_id: OrgId",
                         tasks.name as task_name,
@@ -189,16 +181,16 @@ mod native {
 
                 let (new_data, actions, changed) = match (config.0, state.0) {
                     (TaskConfig::StateMachine(machine), TaskState::StateMachine(state)) => {
-                      let num_machines = machine.len();
-                      let mut new_data = StateMachineStates::with_capacity(num_machines);
-                      let mut actions = ActionInvocations::new();
-                      let mut changed = false;
-                      for (idx, (machine, state)) in machine
-                        .into_iter()
-                        .zip(state.into_iter())
-                        .enumerate() {
-                              let mut m = StateMachineWithData::new(task_id.clone(), idx, machine, state);
-                              let this_actions = m
+                        let num_machines = machine.len();
+                        let mut new_data = StateMachineStates::with_capacity(num_machines);
+                        let mut actions = ActionInvocations::new();
+                        let mut changed = false;
+                        for (idx, (machine, state)) in machine
+                            .into_iter()
+                            .zip(state.into_iter())
+                            .enumerate() {
+                                let mut m = StateMachineWithData::new(task_id.clone(), idx, machine, state);
+                                let this_actions = m
                                   .apply_trigger(
                                       &task_trigger_local_id,
                                       &Some(input_arrival_id),
@@ -210,15 +202,21 @@ mod native {
                               new_data.push(data);
                               actions.extend(this_actions.into_iter());
                               changed = changed || this_changed;
-                            }
+                        }
 
-                      (TaskState::StateMachine(new_data), actions, changed)
-                  }
-                  (TaskConfig::Js(config), TaskState::Js(state)) => {
-                      let run_result = scripting::immediate::run_task(config, state).await?;
-                  }
+                        (TaskState::StateMachine(new_data), actions, changed)
+                    },
+                    (TaskConfig::StateMachine(_), _) =>  {
+                        return Err(Error::ConfigStateMismatch("StateMachine"))
+                    },
+                    (TaskConfig::Js(config), TaskState::Js(state)) => {
+                        let run_result = scripting::immediate::run_task(&task_name, config, state).await?;
+                        (TaskState::Js(run_result.state), run_result.actions, run_result.state_changed)
+                    },
+                    (TaskConfig::Js(_), _) =>  {
+                        return Err(Error::ConfigStateMismatch("Js"))
+                    },
                 };
-
 
                 if changed {
                     event!(Level::INFO, state=?new_data, "New state");
