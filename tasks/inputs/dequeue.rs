@@ -23,11 +23,12 @@ pub struct TaskExecutorConfig {
     pub notifications: Option<NotificationManager>,
     /// The highest number of concurrent jobs to run. Defaults to twice the number of CPUs.
     pub max_concurrent_jobs: Option<usize>,
-    pub immediate_actions: bool,
 }
 
 impl TaskExecutor {
     pub fn new(config: TaskExecutorConfig) -> Result<TaskExecutor, Error> {
+        let redis_key_prefix = config.redis_pool.key_prefix().map(|s| s.to_string());
+
         // Start the event queue reader.
         let queue = InputQueue::new(config.redis_pool);
 
@@ -36,7 +37,7 @@ impl TaskExecutor {
         let processor = TaskExecutorJobProcessor {
             pg_pool: config.pg_pool,
             notifications: config.notifications,
-            immediate_actions: config.immediate_actions,
+            redis_key_prefix,
         };
 
         executor.queue.start_dequeuer_loop(
@@ -56,7 +57,7 @@ impl TaskExecutor {
 struct TaskExecutorJobProcessor {
     pg_pool: PostgresPool,
     notifications: Option<NotificationManager>,
-    immediate_actions: bool,
+    redis_key_prefix: Option<String>,
 }
 
 #[async_trait]
@@ -65,6 +66,7 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
     type Error = Error;
 
     async fn process(&self, item: &QueueWorkItem<InputInvocation>) -> Result<(), Error> {
+        eprintln!("Dequeued job {:?}", item);
         let invocation = &item.data;
         Task::apply_input(
             &self.pg_pool,
@@ -74,7 +76,7 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
             invocation.task_trigger_id.clone(),
             invocation.inputs_log_id,
             invocation.payload.clone(),
-            self.immediate_actions,
+            self.redis_key_prefix.clone(),
         )
         .await?;
         Ok(())

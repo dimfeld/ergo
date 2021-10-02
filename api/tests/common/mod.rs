@@ -59,8 +59,6 @@ async fn start_app(
         redis_url: std::env::var("TEST_REDIS_URL").ok(),
         redis_queue_prefix: Some(redis_key_prefix.to_string()),
         vault_approle: None,
-        immediate_inputs: true,
-        immediate_actions: true,
         no_drain_queues: false,
         shutdown: shutdown.consumer(),
     };

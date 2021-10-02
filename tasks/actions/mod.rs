@@ -5,11 +5,14 @@ pub mod dequeue;
 pub mod execute;
 #[cfg(not(target_family = "wasm"))]
 pub mod queue;
+#[cfg(not(target_family = "wasm"))]
+pub use queue::enqueue_actions;
 pub mod template;
 
 mod http_executor;
 mod js_executor;
 mod raw_command_executor;
+mod send_input_executor;
 
 #[cfg(target_family = "wasm")]
 use anyhow::anyhow;

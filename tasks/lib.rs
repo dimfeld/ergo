@@ -72,7 +72,7 @@ pub struct TaskTrigger {
 mod native {
     use super::*;
     use crate::{
-        actions::{execute::execute, ActionInvocations, ActionStatus},
+        actions::{enqueue_actions, execute::execute, ActionInvocations, ActionStatus},
         inputs::InputStatus,
         scripting::TaskJsState,
         state_machine::{StateMachineStates, StateMachineWithData},
@@ -130,21 +130,18 @@ mod native {
             task_trigger_id: TaskTriggerId,
             input_arrival_id: uuid::Uuid,
             payload: serde_json::Value,
-            immediate_actions: bool,
+            redis_key_prefix: Option<String>,
         ) -> Result<(), Error> {
-            let immediate_data = if immediate_actions {
-                Some(notifications.clone())
-            } else {
-                None
-            };
-
             let mut conn = pool.acquire().await?;
             let result = serializable(&mut conn, 5, move |tx| {
+
             let payload = payload.clone();
             let input_arrival_id = input_arrival_id.clone();
             let notifications = notifications.clone();
             let task_id = task_id.clone();
             let task_trigger_id = task_trigger_id.clone();
+            let redis_key_prefix = redis_key_prefix.clone();
+
             Box::pin(async move {
                 #[derive(Debug, FromRow)]
                 struct TaskInputData {
@@ -255,29 +252,7 @@ mod native {
                     }
 
                     log_query.fetch_all(&mut *tx).await?;
-
-                    if !immediate_actions {
-                        let q = format!(
-                            r##"INSERT INTO action_queue
-                            (task_id, task_action_local_id, actions_log_id, input_arrival_id, payload)
-                            VALUES
-                            {}
-                            "##,
-                            sql_insert_parameters::<5>(actions.len())
-                        );
-
-                        let mut query = sqlx::query(&q);
-                        for action in &actions {
-                            query = query
-                                .bind(&action.task_id)
-                                .bind(&action.task_action_local_id)
-                                .bind(action.actions_log_id)
-                                .bind(action.input_arrival_id)
-                                .bind(&action.payload);
-                        }
-
-                        query.execute(&mut *tx).await?;
-                    }
+                    enqueue_actions(&mut *tx, &actions, &redis_key_prefix).await?;
                 }
 
                 if let Some(notifications) = notifications {
@@ -300,18 +275,7 @@ mod native {
         .await;
 
             let (log_error, status, retval) = match result {
-                Ok(actions) => {
-                    if let Some(notifications) = immediate_data {
-                        for action in actions {
-                            let pool = pool.clone();
-                            let notifications = notifications.clone();
-                            tokio::task::spawn(async move {
-                                execute(&pool, notifications.as_ref(), &action).await
-                            });
-                        }
-                    }
-                    (None, InputStatus::Success, Ok(()))
-                }
+                Ok(actions) => (None, InputStatus::Success, Ok(())),
                 Err(e) => {
                     event!(Level::ERROR, err=?e, "Error applying input");
                     (

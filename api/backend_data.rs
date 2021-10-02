@@ -12,8 +12,7 @@ pub struct BackendAppState {
     pub notifications: NotificationManager,
     action_queue: ActionQueue,
     input_queue: InputQueue,
-    pub immediate_inputs: bool,
-    pub immediate_actions: bool,
+    pub redis_key_prefix: Option<String>,
 }
 
 pub type BackendAppStateData = Data<BackendAppState>;
@@ -23,8 +22,7 @@ pub fn app_data(
     notifications: NotificationManager,
     input_queue: InputQueue,
     action_queue: ActionQueue,
-    immediate_inputs: bool,
-    immediate_actions: bool,
+    redis_key_prefix: Option<String>,
 ) -> Result<BackendAppStateData> {
     Ok(Data::new(BackendAppState {
         auth: AuthData::new(pg_pool.clone())?,
@@ -32,7 +30,6 @@ pub fn app_data(
         notifications,
         action_queue,
         input_queue,
-        immediate_inputs,
-        immediate_actions,
+        redis_key_prefix,
     }))
 }

@@ -1,72 +1,14 @@
 use std::{borrow::Cow, ops::Deref};
 
-use crate::{error::Error, Task};
+use crate::{error::Error, inputs::InputInvocation};
 
-use async_trait::async_trait;
 use ergo_database::{object_id::*, PostgresPool, RedisPool};
-use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
-use ergo_queues::{
-    postgres_drain::{Drainer, QueueStageDrain, QueueStageDrainConfig},
-    Job, JobId, Queue,
-};
-use sqlx::{Connection, Postgres, Transaction};
+use ergo_queues::{generic_stage::QueueJob, Queue};
+use sqlx::Connection;
 use uuid::Uuid;
 
 use super::validate_input_payload;
-
-struct QueueDrainer {}
-
-#[async_trait]
-impl Drainer for QueueDrainer {
-    type Error = Error;
-
-    fn lock_key(&self) -> i64 {
-        79034890
-    }
-
-    async fn get(
-        &self,
-        tx: &mut Transaction<Postgres>,
-    ) -> Result<Vec<(Cow<'static, str>, Job)>, Error> {
-        let results = sqlx::query!(
-            r##"SELECT event_queue_id,
-                task_id as "task_id: TaskId",
-                task_trigger_id as "task_trigger_id: TaskTriggerId",
-                input_id as "input_id: InputId",
-                inputs_log_id, payload
-            FROM event_queue ORDER BY event_queue_id LIMIT 50"##
-        )
-        .fetch_all(&mut *tx)
-        .await?;
-
-        if let Some(max_id) = results.last().map(|r| r.event_queue_id) {
-            sqlx::query!("DELETE FROM event_queue WHERE event_queue_id <= $1", max_id)
-                .execute(&mut *tx)
-                .await?;
-        }
-
-        results
-            .into_iter()
-            .map(|row| {
-                let payload = super::InputInvocation {
-                    task_id: row.task_id,
-                    task_trigger_id: row.task_trigger_id,
-                    input_id: row.input_id,
-                    inputs_log_id: row.inputs_log_id,
-                    payload: row.payload.unwrap_or(serde_json::Value::Null),
-                };
-
-                let job = Job::from_json_payload(
-                    JobId::Value(&row.event_queue_id.to_string()),
-                    &payload,
-                )?;
-
-                Ok::<_, Error>((Cow::Borrowed(QUEUE_NAME), job))
-            })
-            .collect::<Result<Vec<_>, Error>>()
-    }
-}
 
 const QUEUE_NAME: &str = "er-input";
 
@@ -91,30 +33,7 @@ impl InputQueue {
     }
 }
 
-/// Create an action queue and a task to drain the Postgres staging table into the queue.
-pub fn new_drain(
-    input_queue: InputQueue,
-    db_pool: PostgresPool,
-    redis_pool: RedisPool,
-    shutdown: GracefulShutdownConsumer,
-) -> Result<QueueStageDrain, Error> {
-    let config = QueueStageDrainConfig {
-        db_pool,
-        redis_pool,
-        drainer: QueueDrainer {},
-        queue: Some(input_queue.0),
-        shutdown,
-    };
-
-    QueueStageDrain::new(config).map_err(|e| e.into())
-}
-
 pub struct EnqueueInputOptions<'a> {
-    /// If true, apply the input immediately instead of adding it to the queue.
-    pub run_immediately: bool,
-    /// If both `run_immediately` and `immediate_actions` are true, then run actions immediately
-    /// instead of enqueueing them.
-    pub immediate_actions: bool,
     pub pg: &'a PostgresPool,
     pub notifications: Option<NotificationManager>,
     pub org_id: OrgId,
@@ -126,12 +45,11 @@ pub struct EnqueueInputOptions<'a> {
     pub task_trigger_name: String,
     pub payload_schema: &'a serde_json::Value,
     pub payload: serde_json::Value,
+    pub redis_key_prefix: &'a Option<String>,
 }
 
 pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Error> {
     let EnqueueInputOptions {
-        run_immediately,
-        immediate_actions,
         pg,
         notifications,
         org_id,
@@ -143,17 +61,16 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         task_trigger_name,
         payload_schema,
         payload,
+        redis_key_prefix,
     } = options;
 
     validate_input_payload(&input_id, payload_schema, &payload)?;
 
     let input_arrival_id = Uuid::new_v4();
-
-    let immediate_data = if run_immediately {
-        Some((notifications.clone(), payload.clone()))
-    } else {
-        None
-    };
+    let queue_name = redis_key_prefix
+        .as_ref()
+        .map(|prefix| Cow::Owned(format!("{}-{}", prefix, QUEUE_NAME)))
+        .unwrap_or(Cow::Borrowed(QUEUE_NAME));
 
     let mut conn = pg.acquire().await?;
     conn.transaction(|tx| {
@@ -161,20 +78,25 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         let task_id = task_id.clone();
         let task_trigger_id = task_trigger_id.clone();
         Box::pin(async move {
-            if !run_immediately {
-                sqlx::query!(
-                    r##"INSERT INTO event_queue
-            (task_id, input_id, task_trigger_id, inputs_log_id, payload) VALUES
-            ($1, $2, $3, $4, $5)"##,
-                    &task_id.0,
-                    &input_id.0,
-                    &task_trigger_id.0,
-                    &input_arrival_id,
-                    payload
-                )
-                .execute(&mut *tx)
-                .await?;
-            }
+            let invocation = InputInvocation {
+                task_trigger_id: task_trigger_id.clone(),
+                payload: payload.clone(),
+                task_id: task_id.clone(),
+                input_id,
+                inputs_log_id: input_arrival_id,
+            };
+
+            let job = QueueJob {
+                queue: queue_name.as_ref(),
+                payload: &invocation,
+                id: None,
+                run_at: None,
+                timeout: None,
+                max_retries: None,
+                retry_backoff: None,
+            };
+
+            job.enqueue(&mut *tx).await?;
 
             sqlx::query!(
                 r##"INSERT INTO inputs_log
@@ -209,20 +131,6 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         })
     })
     .await?;
-
-    if let Some((notifications, payload)) = immediate_data {
-        Task::apply_input(
-            pg,
-            notifications,
-            task_id,
-            input_id,
-            task_trigger_id,
-            input_arrival_id,
-            payload,
-            immediate_actions,
-        )
-        .await?;
-    }
 
     Ok(input_arrival_id)
 }

@@ -192,6 +192,7 @@ async fn script_task() {
         let mut logs = user.client.get_recent_logs().await?;
         println!("{:?}", logs);
 
+        let mut num_checks = 0;
         while logs
             .get(0)
             .and_then(|i| i.actions.0.get(0))
@@ -201,6 +202,10 @@ async fn script_task() {
         {
             tokio::time::sleep(Duration::from_secs(1)).await;
             logs = user.client.get_recent_logs().await?;
+            num_checks = num_checks + 1;
+            if num_checks > 30 {
+                panic!("Timed out waiting for logs, last saw {:?}", logs)
+            }
         }
 
         println!("{:?}", logs);
@@ -252,6 +257,7 @@ async fn postprocess_script() {
         let mut logs = user.client.get_recent_logs().await?;
         println!("{:?}", logs);
 
+        let mut num_checks = 0;
         while logs
             .get(0)
             .and_then(|i| i.actions.0.get(0))
@@ -261,6 +267,10 @@ async fn postprocess_script() {
         {
             tokio::time::sleep(Duration::from_secs(1)).await;
             logs = user.client.get_recent_logs().await?;
+            num_checks = num_checks + 1;
+            if num_checks > 30 {
+                panic!("Timed out waiting for logs, last saw {:?}", logs)
+            }
         }
 
         println!("{:?}", logs);
@@ -313,6 +323,7 @@ async fn postprocess_script_returns_nothing() {
         let mut logs = user.client.get_recent_logs().await?;
         println!("{:?}", logs);
 
+        let mut num_checks = 0;
         while logs
             .get(0)
             .and_then(|i| i.actions.0.get(0))
@@ -322,6 +333,10 @@ async fn postprocess_script_returns_nothing() {
         {
             tokio::time::sleep(Duration::from_secs(1)).await;
             logs = user.client.get_recent_logs().await?;
+            num_checks = num_checks + 1;
+            if num_checks > 30 {
+                panic!("Timed out waiting for logs, last saw {:?}", logs)
+            }
         }
 
         println!("{:?}", logs);

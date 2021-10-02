@@ -33,8 +33,6 @@ pub struct Config<'a> {
     pub redis_queue_prefix: Option<String>,
     pub vault_approle: Option<&'a str>,
 
-    pub immediate_actions: bool,
-    pub immediate_inputs: bool,
     pub no_drain_queues: bool,
     pub shutdown: GracefulShutdownConsumer,
 }
@@ -62,8 +60,6 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
         redis_url,
         redis_queue_prefix,
         vault_approle,
-        immediate_inputs,
-        immediate_actions,
         no_drain_queues,
         shutdown,
     } = config;
@@ -89,7 +85,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
     let backend_pg_pool =
         crate::service_config::backend_pg_pool(shutdown.clone(), &vault_client, database).await?;
 
-    let redis_pool = ergo_database::RedisPool::new(redis_url, redis_queue_prefix)?;
+    let redis_pool = ergo_database::RedisPool::new(redis_url, redis_queue_prefix.clone())?;
 
     let input_queue = InputQueue::new(redis_pool.clone());
     let action_queue = ActionQueue::new(redis_pool.clone());
@@ -111,8 +107,7 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
         notifications.clone(),
         input_queue.clone(),
         action_queue.clone(),
-        immediate_inputs,
-        immediate_actions,
+        redis_queue_prefix,
     )?;
 
     let queue_drain = if no_drain_queues {
@@ -120,8 +115,6 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
     } else {
         info!("Starting postgres queue drain");
         Some(ergo_tasks::queue_drain_runner::AllQueuesDrain::new(
-            input_queue.clone(),
-            action_queue.clone(),
             backend_pg_pool.clone(),
             redis_pool.clone(),
             shutdown.clone(),
@@ -134,7 +127,6 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
         shutdown: shutdown.clone(),
         notifications: Some(notifications.clone()),
         max_concurrent_jobs: None,
-        immediate_actions,
     })?;
 
     let action_runner = ActionExecutor::new(ActionExecutorConfig {

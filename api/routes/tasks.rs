@@ -587,8 +587,6 @@ async fn post_task_trigger(
     .ok_or(Error::NotFound)?;
 
     let input_arrival_id = ergo_tasks::inputs::enqueue_input(EnqueueInputOptions {
-        run_immediately: data.immediate_inputs,
-        immediate_actions: data.immediate_actions,
         pg: &data.pg,
         notifications: Some(data.notifications.clone()),
         org_id: org_id.clone(),
@@ -600,6 +598,7 @@ async fn post_task_trigger(
         task_name: trigger.task_name,
         payload_schema: &trigger.input_schema,
         payload: payload.into_inner(),
+        redis_key_prefix: &data.redis_key_prefix,
     })
     .await?;
 

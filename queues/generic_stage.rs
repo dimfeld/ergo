@@ -3,6 +3,7 @@ use crate::{error::Error, Job};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use ergo_database::sql_insert_parameters;
 use serde::Serialize;
 use sqlx::{PgConnection, Postgres, Transaction};
 use std::{borrow::Cow, time::Duration};
@@ -61,29 +62,45 @@ impl<'a, T: Serialize + Send + Sync> QueueJob<'a, T> {
         self
     }
 
-    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<i64, Error> {
-        let id = self
-            .id
+    fn get_id_or_default(&self) -> Cow<'a, str> {
+        self.id
             .map(|s| Cow::Borrowed(s))
-            .unwrap_or_else(|| Cow::Owned(uuid::Uuid::new_v4().to_string()));
-
-        let queue_id = sqlx::query_scalar!(
-            "INSERT INTO queue_stage (queue, job_id, payload, timeout, max_retries, run_at, retry_backoff) VALUES
-            ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id",
-            self.queue,
-            id.as_ref(),
-            sqlx::types::Json(self.payload) as _,
-            self.timeout.map(|t| t.as_millis() as i32),
-            self.max_retries.map(|i| i as i32),
-            self.run_at,
-            self.retry_backoff.map(|i| i.as_millis() as i32)
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-
-        Ok(queue_id)
+            .unwrap_or_else(|| Cow::Owned(uuid::Uuid::new_v4().to_string()))
     }
+
+    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<(), Error> {
+        enqueue_jobs(tx, &[self]).await
+    }
+}
+
+pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
+    tx: &mut PgConnection,
+    jobs: &[QueueJob<'_, T>],
+) -> Result<(), Error> {
+    let q = format!(
+        r##"INSERT INTO queue_stage (queue, job_id, payload, timeout, max_retries, run_at, retry_backoff)
+            VALUES
+            {}"##,
+        sql_insert_parameters::<7>(jobs.len())
+    );
+
+    let mut query = sqlx::query(&q);
+    for job in jobs {
+        eprintln!("Enqueueing job to {}", job.queue);
+        query = query
+            .bind(job.queue)
+            .bind(job.get_id_or_default().to_string())
+            .bind(sqlx::types::Json(&job.payload))
+            .bind(job.timeout.map(|t| t.as_millis() as i32))
+            .bind(job.max_retries.map(|i| i as i32))
+            .bind(job.run_at)
+            .bind(job.retry_backoff.map(|i| i.as_millis() as i32));
+    }
+
+    query.execute(&mut *tx).await?;
+    eprintln!("Enqueued jobs");
+
+    Ok(())
 }
 
 pub struct QueueDrainer {}
