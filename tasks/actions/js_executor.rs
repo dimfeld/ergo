@@ -49,6 +49,13 @@ impl JsExecutor {
     }
 }
 
+const EXECUTOR_JS: &'static str = r##"
+globalThis.Ergo = globalThis.Ergo || {};
+Ergo.setResult = function(value) {
+    globalThis.result = value;
+}
+"##;
+
 #[async_trait]
 impl Executor for JsExecutor {
     fn name(&self) -> &'static str {
@@ -92,6 +99,14 @@ impl Executor for JsExecutor {
                             expected: "A formattable name".to_string(),
                         }
                     })?;
+
+                runtime
+                    .execute_script("executor_init", EXECUTOR_JS)
+                    .map_err(|e| ExecutorError::CommandError {
+                        source: e.into(),
+                        result: serde_json::Value::Null,
+                    })?;
+
                 let run_result = runtime.run_main_module(name_url, script.to_string()).await;
                 let mut console = serde_json::to_value(runtime.take_console_messages())
                     .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));

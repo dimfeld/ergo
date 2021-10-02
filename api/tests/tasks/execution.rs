@@ -181,7 +181,7 @@ async fn script_task() {
     run_app_test(|app| async move {
         let BootstrappedData { user, task_id, .. } = bootstrap(&app).await?;
 
-        let script = r##"result = { value: 5 }"##;
+        let script = r##"Ergo.setResult({ value: 5 })"##;
 
         let log_id = user
             .client
@@ -210,12 +210,12 @@ async fn script_task() {
         assert_eq!(logs[0].task_trigger_local_id, "run");
         assert_eq!(logs[0].task_id, task_id);
         assert_eq!(logs[0].actions.len(), 1);
-        assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
         assert_eq!(
             logs[0].actions[0].result,
             json!({ "output": { "result": {"value": 5 }, "console": [] } }),
             "executor result"
         );
+        assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
 
         Ok(())
     })
@@ -241,7 +241,7 @@ async fn postprocess_script() {
             .await
             .unwrap();
 
-        let script = r##"result = { value: 5 }"##;
+        let script = r##"Ergo.setResult({ value: 5 })"##;
 
         let log_id = user
             .client
@@ -301,7 +301,7 @@ async fn postprocess_script_returns_nothing() {
             .await
             .expect("writing action");
 
-        let script = r##"result = { value: 5 }"##;
+        let script = r##"Ergo.setResult({ value: 5 })"##;
 
         let log_id = user
             .client

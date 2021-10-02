@@ -320,6 +320,9 @@ pub fn safe_braces<'a>(mut expr: &'a str) -> Cow<'a, str> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+    use wiremock::{matchers::method, Mock, MockServer, ResponseTemplate};
+
     use super::*;
 
     #[test]
@@ -459,5 +462,40 @@ mod tests {
             .expect("retrieving result")
             .expect("result should be present");
         assert_eq!(loaded, true, "loaded is true");
+    }
+
+    #[tokio::test]
+    async fn fetch() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "a": 5 })))
+            .mount(&server)
+            .await;
+
+        let mut runtime = Runtime::new(RuntimeOptions {
+            extensions: net_extensions(None),
+            console: Some(Box::new(BufferConsole::new(ConsoleLevel::Info))),
+            ..Default::default()
+        });
+
+        let script = format!(
+            r##"
+            let result = await fetch("{}").then((r) => r.json());
+            console.dir(result);
+            globalThis.result = result;
+        "##,
+            server.uri()
+        );
+
+        runtime
+            .run_main_module(Url::parse("https://ergo/script").unwrap(), script)
+            .await
+            .expect("running script");
+        println!("{:?}", runtime.take_console_messages());
+        let result: serde_json::Value = runtime
+            .get_global_value("result")
+            .expect("getting result")
+            .expect("getting_result");
+        assert_eq!(result, json!({"a": 5}));
     }
 }
