@@ -86,7 +86,6 @@ pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
 
     let mut query = sqlx::query(&q);
     for job in jobs {
-        eprintln!("Enqueueing job to {}", job.queue);
         query = query
             .bind(job.queue)
             .bind(job.get_id_or_default().to_string())
@@ -98,8 +97,6 @@ pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
     }
 
     query.execute(&mut *tx).await?;
-    eprintln!("Enqueued jobs");
-
     Ok(())
 }
 

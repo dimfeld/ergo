@@ -1639,6 +1639,7 @@ dependencies = [
  "async-trait",
  "backoff",
  "chrono",
+ "ergo-auth",
  "ergo-database",
  "ergo-graceful-shutdown",
  "ergo-js",

@@ -4,8 +4,6 @@ use super::{
 };
 use anyhow::anyhow;
 use async_trait::async_trait;
-#[cfg(not(target_family = "wasm"))]
-use ergo_database::PostgresPool;
 use fxhash::FxHashMap;
 use serde_json::json;
 use std::process::Stdio;
@@ -60,10 +58,10 @@ impl Executor for RawCommandExecutor {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(_pg_pool))]
+    #[instrument(level = "debug", name = "RawCommandExecutor::execute", skip(_state))]
     async fn execute(
         &self,
-        _pg_pool: PostgresPool,
+        _state: super::execute::ExecutorState,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
         let command = get_primitive_payload_value(&payload, "command", false)?;

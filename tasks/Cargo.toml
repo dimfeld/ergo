@@ -30,6 +30,7 @@ uuid = { version = "0.8.2", features = ["serde"] }
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 backoff = { version = "0.3.0", features = ["tokio"] }
+ergo-auth = { version = "0.1.0", path="../auth" }
 ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown" }
 ergo-js = { version = "0.0.0", path="../js" }
 ergo-notifications = { version = "0.2.0", path="../notifications" }

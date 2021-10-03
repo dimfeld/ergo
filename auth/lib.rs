@@ -20,7 +20,7 @@ use ergo_database::{
     PostgresPool,
 };
 use serde::{Deserialize, Serialize};
-use sqlx::query;
+use sqlx::{query, PgConnection};
 use tracing::{event, field, instrument, Level};
 use uuid::Uuid;
 
@@ -135,7 +135,7 @@ impl std::ops::Deref for Authenticated {
 pub enum AuthenticationInfo {
     ApiKey {
         key: api_key::ApiKeyAuth,
-        user: Option<RequestUser>,
+        user: RequestUser,
     },
     User(RequestUser),
 }
@@ -150,10 +150,10 @@ impl AuthenticationInfo {
         }
     }
 
-    pub fn user_id(&self) -> Option<&UserId> {
+    pub fn user_id(&self) -> &UserId {
         match self {
-            Self::User(user) => Some(&user.user_id),
-            Self::ApiKey { user, .. } => user.as_ref().map(|u| &u.user_id),
+            Self::User(user) => &user.user_id,
+            Self::ApiKey { user, .. } => &user.user_id,
         }
     }
 
@@ -166,16 +166,10 @@ impl AuthenticationInfo {
                     list.push(key.api_key_id.clone());
                     list
                 }
-                (true, Some(user)) => {
+                (true, user) => {
                     let mut ids = user.user_entity_ids.clone();
                     ids.push(key.api_key_id.clone());
                     ids
-                }
-                (true, None) => {
-                    let mut list = UserEntityList::new();
-                    list.push(key.api_key_id.clone());
-                    list.push(key.org_id.clone().into());
-                    list
                 }
             },
         }
@@ -184,7 +178,7 @@ impl AuthenticationInfo {
     pub fn expect_admin(&self) -> Result<(), Error> {
         let is_admin = match self {
             Self::User(user) => user.is_admin,
-            Self::ApiKey { user, .. } => user.as_ref().map(|u| u.is_admin).unwrap_or(false),
+            Self::ApiKey { user, .. } => user.is_admin,
         };
 
         if is_admin {
@@ -235,9 +229,19 @@ impl AuthData {
 
     #[instrument(skip(self), fields(user))]
     async fn get_user_info(&self, user_id: &UserId) -> Result<RequestUser, Error> {
-        event!(Level::DEBUG, "Fetching user");
-        query!(
-            r##"SELECT user_id as "user_id: UserId",
+        let mut conn = self.pg.acquire().await?;
+        get_user_info(&mut conn, user_id, self.admin_user.as_ref()).await
+    }
+}
+
+pub async fn get_user_info(
+    tx: &mut PgConnection,
+    user_id: &UserId,
+    admin_user: Option<&UserId>,
+) -> Result<RequestUser, Error> {
+    event!(Level::DEBUG, "Fetching user");
+    query!(
+        r##"SELECT user_id as "user_id: UserId",
             active_org_id AS "org_id: OrgId", users.name, email,
             array_agg(role_id) FILTER(WHERE role_id IS NOT NULL) AS "roles: Vec<RoleId>"
         FROM users
@@ -245,42 +249,37 @@ impl AuthData {
         LEFT JOIN user_roles USING(user_id, org_id)
         WHERE user_id = $1 AND NOT users.deleted AND NOT orgs.deleted
         GROUP BY user_id"##,
-            &user_id.0
-        )
-        .fetch_optional(&self.pg)
-        .await?
-        .map(|user| {
-            let user_entity_ids = match user.roles {
-                Some(roles) => {
-                    let mut ids = UserEntityList::with_capacity(roles.len() + 1);
-                    for role in roles {
-                        ids.push(role.into());
-                    }
-                    ids.push(user.user_id.clone().into());
-                    ids
+        &user_id.0
+    )
+    .fetch_optional(tx)
+    .await?
+    .map(|user| {
+        let user_entity_ids = match user.roles {
+            Some(roles) => {
+                let mut ids = UserEntityList::with_capacity(roles.len() + 1);
+                for role in roles {
+                    ids.push(role.into());
                 }
-                None => UserEntityList::from_elem(user.user_id.clone().into(), 1),
-            };
+                ids.push(user.user_id.clone().into());
+                ids
+            }
+            None => UserEntityList::from_elem(user.user_id.clone().into(), 1),
+        };
 
-            let user = RequestUser {
-                user_id: user.user_id,
-                org_id: user.org_id,
-                name: user.name,
-                email: user.email,
-                user_entity_ids,
-                is_admin: self
-                    .admin_user
-                    .as_ref()
-                    .map(|u| u == user_id)
-                    .unwrap_or(false),
-            };
+        let user = RequestUser {
+            user_id: user.user_id,
+            org_id: user.org_id,
+            name: user.name,
+            email: user.email,
+            user_entity_ids,
+            is_admin: admin_user.map(|u| u == user_id).unwrap_or(false),
+        };
 
-            tracing::Span::current().record("user", &field::debug(&user));
+        tracing::Span::current().record("user", &field::debug(&user));
 
-            user
-        })
-        .ok_or(Error::AuthenticationError)
-    }
+        user
+    })
+    .ok_or(Error::AuthenticationError)
 }
 
 #[cfg(test)]
@@ -330,10 +329,10 @@ mod tests {
                 key: ApiKeyAuth {
                     api_key_id: api_key_id(),
                     org_id: user.org_id.clone(),
-                    user_id: Some(user.user_id.clone()),
+                    user_id: user.user_id.clone(),
                     inherits_user_permissions: true,
                 },
-                user: Some(user),
+                user,
             }
         }
 
@@ -343,34 +342,10 @@ mod tests {
                 key: ApiKeyAuth {
                     api_key_id: api_key_id(),
                     org_id: user.org_id.clone(),
-                    user_id: Some(user.user_id.clone()),
+                    user_id: user.user_id.clone(),
                     inherits_user_permissions: false,
                 },
-                user: Some(user),
-            }
-        }
-
-        fn org_key_with_inherit() -> AuthenticationInfo {
-            AuthenticationInfo::ApiKey {
-                user: None,
-                key: ApiKeyAuth {
-                    api_key_id: api_key_id(),
-                    org_id: org_id(),
-                    user_id: None,
-                    inherits_user_permissions: true,
-                },
-            }
-        }
-
-        fn org_key_without_inherit() -> AuthenticationInfo {
-            AuthenticationInfo::ApiKey {
-                user: None,
-                key: ApiKeyAuth {
-                    api_key_id: api_key_id(),
-                    org_id: org_id(),
-                    user_id: None,
-                    inherits_user_permissions: false,
-                },
+                user,
             }
         }
 
@@ -382,25 +357,15 @@ mod tests {
         fn get_user_id() {
             assert_eq!(
                 user_key_with_inherit().user_id(),
-                Some(&user_id()),
+                &user_id(),
                 "key with inherit"
             );
             assert_eq!(
                 user_key_without_inherit().user_id(),
-                Some(&user_id()),
+                &user_id(),
                 "key without inherit"
             );
-            assert_eq!(
-                org_key_with_inherit().user_id(),
-                None,
-                "org key with inherit"
-            );
-            assert_eq!(
-                org_key_without_inherit().user_id(),
-                None,
-                "org key without inherit"
-            );
-            assert_eq!(user_auth().user_id(), Some(&user_id()), "user auth");
+            assert_eq!(user_auth().user_id(), &user_id(), "user auth");
         }
 
         #[test]
@@ -414,16 +379,6 @@ mod tests {
                 user_key_without_inherit().org_id(),
                 &org_id(),
                 "key without inherit"
-            );
-            assert_eq!(
-                org_key_with_inherit().org_id(),
-                &org_id(),
-                "org key with inherit"
-            );
-            assert_eq!(
-                org_key_without_inherit().org_id(),
-                &org_id(),
-                "org key without inherit"
             );
             assert_eq!(user_auth().org_id(), &org_id(), "user auth");
         }
@@ -449,21 +404,6 @@ mod tests {
             let mut s: UserEntityList = smallvec![api_key_id()];
             s.sort();
             assert_eq!(ids, s, "key without inherit should only have API key");
-
-            let mut ids = org_key_with_inherit().user_entity_ids();
-            ids.sort();
-            let mut s: UserEntityList = smallvec![org_id().into(), api_key_id()];
-            s.sort();
-            assert_eq!(ids, s, "org key with inherit should have API key and org");
-
-            let mut ids = org_key_without_inherit().user_entity_ids();
-            ids.sort();
-            let mut s: UserEntityList = smallvec![api_key_id()];
-            s.sort();
-            assert_eq!(
-                ids, s,
-                "org key without inherit should have API key and org"
-            );
 
             let mut ids = user_auth().user_entity_ids();
             ids.sort();

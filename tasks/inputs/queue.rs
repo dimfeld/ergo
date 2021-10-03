@@ -2,6 +2,7 @@ use std::{borrow::Cow, ops::Deref};
 
 use crate::{error::Error, inputs::InputInvocation};
 
+use chrono::{DateTime, Utc};
 use ergo_database::{object_id::*, PostgresPool, RedisPool};
 use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use ergo_queues::{generic_stage::QueueJob, Queue};
@@ -37,6 +38,7 @@ pub struct EnqueueInputOptions<'a> {
     pub pg: &'a PostgresPool,
     pub notifications: Option<NotificationManager>,
     pub org_id: OrgId,
+    pub user_id: UserId,
     pub task_id: TaskId,
     pub task_name: String,
     pub input_id: InputId,
@@ -46,6 +48,7 @@ pub struct EnqueueInputOptions<'a> {
     pub payload_schema: &'a serde_json::Value,
     pub payload: serde_json::Value,
     pub redis_key_prefix: &'a Option<String>,
+    pub trigger_at: Option<DateTime<Utc>>,
 }
 
 pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Error> {
@@ -53,6 +56,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         pg,
         notifications,
         org_id,
+        user_id,
         task_id,
         task_name,
         input_id,
@@ -62,6 +66,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         payload_schema,
         payload,
         redis_key_prefix,
+        trigger_at,
     } = options;
 
     validate_input_payload(&input_id, payload_schema, &payload)?;
@@ -77,6 +82,8 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         let input_id = input_id.clone();
         let task_id = task_id.clone();
         let task_trigger_id = task_trigger_id.clone();
+        let user_id = user_id.clone();
+
         Box::pin(async move {
             let invocation = InputInvocation {
                 task_trigger_id: task_trigger_id.clone(),
@@ -84,13 +91,14 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
                 task_id: task_id.clone(),
                 input_id,
                 inputs_log_id: input_arrival_id,
+                user_id,
             };
 
             let job = QueueJob {
                 queue: queue_name.as_ref(),
                 payload: &invocation,
                 id: None,
-                run_at: None,
+                run_at: trigger_at,
                 timeout: None,
                 max_retries: None,
                 retry_backoff: None,

@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fmt::Write};
 
+#[cfg(not(target_family = "wasm"))]
 use ergo_js::ConsoleMessage;
 use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
@@ -53,6 +54,7 @@ pub enum Error {
     TaskScriptSetup(anyhow::Error),
 
     #[error("Task script error: {error}")]
+    #[cfg(not(target_family = "wasm"))]
     TaskScript {
         #[source]
         error: anyhow::Error,

@@ -72,7 +72,7 @@ pub struct TaskTrigger {
 mod native {
     use super::*;
     use crate::{
-        actions::{enqueue_actions, execute::execute, ActionInvocations, ActionStatus},
+        actions::{enqueue_actions, ActionInvocations, ActionStatus},
         inputs::InputStatus,
         scripting::TaskJsState,
         state_machine::{StateMachineStates, StateMachineWithData},
@@ -80,7 +80,7 @@ mod native {
     };
     use chrono::{DateTime, Utc};
     use ergo_database::{
-        object_id::{InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId},
+        object_id::{InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId, UserId},
         sql_insert_parameters,
         transaction::serializable,
         PostgresPool,
@@ -129,6 +129,7 @@ mod native {
             input_id: InputId,
             task_trigger_id: TaskTriggerId,
             input_arrival_id: uuid::Uuid,
+            user_id: UserId,
             payload: serde_json::Value,
             redis_key_prefix: Option<String>,
         ) -> Result<(), Error> {
@@ -141,6 +142,7 @@ mod native {
             let task_id = task_id.clone();
             let task_trigger_id = task_trigger_id.clone();
             let redis_key_prefix = redis_key_prefix.clone();
+            let user_id = user_id.clone();
 
             Box::pin(async move {
                 #[derive(Debug, FromRow)]
@@ -190,6 +192,7 @@ mod native {
                                 let this_actions = m
                                   .apply_trigger(
                                       &task_trigger_local_id,
+                                      &user_id,
                                       &Some(input_arrival_id),
                                       Some(&payload),
                                   ).await

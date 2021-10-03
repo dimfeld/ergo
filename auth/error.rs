@@ -18,6 +18,9 @@ pub enum Error {
 
     #[error("SQL Error")]
     SqlError(#[from] sqlx::error::Error),
+
+    #[error(transparent)]
+    DatabaseError(#[from] ergo_database::Error),
 }
 
 impl<T: std::error::Error> From<EnvOptionError<T>> for Error {

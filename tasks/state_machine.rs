@@ -178,7 +178,7 @@ impl StateMachine {
 
 #[cfg(not(target_family = "wasm"))]
 mod native {
-    use ergo_database::object_id::TaskId;
+    use ergo_database::object_id::{TaskId, UserId};
     use tracing::{event, instrument, Level};
 
     use super::*;
@@ -200,6 +200,7 @@ mod native {
         async fn resolve_actions(
             &self,
             task_id: &TaskId,
+            user_id: &UserId,
             input_arrival_id: &Option<uuid::Uuid>,
             context: &serde_json::Value,
             payload: &Option<&serde_json::Value>,
@@ -216,6 +217,7 @@ mod native {
                             actions_log_id: uuid::Uuid::new_v4(),
                             task_id: task_id.clone(),
                             task_action_local_id: def.task_action_local_id.clone(),
+                            user_id: user_id.clone(),
                             payload: built_payload,
                         };
                         output.push(invocation);
@@ -332,6 +334,7 @@ mod native {
         pub async fn apply_trigger(
             &mut self,
             trigger_id: &str,
+            user_id: &UserId,
             input_arrival_id: &Option<uuid::Uuid>,
             payload: Option<&serde_json::Value>,
         ) -> Result<ActionInvocations, StateMachineError> {
@@ -358,6 +361,7 @@ mod native {
                     let actions = h
                         .resolve_actions(
                             &self.task_id,
+                            user_id,
                             input_arrival_id,
                             &self.data.context,
                             &payload,

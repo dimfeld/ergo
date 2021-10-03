@@ -66,7 +66,6 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
     type Error = Error;
 
     async fn process(&self, item: &QueueWorkItem<InputInvocation>) -> Result<(), Error> {
-        eprintln!("Dequeued job {:?}", item);
         let invocation = &item.data;
         Task::apply_input(
             &self.pg_pool,
@@ -75,6 +74,7 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
             invocation.input_id.clone(),
             invocation.task_trigger_id.clone(),
             invocation.inputs_log_id,
+            invocation.user_id.clone(),
             invocation.payload.clone(),
             self.redis_key_prefix.clone(),
         )

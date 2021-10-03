@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE tasks ADD COLUMN run_as uuid;
+ALTER TABLE api_keys ALTER COLUMN user_id SET NOT NULL;
+COMMIT;

@@ -1,8 +1,5 @@
 use std::borrow::Cow;
 
-#[cfg(not(target_family = "wasm"))]
-use ergo_database::PostgresPool;
-
 use super::{
     execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
@@ -109,10 +106,10 @@ impl Executor for HttpExecutor {
     }
 
     #[cfg(not(target_family = "wasm"))]
-    #[instrument(level = "debug", name = "HttpExecutor::execute", skip(_pg_pool))]
+    #[instrument(level = "debug", name = "HttpExecutor::execute", skip(_state))]
     async fn execute(
         &self,
-        _pg_pool: PostgresPool,
+        _state: super::execute::ExecutorState,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
         self.execute_internal(payload).await
@@ -145,10 +142,7 @@ mod execute {
                 .user_agent(user_agent)
                 .timeout(std::time::Duration::from_secs(timeout))
                 .build()
-                .map_err(|e| ExecutorError::CommandError {
-                    source: anyhow!(e),
-                    result: serde_json::Value::Null,
-                })?;
+                .map_err(ExecutorError::command_error_without_result)?;
 
             let method =
                 reqwest::Method::try_from(FIELD_METHOD.extract_str(&payload)?.unwrap_or("GET"))

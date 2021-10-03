@@ -1,9 +1,9 @@
 use std::borrow::Cow;
 
 use async_trait::async_trait;
-use ergo_database::sqlx_json_decode;
 #[cfg(not(target_family = "wasm"))]
 use ergo_database::PostgresPool;
+use ergo_database::{object_id::UserId, sqlx_json_decode};
 use fxhash::FxHashMap;
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
@@ -75,6 +75,15 @@ pub enum ExecutorError {
     },
 }
 
+impl ExecutorError {
+    pub fn command_error_without_result(err: impl Into<anyhow::Error>) -> ExecutorError {
+        ExecutorError::CommandError {
+            source: err.into(),
+            result: serde_json::Value::Null,
+        }
+    }
+}
+
 impl From<TemplateValidationFailure> for ExecutorError {
     fn from(e: TemplateValidationFailure) -> Self {
         match e {
@@ -88,12 +97,20 @@ impl From<TemplateValidationFailure> for ExecutorError {
     }
 }
 
+#[derive(Clone, Debug)]
+#[cfg(not(target_family = "wasm"))]
+pub struct ExecutorState {
+    pub pg_pool: PostgresPool,
+    pub redis_key_prefix: Option<String>,
+    pub user_id: UserId,
+}
+
 #[async_trait]
 pub trait Executor: std::fmt::Debug + Send + Sync {
     #[cfg(not(target_family = "wasm"))]
     async fn execute(
         &self,
-        pg_pool: PostgresPool,
+        state: ExecutorState,
         template_values: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError>;
 
@@ -158,6 +175,7 @@ mod native {
     #[instrument(name = "execute_action", level = "debug", skip(pg_pool, notifications))]
     pub async fn execute(
         pg_pool: &PostgresPool,
+        redis_key_prefix: Option<String>,
         notifications: Option<&NotificationManager>,
         invocation: &ActionInvocation,
     ) -> Result<serde_json::Value, Error> {
@@ -178,7 +196,7 @@ mod native {
             error: e.into(),
         })?;
 
-        let result = execute_action(pg_pool, notifications, invocation).await;
+        let result = execute_action(pg_pool, redis_key_prefix, notifications, invocation).await;
         event!(Level::DEBUG, ?result);
 
         let (status, response) = match &result {
@@ -233,10 +251,12 @@ mod native {
         account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
         account_expires: Option<DateTime<Utc>>,
         org_id: OrgId,
+        run_as: Option<UserId>,
     }
 
     async fn execute_action(
         pg_pool: &PostgresPool,
+        redis_key_prefix: Option<String>,
         notifications: Option<&NotificationManager>,
         invocation: &ActionInvocation,
     ) -> Result<serde_json::Value, Error> {
@@ -260,7 +280,8 @@ mod native {
         task_actions.account_id as "account_id: AccountId",
         NULLIF(accounts.fields, 'null'::jsonb) as account_fields,
         accounts.expires as account_expires,
-        tasks.org_id as "org_id: OrgId"
+        tasks.org_id as "org_id: OrgId",
+        tasks.run_as as "run_as: Option<UserId>"
 
         FROM task_actions
         JOIN tasks USING (task_id)
@@ -335,8 +356,17 @@ mod native {
 
         // Send the executor payload to the executor to actually run it.
         let postprocess = action.postprocess_script.as_ref();
+        let executor_state = ExecutorState {
+            pg_pool: pg_pool.clone(),
+            redis_key_prefix,
+            user_id: action
+                .run_as
+                .take()
+                .unwrap_or_else(|| invocation.user_id.clone()),
+        };
+
         let results = executor
-            .execute(pg_pool.clone(), action_template_values)
+            .execute(executor_state, action_template_values)
             .map_err(|e| e.into())
             .and_then(|result| async move {
                 match postprocess {
@@ -572,7 +602,7 @@ mod tests {
 
         async fn execute(
             &self,
-            _pg_pool: PostgresPool,
+            _state: ExecutorState,
             _template_values: FxHashMap<String, Value>,
         ) -> Result<Value, ExecutorError> {
             Ok(self.return_value.clone())

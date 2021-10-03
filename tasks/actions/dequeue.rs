@@ -24,11 +24,13 @@ pub struct ActionExecutor {
 
 impl ActionExecutor {
     pub fn new(config: ActionExecutorConfig) -> Result<ActionExecutor, Error> {
+        let redis_key_prefix = config.redis_pool.key_prefix().map(|e| e.to_string());
         let queue = ActionQueue::new(config.redis_pool);
         let executor = ActionExecutor { queue };
         let processor = ActionExecutorJobProcessor {
             pg_pool: config.pg_pool,
             notifications: config.notifications,
+            redis_key_prefix,
         };
 
         executor.queue.start_dequeuer_loop(
@@ -48,6 +50,7 @@ impl ActionExecutor {
 struct ActionExecutorJobProcessor {
     pg_pool: PostgresPool,
     notifications: Option<NotificationManager>,
+    redis_key_prefix: Option<String>,
 }
 
 #[async_trait]
@@ -56,7 +59,13 @@ impl QueueJobProcessor for ActionExecutorJobProcessor {
     type Error = Error;
 
     async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error> {
-        execute(&self.pg_pool, self.notifications.as_ref(), &item.data).await?;
+        execute(
+            &self.pg_pool,
+            self.redis_key_prefix.clone(),
+            self.notifications.as_ref(),
+            &item.data,
+        )
+        .await?;
         Ok(())
     }
 }

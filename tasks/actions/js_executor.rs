@@ -6,8 +6,6 @@ use super::{
 #[cfg(not(target_family = "wasm"))]
 use crate::scripting;
 use async_trait::async_trait;
-#[cfg(not(target_family = "wasm"))]
-use ergo_database::PostgresPool;
 
 #[cfg(not(target_family = "wasm"))]
 use ergo_js::ConsoleMessage;
@@ -49,7 +47,7 @@ impl JsExecutor {
     }
 }
 
-const EXECUTOR_JS: &'static str = r##"
+const EXECUTOR_STARTUP_SCRIPT: &'static str = r##"
 globalThis.Ergo = globalThis.Ergo || {};
 Ergo.setResult = function(value) {
     globalThis.result = value;
@@ -65,7 +63,7 @@ impl Executor for JsExecutor {
     #[cfg(not(target_family = "wasm"))]
     async fn execute(
         &self,
-        _pg_pool: PostgresPool,
+        _state: super::execute::ExecutorState,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
         let (console, result) = scripting::POOL
@@ -75,19 +73,13 @@ impl Executor for JsExecutor {
 
                 let mut runtime = scripting::create_executor_runtime();
                 if let Some(args) = FIELD_ARGS.extract_object(&payload)? {
-                    runtime.set_global_value("args", args).map_err(|e| {
-                        ExecutorError::CommandError {
-                            source: e,
-                            result: serde_json::Value::Null,
-                        }
-                    })?;
+                    runtime
+                        .set_global_value("args", args)
+                        .map_err(ExecutorError::command_error_without_result)?;
                 } else {
                     runtime
                         .set_global_value("args", &serde_json::json!({}))
-                        .map_err(|e| ExecutorError::CommandError {
-                            source: e,
-                            result: serde_json::Value::Null,
-                        })?;
+                        .map_err(ExecutorError::command_error_without_result)?;
                 }
 
                 event!(Level::DEBUG, %script, "executing script");
@@ -101,11 +93,8 @@ impl Executor for JsExecutor {
                     })?;
 
                 runtime
-                    .execute_script("executor_init", EXECUTOR_JS)
-                    .map_err(|e| ExecutorError::CommandError {
-                        source: e.into(),
-                        result: serde_json::Value::Null,
-                    })?;
+                    .execute_script("executor_init", EXECUTOR_STARTUP_SCRIPT)
+                    .map_err(ExecutorError::command_error_without_result)?;
 
                 let run_result = runtime.run_main_module(name_url, script.to_string()).await;
                 let mut console = serde_json::to_value(runtime.take_console_messages())

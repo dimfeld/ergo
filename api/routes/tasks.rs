@@ -361,7 +361,7 @@ async fn update_task(
 
         if updated.rows_affected() == 0 {
             // The object didn't exist, so update it here.
-            add_task_trigger(&mut tx, &trigger_local_id, &task_id, trigger, &user_id).await?;
+            add_task_trigger(&mut tx, &trigger_local_id, &task_id, trigger, user_id).await?;
         }
     }
 
@@ -389,7 +389,7 @@ async fn add_task_trigger(
     local_id: &str,
     task_id: &TaskId,
     trigger: &TaskTriggerInput,
-    user_id: &Option<&UserId>,
+    user_id: &UserId,
 ) -> Result<TaskTriggerId> {
     let trigger_id = TaskTriggerId::new();
     sqlx::query!(
@@ -407,13 +407,14 @@ async fn add_task_trigger(
     .execute(&mut *tx)
     .await?;
 
-    if let Some(user_id) = user_id {
-        sqlx::query!("INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
+    sqlx::query!(
+        "INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
         VALUES ($1, 'trigger_event', $2)",
-            &user_id.0,
-            &trigger_id.0
-        ).execute(&mut *tx).await?;
-    }
+        &user_id.0,
+        &trigger_id.0
+    )
+    .execute(&mut *tx)
+    .await?;
 
     Ok(trigger_id)
 }
@@ -484,17 +485,16 @@ async fn new_task(
     .execute(&mut tx)
     .await?;
 
-    if let Some(user_id) = auth.user_id() {
-        sqlx::query!(
-            "INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
+    sqlx::query!(
+        "INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
             VALUES
             ($1, 'read', $2),
             ($1, 'write', $2)",
-            &user_id.0, &task_id.0
-        )
-        .execute(&mut tx)
-        .await?;
-    }
+        &auth.user_id().0,
+        &task_id.0
+    )
+    .execute(&mut tx)
+    .await?;
 
     for (local_id, action) in &payload.actions {
         sqlx::query!(
@@ -596,9 +596,11 @@ async fn post_task_trigger(
         task_trigger_local_id: trigger_id,
         task_trigger_name: trigger.task_trigger_name,
         task_name: trigger.task_name,
+        user_id: auth.user_id().clone(),
         payload_schema: &trigger.input_schema,
         payload: payload.into_inner(),
         redis_key_prefix: &data.redis_key_prefix,
+        trigger_at: None,
     })
     .await?;
 

@@ -16,7 +16,7 @@ mod send_input_executor;
 
 #[cfg(target_family = "wasm")]
 use anyhow::anyhow;
-use ergo_database::object_id::{AccountId, ActionCategoryId, ActionId, TaskId};
+use ergo_database::object_id::{AccountId, ActionCategoryId, ActionId, TaskId, UserId};
 use futures::future::ready;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -142,6 +142,7 @@ pub struct ActionInvocation {
     pub task_action_local_id: String,
     pub actions_log_id: Uuid,
     pub input_arrival_id: Option<Uuid>,
+    pub user_id: UserId,
     pub payload: serde_json::Value,
 }
 

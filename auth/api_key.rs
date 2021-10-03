@@ -28,7 +28,7 @@ pub struct ApiKey {
 pub struct ApiKeyAuth {
     pub api_key_id: Uuid,
     pub org_id: OrgId,
-    pub user_id: Option<UserId>,
+    pub user_id: UserId,
     pub inherits_user_permissions: bool,
 }
 
@@ -104,12 +104,9 @@ async fn handle_api_key(
     .await?
     .ok_or_else(|| Error::AuthenticationError)?;
 
-    let user = match &auth_key.user_id {
-        None => None,
-        // This could be combined with the query above, but for simplicity we just keep it separate
-        // for now.
-        Some(id) => Some(auth_data.get_user_info(id).await?),
-    };
+    // This could be combined with the query above, but for simplicity we just keep it separate
+    // for now.
+    let user = auth_data.get_user_info(&auth_key.user_id).await?;
 
     Ok(super::AuthenticationInfo::ApiKey {
         key: auth_key,

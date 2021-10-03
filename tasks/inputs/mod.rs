@@ -7,7 +7,7 @@ pub mod queue;
 pub use queue::{enqueue_input, EnqueueInputOptions};
 
 use crate::error::Error;
-use ergo_database::object_id::{InputCategoryId, InputId, TaskId, TaskTriggerId};
+use ergo_database::object_id::{InputCategoryId, InputId, TaskId, TaskTriggerId, UserId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -57,6 +57,7 @@ pub struct InputInvocation {
     pub input_id: InputId,
     pub inputs_log_id: uuid::Uuid,
     pub payload: serde_json::Value,
+    pub user_id: UserId,
 }
 
 pub fn validate_input_payload(
