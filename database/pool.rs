@@ -1,122 +1,25 @@
-use deadpool::managed::Pool;
 use itertools::Itertools;
-use std::{env, fmt::Debug, sync::Arc};
+use std::env;
 
-use crate::{
-    connection_manager::{self, Manager},
-    error::Error,
-    PostgresAuthRenewer,
-};
+use crate::error::Error;
 
-pub type ConnectionObject = deadpool::managed::Object<Manager>;
-pub type PostgresPool = RenewablePostgresPool;
+pub type PostgresPool = sqlx::PgPool;
 
-#[derive(Clone, Debug)]
-pub enum RenewablePostgresPoolAuth {
-    Vault {
-        client: Arc<dyn PostgresAuthRenewer>,
-        role: String,
-    },
-    Password {
-        username: String,
-        password: String,
-    },
+pub struct PostgresAuth {
+    pub username: String,
+    pub password: String,
 }
 
-impl RenewablePostgresPoolAuth {
-    pub fn from_env(
-        vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
-        database_role_env_name: &str,
-        default_vault_role: &str,
-    ) -> Result<Self, Error> {
-        if let Some(client) = vault_client {
-            let db_role_env = env::var(&format!("DATABASE_ROLE_{}", database_role_env_name))
-                .unwrap_or_else(|_| default_vault_role.to_string());
-            return Ok(Self::Vault {
-                client: client.clone(),
-                role: db_role_env,
-            });
-        }
-
+impl PostgresAuth {
+    pub fn from_env(database_role_env_name: &str, default_username: &str) -> Result<Self, Error> {
         let db_username_env = format!("DATABASE_ROLE_{}_USERNAME", database_role_env_name);
         let db_password_env = format!("DATABASE_ROLE_{}_PASSWORD", database_role_env_name);
-        let db_username =
-            env::var(&db_username_env).unwrap_or_else(|_| default_vault_role.to_string());
-        let db_password = env::var(&db_password_env);
+        let username = env::var(&db_username_env).unwrap_or_else(|_| default_username.to_string());
+        let password = env::var(&db_password_env).map_err(|e| {
+            Error::ConfigError(format!("Failed to read password from {}", db_password_env))
+        })?;
 
-        match db_password {
-            Ok(password) => Ok(Self::Password{username: db_username, password}),
-            _ =>
-                Err(Error::ConfigError(format!("Environment must have Vault AppRole configuration (VAULT_* env) or Fixed database credentials ({}, {}) settings, but not both",
-                    db_username_env, db_password_env
-                ))),
-        }
-    }
-}
-
-pub struct RenewablePostgresPoolOptions {
-    pub max_connections: usize,
-    pub host: String,
-    pub port: u16,
-    pub database: String,
-    pub auth: RenewablePostgresPoolAuth,
-    pub shutdown: ergo_graceful_shutdown::GracefulShutdownConsumer,
-}
-
-#[derive(Clone)]
-pub struct RenewablePostgresPool(Pool<Manager>);
-
-impl std::fmt::Debug for RenewablePostgresPool {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PostgresPool")
-            .field("pool", &self.0.status())
-            .field("manager", &self.0.manager())
-            .finish()
-    }
-}
-
-fn unwrap_pool_error(e: deadpool::managed::PoolError<Error>) -> Error {
-    match e {
-        deadpool::managed::PoolError::Timeout(_) => Error::TimeoutError,
-        deadpool::managed::PoolError::Backend(e) => e,
-        deadpool::managed::PoolError::Closed => Error::PoolClosed,
-        deadpool::managed::PoolError::NoRuntimeSpecified => {
-            Error::StringError("no runtime specified".to_string())
-        }
-    }
-}
-
-impl RenewablePostgresPool {
-    pub async fn new(config: RenewablePostgresPoolOptions) -> Result<RenewablePostgresPool, Error> {
-        let RenewablePostgresPoolOptions {
-            max_connections,
-            host,
-            port,
-            database,
-            auth,
-            shutdown,
-        } = config;
-        let manager = Manager::new(auth, shutdown, host, port, database).await?;
-
-        let pool = Pool::new(manager, max_connections);
-
-        Ok(RenewablePostgresPool(pool))
-    }
-
-    pub fn stats(&self) -> connection_manager::ManagerStats {
-        self.0.manager().0.stats.borrow().clone()
-    }
-
-    pub fn stats_receiver(&self) -> tokio::sync::watch::Receiver<connection_manager::ManagerStats> {
-        self.0.manager().0.stats.clone()
-    }
-
-    pub async fn acquire(&self) -> Result<ConnectionObject, Error> {
-        self.0.get().await.map_err(unwrap_pool_error)
-    }
-
-    pub async fn try_acquire(&self) -> Result<ConnectionObject, Error> {
-        self.0.try_get().await.map_err(unwrap_pool_error)
+        Ok(PostgresAuth { username, password })
     }
 }
 

@@ -6,7 +6,6 @@ use ergo_tasks::{
     actions::{execute::ExecuteError, template::TemplateError},
     state_machine::StateMachineError,
 };
-use redis::RedisError;
 use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
 

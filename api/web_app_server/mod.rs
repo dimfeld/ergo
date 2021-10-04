@@ -2,9 +2,7 @@
 use crate::error::Error;
 
 use actix_web::{get, web, web::Data, App, HttpResponse, HttpServer, Responder, Scope};
-use ergo_database::{
-    vault::VaultClientTokenData, PostgresPool, RenewablePostgresPool, RenewablePostgresPoolOptions,
-};
+use ergo_database::PostgresPool;
 use serde::Serialize;
 use sqlx::query_as;
 use tracing_actix_web::TracingLogger;
@@ -21,7 +19,7 @@ pub struct AppState {
 
 pub type AppStateData = Data<AppState>;
 
-pub fn app_data(pg: RenewablePostgresPool) -> AppStateData {
+pub fn app_data(pg: PostgresPool) -> AppStateData {
     Data::new(AppState { pg })
 }
 

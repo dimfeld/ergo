@@ -1502,7 +1502,6 @@ dependencies = [
  "either",
  "ergo-graceful-shutdown",
  "futures",
- "hashicorp_vault",
  "itertools",
  "log",
  "redis",

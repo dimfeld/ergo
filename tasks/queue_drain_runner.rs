@@ -2,7 +2,7 @@
 
 use crate::error::Error;
 
-use ergo_database::{RedisPool, RenewablePostgresPool};
+use ergo_database::{PostgresPool, RedisPool};
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use ergo_queues::{
     generic_stage,
@@ -15,7 +15,7 @@ pub struct AllQueuesDrain {
 
 impl AllQueuesDrain {
     pub fn new(
-        pg_pool: RenewablePostgresPool,
+        pg_pool: PostgresPool,
         redis_pool: RedisPool,
         shutdown: GracefulShutdownConsumer,
     ) -> Result<AllQueuesDrain, Error> {

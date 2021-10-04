@@ -25,12 +25,6 @@ pub enum Error {
 
     #[error("Redis pool creation error {0}")]
     RedisPoolCreationError(#[from] deadpool_redis::CreatePoolError),
-
-    #[error("Vault Error")]
-    VaultError(#[from] hashicorp_vault::Error),
-
-    #[error("Vault returned no auth data")]
-    VaultNoDataError,
 }
 
 impl sqlx::error::DatabaseError for Error {

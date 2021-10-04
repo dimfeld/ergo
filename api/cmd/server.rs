@@ -18,7 +18,6 @@ pub async fn main(args: Args) -> Result<(), crate::error::Error> {
         database: database_configuration_from_env()?,
         redis_url: None,
         redis_queue_prefix: None,
-        vault_approle: Some("SERVER"),
         no_drain_queues: args.no_drain_queues,
         shutdown: shutdown.consumer(),
     };

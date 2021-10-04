@@ -1,10 +1,11 @@
 use crate::error::Error;
-use ergo_database::{
-    PostgresAuthRenewer, RenewablePostgresPool, RenewablePostgresPoolAuth,
-    RenewablePostgresPoolOptions,
+use ergo_database::{PostgresAuth, PostgresPool};
+use log::LevelFilter;
+use sqlx::{
+    postgres::{PgConnectOptions, PgPoolOptions},
+    ConnectOptions,
 };
-use ergo_graceful_shutdown::GracefulShutdownConsumer;
-use std::{env, sync::Arc};
+use std::env;
 
 #[derive(Clone, Debug)]
 pub struct DatabaseConfiguration {
@@ -28,44 +29,35 @@ pub fn database_configuration_from_env() -> Result<DatabaseConfiguration, Error>
 }
 
 async fn pg_pool(
-    shutdown: GracefulShutdownConsumer,
-    auth: RenewablePostgresPoolAuth,
-    configuration: DatabaseConfiguration,
-) -> Result<RenewablePostgresPool, Error> {
-    RenewablePostgresPool::new(RenewablePostgresPoolOptions {
-        max_connections: 16,
-        host: configuration.host,
-        port: configuration.port,
-        database: configuration.database,
-        auth,
-        shutdown,
-    })
-    .await
-    .map_err(|e| e.into())
+    auth: PostgresAuth,
+    configuration: &DatabaseConfiguration,
+) -> Result<PostgresPool, Error> {
+    let mut connect_options = PgConnectOptions::new()
+        .host(&configuration.host)
+        .port(configuration.port)
+        .username(&auth.username)
+        .password(&auth.password)
+        .database(&configuration.database);
+
+    connect_options.log_statements(LevelFilter::Debug);
+
+    PgPoolOptions::new()
+        .max_connections(16)
+        .max_lifetime(Some(std::time::Duration::from_secs(3600 * 12)))
+        .connect_timeout(std::time::Duration::from_secs(30))
+        .connect_with(connect_options)
+        .await
+        .map_err(|e| e.into())
 }
 
-pub async fn backend_pg_pool(
-    shutdown: GracefulShutdownConsumer,
-    vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
-    configuration: DatabaseConfiguration,
-) -> Result<RenewablePostgresPool, Error> {
+pub async fn backend_pg_pool(configuration: &DatabaseConfiguration) -> Result<PostgresPool, Error> {
     pg_pool(
-        shutdown,
-        RenewablePostgresPoolAuth::from_env(vault_client, "BACKEND", "ergo_backend")?,
+        PostgresAuth::from_env("BACKEND", "ergo_backend")?,
         configuration,
     )
     .await
 }
 
-pub async fn web_pg_pool(
-    shutdown: GracefulShutdownConsumer,
-    vault_client: &Option<Arc<dyn PostgresAuthRenewer>>,
-    configuration: DatabaseConfiguration,
-) -> Result<RenewablePostgresPool, Error> {
-    pg_pool(
-        shutdown,
-        RenewablePostgresPoolAuth::from_env(vault_client, "WEB", "ergo_web")?,
-        configuration,
-    )
-    .await
+pub async fn web_pg_pool(configuration: &DatabaseConfiguration) -> Result<PostgresPool, Error> {
+    pg_pool(PostgresAuth::from_env("WEB", "ergo_web")?, configuration).await
 }

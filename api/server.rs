@@ -25,13 +25,12 @@ use ergo_tasks::{
 use tracing::{event, info, Level};
 use tracing_actix_web::TracingLogger;
 
-pub struct Config<'a> {
+pub struct Config {
     pub bind_address: Option<String>,
     pub bind_port: u16,
     pub database: DatabaseConfiguration,
     pub redis_url: Option<String>,
     pub redis_queue_prefix: Option<String>,
-    pub vault_approle: Option<&'a str>,
 
     pub no_drain_queues: bool,
     pub shutdown: GracefulShutdownConsumer,
@@ -52,14 +51,13 @@ pub struct Server {
     pub tasks: ServerTasks,
 }
 
-pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
+pub async fn start(config: Config) -> Result<Server> {
     let Config {
         bind_port,
         bind_address,
         database,
         redis_url,
         redis_queue_prefix,
-        vault_approle,
         no_drain_queues,
         shutdown,
     } = config;
@@ -68,22 +66,8 @@ pub async fn start<'a>(config: Config<'a>) -> Result<Server> {
     let listener = TcpListener::bind(&format!("{}:{}", bind_address, bind_port))?;
     let bind_port = listener.local_addr()?.port();
 
-    let vault_client =
-        ergo_database::vault::from_env(vault_approle.unwrap_or("AIO_SERVER"), shutdown.clone())
-            .await;
-    info!(
-        "Vault mode {}",
-        vault_client
-            .as_ref()
-            .map(|_| "enabled")
-            .unwrap_or("disabled")
-    );
-
-    let web_pg_pool =
-        crate::service_config::web_pg_pool(shutdown.clone(), &vault_client, database.clone())
-            .await?;
-    let backend_pg_pool =
-        crate::service_config::backend_pg_pool(shutdown.clone(), &vault_client, database).await?;
+    let web_pg_pool = crate::service_config::web_pg_pool(&database).await?;
+    let backend_pg_pool = crate::service_config::backend_pg_pool(&database).await?;
 
     let redis_pool = ergo_database::RedisPool::new(redis_url, redis_queue_prefix.clone())?;
 

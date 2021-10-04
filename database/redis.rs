@@ -1,5 +1,6 @@
-use crate::Error;
 use std::{env, ops::Deref, sync::Arc};
+
+use crate::Error;
 
 #[derive(Clone)]
 pub struct RedisPool(Arc<RedisPoolInner>);
