@@ -2,21 +2,28 @@
 //! value to allow persistent state across runs.
 
 use ergo_js::{ConsoleMessage, Runtime};
+use serde::Deserialize;
+use smallvec::SmallVec;
 
 use crate::{
-    actions::ActionInvocations,
     scripting::{create_nonserialized_task_script_runtime, POOL},
     Error,
 };
 
 use super::{TaskJsConfig, TaskJsState};
 
+#[derive(Debug, Deserialize)]
+pub struct TaskActionInvocation {
+    pub name: String,
+    pub payload: serde_json::Value,
+}
+
 #[derive(Debug)]
 pub struct RunTaskResult {
     pub state_changed: bool,
     pub state: TaskJsState,
     pub console: Vec<ConsoleMessage>,
-    pub actions: ActionInvocations,
+    pub actions: SmallVec<[TaskActionInvocation; 4]>,
 }
 
 pub async fn run_task(
@@ -48,12 +55,17 @@ pub async fn run_task(
                     if state_changed {
                         state.context = context_result;
                     }
+
+                    let actions = runtime
+                        .get_global_value("__ergo_actionQueue")
+                        .unwrap_or_else(|_| Some(SmallVec::new()))
+                        .unwrap_or_else(SmallVec::new);
+
                     Ok(RunTaskResult {
                         state_changed,
                         state,
                         console,
-                        // TODO Functionlity to queue actions and code here to retrieve them.
-                        actions: ActionInvocations::new(),
+                        actions,
                     })
                 }
                 Err(e) => Err(Error::TaskScript { error: e, console }),

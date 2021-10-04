@@ -3,7 +3,7 @@ use std::{borrow::Cow, ops::Deref};
 use crate::{error::Error, inputs::InputInvocation};
 
 use chrono::{DateTime, Utc};
-use ergo_database::{object_id::*, PostgresPool, RedisPool};
+use ergo_database::{new_uuid, object_id::*, PostgresPool, RedisPool};
 use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use ergo_queues::{generic_stage::QueueJob, Queue};
 use sqlx::Connection;
@@ -71,7 +71,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
 
     validate_input_payload(&input_id, payload_schema, &payload)?;
 
-    let input_arrival_id = Uuid::new_v4();
+    let input_arrival_id = new_uuid();
     let queue_name = redis_key_prefix
         .as_ref()
         .map(|prefix| Cow::Owned(format!("{}-{}", prefix, QUEUE_NAME)))

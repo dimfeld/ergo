@@ -10,7 +10,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use super::template::{TemplateFields, TemplateValidationFailure};
+use super::{
+    template::{TemplateFields, TemplateValidationFailure},
+    TaskActionTemplate,
+};
 
 pub fn json_primitive_as_string<'a>(
     field: &str,
@@ -136,7 +139,7 @@ lazy_static! {
 #[derive(Clone, Debug, JsonSchema, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "t", content = "c")]
 pub enum ScriptOrTemplate {
-    Template(Vec<(String, serde_json::Value)>),
+    Template(TaskActionTemplate),
     Script(String),
 }
 
@@ -246,9 +249,9 @@ mod native {
         task_name: String,
         task_action_local_id: String,
         task_action_name: String,
-        task_action_template: Option<Json<Vec<(String, serde_json::Value)>>>,
+        task_action_template: Option<Json<TaskActionTemplate>>,
         account_id: Option<AccountId>,
-        account_fields: Option<Json<Vec<(String, serde_json::Value)>>>,
+        account_fields: Option<Json<TaskActionTemplate>>,
         account_expires: Option<DateTime<Utc>>,
         org_id: OrgId,
         run_as: Option<UserId>,

@@ -112,6 +112,8 @@ async fn run_script(s: &str) -> Result<FxHashMap<String, serde_json::Value>, any
     serde_wasm_bindgen::from_value(js_value).map_err(|e| anyhow!("{:?}", e))
 }
 
+pub type TaskActionTemplate = Vec<(String, serde_json::Value)>;
+
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
 pub struct TaskAction {
     pub action_id: ActionId,
@@ -119,7 +121,7 @@ pub struct TaskAction {
     pub task_id: TaskId,
     pub account_id: Option<AccountId>,
     pub name: String,
-    pub action_template: Option<Vec<(String, serde_json::Value)>>,
+    pub action_template: Option<TaskActionTemplate>,
 }
 
 #[derive(Serialize, Deserialize, JsonSchema, Clone, Debug, PartialEq, Eq)]

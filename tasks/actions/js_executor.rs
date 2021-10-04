@@ -50,7 +50,7 @@ impl JsExecutor {
 const EXECUTOR_STARTUP_SCRIPT: &'static str = r##"
 globalThis.Ergo = globalThis.Ergo || {};
 Ergo.setResult = function(value) {
-    globalThis.result = value;
+    globalThis.__ergo_result = value;
 }
 "##;
 
@@ -106,7 +106,7 @@ impl Executor for JsExecutor {
                 })?;
 
                 let result = runtime
-                    .get_global_value::<serde_json::Value>("result")
+                    .get_global_value::<serde_json::Value>("__ergo_result")
                     .map_err(|e| ExecutorError::CommandError {
                         source: e.into(),
                         result: std::mem::take(&mut console),

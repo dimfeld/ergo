@@ -11,6 +11,8 @@ use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
 
+use super::TaskActionTemplate;
+
 lazy_static! {
     static ref HANDLEBARS: handlebars::Handlebars<'static> = {
         let mut h = handlebars::Handlebars::new();
@@ -411,7 +413,7 @@ pub fn apply_field(
 }
 
 fn apply(
-    template: &Vec<(String, serde_json::Value)>,
+    template: &TaskActionTemplate,
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<FxHashMap<String, serde_json::Value>, handlebars::RenderError> {
     template
@@ -426,7 +428,7 @@ pub fn validate_and_apply<'a>(
     object: &'static str,
     id: impl ToString,
     fields: &TemplateFields,
-    template: &'a Vec<(String, serde_json::Value)>,
+    template: &'a TaskActionTemplate,
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
     validate(object, Some(id), fields, values)?;

@@ -178,7 +178,10 @@ impl StateMachine {
 
 #[cfg(not(target_family = "wasm"))]
 mod native {
-    use ergo_database::object_id::{TaskId, UserId};
+    use ergo_database::{
+        new_uuid,
+        object_id::{TaskId, UserId},
+    };
     use tracing::{event, instrument, Level};
 
     use super::*;
@@ -214,7 +217,7 @@ mod native {
                         event!(Level::DEBUG, ?context, ?built_payload, "built payload");
                         let invocation = ActionInvocation {
                             input_arrival_id: input_arrival_id.clone(),
-                            actions_log_id: uuid::Uuid::new_v4(),
+                            actions_log_id: new_uuid(),
                             task_id: task_id.clone(),
                             task_action_local_id: def.task_action_local_id.clone(),
                             user_id: user_id.clone(),

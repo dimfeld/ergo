@@ -3,7 +3,7 @@ use crate::{error::Error, Job};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use ergo_database::sql_insert_parameters;
+use ergo_database::{new_uuid, sql_insert_parameters};
 use serde::Serialize;
 use sqlx::{PgConnection, Postgres, Transaction};
 use std::{borrow::Cow, time::Duration};
@@ -65,7 +65,7 @@ impl<'a, T: Serialize + Send + Sync> QueueJob<'a, T> {
     fn get_id_or_default(&self) -> Cow<'a, str> {
         self.id
             .map(|s| Cow::Borrowed(s))
-            .unwrap_or_else(|| Cow::Owned(uuid::Uuid::new_v4().to_string()))
+            .unwrap_or_else(|| Cow::Owned(new_uuid().to_string()))
     }
 
     pub async fn enqueue(self, tx: &mut PgConnection) -> Result<(), Error> {

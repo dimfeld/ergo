@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use ergo_database::new_uuid;
 use serde::Serialize;
 use std::{borrow::Cow, time::Duration};
 
@@ -39,8 +40,8 @@ pub enum JobId<'a> {
 impl<'a> JobId<'a> {
     pub fn make_id(&self) -> String {
         match self {
-            JobId::Auto => uuid::Uuid::new_v4().to_string(),
-            JobId::Prefix(prefix) => format!("{}:{}", prefix, uuid::Uuid::new_v4()),
+            JobId::Auto => new_uuid().to_string(),
+            JobId::Prefix(prefix) => format!("{}:{}", prefix, new_uuid()),
             JobId::Value(s) => s.to_string(),
         }
     }

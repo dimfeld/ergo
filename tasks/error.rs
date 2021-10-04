@@ -47,6 +47,9 @@ pub enum Error {
     #[error("Action validation errors: {0}")]
     ActionValidateError(#[from] ActionValidateErrors),
 
+    #[error("No task action found with name {0}")]
+    TaskActionNotFound(String),
+
     #[error("Config is for task type {0} and state is of a different type")]
     ConfigStateMismatch(&'static str),
 

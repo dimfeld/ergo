@@ -15,7 +15,7 @@ use ergo_database::object_id::{
     AccountId, ActionId, InputId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
 };
 use ergo_tasks::{
-    actions::{ActionStatus, TaskAction},
+    actions::{ActionStatus, TaskAction, TaskActionTemplate},
     inputs::{EnqueueInputOptions, InputStatus},
     TaskConfig, TaskState, TaskTrigger,
 };
@@ -211,7 +211,7 @@ pub struct TaskActionInput {
     pub name: String,
     pub action_id: ActionId,
     pub account_id: Option<AccountId>,
-    pub action_template: Option<Vec<(String, serde_json::Value)>>,
+    pub action_template: Option<TaskActionTemplate>,
 }
 
 impl PartialEq<TaskAction> for TaskActionInput {

@@ -72,7 +72,10 @@ pub struct TaskTrigger {
 mod native {
     use super::*;
     use crate::{
-        actions::{enqueue_actions, ActionInvocations, ActionStatus},
+        actions::{
+            enqueue_actions, template::TemplateFields, ActionInvocation, ActionInvocations,
+            ActionStatus, TaskActionTemplate,
+        },
         inputs::InputStatus,
         scripting::TaskJsState,
         state_machine::{StateMachineStates, StateMachineWithData},
@@ -80,7 +83,8 @@ mod native {
     };
     use chrono::{DateTime, Utc};
     use ergo_database::{
-        object_id::{InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId, UserId},
+        new_uuid,
+        object_id::{AccountId, InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId, UserId},
         sql_insert_parameters,
         transaction::serializable,
         PostgresPool,
@@ -88,6 +92,7 @@ mod native {
     use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
     use schemars::JsonSchema;
     use serde::{Deserialize, Serialize};
+    use smallvec::SmallVec;
     use sqlx::{types::Json, FromRow};
     use tracing::{event, instrument, Level};
     use uuid::Uuid;
@@ -136,149 +141,192 @@ mod native {
             let mut conn = pool.acquire().await?;
             let result = serializable(&mut conn, 5, move |tx| {
 
-            let payload = payload.clone();
-            let input_arrival_id = input_arrival_id.clone();
-            let notifications = notifications.clone();
-            let task_id = task_id.clone();
-            let task_trigger_id = task_trigger_id.clone();
-            let redis_key_prefix = redis_key_prefix.clone();
-            let user_id = user_id.clone();
+                let payload = payload.clone();
+                let input_arrival_id = input_arrival_id.clone();
+                let notifications = notifications.clone();
+                let task_id = task_id.clone();
+                let task_trigger_id = task_trigger_id.clone();
+                let redis_key_prefix = redis_key_prefix.clone();
+                let user_id = user_id.clone();
 
-            Box::pin(async move {
-                #[derive(Debug, FromRow)]
-                struct TaskInputData {
-                    task_trigger_local_id: String,
-                    config: Json<TaskConfig>,
-                    state: Json<TaskState>,
-                    org_id: OrgId,
-                    task_name: String,
-                    task_trigger_name: String,
-                }
-
-                let task = sqlx::query_as!(TaskInputData,
-                        r##"SELECT task_trigger_local_id,
-                       compiled as "config!: Json<TaskConfig>",
-                        state as "state!: Json<TaskState>",
-                        tasks.org_id as "org_id: OrgId",
-                        tasks.name as task_name,
-                        tt.name as task_trigger_name
-                        FROM tasks
-                        JOIN task_templates USING (task_template_id, task_template_version)
-                        JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
-                        WHERE tasks.task_id=$1"##,
-                        &task_id.0,
-                        &task_trigger_id.0
-                    )
-                    .fetch_optional(&mut *tx)
-                    .await?;
-
-                let task = task.ok_or(Error::NotFound)?;
-
-                let TaskInputData {
-                    task_trigger_local_id, config, state, org_id, task_name, task_trigger_name
-                } = task;
-
-                let (new_data, actions, changed) = match (config.0, state.0) {
-                    (TaskConfig::StateMachine(machine), TaskState::StateMachine(state)) => {
-                        let num_machines = machine.len();
-                        let mut new_data = StateMachineStates::with_capacity(num_machines);
-                        let mut actions = ActionInvocations::new();
-                        let mut changed = false;
-                        for (idx, (machine, state)) in machine
-                            .into_iter()
-                            .zip(state.into_iter())
-                            .enumerate() {
-                                let mut m = StateMachineWithData::new(task_id.clone(), idx, machine, state);
-                                let this_actions = m
-                                  .apply_trigger(
-                                      &task_trigger_local_id,
-                                      &user_id,
-                                      &Some(input_arrival_id),
-                                      Some(&payload),
-                                  ).await
-                                  .map_err(Error::from)?;
-
-                              let (data, this_changed) = m.take();
-                              new_data.push(data);
-                              actions.extend(this_actions.into_iter());
-                              changed = changed || this_changed;
-                        }
-
-                        (TaskState::StateMachine(new_data), actions, changed)
-                    },
-                    (TaskConfig::StateMachine(_), _) =>  {
-                        return Err(Error::ConfigStateMismatch("StateMachine"))
-                    },
-                    (TaskConfig::Js(config), TaskState::Js(state)) => {
-                        let run_result = scripting::immediate::run_task(&task_name, config, state).await?;
-                        (TaskState::Js(run_result.state), run_result.actions, run_result.state_changed)
-                    },
-                    (TaskConfig::Js(_), _) =>  {
-                        return Err(Error::ConfigStateMismatch("Js"))
-                    },
-                };
-
-                if changed {
-                    event!(Level::INFO, state=?new_data, "New state");
-                    sqlx::query!(
-                        r##"UPDATE tasks
-                        SET state = $1::jsonb
-                        WHERE task_id = $2;
-                        "##,
-                        serde_json::value::to_value(&new_data)?,
-                        *task_id,
-                    )
-                    .execute(&mut *tx)
-                    .await?;
-                }
-
-                if !actions.is_empty() {
-                    event!(Level::INFO, ?actions, "Enqueueing actions");
-                    let q = format!(
-                        "INSERT INTO actions_log (task_id, task_action_local_id, actions_log_id, inputs_log_id, payload, status)
-                        VALUES
-                        {}
-                        ",
-                        sql_insert_parameters::<6>(actions.len())
-                    );
-
-                    let mut log_query = sqlx::query(&q);
-
-                    for action in &actions {
-                        log_query = log_query
-                            .bind(&action.task_id)
-                            .bind(&action.task_action_local_id)
-                            .bind(action.actions_log_id)
-                            .bind(action.input_arrival_id)
-                            .bind(&action.payload)
-                            .bind(ActionStatus::Pending);
+                Box::pin(async move {
+                    #[derive(Debug, Deserialize)]
+                    struct TaskAction {
+                        task_action_local_id: String,
+                        action_id: Action,
+                        account_id: AccountId,
+                        task_action_template: Option<TaskActionTemplate>,
+                        action_template_fields: TemplateFields,
+                        account_required: bool,
+                        executor_id: String,
                     }
 
-                    log_query.fetch_all(&mut *tx).await?;
-                    enqueue_actions(&mut *tx, &actions, &redis_key_prefix).await?;
-                }
+                    #[derive(Debug, FromRow)]
+                    struct TaskInputData {
+                        task_trigger_local_id: String,
+                        config: Json<TaskConfig>,
+                        state: Json<TaskState>,
+                        org_id: OrgId,
+                        task_name: String,
+                        task_trigger_name: String,
+                        task_actions: Json<SmallVec<[TaskAction; 4]>>,
+                    }
 
-                if let Some(notifications) = notifications {
-                    let input_notification = Notification{
-                        event: NotifyEvent::InputProcessed,
-                        payload: Some(payload),
-                        task_id,
-                        task_name,
-                        local_id: task_trigger_local_id,
-                        local_object_name: task_trigger_name,
-                        local_object_id: Some(task_trigger_id.into()),
-                        error: None,
-                        log_id: Some(input_arrival_id),
+                    let task = sqlx::query_as!(TaskInputData,
+                            r##"
+                            SELECT
+                            task_trigger_local_id as "task_trigger_local_id!",
+                            compiled as "config!: Json<TaskConfig>",
+                            state as "state!: Json<TaskState>",
+                            tasks.org_id as "org_id: OrgId",
+                            tasks.name as task_name,
+                            tt.name as task_trigger_name,
+                            jsonb_agg(jsonb_build_object(
+                                'task_action_local_id', ta.task_action_local_id,
+                                'action_id', ta.action_id,
+                                'account_id', ta.account_id,
+                                'action_template', ta.action_template,
+                                'action_template_fields', ac.template_fields,
+                                'account_required', ac.account_required,
+                                'executor_id', ac.executor_id
+                            )) as "task_actions!: _"
+                            FROM tasks
+                            JOIN task_templates USING (task_template_id, task_template_version)
+                            JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
+                            JOIN task_actions ta ON ta.task_id=$1
+                            JOIN actions ac USING(action_id)
+                            WHERE tasks.task_id=$1
+                            GROUP BY task_trigger_local_id, compiled, state, tasks.org_id, task_name,
+                                task_trigger_name"##,
+                            &task_id.0,
+                            &task_trigger_id.0
+                        )
+                        .fetch_optional(&mut *tx)
+                        .await?;
+
+                    let task = task.ok_or(Error::NotFound)?;
+
+                    let TaskInputData {
+                        task_trigger_local_id, config, state, org_id, task_name, task_trigger_name, task_actions
+                    } = task;
+
+                    let (new_data, actions, changed) = match (config.0, state.0) {
+                        (TaskConfig::StateMachine(machine), TaskState::StateMachine(state)) => {
+                            let num_machines = machine.len();
+                            let mut new_data = StateMachineStates::with_capacity(num_machines);
+                            let mut actions = ActionInvocations::new();
+                            let mut changed = false;
+                            for (idx, (machine, state)) in machine
+                                .into_iter()
+                                .zip(state.into_iter())
+                                .enumerate() {
+                                    let mut m = StateMachineWithData::new(task_id.clone(), idx, machine, state);
+                                    let this_actions = m
+                                      .apply_trigger(
+                                          &task_trigger_local_id,
+                                          &user_id,
+                                          &Some(input_arrival_id),
+                                          Some(&payload),
+                                      ).await
+                                      .map_err(Error::from)?;
+
+                                  let (data, this_changed) = m.take();
+                                  new_data.push(data);
+                                  actions.extend(this_actions.into_iter());
+                                  changed = changed || this_changed;
+                            }
+
+                            (TaskState::StateMachine(new_data), actions, changed)
+                        },
+                        (TaskConfig::StateMachine(_), _) =>  {
+                            return Err(Error::ConfigStateMismatch("StateMachine"))
+                        },
+                        (TaskConfig::Js(config), TaskState::Js(state)) => {
+                            let run_result = scripting::immediate::run_task(&task_name, config, state).await?;
+                            let actions = run_result.actions.into_iter().map(|action| {
+                                let task_action = task_actions.iter().find(|a| a.task_action_local_id == action.name)
+                                    .ok_or_else(|| Error::TaskActionNotFound(action.name.clone()))?;
+
+                                // TODO Refactor prepare_invocation to be callable from here.
+
+                                Ok::<_, Error>(ActionInvocation{
+                                    task_id: task_id.clone(),
+                                    payload: action.payload,
+                                    input_arrival_id: Some(input_arrival_id.clone()),
+                                    user_id: user_id.clone(),
+                                    task_action_local_id: action.name,
+                                    actions_log_id: new_uuid(),
+                                })
+                            }).collect::<Result<ActionInvocations, _>>()?;
+
+                            (TaskState::Js(run_result.state), actions, run_result.state_changed)
+                        },
+                        (TaskConfig::Js(_), _) =>  {
+                            return Err(Error::ConfigStateMismatch("Js"))
+                        },
                     };
-                    notifications.notify(tx, &org_id, input_notification).await?;
-                }
-                Ok::<_, Error>(actions)
+
+                    if changed {
+                        event!(Level::INFO, state=?new_data, "New state");
+                        sqlx::query!(
+                            r##"UPDATE tasks
+                            SET state = $1::jsonb
+                            WHERE task_id = $2;
+                            "##,
+                            serde_json::value::to_value(&new_data)?,
+                            *task_id,
+                        )
+                        .execute(&mut *tx)
+                        .await?;
+                    }
+
+                    if !actions.is_empty() {
+                        event!(Level::INFO, ?actions, "Enqueueing actions");
+                        let q = format!(
+                            "INSERT INTO actions_log (task_id, task_action_local_id, actions_log_id, inputs_log_id, payload, status)
+                            VALUES
+                            {}
+                            ",
+                            sql_insert_parameters::<6>(actions.len())
+                        );
+
+                        let mut log_query = sqlx::query(&q);
+
+                        for action in &actions {
+                            log_query = log_query
+                                .bind(&action.task_id)
+                                .bind(&action.task_action_local_id)
+                                .bind(action.actions_log_id)
+                                .bind(action.input_arrival_id)
+                                .bind(&action.payload)
+                                .bind(ActionStatus::Pending);
+                        }
+
+                        log_query.fetch_all(&mut *tx).await?;
+                        enqueue_actions(&mut *tx, &actions, &redis_key_prefix).await?;
+                    }
+
+                    if let Some(notifications) = notifications {
+                        let input_notification = Notification{
+                            event: NotifyEvent::InputProcessed,
+                            payload: Some(payload),
+                            task_id,
+                            task_name,
+                            local_id: task_trigger_local_id,
+                            local_object_name: task_trigger_name,
+                            local_object_id: Some(task_trigger_id.into()),
+                            error: None,
+                            log_id: Some(input_arrival_id),
+                        };
+                        notifications.notify(tx, &org_id, input_notification).await?;
+                    }
+                    Ok::<_, Error>(())
+                })
             })
-        })
-        .await;
+            .await;
 
             let (log_error, status, retval) = match result {
-                Ok(actions) => (None, InputStatus::Success, Ok(())),
+                Ok(_) => (None, InputStatus::Success, Ok(())),
                 Err(e) => {
                     event!(Level::ERROR, err=?e, "Error applying input");
                     (

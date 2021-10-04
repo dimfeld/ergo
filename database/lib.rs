@@ -16,6 +16,10 @@ pub use error::*;
 #[cfg(not(target_family = "wasm"))]
 pub use pool::*;
 
+pub fn new_uuid() -> uuid::Uuid {
+    ulid::Ulid::new().into()
+}
+
 #[macro_export]
 macro_rules! sqlx_json_decode {
     ($type:ty) => {

@@ -4,6 +4,8 @@ use std::{ops::Deref, str::FromStr};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::new_uuid;
+
 #[derive(Debug, Error)]
 pub enum ObjectIdError {
     #[error("Invalid ID prefix, expected {0}")]
@@ -56,7 +58,7 @@ impl<const PREFIX: usize> ObjectId<PREFIX> {
     }
 
     pub fn new() -> Self {
-        Self(ulid::Ulid::new().into())
+        Self(new_uuid())
     }
 
     pub fn from_uuid(u: Uuid) -> Self {
