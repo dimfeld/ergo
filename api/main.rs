@@ -28,7 +28,6 @@ enum DevCmds {
 #[actix_web::main]
 async fn main() -> Result<(), error::Error> {
     dotenv::dotenv().ok();
-    dotenv::from_filename("vault_dev_roles.env").ok();
 
     let args = Args::from_args();
 

@@ -55,7 +55,6 @@ ergo-queues = { version = "0.2.0", path="../queues" }
 futures = "0.3.17"
 fxhash = "0.2.1"
 handlebars = "4.1.3"
-hashicorp_vault = { git="https://github.com/dimfeld/vault-rs", branch="async" }
 indicatif = "0.16.2"
 itertools = "0.10.1"
 jsonschema = "0.12.1"
