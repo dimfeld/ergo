@@ -73,8 +73,13 @@ mod native {
     use super::*;
     use crate::{
         actions::{
-            enqueue_actions, template::TemplateFields, ActionInvocation, ActionInvocations,
-            ActionStatus, TaskActionTemplate,
+            enqueue_actions,
+            execute::{
+                validate_and_prepare_invocation, ExecuteError, PrepareInvocationAction,
+                ScriptOrTemplate,
+            },
+            template::TemplateFields,
+            ActionInvocation, ActionInvocations, ActionStatus, TaskActionTemplate,
         },
         inputs::InputStatus,
         scripting::TaskJsState,
@@ -84,7 +89,9 @@ mod native {
     use chrono::{DateTime, Utc};
     use ergo_database::{
         new_uuid,
-        object_id::{AccountId, InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId, UserId},
+        object_id::{
+            AccountId, ActionId, InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
+        },
         sql_insert_parameters,
         transaction::serializable,
         PostgresPool,
@@ -153,12 +160,16 @@ mod native {
                     #[derive(Debug, Deserialize)]
                     struct TaskAction {
                         task_action_local_id: String,
-                        action_id: Action,
-                        account_id: AccountId,
+                        task_action_name: String,
                         task_action_template: Option<TaskActionTemplate>,
+                        action_id: ActionId,
                         action_template_fields: TemplateFields,
-                        account_required: bool,
+                        action_executor_template: ScriptOrTemplate,
                         executor_id: String,
+                        account_id: Option<AccountId>,
+                        account_required: bool,
+                        account_fields: Option<TaskActionTemplate>,
+                        account_expires: Option<DateTime<Utc>>,
                     }
 
                     #[derive(Debug, FromRow)]
@@ -183,18 +194,23 @@ mod native {
                             tt.name as task_trigger_name,
                             jsonb_agg(jsonb_build_object(
                                 'task_action_local_id', ta.task_action_local_id,
+                                'task_action_name', ta.name,
                                 'action_id', ta.action_id,
                                 'account_id', ta.account_id,
+                                'account_fields', accounts.fields,
+                                'account_expires', accounts.expires,
                                 'action_template', ta.action_template,
                                 'action_template_fields', ac.template_fields,
                                 'account_required', ac.account_required,
-                                'executor_id', ac.executor_id
+                                'executor_id', ac.executor_id,
+                                'action_executor_template', ac.executor_template
                             )) as "task_actions!: _"
                             FROM tasks
                             JOIN task_templates USING (task_template_id, task_template_version)
                             JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
                             JOIN task_actions ta ON ta.task_id=$1
                             JOIN actions ac USING(action_id)
+                            LEFT JOIN accounts USING(account_id)
                             WHERE tasks.task_id=$1
                             GROUP BY task_trigger_local_id, compiled, state, tasks.org_id, task_name,
                                 task_trigger_name"##,
@@ -244,20 +260,15 @@ mod native {
                         (TaskConfig::Js(config), TaskState::Js(state)) => {
                             let run_result = scripting::immediate::run_task(&task_name, config, state).await?;
                             let actions = run_result.actions.into_iter().map(|action| {
-                                let task_action = task_actions.iter().find(|a| a.task_action_local_id == action.name)
-                                    .ok_or_else(|| Error::TaskActionNotFound(action.name.clone()))?;
-
-                                // TODO Refactor prepare_invocation to be callable from here.
-
-                                Ok::<_, Error>(ActionInvocation{
+                                ActionInvocation{
                                     task_id: task_id.clone(),
                                     payload: action.payload,
                                     input_arrival_id: Some(input_arrival_id.clone()),
                                     user_id: user_id.clone(),
                                     task_action_local_id: action.name,
                                     actions_log_id: new_uuid(),
-                                })
-                            }).collect::<Result<ActionInvocations, _>>()?;
+                                }
+                            }).collect::<ActionInvocations>();
 
                             (TaskState::Js(run_result.state), actions, run_result.state_changed)
                         },
@@ -293,6 +304,34 @@ mod native {
                         let mut log_query = sqlx::query(&q);
 
                         for action in &actions {
+                            let task_action = task_actions.iter().find(|a| a.task_action_local_id == action.task_action_local_id)
+                                .ok_or_else(|| Error::TaskActionNotFound(action.task_action_local_id.clone()))?;
+
+                            // Prepare the invocation. We won't actu
+                            let invocation_action = PrepareInvocationAction{
+                                action_id: &task_action.action_id,
+                                executor_id: task_action.executor_id.as_str(),
+                                account_required: task_action.account_required,
+                                account_id: &task_action.account_id,
+                                account_expires: task_action.account_expires.clone(),
+                                account_fields: task_action.account_fields.clone(),
+                                action_template_fields: &task_action.action_template_fields,
+                                task_action_template: task_action.task_action_template.clone(),
+                                action_executor_template: &task_action.action_executor_template
+                            };
+
+                            let executor = actions::execute::EXECUTOR_REGISTRY
+                                .get(task_action.executor_id.as_str())
+                                .ok_or_else(|| ActionValidateErrors::from(ActionValidateError::UnknownExecutor(task_action.executor_id.clone())))?;
+
+                            validate_and_prepare_invocation(executor, &action.payload, invocation_action).await
+                                .map_err(|e| ExecuteError{
+                                    task_id: task_id.clone(),
+                                    task_action_local_id: action.task_action_local_id.clone(),
+                                    task_action_name: task_action.task_action_name.clone(),
+                                    error: e.into(),
+                                })?;
+
                             log_query = log_query
                                 .bind(&action.task_id)
                                 .bind(&action.task_action_local_id)

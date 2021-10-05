@@ -342,10 +342,23 @@ mod native {
                 )
             })?;
 
-        let prepare_result = prepare_invocation(executor, &invocation.payload, &mut action)
-            .await
-            .map(|values| (executor, values))
-            .map_err(|e| ExecuteError::from_action_and_error(&action, e));
+        let prepare_action = PrepareInvocationAction {
+            executor_id: action.executor_id.as_str(),
+            action_id: &action.action_id,
+            account_id: &action.account_id,
+            account_fields: action.account_fields.clone().map(|t| t.0),
+            account_required: action.account_required,
+            account_expires: action.account_expires,
+            task_action_template: action.task_action_template.clone().map(|t| t.0),
+            action_template_fields: &action.action_template_fields,
+            action_executor_template: &action.action_executor_template,
+        };
+
+        let prepare_result =
+            validate_and_prepare_invocation(executor, &invocation.payload, prepare_action)
+                .await
+                .map(|values| (executor, values))
+                .map_err(|e| ExecuteError::from_action_and_error(&action, e));
 
         let (executor, action_template_values) = match prepare_result {
             Ok(v) => v,
@@ -470,14 +483,36 @@ mod native {
         Ok(())
     }
 
-    async fn prepare_invocation(
+    pub struct PrepareInvocationAction<'a> {
+        pub action_id: &'a ActionId,
+        pub action_template_fields: &'a TemplateFields,
+        pub action_executor_template: &'a ScriptOrTemplate,
+        pub task_action_template: Option<TaskActionTemplate>,
+        pub executor_id: &'a str,
+        pub account_required: bool,
+        pub account_id: &'a Option<AccountId>,
+        pub account_fields: Option<TaskActionTemplate>,
+        pub account_expires: Option<DateTime<Utc>>,
+    }
+
+    pub async fn validate_and_prepare_invocation(
         executor: &Box<dyn Executor>,
         invocation_payload: &serde_json::Value,
-        action: &mut ExecuteActionData,
+        mut action: PrepareInvocationAction<'_>,
     ) -> Result<FxHashMap<String, serde_json::Value>, ExecuteErrorSource> {
-        if action.account_required && action.account_id.is_none() {
-            return Err(ExecuteErrorSource::AccountRequired);
-        }
+        match (
+            action.account_required,
+            action.account_id,
+            action.account_expires,
+        ) {
+            (true, None, _) => return Err(ExecuteErrorSource::AccountRequired),
+            (_, Some(account_id), Some(expires)) => {
+                if expires < Utc::now() {
+                    return Err(ExecuteErrorSource::AccountExpired(account_id.clone()));
+                }
+            }
+            _ => {}
+        };
 
         // 1. Merge the invocation payload with action_template and account_fields, if present.
 
@@ -487,7 +522,7 @@ mod native {
         );
 
         if let Some(task_action_fields) = action.task_action_template.take() {
-            for (k, v) in task_action_fields.0 {
+            for (k, v) in task_action_fields {
                 action_payload.insert(k, v);
             }
         }
@@ -499,21 +534,22 @@ mod native {
         }
 
         if let Some(account_fields) = action.account_fields.take() {
-            for (k, v) in account_fields.0 {
+            for (k, v) in account_fields {
                 action_payload.insert(k, v);
             }
         }
 
         // 2. Verify that it all matches the action template_fields.
-        let action_template_values = match action.action_executor_template.0.clone() {
+        let action_template_values = match action.action_executor_template {
             ScriptOrTemplate::Template(t) => template::validate_and_apply(
                 "action",
                 &action.action_id,
-                &action.action_template_fields.0,
+                &action.action_template_fields,
                 &t,
                 &action_payload,
             )?,
             ScriptOrTemplate::Script(s) => {
+                let s = s.clone();
                 scripting::POOL
                     .run(move || async move {
                         let mut runtime = scripting::create_simple_runtime();
@@ -543,10 +579,10 @@ mod native {
     #[derive(Debug, Error)]
     #[error("Action {task_action_name} ({task_id}:{task_action_local_id}): {error}")]
     pub struct ExecuteError {
-        task_id: TaskId,
-        task_action_local_id: String,
-        task_action_name: String,
-        error: ExecuteErrorSource,
+        pub task_id: TaskId,
+        pub task_action_local_id: String,
+        pub task_action_name: String,
+        pub error: ExecuteErrorSource,
     }
 
     impl ExecuteError {
@@ -579,6 +615,9 @@ mod native {
 
         #[error("Action requires an account")]
         AccountRequired,
+
+        #[error("Account {0} is expired")]
+        AccountExpired(AccountId),
 
         #[error("SQL Error")]
         SqlError(#[from] sqlx::error::Error),
