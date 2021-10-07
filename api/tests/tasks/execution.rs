@@ -4,7 +4,7 @@ use anyhow::Result;
 use ergo_api::routes::{
     actions::ActionPayload,
     inputs::InputPayload,
-    tasks::{TaskActionInput, TaskInput, TaskTriggerInput},
+    tasks::{InputsLogEntry, TaskActionInput, TaskInput, TaskTriggerInput},
 };
 use ergo_database::object_id::{ActionId, InputId, OrgId, TaskId};
 use ergo_tasks::{
@@ -14,6 +14,7 @@ use ergo_tasks::{
         Action, ActionStatus,
     },
     inputs::{Input, InputStatus},
+    scripting::{TaskJsConfig, TaskJsState},
     state_machine::{
         ActionInvokeDef, ActionPayloadBuilder, EventHandler, StateDefinition, StateMachine,
         StateMachineData,
@@ -23,23 +24,63 @@ use ergo_tasks::{
 use fxhash::FxHashMap;
 use serde_json::json;
 use smallvec::smallvec;
+use uuid::Uuid;
+use wiremock::{
+    matchers::{self, body_json, method, path},
+    Mock, MockServer, ResponseTemplate,
+};
 
 use crate::common::{run_app_test, TestApp, TestUser};
 
 struct BootstrappedData {
     org: OrgId,
     user: TestUser,
+    url_input: Input,
+    url_input_payload: InputPayload,
     script_input: Input,
     script_input_payload: InputPayload,
     script_action: Action,
     script_action_payload: ActionPayload,
-    task: TaskInput,
-    task_id: TaskId,
+    http_action: Action,
+    http_action_payload: ActionPayload,
+    state_machine_task: TaskInput,
+    state_machine_task_id: TaskId,
+    script_task: TaskInput,
+    script_task_id: TaskId,
 }
 
 async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
     let org = app.add_org("user org").await?;
     let user = app.add_user(&org, "user 1").await?;
+
+    let url_input_id = InputId::new();
+    let url_input_payload = InputPayload {
+        name: "url".to_string(),
+        description: None,
+        input_category_id: None,
+        payload_schema: json!({
+          "$schema": "http://json-schema.org/draft-07/schema",
+          "$id": "http://ergo.dev/inputs/url.json",
+          "type": "object",
+          "required": [
+              "url"
+          ],
+          "properties": {
+              "url": {
+                  "type": "string"
+              }
+          },
+          "additionalProperties": true
+        }),
+    };
+
+    let url_input = app
+        .admin_user
+        .client
+        .put_input(&url_input_id, &url_input_payload)
+        .await
+        .expect("bootstrap: url_input_payload");
+
     let script_input_id = InputId::new();
     let script_input_payload = InputPayload {
         name: "run script".to_string(),
@@ -98,7 +139,51 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         .await
         .expect("bootstrap: writing script_action_payload");
 
-    let task = TaskInput {
+    let http_action_id = ActionId::new();
+    let http_action_payload = ActionPayload {
+        action_category_id: app.base_action_category.clone(),
+        name: "Send request".to_string(),
+        description: None,
+        executor_id: "http".to_string(),
+        timeout: None,
+        postprocess_script: None,
+        account_types: vec![],
+        account_required: false,
+        executor_template: ScriptOrTemplate::Template(vec![
+            ("url".to_string(), json!("{{url}}")),
+            ("json".to_string(), json!("{{/payload}}")),
+            ("method".to_string(), json!("{{method}}")),
+        ]),
+        template_fields: vec![
+            TemplateField {
+                name: Cow::from("url"),
+                format: TemplateFieldFormat::String,
+                optional: false,
+                description: None,
+            },
+            TemplateField {
+                name: Cow::from("payload"),
+                format: TemplateFieldFormat::Object,
+                optional: false,
+                description: None,
+            },
+            TemplateField {
+                name: Cow::from("method"),
+                format: TemplateFieldFormat::String,
+                optional: false,
+                description: None,
+            },
+        ]
+        .into(),
+    };
+    let http_action = app
+        .admin_user
+        .client
+        .put_action(&http_action_id, &http_action_payload)
+        .await
+        .expect("bootstrap: writing http_action_payload");
+
+    let state_machine_task = TaskInput {
         name: "Run script".to_string(),
         description: None,
         alias: Some("run_script".to_string()),
@@ -157,29 +242,124 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         .collect::<FxHashMap<_, _>>(),
     };
 
-    let task_id = user
+    let state_machine_task_id = user
         .client
-        .new_task(&task)
+        .new_task(&state_machine_task)
         .await
-        .expect("bootstrap: writing task")
+        .expect("bootstrap: writing state_machine_task")
+        .task_id;
+
+    let script = r##"
+        let context = Ergo.getContext() ?? { value: 1 };
+        let url = Ergo.getPayload().url;
+        context.value++;
+        Ergo.setContext(context);
+        Ergo.runAction('send', {
+            url,
+            payload: context
+        });
+        "##
+    .to_string();
+
+    let script_task = TaskInput {
+        name: "script task".to_string(),
+        description: None,
+        alias: None,
+        enabled: true,
+        state: TaskState::Js(TaskJsState {
+            context: String::new(),
+        }),
+        source: serde_json::Value::Null,
+        compiled: TaskConfig::Js(TaskJsConfig {
+            script,
+            timeout: None,
+        }),
+        triggers: vec![(
+            "request_url".to_string(),
+            TaskTriggerInput {
+                name: "request".to_string(),
+                description: None,
+                input_id: url_input_id,
+            },
+        )]
+        .into_iter()
+        .collect(),
+        actions: vec![(
+            "send".to_string(),
+            TaskActionInput {
+                name: "Send a request".to_string(),
+                action_id: http_action_id.clone(),
+                account_id: None,
+                action_template: Some(vec![(
+                    "method".to_string(),
+                    serde_json::Value::String("POST".to_string()),
+                )]),
+            },
+        )]
+        .into_iter()
+        .collect(),
+    };
+
+    let script_task_id = user
+        .client
+        .new_task(&script_task)
+        .await
+        .expect("bootstrap: writing script_task")
         .task_id;
 
     Ok(BootstrappedData {
         org,
         user,
+        url_input,
+        url_input_payload,
         script_input,
         script_input_payload,
         script_action,
         script_action_payload,
-        task,
-        task_id,
+        http_action,
+        http_action_payload,
+        script_task,
+        script_task_id,
+        state_machine_task,
+        state_machine_task_id,
     })
 }
 
+async fn wait_for_task_to_finish(
+    user: &TestUser,
+    log_id: &Uuid,
+) -> Result<Vec<InputsLogEntry>, anyhow::Error> {
+    let mut logs = user.client.get_recent_logs().await?;
+    println!("{:?}", logs);
+
+    let mut num_checks = 0;
+    while logs
+        .iter()
+        .find(|l| &l.inputs_log_id == log_id)
+        .and_then(|i| i.actions.0.get(0))
+        .map(|a| a.status == ActionStatus::Error || a.status == ActionStatus::Success)
+        .unwrap_or(false)
+        == false
+    {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        logs = user.client.get_recent_logs().await?;
+        num_checks = num_checks + 1;
+        if num_checks > 30 {
+            panic!("Timed out waiting for logs, last saw {:?}", logs)
+        }
+    }
+
+    Ok(logs)
+}
+
 #[actix_rt::test]
-async fn script_task() {
+async fn state_machine_task() {
     run_app_test(|app| async move {
-        let BootstrappedData { user, task_id, .. } = bootstrap(&app).await?;
+        let BootstrappedData {
+            user,
+            state_machine_task_id,
+            ..
+        } = bootstrap(&app).await?;
 
         let script = r##"Ergo.setResult({ value: 5 })"##;
 
@@ -189,31 +369,14 @@ async fn script_task() {
             .await?
             .log_id;
 
-        let mut logs = user.client.get_recent_logs().await?;
-        println!("{:?}", logs);
-
-        let mut num_checks = 0;
-        while logs
-            .get(0)
-            .and_then(|i| i.actions.0.get(0))
-            .map(|a| a.status == ActionStatus::Error || a.status == ActionStatus::Success)
-            .unwrap_or(false)
-            == false
-        {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            logs = user.client.get_recent_logs().await?;
-            num_checks = num_checks + 1;
-            if num_checks > 30 {
-                panic!("Timed out waiting for logs, last saw {:?}", logs)
-            }
-        }
+        let logs = wait_for_task_to_finish(&user, &log_id).await?;
 
         println!("{:?}", logs);
         assert_eq!(logs[0].inputs_log_id, log_id);
         assert_eq!(logs[0].input_status, InputStatus::Success);
         assert_eq!(logs[0].task_trigger_name, "Run a script");
         assert_eq!(logs[0].task_trigger_local_id, "run");
-        assert_eq!(logs[0].task_id, task_id);
+        assert_eq!(logs[0].task_id, state_machine_task_id);
         assert_eq!(logs[0].actions.len(), 1);
         assert_eq!(
             logs[0].actions[0].result,
@@ -234,7 +397,7 @@ async fn postprocess_script() {
             user,
             script_action,
             mut script_action_payload,
-            task_id,
+            state_machine_task_id,
             ..
         } = bootstrap(&app).await?;
 
@@ -254,31 +417,14 @@ async fn postprocess_script() {
             .await?
             .log_id;
 
-        let mut logs = user.client.get_recent_logs().await?;
-        println!("{:?}", logs);
-
-        let mut num_checks = 0;
-        while logs
-            .get(0)
-            .and_then(|i| i.actions.0.get(0))
-            .map(|a| a.status == ActionStatus::Error || a.status == ActionStatus::Success)
-            .unwrap_or(false)
-            == false
-        {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            logs = user.client.get_recent_logs().await?;
-            num_checks = num_checks + 1;
-            if num_checks > 30 {
-                panic!("Timed out waiting for logs, last saw {:?}", logs)
-            }
-        }
+        let logs = wait_for_task_to_finish(&user, &log_id).await?;
 
         println!("{:?}", logs);
         assert_eq!(logs[0].inputs_log_id, log_id);
         assert_eq!(logs[0].input_status, InputStatus::Success);
         assert_eq!(logs[0].task_trigger_name, "Run a script");
         assert_eq!(logs[0].task_trigger_local_id, "run");
-        assert_eq!(logs[0].task_id, task_id);
+        assert_eq!(logs[0].task_id, state_machine_task_id);
         assert_eq!(logs[0].actions.len(), 1);
         assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
         assert_eq!(
@@ -299,7 +445,7 @@ async fn postprocess_script_returns_nothing() {
             user,
             script_action,
             mut script_action_payload,
-            task_id,
+            state_machine_task_id,
             ..
         } = bootstrap(&app).await.expect("bootstrapping app");
 
@@ -320,31 +466,14 @@ async fn postprocess_script_returns_nothing() {
             .expect("running task trigger")
             .log_id;
 
-        let mut logs = user.client.get_recent_logs().await?;
-        println!("{:?}", logs);
-
-        let mut num_checks = 0;
-        while logs
-            .get(0)
-            .and_then(|i| i.actions.0.get(0))
-            .map(|a| a.status == ActionStatus::Error || a.status == ActionStatus::Success)
-            .unwrap_or(false)
-            == false
-        {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-            logs = user.client.get_recent_logs().await?;
-            num_checks = num_checks + 1;
-            if num_checks > 30 {
-                panic!("Timed out waiting for logs, last saw {:?}", logs)
-            }
-        }
+        let logs = wait_for_task_to_finish(&user, &log_id).await?;
 
         println!("{:?}", logs);
         assert_eq!(logs[0].inputs_log_id, log_id);
         assert_eq!(logs[0].input_status, InputStatus::Success);
         assert_eq!(logs[0].task_trigger_name, "Run a script");
         assert_eq!(logs[0].task_trigger_local_id, "run");
-        assert_eq!(logs[0].task_id, task_id);
+        assert_eq!(logs[0].task_id, state_machine_task_id);
         assert_eq!(logs[0].actions.len(), 1);
         assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
         assert_eq!(
@@ -352,6 +481,101 @@ async fn postprocess_script_returns_nothing() {
             json!({ "output": { "result": {"value": 5 }, "console": [] } }),
             "executor result"
         );
+
+        Ok(())
+    })
+    .await
+}
+
+#[actix_rt::test]
+async fn script_task() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            user,
+            script_task_id,
+            ..
+        } = bootstrap(&app).await.expect("bootstrapping app");
+        let mock_server = MockServer::start().await;
+
+        let expected_body = json!({ "value": 2 });
+        Mock::given(method("POST"))
+            .and(path("/a_url"))
+            .and(body_json(expected_body))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!("the response")))
+            .mount(&mock_server)
+            .await;
+
+        let url = format!("{}/a_url", mock_server.uri());
+
+        println!("Running task first time");
+        let log_id = user
+            .client
+            .run_task_trigger(
+                script_task_id.to_string().as_str(),
+                "request_url",
+                json!({ "url": url }),
+            )
+            .await
+            .expect("running task trigger")
+            .log_id;
+
+        let logs = wait_for_task_to_finish(&user, &log_id).await?;
+
+        println!("{:?}", logs);
+        assert_eq!(logs[0].inputs_log_id, log_id);
+        assert_eq!(logs[0].input_status, InputStatus::Success);
+        assert_eq!(logs[0].task_trigger_name, "request");
+        assert_eq!(logs[0].task_trigger_local_id, "request_url");
+        assert_eq!(logs[0].task_id, script_task_id);
+        assert_eq!(logs[0].actions.len(), 1);
+        assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
+        assert_eq!(
+            logs[0].actions[0].result,
+            json!({ "output": { "response": "the response", "status": 200 } }),
+            "executor result"
+        );
+
+        mock_server.verify().await;
+
+        println!("Running task second time");
+
+        mock_server.reset().await;
+        let expected_body = json!({ "value": 3 });
+        Mock::given(method("POST"))
+            .and(path("/a_url"))
+            .and(body_json(expected_body))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!("the response")))
+            .mount(&mock_server)
+            .await;
+
+        let log_id = user
+            .client
+            .run_task_trigger(
+                script_task_id.to_string().as_str(),
+                "request_url",
+                json!({ "url": url }),
+            )
+            .await
+            .expect("running task trigger")
+            .log_id;
+
+        let logs = wait_for_task_to_finish(&user, &log_id).await?;
+
+        println!("{:?}", logs);
+        assert_eq!(logs[0].inputs_log_id, log_id);
+        assert_eq!(logs[0].input_status, InputStatus::Success);
+        assert_eq!(logs[0].task_trigger_name, "request");
+        assert_eq!(logs[0].task_trigger_local_id, "request_url");
+        assert_eq!(logs[0].task_id, script_task_id);
+        assert_eq!(logs[0].actions.len(), 1);
+        assert_eq!(logs[0].actions[0].status, ActionStatus::Success);
+        assert_eq!(
+            logs[0].actions[0].result,
+            json!({ "output": { "response": "the response", "status": 200 } }),
+            "executor result"
+        );
+
+        mock_server.verify().await;
 
         Ok(())
     })

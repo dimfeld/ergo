@@ -304,7 +304,7 @@ mod native {
             error: e.into(),
         })?;
 
-        event!(Level::TRACE, ?action);
+        event!(Level::DEBUG, ?action);
         event!(Level::INFO,
             %task_id,
             %action.task_action_local_id,
@@ -368,7 +368,7 @@ mod native {
             }
         };
 
-        event!(Level::TRACE, ?action_template_values);
+        event!(Level::DEBUG, ?action_template_values);
 
         // Send the executor payload to the executor to actually run it.
         let postprocess = action.postprocess_script.as_ref();
@@ -483,6 +483,7 @@ mod native {
         Ok(())
     }
 
+    #[derive(Debug)]
     pub struct PrepareInvocationAction<'a> {
         pub action_id: &'a ActionId,
         pub action_template_fields: &'a TemplateFields,
@@ -517,9 +518,23 @@ mod native {
         // 1. Merge the invocation payload with action_template and account_fields, if present.
 
         let mut action_payload = FxHashMap::with_capacity_and_hasher(
-            action.action_template_fields.0.len(),
+            action.action_template_fields.0.len()
+                + action
+                    .task_action_template
+                    .as_ref()
+                    .map(|t| t.len())
+                    .unwrap_or(0)
+                + action.account_fields.as_ref().map(|f| f.len()).unwrap_or(0),
             FxBuildHasher::default(),
         );
+
+        // Create the payload in this ordeR:
+        // 1. Task action template
+        // 2. Action invocation payload
+        // 3. Account fields
+        //
+        // This allows the invocation payload to overwrite the values in the task action template, but the
+        // account fields must take precedence over everything else.
 
         if let Some(task_action_fields) = action.task_action_template.take() {
             for (k, v) in task_action_fields {
@@ -538,6 +553,8 @@ mod native {
                 action_payload.insert(k, v);
             }
         }
+
+        event!(Level::DEBUG, ?action, ?action_payload);
 
         // 2. Verify that it all matches the action template_fields.
         let action_template_values = match action.action_executor_template {

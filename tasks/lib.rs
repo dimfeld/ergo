@@ -195,6 +195,7 @@ mod native {
                             jsonb_agg(jsonb_build_object(
                                 'task_action_local_id', ta.task_action_local_id,
                                 'task_action_name', ta.name,
+                                'task_action_template', NULLIF(ta.action_template, 'null'::jsonb),
                                 'action_id', ta.action_id,
                                 'account_id', ta.account_id,
                                 'account_fields', accounts.fields,
@@ -258,7 +259,7 @@ mod native {
                             return Err(Error::ConfigStateMismatch("StateMachine"))
                         },
                         (TaskConfig::Js(config), TaskState::Js(state)) => {
-                            let run_result = scripting::immediate::run_task(&task_name, config, state).await?;
+                            let run_result = scripting::immediate::run_task(&task_name, config, state, payload.clone()).await?;
                             let actions = run_result.actions.into_iter().map(|action| {
                                 ActionInvocation{
                                     task_id: task_id.clone(),
@@ -293,6 +294,7 @@ mod native {
 
                     if !actions.is_empty() {
                         event!(Level::INFO, ?actions, "Enqueueing actions");
+                        event!(Level::DEBUG, ?task_actions);
                         let q = format!(
                             "INSERT INTO actions_log (task_id, task_action_local_id, actions_log_id, inputs_log_id, payload, status)
                             VALUES

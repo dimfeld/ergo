@@ -6,7 +6,7 @@ use super::{
 };
 use async_trait::async_trait;
 use fxhash::FxHashMap;
-use tracing::instrument;
+use tracing::{event, instrument, Level};
 
 const FIELD_URL: TemplateField = TemplateField::from_static(
     "url",
@@ -197,6 +197,8 @@ mod execute {
                 .get("body")
                 .and_then(|s| s.as_str())
                 .map(|s| s.to_string());
+            event!(Level::INFO, ?req, ?body, "sending request");
+
             let req = match (payload.get("json"), body) {
                 (Some(json), _) => req.json(json),
                 (None, Some(body)) => req.body(body),

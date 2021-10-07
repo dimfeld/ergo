@@ -542,9 +542,9 @@ async fn post_task_trigger(
         trigger_id,
     } = path.into_inner();
 
-    let (task_query_field, task_query_value) = TaskId::from_str(&task_id)
-        .map(|s| ("task_id", s.as_uuid().to_string()))
-        .unwrap_or(("alias", task_id));
+    let (task_query_field, task_query_value, task_query_field_cast) = TaskId::from_str(&task_id)
+        .map(|s| ("task_id", s.as_uuid().to_string(), "uuid"))
+        .unwrap_or(("alias", task_id, "text"));
 
     tracing::event!(tracing::Level::INFO, %task_query_field, %task_query_value);
 
@@ -568,7 +568,7 @@ async fn post_task_trigger(
         FROM task_triggers tt
         JOIN tasks USING(task_id)
         JOIN inputs USING(input_id)
-        WHERE org_id = $2 AND task_trigger_local_id = $3 AND {} = $4
+        WHERE org_id = $2 AND task_trigger_local_id = $3 AND {} = $4::{}
             AND EXISTS(
                 SELECT 1 FROM user_entity_permissions
                 WHERE user_entity_id = ANY($1)
@@ -576,7 +576,7 @@ async fn post_task_trigger(
                 AND permissioned_object IN(uuid_nil(), task_trigger_id)
             )
         "##,
-        task_query_field
+        task_query_field, task_query_field_cast
     ))
     .bind(ids.as_slice())
     .bind(&org_id.0)

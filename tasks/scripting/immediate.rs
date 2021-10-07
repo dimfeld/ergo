@@ -30,6 +30,7 @@ pub async fn run_task(
     task_name: &str,
     config: TaskJsConfig,
     mut state: TaskJsState,
+    payload: serde_json::Value,
 ) -> Result<RunTaskResult, Error> {
     let main_url = url::Url::parse(&format!("https://ergo/tasks/{}.js", task_name))
         .map_err(|e| Error::TaskScriptSetup(e.into()))?;
@@ -39,7 +40,8 @@ pub async fn run_task(
             // TODO ability to configure `allow_net`
             let mut runtime = create_nonserialized_task_script_runtime(true);
 
-            set_up_task_env(&mut runtime, &state).map_err(|e| Error::TaskScriptSetup(e.into()))?;
+            set_up_task_env(&mut runtime, &state, &payload)
+                .map_err(|e| Error::TaskScriptSetup(e.into()))?;
 
             let run_result = runtime.run_main_module(main_url, config.script).await;
             let console = runtime.take_console_messages();
@@ -78,21 +80,29 @@ pub async fn run_task(
 
 const TASK_HELPERS: &'static str = include_str!("./task_helpers.js");
 
-fn set_up_task_env(runtime: &mut Runtime, state: &TaskJsState) -> Result<(), anyhow::Error> {
+fn set_up_task_env(
+    runtime: &mut Runtime,
+    state: &TaskJsState,
+    payload: &serde_json::Value,
+) -> Result<(), anyhow::Error> {
+    runtime.set_global_value("__ergo_inputPayload", &payload)?;
     runtime.set_global_value("__ergo_context", &state.context)?;
     runtime.execute_script("setup_task_context", TASK_HELPERS)?;
     Ok(())
 }
 
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[tokio::test]
     async fn task_context() {
         let script = r##"
             let context = Ergo.getContext();
-            console.dir({context});
-            context.data.set('a key', 10);
+            let input = Ergo.getPayload();
+            console.dir({context, input});
+            context.data.set('a key', input.a);
             Ergo.setContext(context);
             "##;
         let config = TaskJsConfig {
@@ -104,7 +114,7 @@ mod tests {
             context: r##"{data:new Map([["a",5]])}"##.to_string(),
         };
 
-        let result = run_task("test task", config, state).await;
+        let result = run_task("test task", config, state, json!({ "a": 10 })).await;
 
         match result {
             Ok(result) => {
@@ -129,7 +139,7 @@ mod tests {
     async fn task_context_unchanged() {
         let script = r##"
             let context = Ergo.getContext();
-            context.data.set('a key', 10);
+            context.data.set('a key', Ergo.getPayload().a);
             // Don't actually set the context.
             "##;
         let config = TaskJsConfig {
@@ -142,7 +152,7 @@ mod tests {
             context: input_context.to_string(),
         };
 
-        let result = run_task("test task", config, state).await;
+        let result = run_task("test task", config, state, json!({ "a": 10 })).await;
 
         match result {
             Ok(result) => {
@@ -181,7 +191,7 @@ mod tests {
             context: input_context.to_string(),
         };
 
-        let result = run_task("test task", config, state)
+        let result = run_task("test task", config, state, serde_json::Value::Null)
             .await
             .expect("running task");
         assert_eq!(result.state_changed, true);

@@ -10,6 +10,7 @@ use lazy_static::lazy_static;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use thiserror::Error;
+use tracing::{event, Level};
 
 use super::TaskActionTemplate;
 
@@ -68,20 +69,24 @@ impl TemplateFieldFormat {
     ) -> Result<(), TemplateValidationFailure> {
         let ok = match value {
             serde_json::Value::String(s) => {
-                match self {
-                    Self::String => true,
-                    Self::Integer => s.parse::<u64>().is_ok(),
-                    Self::Float => s.parse::<f64>().is_ok(),
-                    Self::Boolean => s.parse::<bool>().is_ok(),
-                    Self::Choice { choices, min, .. } => {
-                        if min.map(|m| m > 1).unwrap_or(false) {
-                            // Requires more than one argument
-                            false
-                        } else {
-                            choices.iter().find(|&x| x == s).is_some()
+                if is_payload_template(&s) {
+                    true
+                } else {
+                    match self {
+                        Self::String => true,
+                        Self::Integer => s.parse::<u64>().is_ok(),
+                        Self::Float => s.parse::<f64>().is_ok(),
+                        Self::Boolean => s.parse::<bool>().is_ok(),
+                        Self::Choice { choices, min, .. } => {
+                            if min.map(|m| m > 1).unwrap_or(false) {
+                                // Requires more than one argument
+                                false
+                            } else {
+                                choices.iter().find(|&x| x == s).is_some()
+                            }
                         }
+                        _ => false,
                     }
-                    _ => false,
                 }
             }
             serde_json::Value::Array(a) => match self {
@@ -374,13 +379,17 @@ pub fn validate(
     }
 }
 
+fn is_payload_template(template: &str) -> bool {
+    template.starts_with("{{/") && template.ends_with("}}")
+}
+
 fn apply_field(
     template: &serde_json::Value,
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<serde_json::Value, TemplateError> {
     let result = match template {
         serde_json::Value::String(template) => {
-            if template.starts_with("{{/") && template.ends_with("}}") {
+            if is_payload_template(&template) {
                 // This is ok because we already verified that the skipped se of bytes are
                 // ASCII in starts_with and ends_with.
                 let field_name = &template[3..template.len() - 2];
@@ -438,11 +447,12 @@ fn apply(
 
 pub fn validate_and_apply<'a>(
     object: &'static str,
-    id: impl ToString,
+    id: impl ToString + std::fmt::Display,
     fields: &TemplateFields,
     template: &'a TaskActionTemplate,
     values: &FxHashMap<String, serde_json::Value>,
 ) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
+    event!(Level::DEBUG, id=%id, fields=?fields, template=?template, values=?values);
     validate(object, Some(id), fields, values)?;
     apply(template, values).map_err(|e| e.into())
 }
