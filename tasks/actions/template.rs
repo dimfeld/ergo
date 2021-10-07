@@ -28,6 +28,8 @@ pub enum TemplateError {
     Validation(#[from] TemplateValidationError),
     #[error("{0}")]
     Render(#[from] handlebars::RenderError),
+    #[error("Missing value for {0}")]
+    MissingValue(String),
 }
 
 #[derive(Clone, Debug, JsonSchema, PartialEq, Eq, Serialize, Deserialize)]
@@ -372,22 +374,32 @@ pub fn validate(
     }
 }
 
-pub fn apply_field(
+fn apply_field(
     template: &serde_json::Value,
     values: &FxHashMap<String, serde_json::Value>,
-) -> Result<serde_json::Value, handlebars::RenderError> {
+) -> Result<serde_json::Value, TemplateError> {
     let result = match template {
         serde_json::Value::String(template) => {
-            let rendered = HANDLEBARS.render_template(template, values)?;
-
-            let trimmed = rendered.trim();
-            let result = if trimmed.len() == rendered.len() {
-                rendered
+            if template.starts_with("{{/") && template.ends_with("}}") {
+                // This is ok because we already verified that the skipped se of bytes are
+                // ASCII in starts_with and ends_with.
+                let field_name = &template[3..template.len() - 2];
+                values
+                    .get(field_name)
+                    .cloned()
+                    .ok_or_else(|| TemplateError::MissingValue(field_name.to_string()))?
             } else {
-                trimmed.to_string()
-            };
+                let rendered = HANDLEBARS.render_template(template, values)?;
 
-            serde_json::Value::String(result)
+                let trimmed = rendered.trim();
+                let result = if trimmed.len() == rendered.len() {
+                    rendered
+                } else {
+                    trimmed.to_string()
+                };
+
+                serde_json::Value::String(result)
+            }
         }
         serde_json::Value::Array(template) => {
             let output_array = template
@@ -401,7 +413,7 @@ pub fn apply_field(
                 .iter()
                 .map(|(k, v)| {
                     let mapped_value = apply_field(v, values)?;
-                    Ok::<_, handlebars::RenderError>((k.clone(), mapped_value))
+                    Ok::<_, TemplateError>((k.clone(), mapped_value))
                 })
                 .collect::<Result<serde_json::Map<String, _>, _>>()?;
             serde_json::Value::Object(output_object)
@@ -415,7 +427,7 @@ pub fn apply_field(
 fn apply(
     template: &TaskActionTemplate,
     values: &FxHashMap<String, serde_json::Value>,
-) -> Result<FxHashMap<String, serde_json::Value>, handlebars::RenderError> {
+) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
     template
         .iter()
         .map(|(name, field_template)| {
@@ -848,6 +860,29 @@ mod tests {
             let mut keys = output.keys().collect::<Vec<_>>();
             keys.sort();
             assert_eq!(keys, ["command", "output"]);
+
+            Ok(())
+        }
+
+        #[test]
+        fn full_object_template() -> Result<(), anyhow::Error> {
+            let template = vec![(
+                "payload".to_string(),
+                serde_json::Value::String("{{/json}}".to_string()),
+            )];
+
+            let values = std::array::IntoIter::new([(
+                "json".to_string(),
+                serde_json::json!({"a": 5, "b": "c"}),
+            )])
+            .into_iter()
+            .collect::<FxHashMap<_, _>>();
+
+            let output = apply(&template, &values)?;
+            assert_eq!(
+                output.get("payload"),
+                Some(&serde_json::json!({"a": 5, "b": "c"}))
+            );
 
             Ok(())
         }
