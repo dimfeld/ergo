@@ -2,12 +2,16 @@
   import { page } from '$app/stores';
   import type { TaskDescription } from '$lib/api_types';
   import { useQuery } from '@sveltestack/svelte-query';
+  import Button from '$lib/components/Button.svelte';
   import Query from '$lib/components/Query.svelte';
   import TaskRow from '$lib/components/TaskRow.svelte';
   import { getHeaderTextStore } from '$lib/header';
   import sorter from 'sorters';
+  import { queryStringStore } from '../../query_string_store';
+
   getHeaderTextStore().set(['Tasks']);
 
+  let qs = queryStringStore();
   const taskQuery = useQuery<TaskDescription[]>('tasks');
 
   const sortFields = {
@@ -16,12 +20,10 @@
     updated: { label: 'Updated', sort: { value: 'modified', descending: true } },
   };
 
-  let sortField = '';
+  let sortField: keyof typeof sortFields = 'run';
   $: {
-    sortField = $page.query.get('sort');
-    if (!(sortField in sortFields)) {
-      sortField = 'run';
-    }
+    let field = $page.query.get('sort');
+    sortField = field && field in sortFields ? (field as keyof typeof sortFields) : 'run';
   }
 </script>
 
@@ -34,11 +36,11 @@
           href="?sort={key}"
           class:selected-sort={key === sortField}
           class="sort-field font-medium hover:underline"
-          on:click={() => (sortField = key)}>{label}</a
+          on:click={() => $qs.update({ sort: key })}>{label}</a
         >
       {/each}
     </p>
-    <a href="/tasks/new" class="text-sm">New Task</a>
+    <Button><a href="/tasks/new" class="text-sm">New Task</a></Button>
   </header>
   {#each data.slice().sort(sorter(sortFields[sortField].sort)) as task (task.task_id)}
     <TaskRow {task} />
