@@ -24,14 +24,14 @@
   const iconSizePadding = {
     xs: 'p-1',
     sm: 'p-1.5',
-    md: 'p-2',
+    md: 'p-1',
   };
 
   const styles = {
-    primary:
-      'border-accent-300 dark:border-accent-600 bg-accent-100 dark:bg-black hover:bg-accent-200 dark:hover:bg-gray-900 focus:ring-accent-500 dark:focus:ring-accent-700 ',
     normal:
-      'border-gray-300 dark:border-gray-700 bg-white dark:bg-black hover:bg-accent-50 dark:hover:bg-gray-900 focus:ring-accent-500 dark:focus:ring-accent-700 ',
+      'border-gray-300 dark:border-gray-700 bg-white dark:bg-black hover:bg-accent-50 dark:hover:border-gray-600 dark:hover:bg-gray-800 focus:ring-accent-500 dark:focus:ring-accent-700 ',
+    primary:
+      'border-accent-300 dark:border-accent-600 bg-accent-100 dark:bg-black hover:bg-accent-200 dark:hover:bg-gray dark:hover:border-accent-500 dark:hover:bg-accent-900 dark:hover:bg-opacity-50 focus:ring-accent-500 dark:focus:ring-accent-700 ',
     danger:
       'border-red-300 dark:border-red-700 bg-white dark:bg-black hover:bg-red-50 dark:hover:bg-red-900 focus:ring-red-500 dark:focus:ring-accent-700',
   };
