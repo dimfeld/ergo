@@ -187,15 +187,25 @@ export interface TaskDescription {
   stats_since: string;
 }
 
-export type TaskConfig = {
-  type: "StateMachine";
-  data: StateMachine[];
-};
+export type TaskConfig =
+  | {
+      type: "StateMachine";
+      data: StateMachine[];
+    }
+  | {
+      type: "Js";
+      data: TaskJsConfig;
+    };
 
-export type TaskState = {
-  type: "StateMachine";
-  data: StateMachineData[];
-};
+export type TaskState =
+  | {
+      type: "StateMachine";
+      data: StateMachineData[];
+    }
+  | {
+      type: "Js";
+      data: TaskJsState;
+    };
 
 export interface TaskInput {
   name: string;
@@ -211,6 +221,15 @@ export interface TaskInput {
   triggers: {
     [k: string]: TaskTriggerInput;
   };
+}
+
+export interface TaskJsConfig {
+  timeout?: number | null;
+  script: string;
+}
+
+export interface TaskJsState {
+  context: string;
 }
 
 export interface TaskActionInput {

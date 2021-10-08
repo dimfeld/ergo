@@ -80,7 +80,17 @@
     }
   }
 
+  let getEditorState: () => Promise<{ compiled: any; source: any }>;
   async function save() {
+    let taskType = task.source?.type;
+    if (!taskType) {
+      return;
+    }
+
+    let { source, compiled } = await getEditorState();
+    task.source = { type: taskType, data: source };
+    task.compiled = { type: taskType, data: compiled };
+
     if (newTask) {
       let result = await client.post(`/api/tasks`, { json: task }).json<{ task_id: string }>();
       task.task_id = result.task_id;
@@ -105,7 +115,6 @@
   $: if (wasmLoaded) {
     validator?.free();
     validator = new TaskConfigValidator($actions, $inputs, task.triggers, task.actions);
-    console.log('rebuilt validator', task);
   }
 
   onDestroy(() => {
@@ -157,6 +166,7 @@
       <div class="flex-1 grid grid-rows-1 grid-cols-1 place-items-stretch">
         <svelte:component
           this={taskEditors[taskSource.type]}
+          bind:getState={getEditorState}
           source={task.source?.data}
           compiled={task.compiled?.data}
           {validator}

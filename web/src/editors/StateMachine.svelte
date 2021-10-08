@@ -8,11 +8,31 @@
   import { TaskConfigValidator } from 'ergo-wasm';
 
   import stateMachineSchema from '$lib/../../schemas/state_machine.json';
+  import { EditorView } from '@codemirror/view';
+  import { json5ParseCache } from './codemirror-json5';
 
   export let compiled: StateMachine[];
   export let source: string[];
   export let validator: TaskConfigValidator;
-  // This is totally unfinished but shows a very basic outline of the state machine.
+
+  let editors: EditorView[] = [];
+  export function getState() {
+    let sources = editors.map((view, i) => {
+      // TODO A way to return a message if the source is not compilable.
+      // TODO Run the validator and/or verify there are no diagnostics.
+      let parsed = view.state.field(json5ParseCache);
+
+      return {
+        source: view.state.doc.toString(),
+        compiled: parsed?.obj ?? compiled[i],
+      };
+    });
+
+    return {
+      compiled: sources.map((s) => s.compiled),
+      source: sources.map((s) => s.source),
+    };
+  }
 
   $: data = zip(compiled || [], source || []) as [StateMachine, string][];
 
@@ -40,13 +60,14 @@
 </script>
 
 <div class="flex flex-col space-y-4 h-full">
-  {#each data as [compiled, source]}
+  {#each data as [compiled, source], i}
     <div class="flex-1">
       <Editor
         format="json5"
         contents={source || prettierFormat(compiled)}
         linter={objectLinter(lint)}
         jsonSchema={stateMachineSchema}
+        bind:view={editors[i]}
       />
     </div>
   {/each}

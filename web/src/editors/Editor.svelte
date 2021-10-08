@@ -19,7 +19,7 @@
   import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
   import { commentKeymap } from '@codemirror/comment';
   import { defaultHighlightStyle } from '@codemirror/highlight';
-  import { Diagnostic, forceLinting, linter as makeLinter, lintKeymap } from '@codemirror/lint';
+  import { Diagnostic, linter as makeLinter, lintKeymap } from '@codemirror/lint';
   import { javascript } from '@codemirror/lang-javascript';
   import { json, jsonParseLinter } from '@codemirror/lang-json';
   import { json5, json5ParseLinter } from './codemirror-json5';
