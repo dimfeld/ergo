@@ -43,7 +43,7 @@
   export let task: TaskResult = defaultTask();
 
   const taskEditors = {
-    Script: ScriptEditor,
+    Js: ScriptEditor,
     StateMachine: StateMachineEditor,
   };
 
@@ -88,8 +88,8 @@
     }
 
     let { source, compiled } = await getEditorState();
-    task.source = { type: taskType, data: source };
-    task.compiled = { type: taskType, data: compiled };
+    task.source = source;
+    task.compiled = compiled;
 
     if (newTask) {
       let result = await client.post(`/api/tasks`, { json: task }).json<{ task_id: string }>();
@@ -178,7 +178,7 @@
     </p>
     <p class="flex space-x-2">
       <Button on:click={() => initializeSource('StateMachine')}>State Machine</Button>
-      <Button on:click={() => initializeSource('Script')}>Script</Button>
+      <Button on:click={() => initializeSource('Js')}>Script</Button>
       <Button on:click={() => initializeSource('Flowchart')}>FlowChart</Button>
     </p>
   </Card>

@@ -3,10 +3,7 @@
 
   import Editor from './Editor.svelte';
 
-  export let source: {
-    timeout: number | undefined;
-    script: string;
-  } | null;
+  export let source: {} | null;
 
   export let compiled: {
     timeout: number | undefined;
@@ -19,15 +16,20 @@
     let s = view.state.doc.toString();
     return {
       source: {
-        timeout: undefined,
-        script: s,
+        type: 'Js',
+        data: {
+          simulations: [],
+        },
       },
       compiled: {
-        timeout: undefined,
-        script: s,
+        type: 'Js',
+        data: {
+          timeout: undefined,
+          script: s,
+        },
       },
     };
   }
 </script>
 
-<Editor format="js" bind:view contents={source?.script ?? ''} />
+<Editor format="js" bind:view contents={compiled?.script ?? ''} />

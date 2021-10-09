@@ -11,8 +11,12 @@
   import { EditorView } from '@codemirror/view';
   import { json5ParseCache } from './codemirror-json5';
 
+  interface Source {
+    config: string;
+  }
+
   export let compiled: StateMachine[];
-  export let source: string[];
+  export let source: Source[];
   export let validator: TaskConfigValidator;
 
   let editors: EditorView[] = [];
@@ -23,8 +27,16 @@
       let parsed = view.state.field(json5ParseCache);
 
       return {
-        source: view.state.doc.toString(),
-        compiled: parsed?.obj ?? compiled[i],
+        source: {
+          type: 'StateMachine',
+          data: {
+            config: view.state.doc.toString(),
+          },
+        },
+        compiled: {
+          type: 'StateMachine',
+          data: parsed?.obj ?? compiled[i],
+        },
       };
     });
 
@@ -34,7 +46,7 @@
     };
   }
 
-  $: data = zip(compiled || [], source || []) as [StateMachine, string][];
+  $: data = zip(compiled || [], source || []) as [StateMachine, Source][];
 
   $: lint = (obj: StateMachine): ObjectLintResult[] => {
     let vals = validator?.validate_config({ type: 'StateMachine', data: [obj] }) ?? [];
@@ -64,7 +76,7 @@
     <div class="flex-1">
       <Editor
         format="json5"
-        contents={source || prettierFormat(compiled)}
+        contents={source?.config || prettierFormat(compiled)}
         linter={objectLinter(lint)}
         jsonSchema={stateMachineSchema}
         bind:view={editors[i]}
