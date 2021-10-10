@@ -79,7 +79,7 @@ mod native {
                     // Look up the existing task and alter its queue job.
                 }
 
-                found_existing.push(ex.periodic_trigger_id);
+                found_existing.push(&ex.periodic_trigger_id);
             } else {
                 let pt_id = PeriodicTriggerId::new();
                 sqlx::query!(
