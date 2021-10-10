@@ -125,7 +125,7 @@ impl Drainer for QueueDrainer {
 
     async fn get(&'_ self, tx: &mut Transaction<Postgres>) -> Result<Vec<DrainResult<'_>>, Error> {
         let results = sqlx::query!(
-            "SELECT id, queue, job_id, COALESCE(payload, 'null'::jsonb) AS payload,
+            "SELECT id, queue, job_id, payload,
             timeout, max_retries, run_at, retry_backoff, operation
             FROM queue_stage
             ORDER BY id LIMIT 50"
@@ -142,20 +142,27 @@ impl Drainer for QueueDrainer {
         results
             .into_iter()
             .map(|row| {
-                let payload = serde_json::to_vec(&row.payload)?;
+                let operation = row
+                    .operation
+                    .map(|op| QueueOperation::from_str(op.as_str()).unwrap())
+                    .unwrap_or(QueueOperation::Add);
+
+                let payload = match (&operation, row.payload.as_ref()) {
+                    (QueueOperation::Update, None) => Cow::Borrowed("".as_bytes()),
+                    (_, None) => Cow::Borrowed("null".as_bytes()),
+                    (_, Some(v)) => Cow::Owned(serde_json::to_vec(v)?),
+                };
+
                 Ok(DrainResult {
                     queue: Cow::Owned(row.queue),
-                    operation: row
-                        .operation
-                        .map(|op| QueueOperation::from_str(op.as_str()).unwrap())
-                        .unwrap_or(QueueOperation::Add),
+                    operation,
                     job: Job {
                         id: row.job_id,
                         retry_backoff: row.retry_backoff.map(|r| Duration::from_millis(r as u64)),
                         run_at: row.run_at,
                         max_retries: row.max_retries.map(|r| r as u32),
                         timeout: row.timeout.map(|t| Duration::from_millis(t as u64)),
-                        payload: Cow::Owned(payload),
+                        payload,
                     },
                 })
             })

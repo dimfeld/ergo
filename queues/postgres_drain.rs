@@ -239,32 +239,43 @@ impl<D: Drainer> StageDrainTask<D> {
             job,
         } in &jobs
         {
+            let queue = match self.queues.get(queue_name.as_ref()) {
+                Some(q) => q,
+                None => {
+                    self.queues.insert(
+                        queue_name.to_string(),
+                        Queue::new(
+                            self.redis_pool.clone(),
+                            queue_name.to_string(),
+                            None,
+                            None,
+                            None,
+                        ),
+                    );
+
+                    self.queues.get(queue_name.as_ref()).unwrap()
+                }
+            };
+
             match operation {
                 QueueOperation::Add => {
                     event!(Level::INFO, queue=%queue_name, ?job, "Enqueueing job");
-                    let queue = match self.queues.get(queue_name.as_ref()) {
-                        Some(q) => q,
-                        None => {
-                            self.queues.insert(
-                                queue_name.to_string(),
-                                Queue::new(
-                                    self.redis_pool.clone(),
-                                    queue_name.to_string(),
-                                    None,
-                                    None,
-                                    None,
-                                ),
-                            );
-
-                            self.queues.get(queue_name.as_ref()).unwrap()
-                        }
-                    };
-
                     queue.enqueue(job).await?;
                 }
-                // TODO Implement these
-                QueueOperation::Remove => unimplemented!(),
-                QueueOperation::Update => unimplemented!(),
+                QueueOperation::Remove => {
+                    event!(Level::INFO, queue=%queue_name, job=%job.id, "Removing job");
+                    queue.cancel_pending_job(&job.id).await?;
+                }
+                QueueOperation::Update => {
+                    let payload = if job.payload.is_empty() {
+                        None
+                    } else {
+                        Some(job.payload.as_ref())
+                    };
+
+                    event!(Level::INFO, queue=%queue_name, ?job, "Updating pending job");
+                    queue.update_job(&job.id, job.run_at, payload).await?;
+                }
             }
         }
         tx.commit().await?;

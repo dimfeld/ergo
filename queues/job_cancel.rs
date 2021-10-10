@@ -12,8 +12,9 @@ use crate::error::Error;
 // ARGS:
 //  1. job ID
 //  2. current time
+//  3. cancel the job if it has already started running
 const CANCEL_SCRIPT: &str = r##"
-    local was_pending = redis.call("ZREM", KEYS[3], ARGV[1])
+    local was_pending = redis.call("LREM", KEYS[3], 1, ARGV[1])
     local was_processing = redis.call("ZREM", KEYS[2], ARGV[1])
     local was_scheduled = redis.call("ZREM", KEYS[4], ARGV[1])
 
@@ -22,7 +23,8 @@ const CANCEL_SCRIPT: &str = r##"
         -- If the job wasn't running or set to run, then it already finished.
         local job_data = redis.call("HGET", KEYS[1], "suc")
         suc = job_data[1]
-    else
+    elseif was_processing = false or ARGV[3] == "1" then
+        -- If we're allowed to cancel the job, then do so.
         -- Set end time. Leave success unset.
         redis.call("HSET", KEYS[1], "end", ARGV[2], "err", "canceled")
     end
@@ -48,6 +50,7 @@ impl JobCancelScript {
         job_id: &str,
         job_data_key: &str,
         now: &DateTime<Utc>,
+        cancel_if_running: bool,
     ) -> Result<JobStatus, Error> {
         let result: (Option<usize>, Option<usize>, Option<usize>, Option<bool>) = self
             .0
@@ -57,6 +60,7 @@ impl JobCancelScript {
             .key(&queue.0.scheduled_list)
             .arg(job_id)
             .arg(now.timestamp_millis())
+            .arg(cancel_if_running)
             .invoke_async(&mut **conn)
             .await?;
 

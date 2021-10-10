@@ -13,6 +13,7 @@ mod job_done;
 mod job_error;
 mod redis_job_data;
 mod start_work;
+mod update_job;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
 pub use self::{
@@ -70,6 +71,7 @@ struct QueueInner {
     done_script: job_done::JobDoneScript,
     error_script: job_error::JobErrorScript,
     cancel_script: job_cancel::JobCancelScript,
+    update_script: update_job::UpdateJobScript,
 
     scheduled_job_enqueuer_task: Mutex<Option<(oneshot::Sender<()>, JoinHandle<()>)>>,
     job_dequeuer_task: Mutex<Option<(oneshot::Sender<()>, JoinHandle<()>)>>,
@@ -139,6 +141,7 @@ impl Queue {
             done_script: job_done::JobDoneScript::new(),
             error_script: job_error::JobErrorScript::new(),
             cancel_script: job_cancel::JobCancelScript::new(),
+            update_script: update_job::UpdateJobScript::new(),
             scheduled_job_enqueuer_task: Mutex::new(None),
             job_dequeuer_task: Mutex::new(None),
             name: queue_name,
@@ -163,12 +166,6 @@ impl Queue {
 
     fn job_data_key(&self, job_id: &str) -> String {
         format!("{}{}", self.0.job_data_prefix, job_id)
-    }
-
-    fn set_job_data(&self, job_id: &str) -> redis::Cmd {
-        let mut cmd = redis::cmd("HSET");
-        cmd.arg(self.job_data_key(&job_id));
-        cmd
     }
 
     fn initial_job_data_cmd(&self, job: &Job) -> redis::Cmd {
@@ -550,13 +547,40 @@ impl Queue {
             .map(Some)
     }
 
+    /// Cancel a job if it hasn't started yet.
+    pub async fn cancel_pending_job(&self, id: &str) -> Result<JobStatus, Error> {
+        let key = self.job_data_key(id);
+        let mut conn = self.0.pool.get().await?;
+
+        self.0
+            .cancel_script
+            .run(self, &mut conn, id, &key, &Utc::now(), false)
+            .await
+    }
+
+    /// Cancel a job, and try to mark it cancelled even if it's running.
     pub async fn cancel_job(&self, id: &str) -> Result<JobStatus, Error> {
         let key = self.job_data_key(id);
         let mut conn = self.0.pool.get().await?;
 
         self.0
             .cancel_script
-            .run(self, &mut conn, id, &key, &Utc::now())
+            .run(self, &mut conn, id, &key, &Utc::now(), true)
+            .await
+    }
+
+    pub async fn update_job(
+        &self,
+        id: &str,
+        run_at: Option<DateTime<Utc>>,
+        new_payload: Option<&[u8]>,
+    ) -> Result<bool, Error> {
+        let key = self.job_data_key(id);
+        let mut conn = self.0.pool.get().await?;
+
+        self.0
+            .update_script
+            .run(self, &mut conn, id, &key, run_at, new_payload)
             .await
     }
 
