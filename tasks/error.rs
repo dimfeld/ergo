@@ -63,6 +63,9 @@ pub enum Error {
         error: anyhow::Error,
         console: Vec<ConsoleMessage>,
     },
+
+    #[error("Parsing cron schedule: {0}")]
+    CronParseError(#[from] cron::error::Error),
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {

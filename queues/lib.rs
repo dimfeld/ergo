@@ -1,6 +1,7 @@
 pub mod generic_stage;
 pub mod job;
 pub mod postgres_drain;
+mod update_stage;
 pub mod work_item;
 
 mod dequeuer_loop;
@@ -14,8 +15,13 @@ mod redis_job_data;
 mod start_work;
 
 use self::redis_job_data::{RedisJobField, RedisJobSetCmd};
-pub use self::{dequeuer_loop::QueueJobProcessor, job::*, work_item::*};
-pub use error::*;
+pub use self::{
+    dequeuer_loop::QueueJobProcessor,
+    error::*,
+    job::*,
+    update_stage::{remove_pending_job, update_pending_job, JobUpdate},
+    work_item::*,
+};
 
 use std::{
     num::NonZeroU32,

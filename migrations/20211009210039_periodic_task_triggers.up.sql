@@ -2,11 +2,14 @@ CREATE TABLE periodic_triggers (
   periodic_trigger_id uuid primary key,
   task_trigger_id uuid not null references task_triggers ON DELETE CASCADE,
   name text,
-  schedule_type text not null,
-  schedule text not null,
+  schedule jsonb not null,
   payload jsonb not null,
   enabled boolean not null default true
 );
+
+GRANT SELECT, INSERT, DELETE, UPDATE ON periodic_triggers TO ergo_web;
+GRANT SELECT ON periodic_triggers TO ergo_backend;
+GRANT SELECT ON periodic_triggers TO ergo_enqueuer;
 
 CREATE INDEX ON periodic_triggers (task_trigger_id);
 

@@ -11,6 +11,7 @@ path = "lib.rs"
 anyhow = "1.0.43"
 async-trait = "0.1.51"
 chrono = { version = "0.4.19", features = ["serde"] }
+cron = "0.9.0"
 ergo-database = { version = "0.1.0", path="../database" }
 futures = "0.3.17"
 fxhash = "0.2.1"
