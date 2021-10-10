@@ -45,6 +45,7 @@ pub struct EnqueueInputOptions<'a> {
     pub task_trigger_id: TaskTriggerId,
     pub task_trigger_local_id: String,
     pub task_trigger_name: String,
+    pub periodic_trigger_id: Option<PeriodicTriggerId>,
     pub payload_schema: &'a serde_json::Value,
     pub payload: serde_json::Value,
     pub redis_key_prefix: &'a Option<String>,
@@ -63,6 +64,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         task_trigger_id,
         task_trigger_local_id,
         task_trigger_name,
+        periodic_trigger_id,
         payload_schema,
         payload,
         redis_key_prefix,
@@ -104,18 +106,20 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
                 retry_backoff: None,
             };
 
-            job.enqueue(&mut *tx).await?;
+            let job_id = job.enqueue(&mut *tx).await?;
 
             sqlx::query!(
                 r##"INSERT INTO inputs_log
-        (inputs_log_id, task_trigger_id, task_id, task_trigger_local_id, status, payload)
+        (inputs_log_id, task_trigger_id, task_id, task_trigger_local_id, status, payload, queue_job_id, periodic_trigger_id)
         VALUES
-        ($1, $2, $3, $4, 'pending', $5)"##,
-                &input_arrival_id,
-                &task_trigger_id.0,
-                &task_id.0,
-                &task_trigger_local_id,
-                &payload
+        ($1, $2, $3, $4, 'pending', $5, $6, $7)"##,
+                input_arrival_id,
+                task_trigger_id.0,
+                task_id.0,
+                task_trigger_local_id,
+                payload,
+                job_id,
+                periodic_trigger_id.as_ref().map(|p| p.0)
             )
             .execute(&mut *tx)
             .await?;

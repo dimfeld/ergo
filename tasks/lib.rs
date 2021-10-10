@@ -7,7 +7,7 @@ pub mod scripting;
 pub mod state_machine;
 
 use actions::{Action, TaskAction};
-use ergo_database::object_id::{InputId, TaskId, TaskTriggerId};
+use ergo_database::object_id::{InputId, PeriodicTriggerId, TaskId, TaskTriggerId};
 pub use error::*;
 use inputs::Input;
 #[cfg(not(target_family = "wasm"))]
@@ -66,6 +66,17 @@ pub struct TaskTrigger {
     pub description: Option<String>,
     #[schemars(with = "Option<String>")]
     pub last_payload: Option<Box<serde_json::value::RawValue>>,
+    pub periodic: Option<Vec<PeriodicTaskTrigger>>,
+}
+
+#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct PeriodicTaskTrigger {
+    pub periodic_trigger_id: PeriodicTriggerId,
+    pub name: Option<String>,
+    pub schedule_type: String,
+    pub schedule: String,
+    pub payload: serde_json::Value,
+    pub enabled: bool,
 }
 
 #[cfg(not(target_family = "wasm"))]

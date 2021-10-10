@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use ergo_database::{new_uuid, sql_insert_parameters};
 use serde::Serialize;
+use smallvec::SmallVec;
 use sqlx::{PgConnection, Postgres, Transaction};
 use std::{borrow::Cow, time::Duration};
 
@@ -68,23 +69,31 @@ impl<'a, T: Serialize + Send + Sync> QueueJob<'a, T> {
             .unwrap_or_else(|| Cow::Owned(new_uuid().to_string()))
     }
 
-    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<(), Error> {
-        enqueue_jobs(tx, &[self]).await
+    /// Enqueue a job and return the job's ID
+    pub async fn enqueue(self, tx: &mut PgConnection) -> Result<String, Error> {
+        let result = enqueue_jobs(tx, &[self]).await?;
+        Ok(result.into_iter().next().unwrap())
     }
 }
 
 pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
     tx: &mut PgConnection,
     jobs: &[QueueJob<'_, T>],
-) -> Result<(), Error> {
+) -> Result<SmallVec<[String; 1]>, Error> {
+    #[derive(sqlx::FromRow)]
+    struct Result {
+        job_id: String,
+    }
+
     let q = format!(
         r##"INSERT INTO queue_stage (queue, job_id, payload, timeout, max_retries, run_at, retry_backoff)
             VALUES
-            {}"##,
+            {}
+            RETURNING job_id"##,
         sql_insert_parameters::<7>(jobs.len())
     );
 
-    let mut query = sqlx::query(&q);
+    let mut query = sqlx::query_as(&q);
     for job in jobs {
         query = query
             .bind(job.queue)
@@ -96,8 +105,8 @@ pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
             .bind(job.retry_backoff.map(|i| i.as_millis() as i32));
     }
 
-    query.execute(&mut *tx).await?;
-    Ok(())
+    let ids: Vec<Result> = query.fetch_all(&mut *tx).await?;
+    Ok(ids.into_iter().map(|r| r.job_id).collect())
 }
 
 pub struct QueueDrainer {}

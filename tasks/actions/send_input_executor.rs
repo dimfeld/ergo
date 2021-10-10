@@ -141,6 +141,7 @@ impl Executor for SendInputExecutor {
             payload,
             redis_key_prefix: &state.redis_key_prefix,
             trigger_at: when,
+            periodic_trigger_id: None,
         })
         .await
         .map_err(ExecutorError::command_error_without_result)?;

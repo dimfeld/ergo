@@ -236,6 +236,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
                 input_id: script_input_id.clone(),
                 name: "Run a script".to_string(),
                 description: None,
+                periodic: None,
             },
         )]
         .into_iter()
@@ -280,6 +281,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
                 name: "request".to_string(),
                 description: None,
                 input_id: url_input_id,
+                periodic: None,
             },
         )]
         .into_iter()

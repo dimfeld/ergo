@@ -33,6 +33,7 @@ pub type TaskTriggerId = ObjectId<9>;
 pub type TaskTemplateId = ObjectId<10>;
 pub type NotifyEndpointId = ObjectId<11>;
 pub type NotifyListenerId = ObjectId<12>;
+pub type PeriodicTriggerId = ObjectId<13>;
 
 impl<const PREFIX: usize> ObjectId<PREFIX> {
     /// Once const generics supports strings, this can go away, but for now we
@@ -53,6 +54,7 @@ impl<const PREFIX: usize> ObjectId<PREFIX> {
             10 => "tmpl",
             11 => "ne",
             12 => "nl",
+            13 => "prt",
             _ => "",
         }
     }

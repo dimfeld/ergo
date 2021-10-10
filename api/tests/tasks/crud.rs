@@ -158,6 +158,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
                 name: "run it".to_string(),
                 description: Some("Run the task and do something".to_string()),
                 input_id: url_input.input_id.clone(),
+                periodic: None,
             },
         ),
         (
@@ -166,6 +167,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
                 name: "Get ready to do something".to_string(),
                 description: None,
                 input_id: url_input.input_id.clone(),
+                periodic: None,
             },
         ),
     ]
@@ -537,6 +539,7 @@ async fn update_task_triggers() {
                 name: "Do the thing".to_string(),
                 description: None,
                 input_id: inputs.url.input_id.clone(),
+                periodic: None,
             },
         );
 
@@ -580,6 +583,7 @@ async fn update_task_triggers() {
                 name: "Do another thing".to_string(),
                 description: Some("A description".to_string()),
                 input_id: inputs.url.input_id.clone(),
+                periodic: None,
             },
         );
 
@@ -608,6 +612,7 @@ async fn update_task_triggers() {
                 name: "Do another thing".to_string(),
                 description: Some("A description".to_string()),
                 input_id: inputs.url.input_id.clone(),
+                periodic: None,
             },
         );
         task2.triggers.insert(
@@ -616,6 +621,7 @@ async fn update_task_triggers() {
                 name: "changed run it".to_string(),
                 description: Some("this is another change".to_string()),
                 input_id: inputs.url.input_id.clone(),
+                periodic: None,
             },
         );
         task2.triggers.insert(
@@ -624,6 +630,7 @@ async fn update_task_triggers() {
                 name: "see a thing".to_string(),
                 description: None,
                 input_id: inputs.url.input_id.clone(),
+                periodic: None,
             },
         );
 

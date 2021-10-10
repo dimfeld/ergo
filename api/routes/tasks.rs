@@ -12,12 +12,12 @@ use actix_web::{
 use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
 use ergo_database::object_id::{
-    AccountId, ActionId, InputId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
+    AccountId, ActionId, InputId, PeriodicTriggerId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
 };
 use ergo_tasks::{
     actions::{ActionStatus, TaskAction, TaskActionTemplate},
     inputs::{EnqueueInputOptions, InputStatus},
-    TaskConfig, TaskState, TaskTrigger,
+    PeriodicTaskTrigger, TaskConfig, TaskState, TaskTrigger,
 };
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -151,9 +151,22 @@ async fn get_task(
                 'task_id', task_triggers.task_id,
                 'input_id', input_id,
                 'name', task_triggers.name,
-                'description', task_triggers.description
+                'description', task_triggers.description,
+                'periodic', periodic
             )) task_triggers
-            FROM task_triggers WHERE task_triggers.task_id = tasks.task_id
+            FROM task_triggers
+            LEFT JOIN LATERAL (
+                SELECT jsonb_agg(jsonb_build_object(
+                    'periodic_trigger_id', pt.periodic_trigger_id,
+                    'name', pt.name,
+                    'schedule_type', pt.schedule_type,
+                    'schedule', pt.schedule,
+                    'payload', pt.payload,
+                    'enabled', pt.enabled
+                )) periodic
+                FROM periodic_triggers pt WHERE pt.task_trigger_id = task_triggers.task_trigger_id
+            ) AS periodic ON true
+            WHERE task_triggers.task_id = tasks.task_id
             GROUP BY task_triggers.task_id
         ) tt ON true
 
@@ -223,11 +236,21 @@ impl PartialEq<TaskAction> for TaskActionInput {
     }
 }
 
+#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct PeriodicTaskTriggerInput {
+    name: Option<String>,
+    schedule_type: String,
+    schedule: String,
+    payload: serde_json::Value,
+    enabled: bool,
+}
+
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskTriggerInput {
     pub input_id: InputId,
     pub name: String,
     pub description: Option<String>,
+    pub periodic: Option<Vec<PeriodicTaskTriggerInput>>,
 }
 
 impl PartialEq<TaskTrigger> for TaskTriggerInput {
@@ -346,6 +369,8 @@ async fn update_task(
 
     let user_id = auth.user_id();
     for (trigger_local_id, trigger) in &payload.triggers {
+        // TODO Update periodic triggers.
+
         let updated = sqlx::query!(
             "UPDATE task_triggers
             SET input_id=$3, name=$4, description=$5
@@ -372,7 +397,7 @@ async fn update_task(
         .collect::<Vec<_>>();
     if !task_trigger_ids.is_empty() {
         sqlx::query!(
-            "DELETE FROM task_triggers WHERE task_id=$1 AND task_triggeR_local_id <> ALL($2)",
+            "DELETE FROM task_triggers WHERE task_id=$1 AND task_trigger_local_id <> ALL($2)",
             &task_id.0,
             &task_trigger_ids as _
         )
@@ -406,6 +431,24 @@ async fn add_task_trigger(
     )
     .execute(&mut *tx)
     .await?;
+
+    if let Some(periodic) = trigger.periodic.as_ref() {
+        for pt in periodic {
+            let pt_id = PeriodicTriggerId::new();
+            sqlx::query!(
+               "INSERT INTO periodic_triggers (periodic_trigger_id, task_trigger_id, name, schedule_type, schedule, payload, enabled)
+               VALUES
+               ($1, $2, $3, $4, $5, $6, $7)",
+            pt_id.0,
+            trigger_id.0,
+            pt.name,
+            pt.schedule_type,
+            pt.schedule,
+            pt.payload,
+            pt.enabled
+            ).execute(&mut *tx).await?;
+        }
+    }
 
     sqlx::query!(
         "INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
@@ -601,6 +644,7 @@ async fn post_task_trigger(
         payload: payload.into_inner(),
         redis_key_prefix: &data.redis_key_prefix,
         trigger_at: None,
+        periodic_trigger_id: None,
     })
     .await?;
 

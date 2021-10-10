@@ -1615,6 +1615,7 @@ dependencies = [
  "serde 1.0.130",
  "serde_json",
  "serde_millis",
+ "smallvec",
  "sqlx",
  "thiserror",
  "tokio",
@@ -3798,9 +3799,9 @@ checksum = "8347046d4ebd943127157b94d63abb990fcf729dc4e9978927fdf4ac3c998d06"
 
 [[package]]
 name = "smallvec"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
+checksum = "1ecab6c735a6bb4139c0caafd0cc3635748bbb3acf4550e8138122099251f309"
 dependencies = [
  "serde 1.0.130",
 ]
