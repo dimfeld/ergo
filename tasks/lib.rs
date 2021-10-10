@@ -1,6 +1,7 @@
 pub mod actions;
 mod error;
 pub mod inputs;
+pub mod periodic;
 #[cfg(not(target_family = "wasm"))]
 pub mod queue_drain_runner;
 pub mod scripting;
@@ -12,6 +13,7 @@ pub use error::*;
 use inputs::Input;
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
+pub use periodic::{PeriodicTaskTrigger, PeriodicTaskTriggerInput};
 
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -67,16 +69,6 @@ pub struct TaskTrigger {
     #[schemars(with = "Option<String>")]
     pub last_payload: Option<Box<serde_json::value::RawValue>>,
     pub periodic: Option<Vec<PeriodicTaskTrigger>>,
-}
-
-#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct PeriodicTaskTrigger {
-    pub periodic_trigger_id: PeriodicTriggerId,
-    pub name: Option<String>,
-    pub schedule_type: String,
-    pub schedule: String,
-    pub payload: serde_json::Value,
-    pub enabled: bool,
 }
 
 #[cfg(not(target_family = "wasm"))]

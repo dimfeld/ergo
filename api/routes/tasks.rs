@@ -17,7 +17,7 @@ use ergo_database::object_id::{
 use ergo_tasks::{
     actions::{ActionStatus, TaskAction, TaskActionTemplate},
     inputs::{EnqueueInputOptions, InputStatus},
-    PeriodicTaskTrigger, TaskConfig, TaskState, TaskTrigger,
+    PeriodicTaskTrigger, PeriodicTaskTriggerInput, TaskConfig, TaskState, TaskTrigger,
 };
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -159,7 +159,6 @@ async fn get_task(
                 SELECT jsonb_agg(jsonb_build_object(
                     'periodic_trigger_id', pt.periodic_trigger_id,
                     'name', pt.name,
-                    'schedule_type', pt.schedule_type,
                     'schedule', pt.schedule,
                     'payload', pt.payload,
                     'enabled', pt.enabled
@@ -236,15 +235,6 @@ impl PartialEq<TaskAction> for TaskActionInput {
     }
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq)]
-pub struct PeriodicTaskTriggerInput {
-    name: Option<String>,
-    schedule_type: String,
-    schedule: String,
-    payload: serde_json::Value,
-    enabled: bool,
-}
-
 #[derive(Clone, Debug, Deserialize, JsonSchema, Serialize, PartialEq, Eq)]
 pub struct TaskTriggerInput {
     pub input_id: InputId,
@@ -308,13 +298,13 @@ async fn update_task(
             )
         RETURNING task_template_id, task_template_version
         ",
-        &task_id.0,
-        &payload.name,
-        &payload.description as _,
-        &payload.alias as _,
+        task_id.0,
+        payload.name,
+        payload.description as _,
+        payload.alias as _,
         payload.enabled,
         sqlx::types::Json(&payload.state) as _,
-        &auth.org_id().0,
+        auth.org_id().0,
         user_ids.as_slice()
     )
     .fetch_optional(&mut tx)
@@ -422,9 +412,9 @@ async fn add_task_trigger(
                 name, description
             ) VALUES
             ($1, $2, $3, $4, $5, $6)",
-        &trigger_id.0,
-        &task_id.0,
-        &trigger.input_id.0,
+        trigger_id.0,
+        task_id.0,
+        trigger.input_id.0,
         local_id,
         trigger.name,
         trigger.description as _
@@ -433,28 +423,14 @@ async fn add_task_trigger(
     .await?;
 
     if let Some(periodic) = trigger.periodic.as_ref() {
-        for pt in periodic {
-            let pt_id = PeriodicTriggerId::new();
-            sqlx::query!(
-               "INSERT INTO periodic_triggers (periodic_trigger_id, task_trigger_id, name, schedule_type, schedule, payload, enabled)
-               VALUES
-               ($1, $2, $3, $4, $5, $6, $7)",
-            pt_id.0,
-            trigger_id.0,
-            pt.name,
-            pt.schedule_type,
-            pt.schedule,
-            pt.payload,
-            pt.enabled
-            ).execute(&mut *tx).await?;
-        }
+        ergo_tasks::periodic::update_triggers(tx, &trigger_id, periodic.as_slice()).await?;
     }
 
     sqlx::query!(
         "INSERT INTO user_entity_permissions (user_entity_id, permission_type, permissioned_object)
         VALUES ($1, 'trigger_event', $2)",
-        &user_id.0,
-        &trigger_id.0
+        user_id.0,
+        trigger_id.0
     )
     .execute(&mut *tx)
     .await?;

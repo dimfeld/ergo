@@ -1,4 +1,4 @@
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, convert::Infallible, str::FromStr, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
@@ -17,6 +17,31 @@ use super::{Job, Queue};
 use crate::error::Error;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 
+pub enum QueueOperation {
+    Add,
+    Update,
+    Remove,
+}
+
+impl FromStr for QueueOperation {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "add" => Self::Add,
+            "update" => Self::Update,
+            "remove" => Self::Remove,
+            _ => Self::Add,
+        })
+    }
+}
+
+pub struct DrainResult<'a> {
+    pub queue: Cow<'static, str>,
+    pub operation: QueueOperation,
+    pub job: Job<'a>,
+}
+
 #[async_trait]
 pub trait Drainer: Send + Sync {
     type Error: 'static + std::error::Error + Send + Sync;
@@ -28,7 +53,7 @@ pub trait Drainer: Send + Sync {
     async fn get(
         &'_ self,
         tx: &mut Transaction<Postgres>,
-    ) -> Result<Vec<(Cow<'static, str>, Job<'_>)>, Self::Error>;
+    ) -> Result<Vec<DrainResult<'_>>, Self::Error>;
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -208,27 +233,39 @@ impl<D: Drainer> StageDrainTask<D> {
 
         self.stats.last_drain = now;
 
-        for (queue_name, job) in &jobs {
-            event!(Level::INFO, queue=%queue_name, ?job, "Enqueueing job");
-            let queue = match self.queues.get(queue_name.as_ref()) {
-                Some(q) => q,
-                None => {
-                    self.queues.insert(
-                        queue_name.to_string(),
-                        Queue::new(
-                            self.redis_pool.clone(),
-                            queue_name.to_string(),
-                            None,
-                            None,
-                            None,
-                        ),
-                    );
+        for DrainResult {
+            queue: queue_name,
+            operation,
+            job,
+        } in &jobs
+        {
+            match operation {
+                QueueOperation::Add => {
+                    event!(Level::INFO, queue=%queue_name, ?job, "Enqueueing job");
+                    let queue = match self.queues.get(queue_name.as_ref()) {
+                        Some(q) => q,
+                        None => {
+                            self.queues.insert(
+                                queue_name.to_string(),
+                                Queue::new(
+                                    self.redis_pool.clone(),
+                                    queue_name.to_string(),
+                                    None,
+                                    None,
+                                    None,
+                                ),
+                            );
 
-                    self.queues.get(queue_name.as_ref()).unwrap()
+                            self.queues.get(queue_name.as_ref()).unwrap()
+                        }
+                    };
+
+                    queue.enqueue(job).await?;
                 }
-            };
-
-            queue.enqueue(job).await?;
+                // TODO Implement these
+                QueueOperation::Remove => unimplemented!(),
+                QueueOperation::Update => unimplemented!(),
+            }
         }
         tx.commit().await?;
 

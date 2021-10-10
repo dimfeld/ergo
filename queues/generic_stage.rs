@@ -1,5 +1,9 @@
 use super::postgres_drain::Drainer;
-use crate::{error::Error, Job};
+use crate::{
+    error::Error,
+    postgres_drain::{DrainResult, QueueOperation},
+    Job,
+};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -7,7 +11,7 @@ use ergo_database::{new_uuid, sql_insert_parameters};
 use serde::Serialize;
 use smallvec::SmallVec;
 use sqlx::{PgConnection, Postgres, Transaction};
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, str::FromStr, time::Duration};
 
 pub struct QueueJob<'a, T: Serialize + Send + Sync> {
     pub queue: &'a str,
@@ -119,13 +123,10 @@ impl Drainer for QueueDrainer {
         80235523425
     }
 
-    async fn get(
-        &'_ self,
-        tx: &mut Transaction<Postgres>,
-    ) -> Result<Vec<(Cow<'static, str>, super::Job<'_>)>, Error> {
+    async fn get(&'_ self, tx: &mut Transaction<Postgres>) -> Result<Vec<DrainResult<'_>>, Error> {
         let results = sqlx::query!(
-            "SELECT id, queue, job_id, payload,
-            timeout, max_retries, run_at, retry_backoff
+            "SELECT id, queue, job_id, COALESCE(payload, 'null'::jsonb) AS payload,
+            timeout, max_retries, run_at, retry_backoff, operation
             FROM queue_stage
             ORDER BY id LIMIT 50"
         )
@@ -142,9 +143,13 @@ impl Drainer for QueueDrainer {
             .into_iter()
             .map(|row| {
                 let payload = serde_json::to_vec(&row.payload)?;
-                Ok((
-                    Cow::Owned(row.queue),
-                    Job {
+                Ok(DrainResult {
+                    queue: Cow::Owned(row.queue),
+                    operation: row
+                        .operation
+                        .map(|op| QueueOperation::from_str(op.as_str()).unwrap())
+                        .unwrap_or(QueueOperation::Add),
+                    job: Job {
                         id: row.job_id,
                         retry_backoff: row.retry_backoff.map(|r| Duration::from_millis(r as u64)),
                         run_at: row.run_at,
@@ -152,7 +157,7 @@ impl Drainer for QueueDrainer {
                         timeout: row.timeout.map(|t| Duration::from_millis(t as u64)),
                         payload: Cow::Owned(payload),
                     },
-                ))
+                })
             })
             .collect::<Result<Vec<_>, Error>>()
     }
