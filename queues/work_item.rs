@@ -11,6 +11,8 @@ pub struct QueueWorkItem<T: Send + Sync> {
     pub id: String,
     pub data: T,
     pub expires: DateTime<Utc>,
+    pub current_retry: usize,
+    pub max_retries: usize,
 
     finished: bool,
 }
@@ -45,6 +47,8 @@ impl<T: DeserializeOwned + Send + Sync> QueueWorkItem<T> {
         queue: Queue,
         job_id: &str,
         expires: DateTime<Utc>,
+        current_retry: usize,
+        max_retries: usize,
         data: Vec<u8>,
     ) -> Result<Self, Error> {
         let converted: T = serde_json::from_slice(data.as_slice())?;
@@ -54,7 +58,13 @@ impl<T: DeserializeOwned + Send + Sync> QueueWorkItem<T> {
             data: converted,
             expires,
             finished: false,
+            current_retry,
+            max_retries,
         })
+    }
+
+    pub fn is_final_retry(&self) -> bool {
+        self.current_retry >= self.max_retries
     }
 }
 

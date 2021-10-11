@@ -16,16 +16,16 @@ use super::Queue;
 //  2. current time
 //  3. default expiration,
 const START_WORK_SCRIPT: &str = r##"
-    -- If the job has a different timeout from the queue default, update it here.
-    local job_data = redis.call("HMGET", KEYS[1], "to", "pay")
+    local job_data = redis.call("HMGET", KEYS[1], "to", "pay", "cr", "mr")
     local expiration = ARGV[2] + ARGV[3]
+    -- If the job has a different timeout from the queue default, update it here.
     if job_data[1] ~= ARGV[3] then
         redis.call("ZADD", KEYS[2], expiration, ARGV[1])
     end
 
     -- Set started time
     redis.call("HSET", KEYS[1], "st", ARGV[2])
-    return {job_data[2], expiration}
+    return {job_data[2], expiration, job_data[3], job_data[4]}
 "##;
 
 lazy_static! {
@@ -46,8 +46,8 @@ impl StartWorkScript {
         job_id: &str,
         job_id_key: &str,
         now: &DateTime<Utc>,
-    ) -> Result<(Vec<u8>, DateTime<Utc>), Error> {
-        let (payload, expiration): (Vec<u8>, i64) = self
+    ) -> Result<(Vec<u8>, DateTime<Utc>, usize, usize), Error> {
+        let (payload, expiration, current_retry, max_retries): (Vec<u8>, i64, usize, usize) = self
             .0
             .key(job_id_key)
             .key(&queue.0.processing_list)
@@ -57,6 +57,11 @@ impl StartWorkScript {
             .invoke_async(&mut **conn)
             .await?;
 
-        Ok((payload, Utc.timestamp_millis(expiration)))
+        Ok((
+            payload,
+            Utc.timestamp_millis(expiration),
+            current_retry,
+            max_retries,
+        ))
     }
 }

@@ -435,13 +435,20 @@ impl Queue {
         job_id_key: &str,
         now: &DateTime<Utc>,
     ) -> Result<QueueWorkItem<T>, Error> {
-        let (payload, expiration) = self
+        let (payload, expiration, current_retry, max_retries) = self
             .0
             .start_work_script
             .run(self, conn, job_id, job_id_key, now)
             .await?;
 
-        let item = QueueWorkItem::new(self.clone(), job_id, expiration, payload);
+        let item = QueueWorkItem::new(
+            self.clone(),
+            job_id,
+            expiration,
+            current_retry,
+            max_retries,
+            payload,
+        );
 
         match item {
             Ok(item) => Ok(item),
