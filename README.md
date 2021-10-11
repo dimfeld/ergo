@@ -56,7 +56,7 @@ This project is in very early stages right now with no current plans for proper 
 - [ ] MVP of UI for editing tasks
 - [ ] MVP of UI for editing actions and inputs.
 - [ ] Periodic tasks 
-- [ ] Task logic can be written in Javascript.
+- [X] Task logic can be written in Javascript.
 - [X] Implement last missing pieces of queue behavior.
 - [ ] Barebones user management
 
