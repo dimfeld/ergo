@@ -14,4 +14,4 @@ docker run -d  \
   -e "POSTGRES_PASSWORD=${TEST_DATABASE_PASSWORD}" \
   -p ${TEST_DATABASE_PORT}:5432 \
   --name ${TEST_DATABASE_CONTAINER_NAME} \
-  postgres:13
+  postgres:13 postgres -N 1000
