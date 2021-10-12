@@ -724,10 +724,10 @@ mod tests {
             queue.enqueue(&job).await?;
 
             match queue.get_job::<SimplePayload>().await? {
-                Some(job) => {
-                    job.process(|item| async move {
+                Some(mut job) => {
+                    job.process(|item, data| async move {
                         assert_eq!(item.id, "a-test-id");
-                        assert_eq!(item.data.data, "A test string");
+                        assert_eq!(data.data, "A test string");
                         Ok::<(), Error>(())
                     })
                     .await?;

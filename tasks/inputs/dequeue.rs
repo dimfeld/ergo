@@ -65,18 +65,17 @@ impl QueueJobProcessor for TaskExecutorJobProcessor {
     type Payload = InputInvocation;
     type Error = Error;
 
-    async fn process(&self, item: &QueueWorkItem<InputInvocation>) -> Result<(), Error> {
-        let invocation = &item.data;
+    async fn process(
+        &self,
+        item: &QueueWorkItem<InputInvocation>,
+        invocation: InputInvocation,
+    ) -> Result<(), Error> {
         Task::apply_input(
             &self.pg_pool,
             self.notifications.clone(),
-            invocation.task_id.clone(),
-            invocation.input_id.clone(),
-            invocation.task_trigger_id.clone(),
-            invocation.inputs_log_id,
-            invocation.user_id.clone(),
-            invocation.payload.clone(),
             self.redis_key_prefix.clone(),
+            item.is_final_retry(),
+            invocation,
         )
         .await?;
         Ok(())

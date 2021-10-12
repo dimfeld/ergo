@@ -58,12 +58,16 @@ impl QueueJobProcessor for ActionExecutorJobProcessor {
     type Payload = ActionInvocation;
     type Error = Error;
 
-    async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Error> {
+    async fn process(
+        &self,
+        item: &QueueWorkItem<Self::Payload>,
+        data: ActionInvocation,
+    ) -> Result<(), Error> {
         execute(
             &self.pg_pool,
             self.redis_key_prefix.clone(),
             self.notifications.as_ref(),
-            &item.data,
+            data,
         )
         .await?;
         Ok(())

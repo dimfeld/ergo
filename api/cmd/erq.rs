@@ -117,9 +117,9 @@ async fn run_job(queue: &Queue, delay: Option<u64>, error: Option<String>) -> Re
             println!("No jobs waiting to run");
             Ok(())
         }
-        Some(job) => job
-            .process(|item| async move {
-                println!("Got job {} with payload {}", item.id, item.data.clone());
+        Some(mut job) => job
+            .process(|item, data| async move {
+                println!("Got job {} with payload {}", item.id, data);
 
                 if let Some(d) = delay {
                     println!("Sleeping for {}ms", d);

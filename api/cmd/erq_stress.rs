@@ -279,8 +279,9 @@ fn job_consumer(
     tokio::spawn(async move {
         loop {
             match queue.get_job::<JobPayload>().await? {
-                Some(job) => {
-                    job.process(|_| async move { Ok::<(), Error>(()) }).await?;
+                Some(mut job) => {
+                    job.process(|_, _| async move { Ok::<(), Error>(()) })
+                        .await?;
                 }
                 None => {
                     if close_on_idle {
