@@ -89,7 +89,7 @@ pub enum JobStatus {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JobTrackingData {
     id: String,
-    payload: String,
+    payload: Vec<u8>,
     #[serde(with = "serde_millis")]
     timeout: Duration,
     retry_count: u32,
@@ -478,7 +478,7 @@ impl Queue {
             succeeded,
             error,
         ): (
-            Option<String>,
+            Option<Vec<u8>>,
             Option<u64>,
             Option<u32>,
             Option<u32>,
@@ -651,18 +651,23 @@ impl Clone for Queue {
 mod tests {
     use super::*;
     use crate::error::Error;
+    use chrono::{Duration, DurationRound};
     use futures::{Future, FutureExt};
     use std::borrow::Cow;
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
     struct SimplePayload {
         data: String,
     }
 
     impl SimplePayload {
         fn generate() -> Result<Cow<'static, [u8]>, Error> {
+            Self::with_value("A test string")
+        }
+
+        fn with_value(s: &str) -> Result<Cow<'static, [u8]>, Error> {
             let p = SimplePayload {
-                data: "A test string".to_string(),
+                data: s.to_string(),
             };
             Ok(Cow::Owned(serde_json::to_vec(&p)?))
         }
@@ -714,7 +719,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_enqueue() {
+    async fn enqueue() {
         run_queue_test(|queue| async move {
             let job = Job {
                 id: String::from("a-test-id"),
@@ -734,6 +739,126 @@ mod tests {
                 }
                 None => panic!("Did not see a job after enqueueing it"),
             }
+
+            Ok::<(), Error>(())
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn scheduled_task() {
+        run_queue_test(|queue| async move {
+            // Create a future date and round it so that it survives serialization fully intact.
+            let initial_run_at = (Utc::now() + Duration::days(100))
+                .duration_round(Duration::milliseconds(100))
+                .expect("creating date");
+            let id = "a-test".to_string();
+            let job = Job {
+                id: id.clone(),
+                run_at: Some(initial_run_at.clone()),
+                payload: SimplePayload::generate()?,
+                ..Default::default()
+            };
+
+            queue.enqueue(&job).await.expect("enqueueing job");
+
+            assert!(
+                queue
+                    .get_job::<SimplePayload>()
+                    .await
+                    .expect("retrieving job with empy pending list")
+                    .is_none(),
+                "future job should not be dequeued yet"
+            );
+
+            let scheduled = queue.list_scheduled().await?;
+            println!("{:?}", scheduled);
+            assert_eq!(
+                scheduled[0],
+                (id.clone(), initial_run_at),
+                "initial schedule matches"
+            );
+            assert_eq!(scheduled.len(), 1, "just one scheduled task");
+
+            let moved_to_pending = queue
+                .enqueue_scheduled_items()
+                .await
+                .expect("Enqueueing scheduled items");
+            assert_eq!(
+                moved_to_pending, 0,
+                "scheduled job in the future is not moved to pending list"
+            );
+
+            // Reschedule the job further in the future.
+            let new_run_at = initial_run_at + Duration::days(50);
+            queue
+                .update_job(id.as_str(), Some(new_run_at.clone()), None)
+                .await?;
+
+            let rescheduled = queue.list_scheduled().await.expect("Listing scheduled");
+            println!("Rescheduled: {:?}", rescheduled);
+            assert_eq!(
+                rescheduled[0],
+                (id.clone(), new_run_at),
+                "rescheduled task matches"
+            );
+            assert_eq!(rescheduled.len(), 1, "just one scheduled task");
+
+            let moved_to_pending = queue
+                .enqueue_scheduled_items()
+                .await
+                .expect("Enqueueing scheduled items");
+            assert_eq!(
+                moved_to_pending, 0,
+                "scheduled job in the future is not moved to pending list"
+            );
+
+            // Reschedule the job in the past.
+            let schedule_in_past = (Utc::now() - Duration::seconds(1))
+                .duration_round(Duration::milliseconds(100))
+                .expect("creating past date");
+            let new_payload = SimplePayload::with_value("new value").unwrap();
+            eprintln!("{:?}", new_payload);
+            queue
+                .update_job(
+                    id.as_str(),
+                    Some(schedule_in_past.clone()),
+                    Some(new_payload.as_ref()),
+                )
+                .await
+                .expect("Updating job and payload");
+
+            let moved_to_pending = queue.enqueue_scheduled_items().await?;
+            assert_eq!(moved_to_pending, 1, "ready job should be enqueued");
+
+            let info = queue
+                .job_info(&id)
+                .await
+                .expect("Getting job info")
+                .expect("Job info should exist");
+            println!("{:?}", info);
+            assert_eq!(
+                info.payload, br##"{"data":"new value"}"##,
+                "payload is updated"
+            );
+            assert_eq!(
+                info.run_at,
+                Some(schedule_in_past),
+                "date in job info is updated"
+            );
+
+            let job = queue
+                .get_job::<SimplePayload>()
+                .await
+                .expect("Dequeueing ready job")
+                .expect("Job should be ready");
+
+            assert_eq!(
+                job.data,
+                Some(SimplePayload {
+                    data: "new value".to_string()
+                })
+            );
 
             Ok::<(), Error>(())
         })

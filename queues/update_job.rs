@@ -38,11 +38,12 @@ const UPDATE_JOB_SCRIPT: &str = r##"
     if updates_time then
         -- Put the task on the scheduled list at the new time.
         redis.call("ZADD", KEYS[2], ARGV[2], ARGV[1])
+        redis.call("HSET", KEYS[3], "ra", ARGV[2])
     end
 
     if string.len(ARGV[3]) > 0 then
         -- Update the payload
-        redis.call("HSET", KEYS[3], "pay", ARGV[2])
+        redis.call("HSET", KEYS[3], "pay", ARGV[3])
     end
 
     return true
