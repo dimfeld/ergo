@@ -19,7 +19,11 @@ pub trait QueueJobProcessor: Clone + Sync + Send {
     type Payload: DeserializeOwned + Send + Sync;
     type Error: Send + Sync + std::error::Error;
 
-    async fn process(&self, item: &QueueWorkItem<Self::Payload>) -> Result<(), Self::Error>;
+    async fn process(
+        &self,
+        item: &QueueWorkItem<Self::Payload>,
+        payload: Self::Payload,
+    ) -> Result<(), Self::Error>;
 }
 
 pub fn dequeuer_loop<P, T>(
@@ -61,14 +65,14 @@ where
             }
 
             match queue.get_job::<T>().await {
-                Ok(Some(job)) => {
+                Ok(Some(mut job)) => {
                     backoff.reset();
                     sleep_time = Duration::default();
 
                     let p = processor.clone();
                     let queue_name = queue.0.name.clone();
                     let job_task = tokio::spawn(async move {
-                        match job.process(|item| p.process(item)).await {
+                        match job.process(|item, payload| p.process(item, payload)).await {
                             Ok(_) => {}
                             Err(e) => {
                                 event!(Level::ERROR, error=?e, job=%job.id, queue=%queue_name, "Job error");

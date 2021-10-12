@@ -84,7 +84,7 @@ mod native {
             template::TemplateFields,
             ActionInvocation, ActionInvocations, ActionStatus, TaskActionTemplate,
         },
-        inputs::InputStatus,
+        inputs::{InputInvocation, InputStatus},
         scripting::TaskJsState,
         state_machine::{StateMachineStates, StateMachineWithData},
         TaskConfig,
@@ -140,24 +140,23 @@ mod native {
         pub async fn apply_input(
             pool: &PostgresPool,
             notifications: Option<NotificationManager>,
-            task_id: TaskId,
-            input_id: InputId,
-            task_trigger_id: TaskTriggerId,
-            input_arrival_id: uuid::Uuid,
-            user_id: UserId,
-            payload: serde_json::Value,
             redis_key_prefix: Option<String>,
+            reschedule_periodic_task_on_error: bool,
+            invocation: InputInvocation,
         ) -> Result<(), Error> {
             let mut conn = pool.acquire().await?;
+            let input_arrival_id = invocation.inputs_log_id.clone();
             let result = serializable(&mut conn, 5, move |tx| {
-
-                let payload = payload.clone();
-                let input_arrival_id = input_arrival_id.clone();
+                let InputInvocation{
+                    payload,
+                    inputs_log_id: input_arrival_id,
+                    task_id,
+                    task_trigger_id,
+                    user_id,
+                    ..
+                } = invocation.clone();
                 let notifications = notifications.clone();
-                let task_id = task_id.clone();
-                let task_trigger_id = task_trigger_id.clone();
                 let redis_key_prefix = redis_key_prefix.clone();
-                let user_id = user_id.clone();
 
                 Box::pin(async move {
                     #[derive(Debug, Deserialize)]

@@ -9,7 +9,7 @@ use std::future::Future;
 pub struct QueueWorkItem<T: Send + Sync> {
     queue: Queue,
     pub id: String,
-    pub data: T,
+    pub(crate) data: Option<T>,
     pub expires: DateTime<Utc>,
     pub current_retry: usize,
     pub max_retries: usize,
@@ -55,28 +55,26 @@ impl<T: DeserializeOwned + Send + Sync> QueueWorkItem<T> {
         Ok(QueueWorkItem {
             queue,
             id: String::from(job_id),
-            data: converted,
+            data: Some(converted),
             expires,
             finished: false,
             current_retry,
             max_retries,
         })
     }
-
-    pub fn is_final_retry(&self) -> bool {
-        self.current_retry >= self.max_retries
-    }
 }
 
 impl<'a, T: Send + Sync> QueueWorkItem<T> {
-    pub async fn process<F, Fut, R, E>(&'a self, f: F) -> Result<R, Error>
+    pub async fn process<F, Fut, R, E>(&'a mut self, f: F) -> Result<R, Error>
     where
-        F: FnOnce(&'a Self) -> Fut,
+        F: FnOnce(&'a Self, T) -> Fut,
         Fut: Future<Output = Result<R, E>>,
         T: Send,
         E: 'static + std::error::Error + Send + Sync,
+        R: 'static,
     {
-        match f(&self).await {
+        let payload = self.data.take().unwrap();
+        match f(self, payload).await {
             Ok(val) => {
                 self.queue.done_job(self.id.as_str(), &self.expires).await?;
                 Ok(val)
@@ -98,5 +96,9 @@ impl<'a, T: Send + Sync> QueueWorkItem<T> {
             Some(e) => Ok(e == self.expires),
             None => Ok(false),
         }
+    }
+
+    pub fn is_final_retry(&self) -> bool {
+        self.current_retry >= self.max_retries
     }
 }

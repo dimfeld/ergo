@@ -50,7 +50,7 @@ pub enum InputStatus {
     Error,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct InputInvocation {
     pub task_id: TaskId,
     pub task_trigger_id: TaskTriggerId,

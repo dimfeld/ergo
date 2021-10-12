@@ -180,7 +180,7 @@ mod native {
         pg_pool: &PostgresPool,
         redis_key_prefix: Option<String>,
         notifications: Option<&NotificationManager>,
-        invocation: &ActionInvocation,
+        invocation: ActionInvocation,
     ) -> Result<serde_json::Value, Error> {
         event!(Level::DEBUG, ?invocation);
 
@@ -199,7 +199,7 @@ mod native {
             error: e.into(),
         })?;
 
-        let result = execute_action(pg_pool, redis_key_prefix, notifications, invocation).await;
+        let result = execute_action(pg_pool, redis_key_prefix, notifications, &invocation).await;
         event!(Level::DEBUG, ?result);
 
         let (status, response) = match &result {

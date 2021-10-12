@@ -166,17 +166,21 @@ impl QueueJobProcessor for NotifyExecutor {
     type Payload = NotificationJob<'static>;
     type Error = Error;
 
-    async fn process(&self, item: &ergo_queues::QueueWorkItem<Self::Payload>) -> Result<(), Error> {
-        let NotificationJob {
-            service,
-            destination,
-            notification,
-        } = &item.data;
-        match service {
+    async fn process(
+        &self,
+        _item: &ergo_queues::QueueWorkItem<Self::Payload>,
+        data: Self::Payload,
+    ) -> Result<(), Error> {
+        match &data.service {
             NotifyService::Email => Ok(()),
             NotifyService::SlackIncomingWebhook => Ok(()),
             NotifyService::DiscordIncomingWebhook => {
-                send_discord_webhook(&self.http_client, destination, notification.as_ref()).await
+                send_discord_webhook(
+                    &self.http_client,
+                    &data.destination,
+                    data.notification.as_ref(),
+                )
+                .await
             }
         }
     }
