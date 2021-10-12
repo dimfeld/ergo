@@ -15,12 +15,17 @@ struct TestRow {
 
 pub struct AppState {
     pub pg: PostgresPool,
+    /// Prevents queue conflicts in testing
+    pub redis_key_prefix: Option<String>,
 }
 
 pub type AppStateData = Data<AppState>;
 
-pub fn app_data(pg: PostgresPool) -> AppStateData {
-    Data::new(AppState { pg })
+pub fn app_data(pg: PostgresPool, redis_key_prefix: Option<String>) -> AppStateData {
+    Data::new(AppState {
+        pg,
+        redis_key_prefix,
+    })
 }
 
 // pub fn new_server(

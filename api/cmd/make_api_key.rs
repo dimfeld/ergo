@@ -61,7 +61,7 @@ pub async fn main(args: Args) -> Result<()> {
         &args.org,
         args.user.as_ref(),
         args.no_inherit_user_permissions,
-        args.description.as_ref().map(|s| s.as_str()),
+        args.description.as_deref(),
     )
     .await?;
     tx.commit().await?;

@@ -85,7 +85,8 @@ pub async fn start(config: Config) -> Result<Server> {
 
     notifications.start_task_queue_loop()?;
 
-    let web_app_data = crate::web_app_server::app_data(web_pg_pool.clone());
+    let web_app_data =
+        crate::web_app_server::app_data(web_pg_pool.clone(), redis_queue_prefix.clone());
     let backend_app_data = crate::backend_data::app_data(
         backend_pg_pool.clone(),
         notifications.clone(),

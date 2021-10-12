@@ -431,8 +431,9 @@ mod native {
                     .next_run()?
                     .filter(|_| info.pt_enabled && info.task_enabled)
                 {
+                    let mut conn = pool.acquire().await?;
                     enqueue_input(EnqueueInputOptions {
-                        pg: &pool,
+                        pg: &mut conn,
                         notifications,
                         org_id: info.org_id,
                         user_id: invocation.user_id,
@@ -445,7 +446,7 @@ mod native {
                         periodic_trigger_id: Some(periodic_id),
                         payload_schema: &info.payload_schema,
                         payload: info.payload,
-                        redis_key_prefix: &redis_key_prefix,
+                        redis_key_prefix: redis_key_prefix.as_deref(),
                         trigger_at: Some(next_time),
                     })
                     .await?;

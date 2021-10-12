@@ -185,7 +185,7 @@ pub enum TaskValidateError {
 
     #[error(
         "Event handler {source}.on[{index}] has unknown trigger id {trigger_id}",
-        source=.state.as_ref().map(|s| s.as_str()).unwrap_or("<root>")
+        source=.state.as_deref().unwrap_or("<root>")
     )]
     InvalidTriggerId {
         trigger_id: String,
@@ -195,7 +195,7 @@ pub enum TaskValidateError {
 
     #[error(
         "Event handler {source}.on[{index}] has invalid target {target}",
-        source=.state.as_ref().map(|s| s.as_str()).unwrap_or("<root>")
+        source=.state.as_deref().unwrap_or("<root>")
     )]
     InvalidTarget {
         state: Option<String>,

@@ -12,7 +12,8 @@ use actix_web::{
 use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
 use ergo_database::object_id::{
-    AccountId, ActionId, InputId, PeriodicTriggerId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
+    AccountId, ActionId, InputId, OrgId, PeriodicTriggerId, TaskId, TaskTemplateId, TaskTriggerId,
+    UserId,
 };
 use ergo_tasks::{
     actions::{ActionStatus, TaskAction, TaskActionTemplate},
@@ -358,9 +359,8 @@ async fn update_task(
     }
 
     let user_id = auth.user_id();
+    let org_id = auth.org_id();
     for (trigger_local_id, trigger) in &payload.triggers {
-        // TODO Update periodic triggers.
-
         let updated = sqlx::query!(
             "UPDATE task_triggers
             SET input_id=$3, name=$4, description=$5
@@ -376,7 +376,17 @@ async fn update_task(
 
         if updated.rows_affected() == 0 {
             // The object didn't exist, so update it here.
-            add_task_trigger(&mut tx, &trigger_local_id, &task_id, trigger, user_id).await?;
+            add_task_trigger(
+                &mut tx,
+                &data.redis_key_prefix,
+                &trigger_local_id,
+                &task_id,
+                &payload.name,
+                &trigger,
+                user_id,
+                org_id,
+            )
+            .await?;
         }
     }
 
@@ -401,10 +411,13 @@ async fn update_task(
 
 async fn add_task_trigger(
     tx: &mut Transaction<'_, Postgres>,
+    redis_key_prefix: &Option<String>,
     local_id: &str,
     task_id: &TaskId,
+    task_name: &str,
     trigger: &TaskTriggerInput,
     user_id: &UserId,
+    org_id: &OrgId,
 ) -> Result<TaskTriggerId> {
     let trigger_id = TaskTriggerId::new();
     sqlx::query!(
@@ -423,7 +436,20 @@ async fn add_task_trigger(
     .await?;
 
     if let Some(periodic) = trigger.periodic.as_ref() {
-        ergo_tasks::periodic::update_triggers(tx, &trigger_id, periodic.as_slice()).await?;
+        ergo_tasks::periodic::update_triggers(
+            tx,
+            redis_key_prefix.as_deref(),
+            &trigger.input_id,
+            &trigger_id,
+            local_id,
+            &trigger.name,
+            task_id,
+            task_name,
+            user_id,
+            org_id,
+            periodic.as_slice(),
+        )
+        .await?;
     }
 
     sqlx::query!(
@@ -533,7 +559,17 @@ async fn new_task(
     }
 
     for (local_id, trigger) in &payload.triggers {
-        add_task_trigger(&mut tx, &local_id, &task_id, trigger, &user_id).await?;
+        add_task_trigger(
+            &mut tx,
+            &data.redis_key_prefix,
+            &local_id,
+            &task_id,
+            payload.name.as_str(),
+            trigger,
+            &user_id,
+            &org_id,
+        )
+        .await?;
     }
 
     tx.commit().await?;
@@ -605,8 +641,9 @@ async fn post_task_trigger(
     .await?
     .ok_or(Error::NotFound)?;
 
+    let mut conn = data.pg.acquire().await?;
     let input_arrival_id = ergo_tasks::inputs::enqueue_input(EnqueueInputOptions {
-        pg: &data.pg,
+        pg: &mut conn,
         notifications: Some(data.notifications.clone()),
         org_id: org_id.clone(),
         task_id: trigger.task_id,
@@ -618,7 +655,7 @@ async fn post_task_trigger(
         user_id: auth.user_id().clone(),
         payload_schema: &trigger.input_schema,
         payload: payload.into_inner(),
-        redis_key_prefix: &data.redis_key_prefix,
+        redis_key_prefix: data.redis_key_prefix.as_deref(),
         trigger_at: None,
         periodic_trigger_id: None,
     })

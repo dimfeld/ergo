@@ -6,7 +6,7 @@ use chrono::{DateTime, Utc};
 use ergo_database::{new_uuid, object_id::*, PostgresPool, RedisPool};
 use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use ergo_queues::{generic_stage::QueueJob, Queue};
-use sqlx::Connection;
+use sqlx::{Connection, PgConnection};
 use uuid::Uuid;
 
 use super::validate_input_payload;
@@ -25,17 +25,27 @@ impl Deref for InputQueue {
 
 impl InputQueue {
     pub fn new(redis_pool: RedisPool) -> InputQueue {
-        let queue_name = match redis_pool.key_prefix() {
-            Some(prefix) => format!("{}-{}", prefix, QUEUE_NAME),
-            None => QUEUE_NAME.to_string(),
-        };
+        let queue_name = Self::queue_name(redis_pool.key_prefix());
 
-        InputQueue(Queue::new(redis_pool, queue_name, None, None, None))
+        InputQueue(Queue::new(
+            redis_pool,
+            queue_name.to_string(),
+            None,
+            None,
+            None,
+        ))
+    }
+
+    pub fn queue_name(redis_key_prefix: Option<&str>) -> Cow<'static, str> {
+        match redis_key_prefix {
+            Some(prefix) => Cow::from(format!("{}-{}", prefix, QUEUE_NAME)),
+            None => Cow::from(QUEUE_NAME),
+        }
     }
 }
 
 pub struct EnqueueInputOptions<'a> {
-    pub pg: &'a PostgresPool,
+    pub pg: &'a mut PgConnection,
     pub notifications: Option<NotificationManager>,
     pub org_id: OrgId,
     pub user_id: UserId,
@@ -48,7 +58,7 @@ pub struct EnqueueInputOptions<'a> {
     pub periodic_trigger_id: Option<PeriodicTriggerId>,
     pub payload_schema: &'a serde_json::Value,
     pub payload: serde_json::Value,
-    pub redis_key_prefix: &'a Option<String>,
+    pub redis_key_prefix: Option<&'a str>,
     pub trigger_at: Option<DateTime<Utc>>,
 }
 
@@ -74,13 +84,9 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
     validate_input_payload(&input_id, payload_schema, &payload)?;
 
     let input_arrival_id = new_uuid();
-    let queue_name = redis_key_prefix
-        .as_ref()
-        .map(|prefix| Cow::Owned(format!("{}-{}", prefix, QUEUE_NAME)))
-        .unwrap_or(Cow::Borrowed(QUEUE_NAME));
+    let queue_name = InputQueue::queue_name(redis_key_prefix);
 
-    let mut conn = pg.acquire().await?;
-    conn.transaction(|tx| {
+    pg.transaction(|tx| {
         let input_id = input_id.clone();
         let task_id = task_id.clone();
         let task_trigger_id = task_trigger_id.clone();

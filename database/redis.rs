@@ -38,6 +38,6 @@ impl RedisPool {
     }
 
     pub fn key_prefix(&self) -> Option<&str> {
-        self.0.key_prefix.as_ref().map(|s| s.as_str())
+        self.0.key_prefix.as_deref()
     }
 }

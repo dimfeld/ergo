@@ -144,7 +144,7 @@ impl Drainer for QueueDrainer {
             .map(|row| {
                 let operation = row
                     .operation
-                    .map(|op| QueueOperation::from_str(op.as_str()).unwrap())
+                    .map(|op| QueueOperation::from_str(op.as_str()).unwrap()) // TODO no unwrap
                     .unwrap_or(QueueOperation::Add);
 
                 let payload = match (&operation, row.payload.as_ref()) {

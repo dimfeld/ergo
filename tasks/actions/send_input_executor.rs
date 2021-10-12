@@ -126,8 +126,13 @@ impl Executor for SendInputExecutor {
         .await
         .map_err(ExecutorError::command_error_without_result)?;
 
+        let mut conn = state
+            .pg_pool
+            .acquire()
+            .await
+            .map_err(ExecutorError::command_error_without_result)?;
         enqueue_input(EnqueueInputOptions {
-            pg: &state.pg_pool,
+            pg: &mut conn,
             notifications: None,
             org_id: user.org_id.clone(),
             user_id: user.user_id.clone(),
@@ -139,7 +144,7 @@ impl Executor for SendInputExecutor {
             task_name: data.task_name,
             payload_schema: &data.payload_schema,
             payload,
-            redis_key_prefix: &state.redis_key_prefix,
+            redis_key_prefix: state.redis_key_prefix.as_deref(),
             trigger_at: when,
             periodic_trigger_id: None,
         })
