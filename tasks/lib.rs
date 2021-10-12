@@ -13,7 +13,7 @@ pub use error::*;
 use inputs::Input;
 #[cfg(not(target_family = "wasm"))]
 pub use native::*;
-pub use periodic::{PeriodicTaskTrigger, PeriodicTaskTriggerInput};
+pub use periodic::{PeriodicSchedule, PeriodicTaskTrigger, PeriodicTaskTriggerInput};
 
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -84,7 +84,7 @@ mod native {
             template::TemplateFields,
             ActionInvocation, ActionInvocations, ActionStatus, TaskActionTemplate,
         },
-        inputs::{InputInvocation, InputStatus},
+        inputs::{enqueue_input, EnqueueInputOptions, InputInvocation, InputStatus},
         scripting::TaskJsState,
         state_machine::{StateMachineStates, StateMachineWithData},
         TaskConfig,
@@ -145,7 +145,11 @@ mod native {
             invocation: InputInvocation,
         ) -> Result<(), Error> {
             let mut conn = pool.acquire().await?;
-            let input_arrival_id = invocation.inputs_log_id.clone();
+
+            let inv = invocation.clone();
+            let not = notifications.clone();
+            let rkp = redis_key_prefix.clone();
+
             let result = serializable(&mut conn, 5, move |tx| {
                 let InputInvocation{
                     payload,
@@ -154,9 +158,9 @@ mod native {
                     task_trigger_id,
                     user_id,
                     ..
-                } = invocation.clone();
-                let notifications = notifications.clone();
-                let redis_key_prefix = redis_key_prefix.clone();
+                } = inv.clone();
+                let notifications = not.clone();
+                let redis_key_prefix = rkp.clone();
 
                 Box::pin(async move {
                     #[derive(Debug, Deserialize)]
@@ -382,15 +386,71 @@ mod native {
                 }
             };
 
-            event!(Level::INFO, %input_arrival_id, ?status, ?log_error, "Updating input status");
+            event!(Level::INFO, input_arrival_id=%invocation.inputs_log_id, ?status, ?log_error, "Updating input status");
             sqlx::query!(
                 "UPDATE inputs_log SET status=$2, error=$3, updated=now() WHERE inputs_log_id=$1",
-                input_arrival_id,
+                invocation.inputs_log_id,
                 status as _,
                 log_error
             )
             .execute(pool)
             .await?;
+
+            // If this was a periodic trigger, enqueue it again.
+            if let Some(periodic_id) = invocation
+                .periodic_trigger_id
+                .filter(|_| retval.is_ok() || reschedule_periodic_task_on_error)
+            {
+                let info = sqlx::query!(
+                    r##"SELECT
+                    pt.payload,
+                    pt.schedule AS "schedule: PeriodicSchedule",
+                    pt.enabled AS pt_enabled,
+                    tasks.enabled AS task_enabled,
+                    task_trigger_id AS "task_trigger_id: TaskTriggerId",
+                    task_trigger_local_id,
+                    tasks.name AS task_name,
+                    tt.name AS task_trigger_name,
+                    input_id AS "input_id: InputId",
+                    inputs.payload_schema,
+                    task_id as "task_id: TaskId",
+                    org_id as "org_id: OrgId"
+                    FROM periodic_triggers pt
+                    JOIN task_triggers tt USING (task_trigger_id)
+                    JOIN inputs USING (input_id)
+                    JOIN tasks USING (task_id)
+                    WHERE pt.periodic_trigger_id=$1
+                    "##,
+                    periodic_id.0
+                )
+                .fetch_one(pool)
+                .await?;
+
+                if let Some(next_time) = info
+                    .schedule
+                    .next_run()?
+                    .filter(|_| info.pt_enabled && info.task_enabled)
+                {
+                    enqueue_input(EnqueueInputOptions {
+                        pg: &pool,
+                        notifications,
+                        org_id: info.org_id,
+                        user_id: invocation.user_id,
+                        task_id: info.task_id,
+                        task_name: info.task_name,
+                        input_id: info.input_id,
+                        task_trigger_id: info.task_trigger_id,
+                        task_trigger_local_id: info.task_trigger_local_id,
+                        task_trigger_name: info.task_trigger_name,
+                        periodic_trigger_id: Some(periodic_id),
+                        payload_schema: &info.payload_schema,
+                        payload: info.payload,
+                        redis_key_prefix: &redis_key_prefix,
+                        trigger_at: Some(next_time),
+                    })
+                    .await?;
+                }
+            }
 
             retval
         }

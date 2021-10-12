@@ -89,6 +89,7 @@ pub async fn enqueue_input(options: EnqueueInputOptions<'_>) -> Result<Uuid, Err
         Box::pin(async move {
             let invocation = InputInvocation {
                 task_trigger_id: task_trigger_id.clone(),
+                periodic_trigger_id: periodic_trigger_id.clone(),
                 payload: payload.clone(),
                 task_id: task_id.clone(),
                 input_id,

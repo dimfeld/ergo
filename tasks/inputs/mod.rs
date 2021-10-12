@@ -7,7 +7,9 @@ pub mod queue;
 pub use queue::{enqueue_input, EnqueueInputOptions};
 
 use crate::error::Error;
-use ergo_database::object_id::{InputCategoryId, InputId, TaskId, TaskTriggerId, UserId};
+use ergo_database::object_id::{
+    InputCategoryId, InputId, PeriodicTriggerId, TaskId, TaskTriggerId, UserId,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -54,6 +56,7 @@ pub enum InputStatus {
 pub struct InputInvocation {
     pub task_id: TaskId,
     pub task_trigger_id: TaskTriggerId,
+    pub periodic_trigger_id: Option<PeriodicTriggerId>,
     pub input_id: InputId,
     pub inputs_log_id: uuid::Uuid,
     pub payload: serde_json::Value,
