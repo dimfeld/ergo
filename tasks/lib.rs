@@ -157,6 +157,7 @@ mod native {
                     task_id,
                     task_trigger_id,
                     user_id,
+                    periodic_trigger_id,
                     ..
                 } = inv.clone();
                 let notifications = not.clone();
@@ -187,6 +188,7 @@ mod native {
                         task_name: String,
                         task_trigger_name: String,
                         task_actions: Json<SmallVec<[TaskAction; 4]>>,
+                        periodic_trigger_id: Option<PeriodicTriggerId>,
                     }
 
                     let task = sqlx::query_as!(TaskInputData,
@@ -198,6 +200,7 @@ mod native {
                             tasks.org_id as "org_id: OrgId",
                             tasks.name as task_name,
                             tt.name as task_trigger_name,
+                            pt.periodic_trigger_id as "periodic_trigger_id: Option<PeriodicTriggerId>",
                             jsonb_agg(jsonb_build_object(
                                 'task_action_local_id', ta.task_action_local_id,
                                 'task_action_name', ta.name,
@@ -216,13 +219,15 @@ mod native {
                             JOIN task_templates USING (task_template_id, task_template_version)
                             JOIN task_triggers tt ON tt.task_id=$1 AND task_trigger_id=$2
                             JOIN task_actions ta ON ta.task_id=$1
+                            LEFT JOIN periodic_triggers pt on pt.task_trigger_id=tt.task_trigger_id AND pt.periodic_trigger_id=$3 AND pt.enabled
                             JOIN actions ac USING(action_id)
                             LEFT JOIN accounts USING(account_id)
                             WHERE tasks.task_id=$1
                             GROUP BY task_trigger_local_id, compiled, state, tasks.org_id, task_name,
-                                task_trigger_name"##,
-                            &task_id.0,
-                            &task_trigger_id.0
+                                task_trigger_name, periodic_trigger_id"##,
+                            task_id.0,
+                            task_trigger_id.0,
+                            periodic_trigger_id as _
                         )
                         .fetch_optional(&mut *tx)
                         .await?;
@@ -230,8 +235,14 @@ mod native {
                     let task = task.ok_or(Error::NotFound)?;
 
                     let TaskInputData {
-                        task_trigger_local_id, config, state, org_id, task_name, task_trigger_name, task_actions
+                        task_trigger_local_id, config, state, org_id, task_name, task_trigger_name, task_actions, periodic_trigger_id: found_periodic_trigger
                     } = task;
+
+                    if periodic_trigger_id.is_some() && found_periodic_trigger.is_none() {
+                        // If this run is for a periodic trigger that doesn't exist anymore or was
+                        // disabled, then don't do anything.
+                        return Ok(());
+                    }
 
                     let (new_data, actions, changed) = match (config.0, state.0) {
                         (TaskConfig::StateMachine(machine), TaskState::StateMachine(state)) => {
@@ -423,33 +434,35 @@ mod native {
                     "##,
                     periodic_id.0
                 )
-                .fetch_one(pool)
+                .fetch_optional(pool)
                 .await?;
 
-                if let Some(next_time) = info
-                    .schedule
-                    .next_run()?
-                    .filter(|_| info.pt_enabled && info.task_enabled)
-                {
-                    let mut conn = pool.acquire().await?;
-                    enqueue_input(EnqueueInputOptions {
-                        pg: &mut conn,
-                        notifications,
-                        org_id: info.org_id,
-                        user_id: invocation.user_id,
-                        task_id: info.task_id,
-                        task_name: info.task_name,
-                        input_id: info.input_id,
-                        task_trigger_id: info.task_trigger_id,
-                        task_trigger_local_id: info.task_trigger_local_id,
-                        task_trigger_name: info.task_trigger_name,
-                        periodic_trigger_id: Some(periodic_id),
-                        payload_schema: &info.payload_schema,
-                        payload: info.payload,
-                        redis_key_prefix: redis_key_prefix.as_deref(),
-                        trigger_at: Some(next_time),
-                    })
-                    .await?;
+                if let Some(info) = info {
+                    if let Some(next_time) = info
+                        .schedule
+                        .next_run()?
+                        .filter(|_| info.pt_enabled && info.task_enabled)
+                    {
+                        let mut conn = pool.acquire().await?;
+                        enqueue_input(EnqueueInputOptions {
+                            pg: &mut conn,
+                            notifications,
+                            org_id: info.org_id,
+                            user_id: invocation.user_id,
+                            task_id: info.task_id,
+                            task_name: info.task_name,
+                            input_id: info.input_id,
+                            task_trigger_id: info.task_trigger_id,
+                            task_trigger_local_id: info.task_trigger_local_id,
+                            task_trigger_name: info.task_trigger_name,
+                            periodic_trigger_id: Some(periodic_id),
+                            payload_schema: &info.payload_schema,
+                            payload: info.payload,
+                            redis_key_prefix: redis_key_prefix.as_deref(),
+                            trigger_at: Some(next_time),
+                        })
+                        .await?;
+                    }
                 }
             }
 
