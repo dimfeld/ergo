@@ -25,8 +25,17 @@ enum DevCmds {
     Id(cmd::make_id::Args),
 }
 
-#[actix_web::main]
-async fn main() -> Result<(), error::Error> {
+fn main() -> Result<(), error::Error> {
+    actix_rt::System::with_tokio_rt(|| {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    })
+    .block_on(run())
+}
+
+async fn run() -> Result<(), error::Error> {
     dotenv::dotenv().ok();
 
     let args = Args::from_args();
