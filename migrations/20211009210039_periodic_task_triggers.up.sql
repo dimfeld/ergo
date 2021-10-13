@@ -4,6 +4,7 @@ CREATE TABLE periodic_triggers (
   name text,
   schedule jsonb not null,
   payload jsonb not null,
+  run_as_user uuid not null,
   enabled boolean not null default true
 );
 

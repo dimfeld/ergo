@@ -20,6 +20,7 @@ use ergo_tasks::{
         dequeue::{TaskExecutor, TaskExecutorConfig},
         queue::InputQueue,
     },
+    periodic::monitor_missing_periodic_triggers,
     queue_drain_runner::AllQueuesDrain,
 };
 use tracing::{event, info, Level};
@@ -42,6 +43,7 @@ pub struct ServerTasks {
     queue_drain: Option<AllQueuesDrain>,
     input_runner: TaskExecutor,
     action_runner: ActionExecutor,
+    periodic_task_monitor: tokio::task::JoinHandle<()>,
 }
 
 pub struct Server {
@@ -92,7 +94,7 @@ pub async fn start(config: Config) -> Result<Server> {
         notifications.clone(),
         input_queue.clone(),
         action_queue.clone(),
-        redis_queue_prefix,
+        redis_queue_prefix.clone(),
     )?;
 
     let queue_drain = if no_drain_queues {
@@ -105,6 +107,13 @@ pub async fn start(config: Config) -> Result<Server> {
             shutdown.clone(),
         )?)
     };
+
+    let periodic_task_monitor = monitor_missing_periodic_triggers(
+        shutdown.clone(),
+        backend_pg_pool.clone(),
+        redis_queue_prefix.clone(),
+        None,
+    );
 
     let input_runner = TaskExecutor::new(TaskExecutorConfig {
         redis_pool: redis_pool.clone(),
@@ -190,6 +199,7 @@ pub async fn start(config: Config) -> Result<Server> {
             queue_drain,
             input_runner,
             action_runner,
+            periodic_task_monitor,
         },
     })
 }
