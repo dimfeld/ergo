@@ -3,6 +3,10 @@ use std::{borrow::Cow, collections::HashSet};
 use crate::{
     common::{run_app_test, TestApp, TestUser},
     compare_hashmaps,
+    tasks::{
+        bootstrap_inputs_and_actions, simple_state_machine, simple_task_actions,
+        simple_task_triggers,
+    },
 };
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
@@ -23,40 +27,7 @@ use fxhash::FxHashMap;
 use serde_json::json;
 use smallvec::smallvec;
 
-pub fn simple_state_machine() -> (TaskConfig, TaskState) {
-    let machine = StateMachine {
-        name: "a sample machine".to_string(),
-        description: None,
-        initial: "start".to_string(),
-        on: smallvec![],
-        states: std::array::IntoIter::new([(
-            "initial".to_string(),
-            StateDefinition {
-                on: smallvec![],
-                description: None,
-            },
-        )])
-        .collect::<FxHashMap<_, _>>(),
-    };
-
-    let state = StateMachineData {
-        state: "initial".to_string(),
-        context: json!(null),
-    };
-
-    (
-        TaskConfig::StateMachine(smallvec![machine]),
-        TaskState::StateMachine(smallvec![state]),
-    )
-}
-
-struct BootstrappedInputs {
-    url: Input,
-}
-
-struct BootstrappedActions {
-    echo: Action,
-}
+use super::{BootstrappedActions, BootstrappedInputs};
 
 struct BootstrappedData {
     org_id: OrgId,
@@ -74,105 +45,11 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
     let user1 = app.add_user(&org_id, "User 1").await?;
     let user2 = app.add_user(&org_id, "User 2").await?;
 
-    let url_input_payload = InputPayload {
-        input_category_id: None,
-        name: "URL".to_string(),
-        description: None,
-        payload_schema: json!({
-          "$schema": "http://json-schema.org/draft-07/schema",
-          "$id": "http://ergo.dev/inputs/url.json",
-          "type": "object",
-          "required": [
-              "url"
-          ],
-          "properties": {
-              "url": {
-                  "type": "string",
-                  "format": "url"
-              }
-          },
-          "additionalProperties": true
-        }),
-    };
-
-    let echo_action_payload = ActionPayload {
-        action_category_id: app.base_action_category.clone(),
-        name: "Echo".to_string(),
-        postprocess_script: None,
-        description: Some("Echo the input".to_string()),
-        executor_id: "raw_command".to_string(),
-        executor_template: ScriptOrTemplate::Template(vec![
-            ("command".to_string(), json!("/bin/echo")),
-            ("args".to_string(), json!(["{{text}}"])),
-        ]),
-        template_fields: vec![TemplateField {
-            name: Cow::from("text"),
-            format: ergo_tasks::actions::template::TemplateFieldFormat::String,
-            optional: false,
-            description: None,
-        }]
-        .into(),
-        account_required: false,
-        account_types: vec![],
-        timeout: None,
-    };
-
-    let (url_input, echo_action) = join(
-        app.admin_user.client.new_input(&url_input_payload),
-        app.admin_user.client.new_action(&echo_action_payload),
-    )
-    .await;
-
-    let url_input = url_input.expect("Creating url input");
-    let echo_action = echo_action.expect("Creating echo action");
-
+    let (inputs, actions) = bootstrap_inputs_and_actions(app).await;
     let (machine, states) = simple_state_machine();
 
-    let test_actions = vec![
-        (
-            "run".to_string(),
-            TaskActionInput {
-                name: "Run the action".to_string(),
-                action_id: echo_action.action_id.clone(),
-                account_id: None,
-                action_template: None,
-            },
-        ),
-        (
-            "ask".to_string(),
-            TaskActionInput {
-                name: "Ask a question".to_string(),
-                action_id: echo_action.action_id.clone(),
-                account_id: None,
-                action_template: None,
-            },
-        ),
-    ]
-    .into_iter()
-    .collect::<FxHashMap<_, _>>();
-
-    let test_triggers = vec![
-        (
-            "run_it".to_string(),
-            TaskTriggerInput {
-                name: "run it".to_string(),
-                description: Some("Run the task and do something".to_string()),
-                input_id: url_input.input_id.clone(),
-                periodic: None,
-            },
-        ),
-        (
-            "prepare".to_string(),
-            TaskTriggerInput {
-                name: "Get ready to do something".to_string(),
-                description: None,
-                input_id: url_input.input_id.clone(),
-                periodic: None,
-            },
-        ),
-    ]
-    .into_iter()
-    .collect::<FxHashMap<_, _>>();
+    let test_triggers = simple_task_triggers(&inputs);
+    let test_actions = simple_task_actions(&actions);
 
     let user1_tasks = vec![
         TaskInput {
@@ -243,8 +120,8 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         user1_tasks: user1_task_results,
         user2_task: (user2_task_result, user2_task),
         reference_time,
-        inputs: BootstrappedInputs { url: url_input },
-        actions: BootstrappedActions { echo: echo_action },
+        inputs,
+        actions,
     })
 }
 
