@@ -110,14 +110,25 @@ pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
     }
 
     let ids: Vec<Result> = query.fetch_all(&mut *tx).await?;
+
+    sqlx::query(format!(r##"NOTIFY "{}""##, NOTIFY_CHANNEL).as_str())
+        .execute(tx)
+        .await?;
+
     Ok(ids.into_iter().map(|r| r.job_id).collect())
 }
 
 pub struct QueueDrainer {}
 
+const NOTIFY_CHANNEL: &'static str = "queue-generic";
+
 #[async_trait]
 impl Drainer for QueueDrainer {
     type Error = Error;
+
+    fn notify_channel(&self) -> Option<String> {
+        Some(NOTIFY_CHANNEL.to_string())
+    }
 
     fn lock_key(&self) -> i64 {
         80235523425

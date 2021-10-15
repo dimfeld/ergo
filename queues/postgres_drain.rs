@@ -4,9 +4,10 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use ergo_database::{PostgresPool, RedisPool};
+use futures::future::TryFutureExt;
 use fxhash::FxHashMap;
 use serde::Serialize;
-use sqlx::{Connection, Postgres, Row, Transaction};
+use sqlx::{postgres::PgListener, Connection, Postgres, Row, Transaction};
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
@@ -45,6 +46,9 @@ pub struct DrainResult<'a> {
 #[async_trait]
 pub trait Drainer: Send + Sync {
     type Error: 'static + std::error::Error + Send + Sync;
+
+    /// The notify channel to listen on, if any.
+    fn notify_channel(&self) -> Option<String>;
 
     /// An advisory lock key to use when draining
     fn lock_key(&self) -> i64;
@@ -173,7 +177,14 @@ fn initial_sleep_value() -> std::time::Duration {
 }
 
 impl<D: Drainer> StageDrainTask<D> {
-    async fn start(mut self) {
+    async fn start(self) {
+        match self.drainer.notify_channel() {
+            Some(notify_channel) => self.start_listen_drainer(notify_channel).await,
+            None => self.start_backoff_drainer().await,
+        }
+    }
+
+    async fn start_backoff_drainer(mut self) {
         let mut shutdown_waiter = self.shutdown.clone();
         let mut sleep_duration = initial_sleep_value();
 
@@ -197,6 +208,73 @@ impl<D: Drainer> StageDrainTask<D> {
             sleep_duration = sleep_duration.mul_f64(2.0).min(MAX_SLEEP);
             tokio::select! {
                 _ = tokio::time::sleep(sleep_duration) => continue,
+                _ = shutdown_waiter.wait_for_shutdown() => break,
+                _ = &mut self.close => break,
+            }
+        }
+    }
+
+    async fn start_listen_drainer(mut self, notify_channel: String) {
+        let mut shutdown_waiter = self.shutdown.clone();
+        let mut listener = None;
+
+        loop {
+            if listener.is_none() {
+                let l = PgListener::connect_with(&self.db_pool)
+                    .and_then(|mut l| {
+                        let channel = notify_channel.as_str();
+                        async move {
+                            l.listen(&channel).await?;
+                            Ok(l)
+                        }
+                    })
+                    .await;
+
+                match l {
+                    Ok(l) => {
+                        listener = Some(l);
+                    }
+                    Err(e) => {
+                        event!(Level::ERROR, error=?e, "Error creating Postgres queue listener");
+                    }
+                };
+            }
+
+            match self.try_drain().await {
+                Ok(true) => {
+                    // We got some rows, so check again in case there are more.
+                    continue;
+                }
+                // No rows, so pass through back to listening again.
+                Ok(false) => {}
+                Err(e) => {
+                    event!(Level::ERROR, error=?e, "Error draining job queue");
+                }
+            };
+
+            tokio::select! {
+                // If we failed to create the listener, then try again in 5 seconds.
+                _ = tokio::time::sleep(Duration::from_secs(5)), if listener.is_none() => continue,
+                notify = listener.as_mut().unwrap().try_recv(), if listener.is_some() => {
+                    match notify {
+                        Ok(Some(_)) => {
+                            // Got a notification so loop around. We also destroy the listener here
+                            // so that the notification queue is emptied to avoid spamming the
+                            // database with queries.
+                            listener = None;
+                        },
+                        Ok(None) => {
+                            // Connection died. Normally the listener would restart itself, but
+                            // instead we kill it here so that we can manually restart the
+                            // connection before running `try_drain`.
+                            listener = None;
+                        }
+                        Err(e) => {
+                            event!(Level::ERROR, error=?e, "Error listening for queue notify");
+                            listener = None;
+                        }
+                    };
+                }
                 _ = shutdown_waiter.wait_for_shutdown() => break,
                 _ = &mut self.close => break,
             }
