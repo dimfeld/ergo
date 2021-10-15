@@ -7,9 +7,6 @@ use super::{
 use crate::scripting;
 use async_trait::async_trait;
 
-#[cfg(not(target_family = "wasm"))]
-use ergo_js::ConsoleMessage;
-use futures::future::{ready, TryFutureExt};
 use fxhash::FxHashMap;
 #[cfg(not(target_family = "wasm"))]
 use tracing::{event, instrument, Level};

@@ -1,11 +1,12 @@
+use crate::{
+    object_id::{ActionCategoryId, OrgId, UserId},
+    DatabaseConfiguration,
+};
 use anyhow::{anyhow, Result};
-use ergo_database::object_id::{ActionCategoryId, OrgId, UserId};
+use futures::Future;
 use lazy_static::lazy_static;
 use sqlx::{postgres::PgConnectOptions, ConnectOptions, Executor, PgConnection};
 use std::str::FromStr;
-use uuid::Uuid;
-
-use ergo_api::{cmd::make_api_key, service_config::DatabaseConfiguration};
 
 #[derive(Clone)]
 pub struct TestDatabase {
@@ -30,7 +31,6 @@ pub struct DatabaseUser {
     pub user_id: UserId,
     pub action_category_id: ActionCategoryId,
     pub password: Option<String>,
-    pub api_key: String,
 }
 
 fn escape(s: &str) -> String {
@@ -43,6 +43,16 @@ fn password_sql(role: &str) -> String {
     } else {
         String::new()
     }
+}
+
+pub async fn run_database_test<F, R>(f: F) -> ()
+where
+    F: FnOnce(TestDatabase) -> R,
+    R: Future<Output = Result<(), anyhow::Error>>,
+{
+    let (database, _, _) = create_database().await.expect("Creating database");
+    f(database.clone()).await.unwrap();
+    database.drop_db().await.expect("Cleaning up");
 }
 
 pub async fn create_database() -> Result<(TestDatabase, OrgId, DatabaseUser)> {
@@ -59,7 +69,7 @@ pub async fn create_database() -> Result<(TestDatabase, OrgId, DatabaseUser)> {
     let password = std::env::var("TEST_DATABASE_PASSWORD").unwrap_or_else(|_| "".to_string());
 
     let config = DatabaseConfiguration {
-        database: format!("ergo_test_{}", Uuid::new_v4().to_simple()),
+        database: format!("ergo_test_{}", crate::new_uuid().to_simple()),
         host,
         port,
     };
@@ -144,7 +154,7 @@ lazy_static! {
         UserId::from_str(std::env::var("ADMIN_USER_ID").unwrap().as_str()).unwrap();
 }
 
-async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
+async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser, anyhow::Error> {
     let user_id = ADMIN_USER_ID.clone();
     let org_id = OrgId::new();
     let action_category_id = ActionCategoryId::new();
@@ -169,13 +179,10 @@ async fn populate_database(conn: &mut PgConnection) -> Result<DatabaseUser> {
 
     conn.execute(query.as_str()).await?;
 
-    let key = make_api_key::make_key(conn, &org_id, Some(&user_id), false, None).await?;
-
     Ok(DatabaseUser {
         user_id,
         org_id,
         action_category_id,
         password: Some(PASSWORD.to_string()),
-        api_key: key,
     })
 }

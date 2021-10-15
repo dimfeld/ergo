@@ -1,32 +1,10 @@
 use crate::error::Error;
-use ergo_database::{PostgresAuth, PostgresPool};
+use ergo_database::{DatabaseConfiguration, PostgresAuth, PostgresPool};
 use log::LevelFilter;
 use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
     ConnectOptions,
 };
-use std::env;
-
-#[derive(Clone, Debug)]
-pub struct DatabaseConfiguration {
-    pub host: String,
-    pub port: u16,
-    pub database: String,
-}
-
-impl Default for DatabaseConfiguration {
-    fn default() -> Self {
-        database_configuration_from_env().unwrap()
-    }
-}
-
-pub fn database_configuration_from_env() -> Result<DatabaseConfiguration, Error> {
-    Ok(DatabaseConfiguration {
-        host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        port: envoption::with_default("DATABASE_PORT", 5432 as u16)?,
-        database: env::var("DATABASE").unwrap_or_else(|_| "ergo".to_string()),
-    })
-}
 
 async fn pg_pool(
     auth: PostgresAuth,

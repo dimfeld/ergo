@@ -1,0 +1,17 @@
+[package]
+name = "ergo-test"
+version = "0.2.0"
+authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
+edition = "2018"
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+log = "0.4.14"
+once_cell = "1.8.0"
+tracing = "0.1.26"
+tracing-bunyan-formatter = "0.2.6"
+tracing-futures = "0.2.5"
+tracing-log = "0.1.2"
+tracing-subscriber = { version = "0.2.20", features = ["registry", "env-filter"] }

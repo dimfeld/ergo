@@ -2,7 +2,6 @@ use crate::error::Result;
 use ergo_database::object_id::*;
 use sqlx::{Connection, PgConnection};
 use structopt::StructOpt;
-use uuid::Uuid;
 
 #[derive(Debug, StructOpt)]
 pub struct Args {

@@ -6,24 +6,15 @@ use fxhash::FxHashMap;
 use once_cell::sync::Lazy;
 
 mod client;
-pub mod database;
 mod tasks;
 
 pub use client::*;
 pub use tasks::*;
 
-use database::{create_database, DatabaseUser, TestDatabase};
+use ergo_database::test::{create_database, DatabaseUser, TestDatabase};
 // use proc_macro::TokenStream;
 // use quote::quote;
 use uuid::Uuid;
-
-static TRACING: Lazy<()> = Lazy::new(|| {
-    if std::env::var("TEST_LOG").is_ok() {
-        ergo_api::tracing_config::configure("test", std::io::stdout);
-    } else {
-        ergo_api::tracing_config::configure("test", std::io::sink);
-    }
-});
 
 pub struct TestUser {
     pub org_id: OrgId,
@@ -53,6 +44,7 @@ async fn start_app(
 ) -> Result<TestApp> {
     let shutdown = ergo_graceful_shutdown::GracefulShutdown::new();
     let redis_key_prefix = Uuid::new_v4().to_string();
+
     let config = ergo_api::server::Config {
         database: database.config.clone(),
         bind_port: 0, // Bind to random port
@@ -62,7 +54,7 @@ async fn start_app(
         no_drain_queues: false,
         shutdown: shutdown.consumer(),
     };
-    Lazy::force(&TRACING);
+    Lazy::force(&ergo_test::TRACING);
     let Server {
         server,
         bind_address,
@@ -90,6 +82,14 @@ async fn start_app(
             .expect("Building client"),
     };
 
+    let mut conn = database
+        .pool
+        .acquire()
+        .await
+        .expect("Getting postgres connection");
+    let api_key =
+        make_api_key::make_key(&mut conn, &org_id, Some(&admin_user.user_id), false, None).await?;
+
     Ok(TestApp {
         database,
         redis_key_prefix,
@@ -98,24 +98,14 @@ async fn start_app(
             org_id: admin_user.org_id,
             user_id: admin_user.user_id,
             password: admin_user.password,
-            client: client.clone_with_api_key(admin_user.api_key.clone()),
-            api_key: admin_user.api_key,
+            client: client.clone_with_api_key(api_key.clone()),
+            api_key,
         },
         client,
         address: format!("{}:{}", bind_address, bind_port),
         base_action_category: admin_user.action_category_id,
         base_url,
     })
-}
-
-pub async fn run_database_test<F, R>(f: F) -> ()
-where
-    F: FnOnce(TestDatabase) -> R,
-    R: Future<Output = Result<(), anyhow::Error>>,
-{
-    let (database, _, _) = create_database().await.expect("Creating database");
-    f(database.clone()).await.unwrap();
-    database.drop_db().await.expect("Cleaning up");
 }
 
 pub async fn run_app_test<F, R>(f: F) -> ()

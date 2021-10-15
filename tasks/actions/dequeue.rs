@@ -60,7 +60,7 @@ impl QueueJobProcessor for ActionExecutorJobProcessor {
 
     async fn process(
         &self,
-        item: &QueueWorkItem<Self::Payload>,
+        _item: &QueueWorkItem<Self::Payload>,
         data: ActionInvocation,
     ) -> Result<(), Error> {
         execute(

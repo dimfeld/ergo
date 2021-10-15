@@ -3,7 +3,7 @@ use std::{borrow::Cow, ops::Deref};
 use crate::{error::Error, inputs::InputInvocation};
 
 use chrono::{DateTime, Utc};
-use ergo_database::{new_uuid, object_id::*, PostgresPool, RedisPool};
+use ergo_database::{new_uuid, object_id::*, RedisPool};
 use ergo_notifications::{Notification, NotificationManager, NotifyEvent};
 use ergo_queues::{generic_stage::QueueJob, Queue};
 use sqlx::{Connection, PgConnection};

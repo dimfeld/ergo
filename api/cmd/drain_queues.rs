@@ -1,4 +1,5 @@
-use crate::{error::Result, service_config::database_configuration_from_env};
+use crate::error::Result;
+use ergo_database::database_configuration_from_env;
 use ergo_graceful_shutdown::GracefulShutdown;
 
 pub async fn main() -> Result<()> {

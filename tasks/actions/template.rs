@@ -1,7 +1,4 @@
-use std::{
-    borrow::{Borrow, Cow},
-    fmt::Display,
-};
+use std::{borrow::Cow, fmt::Display};
 
 use ergo_database::sqlx_json_decode;
 use fxhash::FxHashMap;

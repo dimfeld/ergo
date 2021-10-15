@@ -9,12 +9,39 @@ pub mod transaction;
 
 pub mod object_id;
 
+use std::env;
+
 #[cfg(not(target_family = "wasm"))]
 pub use self::redis::RedisPool;
 #[cfg(not(target_family = "wasm"))]
 pub use error::*;
 #[cfg(not(target_family = "wasm"))]
 pub use pool::*;
+
+#[cfg(not(target_family = "wasm"))]
+pub mod test;
+
+#[derive(Clone, Debug)]
+pub struct DatabaseConfiguration {
+    pub host: String,
+    pub port: u16,
+    pub database: String,
+}
+
+impl Default for DatabaseConfiguration {
+    fn default() -> Self {
+        database_configuration_from_env().unwrap()
+    }
+}
+
+pub fn database_configuration_from_env() -> Result<DatabaseConfiguration, Error> {
+    Ok(DatabaseConfiguration {
+        host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost".to_string()),
+        port: envoption::with_default("DATABASE_PORT", 5432 as u16)
+            .map_err(|e| Error::ConfigError(e.to_string()))?,
+        database: env::var("DATABASE").unwrap_or_else(|_| "ergo".to_string()),
+    })
+}
 
 pub fn new_uuid() -> uuid::Uuid {
     ulid::Ulid::new().into()

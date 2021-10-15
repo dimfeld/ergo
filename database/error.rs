@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::transaction::TryIntoSqlxError;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Unable to execute serializable transaction")]
@@ -45,5 +47,14 @@ impl sqlx::error::DatabaseError for Error {
 
     fn into_error(self: Box<Self>) -> Box<dyn std::error::Error + Send + Sync + 'static> {
         self
+    }
+}
+
+impl TryIntoSqlxError for Error {
+    fn try_into_sqlx_error(self) -> Result<sqlx::Error, Self> {
+        match self {
+            Self::SqlError(e) => Ok(e),
+            _ => Err(self),
+        }
     }
 }

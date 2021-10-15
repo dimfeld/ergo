@@ -2,10 +2,7 @@ use std::str::ParseBoolError;
 
 use actix_web::{http::StatusCode, HttpResponse};
 use envoption::EnvOptionError;
-use ergo_tasks::{
-    actions::{execute::ExecuteError, template::TemplateError},
-    state_machine::StateMachineError,
-};
+use ergo_tasks::{actions::template::TemplateError, state_machine::StateMachineError};
 use smallvec::{smallvec, SmallVec};
 use thiserror::Error;
 

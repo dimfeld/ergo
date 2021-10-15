@@ -92,9 +92,8 @@ fn set_up_task_env(
 }
 
 mod tests {
-    use serde_json::json;
-
     use super::*;
+    use serde_json::json;
 
     #[tokio::test]
     async fn task_context() {

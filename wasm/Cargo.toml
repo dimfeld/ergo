@@ -21,9 +21,6 @@ serde_json = "1.0.67"
 serde_path_to_error = "0.1.5"
 wasm-bindgen = { version="0.2.76", features = ["serde-serialize"] }
 
-[profile.release]
-lto = true
-
 # Uncomment to keep names section, which adds size but lets tools like twiggy work properly.
 # [package.metadata.wasm-pack.profile.release]
 # wasm-opt = ['-O4', '-g']

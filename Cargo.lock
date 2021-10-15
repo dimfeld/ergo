@@ -1432,6 +1432,7 @@ dependencies = [
  "ergo-notifications",
  "ergo-queues",
  "ergo-tasks",
+ "ergo-test",
  "futures",
  "fxhash",
  "handlebars",
@@ -1497,16 +1498,20 @@ dependencies = [
 name = "ergo-database"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-stream",
  "async-trait",
  "backtrace",
  "base64",
  "deadpool 0.8.2",
  "deadpool-redis",
+ "dotenv",
  "either",
+ "envoption",
  "ergo-graceful-shutdown",
  "futures",
  "itertools",
+ "lazy_static",
  "log",
  "redis",
  "schemars",
@@ -1676,6 +1681,19 @@ dependencies = [
  "uuid",
  "wasm-bindgen",
  "wiremock",
+]
+
+[[package]]
+name = "ergo-test"
+version = "0.2.0"
+dependencies = [
+ "log",
+ "once_cell",
+ "tracing",
+ "tracing-bunyan-formatter",
+ "tracing-futures",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2565,9 +2583,9 @@ dependencies = [
 
 [[package]]
 name = "native-tls"
-version = "0.2.7"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8d96b2e1c8da3957d58100b09f102c6d9cfdfced01b7ec5a8974044bb09dbd4"
+checksum = "48ba9f7719b5a0f42f338907614285fb5fd70e53858141f69898a1fb7203b24d"
 dependencies = [
  "lazy_static",
  "libc",
@@ -3329,9 +3347,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.4"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "246e9f61b9bb77df069a947682be06e31ac43ea37862e244a69f177694ea6d22"
+checksum = "51c732d463dd300362ffb44b7b125f299c23d2990411a4253824630ebc7467fb"
 dependencies = [
  "async-compression",
  "base64",

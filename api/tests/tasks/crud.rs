@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashSet};
+use std::collections::HashSet;
 
 use crate::{
     common::{run_app_test, TestApp, TestUser},
@@ -10,19 +10,11 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use ergo_api::routes::{
-    actions::ActionPayload,
-    inputs::InputPayload,
-    tasks::{NewTaskResult, TaskActionInput, TaskDescription, TaskInput, TaskTriggerInput},
+use ergo_api::routes::tasks::{
+    NewTaskResult, TaskActionInput, TaskDescription, TaskInput, TaskTriggerInput,
 };
 use ergo_database::object_id::{OrgId, TaskId};
-use ergo_tasks::{
-    actions::{execute::ScriptOrTemplate, template::TemplateField, Action},
-    inputs::Input,
-    state_machine::{StateDefinition, StateMachine, StateMachineData},
-    TaskConfig, TaskState,
-};
-use futures::future::{join, join_all};
+use futures::future::join_all;
 use fxhash::FxHashMap;
 use serde_json::json;
 use smallvec::smallvec;

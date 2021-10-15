@@ -1,4 +1,4 @@
-use crate::{error::Result, routes, service_config::DatabaseConfiguration, web_app_server};
+use crate::{error::Result, routes};
 
 use std::{env, net::TcpListener, path::PathBuf};
 
@@ -9,6 +9,7 @@ use actix_web::{
     App, HttpServer,
 };
 use ergo_auth::middleware::AuthenticateMiddlewareFactory;
+use ergo_database::DatabaseConfiguration;
 use ergo_graceful_shutdown::GracefulShutdownConsumer;
 use ergo_notifications::NotificationManager;
 use ergo_tasks::{

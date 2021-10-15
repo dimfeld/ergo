@@ -1,11 +1,11 @@
-use crate::common;
-use ergo_database::transaction;
+use anyhow::anyhow;
+use ergo_database::{test::run_database_test, transaction};
 use futures::future::FutureExt;
 use sqlx::Row;
 
-#[actix_rt::test]
+#[tokio::test]
 async fn handles_serialization_error() {
-    common::run_database_test(|db| async move {
+    run_database_test(|db| async move {
         sqlx::query("CREATE TABLE txtest (id bigint primary key, value bigint not null)")
             .execute(&db.pool)
             .await?;
@@ -49,12 +49,12 @@ async fn handles_serialization_error() {
     .await
 }
 
-#[actix_rt::test]
+#[tokio::test]
 async fn bails_on_error() {
-    common::run_database_test(|db| async move {
+    run_database_test(|db| async move {
         let mut conn = db.pool.acquire().await?;
         let result = transaction::serializable(&mut conn, 1, |_| {
-            async move { Err::<(), _>(ergo_api::error::Error::StringError("An error".to_string())) }
+            async move { Err::<(), _>(ergo_database::Error::StringError("An error".to_string())) }
                 .boxed()
         })
         .await;

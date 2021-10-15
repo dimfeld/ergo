@@ -12,13 +12,12 @@ use actix_web::{
 use chrono::{DateTime, Utc};
 use ergo_auth::Authenticated;
 use ergo_database::object_id::{
-    AccountId, ActionId, InputId, OrgId, PeriodicTriggerId, TaskId, TaskTemplateId, TaskTriggerId,
-    UserId,
+    AccountId, ActionId, InputId, OrgId, TaskId, TaskTemplateId, TaskTriggerId, UserId,
 };
 use ergo_tasks::{
     actions::{ActionStatus, TaskAction, TaskActionTemplate},
     inputs::{EnqueueInputOptions, InputStatus},
-    PeriodicTaskTrigger, PeriodicTaskTriggerInput, TaskConfig, TaskState, TaskTrigger,
+    PeriodicTaskTriggerInput, TaskConfig, TaskState, TaskTrigger,
 };
 use fxhash::FxHashMap;
 use schemars::JsonSchema;

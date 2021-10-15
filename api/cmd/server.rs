@@ -1,8 +1,7 @@
+use ergo_database::database_configuration_from_env;
 use ergo_graceful_shutdown::GracefulShutdown;
 use structopt::StructOpt;
 use tracing::{event, Level};
-
-use crate::service_config::database_configuration_from_env;
 
 #[derive(Debug, StructOpt)]
 pub struct Args {
