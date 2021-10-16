@@ -866,7 +866,7 @@ dependencies = [
  "aes-gcm",
  "base64",
  "hkdf",
- "hmac",
+ "hmac 0.10.1",
  "percent-encoding",
  "rand 0.8.4",
  "sha2",
@@ -1035,6 +1035,16 @@ name = "crypto-mac"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4857fd85a0c34b3c3297875b747c1e02e06b6a0ea32dd892d8192b9ce0813ea6"
+dependencies = [
+ "generic-array 0.14.4",
+ "subtle",
+]
+
+[[package]]
+name = "crypto-mac"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1d1a86f49236c215f271d40892d5fc950490551400b02ef360692c29815c714"
 dependencies = [
  "generic-array 0.14.4",
  "subtle",
@@ -2102,7 +2112,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51ab2f639c231793c5f6114bdb9bbe50a7dbbfcd7c7c6bd8475dec2d991e964f"
 dependencies = [
  "digest 0.9.0",
- "hmac",
+ "hmac 0.10.1",
 ]
 
 [[package]]
@@ -2112,6 +2122,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1441c6b1e930e2817404b5046f1f989899143a12bf92de603b69f4e0aee1e15"
 dependencies = [
  "crypto-mac 0.10.0",
+ "digest 0.9.0",
+]
+
+[[package]]
+name = "hmac"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2a2a2320eb7ec0ebe8da8f744d7812d9fc4cb4d09344ac01898dbcb6a20ae69b"
+dependencies = [
+ "crypto-mac 0.11.1",
  "digest 0.9.0",
 ]
 
@@ -3896,9 +3916,8 @@ dependencies = [
 
 [[package]]
 name = "sqlx"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e4b94ab0f8c21ee4899b93b06451ef5d965f1a355982ee73684338228498440"
+version = "0.5.9"
+source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3906,9 +3925,8 @@ dependencies = [
 
 [[package]]
 name = "sqlx-core"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec28b91a01e1fe286d6ba66f68289a2286df023fc97444e1fd86c2fd6d5dc026"
+version = "0.5.9"
+source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
 dependencies = [
  "ahash",
  "atoi",
@@ -3929,7 +3947,8 @@ dependencies = [
  "futures-util",
  "hashlink",
  "hex",
- "hmac",
+ "hmac 0.11.0",
+ "indexmap",
  "itoa",
  "libc",
  "log",
@@ -3960,13 +3979,11 @@ dependencies = [
 
 [[package]]
 name = "sqlx-macros"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dc33c35d54774eed73d54568d47a6ac099aed8af5e1556a017c131be88217d5"
+version = "0.5.9"
+source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
 dependencies = [
  "dotenv",
  "either",
- "futures",
  "heck",
  "once_cell",
  "proc-macro2",
@@ -3981,9 +3998,8 @@ dependencies = [
 
 [[package]]
 name = "sqlx-rt"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14302b678d9c76b28f2e60115211e25e0aabc938269991745a169753dc00e35c"
+version = "0.5.9"
+source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
 dependencies = [
  "once_cell",
  "tokio",

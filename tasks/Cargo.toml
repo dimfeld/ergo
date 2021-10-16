@@ -39,7 +39,7 @@ ergo-queues = { version = "0.2.0", path="../queues" }
 rand = { version = "0.8.4" }
 rand_core = { version = "0.6.3" }
 reqwest = { version = "0.11.5", features = ["rustls-tls"] }
-sqlx = { version = "0.5.7", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
+sqlx = { version = "0.5.9", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
 tokio = { version = "1.11.0", features = ["full", "test-util"] }
 
 [target.'cfg(target_family = "wasm")'.dependencies]

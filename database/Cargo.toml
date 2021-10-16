@@ -21,7 +21,7 @@ itertools = "0.10.1"
 log = "0.4.14"
 redis = { version = "0.21.2", features = ["tokio-comp"] }
 schemars = { git="https://github.com/dimfeld/schemars", features=["smallvec", "uuid", "chrono", "preserve_order", "sqlx"] }
-sqlx = { version = "0.5.7", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
+sqlx = { version = "0.5.9", features = ["postgres", "json", "uuid", "chrono", "time", "runtime-tokio-rustls"] }
 tokio = { version = "1.11.0", features = ["full", "test-util"] }
 tracing = "0.1.26"
 
