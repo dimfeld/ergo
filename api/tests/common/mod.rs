@@ -27,6 +27,7 @@ pub struct TestUser {
 pub struct TestApp {
     pub database: TestDatabase,
     pub redis_key_prefix: String,
+    pub redis_url: Option<String>,
     /// The ID of the precreated organization.
     pub org_id: OrgId,
     pub admin_user: TestUser,
@@ -44,12 +45,13 @@ async fn start_app(
 ) -> Result<TestApp> {
     let shutdown = ergo_graceful_shutdown::GracefulShutdown::new();
     let redis_key_prefix = Uuid::new_v4().to_string();
+    let redis_url = std::env::var("TEST_REDIS_URL").ok();
 
     let config = ergo_api::server::Config {
         database: database.config.clone(),
         bind_port: 0, // Bind to random port
         bind_address: Some("127.0.0.1".to_string()),
-        redis_url: std::env::var("TEST_REDIS_URL").ok(),
+        redis_url: redis_url.clone(),
         redis_queue_prefix: Some(redis_key_prefix.clone()),
         no_drain_queues: false,
         shutdown: shutdown.consumer(),
@@ -92,6 +94,7 @@ async fn start_app(
 
     Ok(TestApp {
         database,
+        redis_url,
         redis_key_prefix,
         org_id,
         admin_user: TestUser {

@@ -37,10 +37,10 @@ pub struct PeriodicTaskTrigger {
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct PeriodicTaskTriggerInput {
-    name: Option<String>,
-    schedule: PeriodicSchedule,
-    payload: serde_json::Value,
-    enabled: bool,
+    pub name: Option<String>,
+    pub schedule: PeriodicSchedule,
+    pub payload: serde_json::Value,
+    pub enabled: bool,
 }
 
 #[cfg(not(target_family = "wasm"))]

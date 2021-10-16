@@ -15,7 +15,7 @@ impl PostgresAuth {
         let db_username_env = format!("DATABASE_ROLE_{}_USERNAME", database_role_env_name);
         let db_password_env = format!("DATABASE_ROLE_{}_PASSWORD", database_role_env_name);
         let username = env::var(&db_username_env).unwrap_or_else(|_| default_username.to_string());
-        let password = env::var(&db_password_env).map_err(|e| {
+        let password = env::var(&db_password_env).map_err(|_| {
             Error::ConfigError(format!("Failed to read password from {}", db_password_env))
         })?;
 
