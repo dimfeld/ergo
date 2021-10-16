@@ -1,3 +1,5 @@
+use std::{future::Future, time::Duration};
+
 use once_cell::sync::Lazy;
 use tracing::subscriber::set_global_default;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
@@ -28,3 +30,24 @@ pub static TRACING: Lazy<()> = Lazy::new(|| {
         configure_tracing("test", std::io::sink);
     }
 });
+
+/// Wait for a function to return a non-None value. If it tries more than 30 times
+/// it will return an Err. The Err currently always indicates a time out.
+pub async fn wait_for<Fut, DATA>(f: impl Fn() -> Fut) -> Result<DATA, ()>
+where
+    Fut: Future<Output = Option<DATA>>,
+    DATA: Send + Sync,
+{
+    let mut tries = 0;
+    while tries < 30 {
+        match f().await {
+            Some(d) => return Ok(d),
+            None => {
+                tokio::time::sleep(Duration::from_millis(250)).await;
+                tries = tries + 1;
+            }
+        }
+    }
+
+    Err(())
+}

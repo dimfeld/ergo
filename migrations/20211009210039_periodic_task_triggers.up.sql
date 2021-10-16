@@ -12,6 +12,7 @@ GRANT SELECT, INSERT, DELETE, UPDATE ON periodic_triggers TO ergo_web;
 GRANT SELECT ON periodic_triggers TO ergo_backend;
 GRANT SELECT ON periodic_triggers TO ergo_enqueuer;
 
+
 CREATE INDEX ON periodic_triggers (task_trigger_id);
 
 ALTER TABLE inputs_log ADD COLUMN queue_job_id text;
@@ -20,5 +21,6 @@ ALTER TABLE inputs_log ALTER COLUMN queue_job_id SET NOT NULL;
 ALTER TABLE inputs_log ADD COLUMN periodic_trigger_id uuid;
 ALTER TABLE inputs_log ADD COLUMN scheduled_for timestamptz;
 
+GRANT INSERT, DELETE ON inputs_log to ergo_web;
 CREATE INDEX ON inputs_log (periodic_trigger_id) WHERE status = 'pending' AND periodic_trigger_id IS NOT NULL;
 

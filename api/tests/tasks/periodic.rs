@@ -2,6 +2,7 @@ use chrono::{DateTime, Datelike, Duration, DurationRound, Timelike, Utc};
 use ergo_api::routes::tasks::{NewTaskResult, TaskInput};
 use ergo_database::{object_id::OrgId, RedisPool};
 use ergo_tasks::{inputs::queue::InputQueue, PeriodicSchedule, PeriodicTaskTriggerInput};
+use ergo_test::wait_for;
 use serde_json::json;
 
 use crate::{
@@ -15,7 +16,7 @@ use super::{
 
 fn cron_for_date(date: &DateTime<Utc>) -> PeriodicSchedule {
     let cron = format!(
-        "{} {} {} {} *",
+        "0 {} {} {} {} * *",
         date.minute(),
         date.hour(),
         date.day(),
@@ -47,13 +48,13 @@ async fn bootstrap_data(app: &TestApp) -> BootstrappedData {
 
     let mut triggers = simple_task_triggers(&inputs);
 
-    let now = Utc::now().duration_trunc(Duration::seconds(1)).unwrap();
+    let now = Utc::now().duration_trunc(Duration::minutes(1)).unwrap();
     let schedule_date = now + Duration::days(2);
 
     triggers.get_mut("run_it").unwrap().periodic = Some(vec![PeriodicTaskTriggerInput {
         name: None,
         enabled: true,
-        payload: json!({ "text": "some text" }),
+        payload: json!({ "url": "https://abc.com/" }),
         schedule: cron_for_date(&schedule_date),
     }]);
 
@@ -99,10 +100,16 @@ async fn new_task_with_periodic_triggers() {
         } = bootstrap_data(&app).await;
 
         // The task was already set up by bootstrap, so just check the result.
-        let scheduled = input_queue
-            .list_scheduled()
-            .await
-            .expect("Retrieving scheduled jobs");
+        let scheduled = wait_for(|| async {
+            let values = input_queue
+                .list_scheduled()
+                .await
+                .expect("Retrieving scheduled jobs");
+
+            Some(values).filter(|v| !v.is_empty())
+        })
+        .await
+        .expect("Queue was not populated with trigger");
 
         assert!(!scheduled.is_empty(), "trigger is scheduled");
         assert_eq!(

@@ -10,6 +10,8 @@ pub use native::*;
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(tag = "type", content = "data")]
 pub enum PeriodicSchedule {
+    /// A cron string of the format
+    /// second   minute   hour   day-of-month   month   day-of-week   year
     Cron(String),
 }
 

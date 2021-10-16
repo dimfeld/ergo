@@ -1678,6 +1678,7 @@ version = "0.2.0"
 dependencies = [
  "log",
  "once_cell",
+ "tokio",
  "tracing",
  "tracing-bunyan-formatter",
  "tracing-futures",
