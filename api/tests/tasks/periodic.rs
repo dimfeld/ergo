@@ -242,16 +242,116 @@ async fn alter_periodic_trigger_schedule() {
 async fn add_second_periodic_trigger() {}
 
 #[actix_rt::test]
-#[ignore]
-async fn delete_periodic_trigger() {}
+async fn delete_periodic_trigger() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            input_queue,
+            task: (task, mut task_input),
+            user,
+            ..
+        } = bootstrap_data(&app).await;
+
+        task_input.triggers.get_mut("run_it").unwrap().periodic = None;
+        user.client
+            .put_task(&task.task_id, &task_input)
+            .await
+            .expect("Updating task");
+
+        wait_for(|| async {
+            let scheduled = input_queue
+                .list_scheduled()
+                .await
+                .expect("Listing scheduled tasks");
+            if scheduled.is_empty() {
+                Some(())
+            } else {
+                None
+            }
+        })
+        .await
+        .expect("Waiting for job to be descheduled");
+
+        Ok(())
+    })
+    .await;
+}
 
 #[actix_rt::test]
-#[ignore]
-async fn disable_periodic_trigger() {}
+async fn disable_periodic_trigger() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            input_queue,
+            task: (task, mut task_input),
+            user,
+            ..
+        } = bootstrap_data(&app).await;
+
+        task_input
+            .triggers
+            .get_mut("run_it")
+            .unwrap()
+            .periodic
+            .as_mut()
+            .unwrap()[0]
+            .enabled = false;
+        user.client
+            .put_task(&task.task_id, &task_input)
+            .await
+            .expect("Updating task");
+
+        wait_for(|| async {
+            let scheduled = input_queue
+                .list_scheduled()
+                .await
+                .expect("Listing scheduled tasks");
+            if scheduled.is_empty() {
+                Some(())
+            } else {
+                None
+            }
+        })
+        .await
+        .expect("Waiting for job to be descheduled");
+
+        Ok(())
+    })
+    .await;
+}
 
 #[actix_rt::test]
-#[ignore]
-async fn disable_task() {}
+async fn disable_task() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            input_queue,
+            task: (task, mut task_input),
+            user,
+            ..
+        } = bootstrap_data(&app).await;
+
+        task_input.enabled = false;
+        user.client
+            .put_task(&task.task_id, &task_input)
+            .await
+            .expect("Updating task");
+
+        wait_for(|| async {
+            let scheduled = input_queue
+                .list_scheduled()
+                .await
+                .expect("Listing scheduled tasks");
+            if scheduled.is_empty() {
+                Some(())
+            } else {
+                None
+            }
+        })
+        .await
+        .expect("Waiting for job to be descheduled");
+
+        Ok(())
+    })
+    .await;
+}
 
 #[actix_rt::test]
 #[ignore]

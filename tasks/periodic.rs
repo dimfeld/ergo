@@ -70,6 +70,7 @@ mod native {
         task_trigger_name: &str,
         task_id: &TaskId,
         task_name: &str,
+        task_enabled: bool,
         user_id: &UserId,
         org_id: &OrgId,
         periodic: &[PeriodicTaskTriggerInput],
@@ -93,6 +94,8 @@ mod native {
         let mut new_to_add = SmallVec::<[(PeriodicTriggerId, &PeriodicTaskTriggerInput); 2]>::new();
 
         for new_value in periodic {
+            let should_enqueue_task = task_enabled && new_value.enabled;
+
             if let Some(ex) = existing.iter().find(|ex| ex.schedule == new_value.schedule) {
                 // Update the existing trigger
                 event!(Level::DEBUG, old=?ex, new=?new_value, "Updating periodic trigger");
@@ -109,11 +112,11 @@ mod native {
                 .execute(&mut *tx)
                 .await?;
 
-                if new_value.enabled && !ex.enabled {
+                if should_enqueue_task && !ex.enabled {
                     // This periodic trigger has become enabled, so get ready for that.
                     new_to_add.push((ex.periodic_trigger_id.clone(), new_value));
                 } else if let Some(id) = ex.queue_job_id.as_ref() {
-                    if !new_value.enabled {
+                    if !should_enqueue_task {
                         // remove the job since it's disabled now.
                         remove_pending_job(tx, queue_name.as_ref(), id).await?;
                     } else if ex.payload != new_value.payload {
@@ -148,7 +151,7 @@ mod native {
                     new_value.enabled
                 ).execute(&mut *tx).await?;
 
-                if new_value.enabled {
+                if should_enqueue_task {
                     new_to_add.push((pt_id, new_value));
                 }
             }
