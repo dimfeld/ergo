@@ -23,7 +23,7 @@ const CANCEL_SCRIPT: &str = r##"
         -- If the job wasn't running or set to run, then it already finished.
         local job_data = redis.call("HGET", KEYS[1], "suc")
         suc = job_data[1]
-    elseif was_processing = false or ARGV[3] == "1" then
+    elseif was_processing == false or ARGV[3] == "1" then
         -- If we're allowed to cancel the job, then do so.
         -- Set end time. Leave success unset.
         redis.call("HSET", KEYS[1], "end", ARGV[2], "err", "canceled")

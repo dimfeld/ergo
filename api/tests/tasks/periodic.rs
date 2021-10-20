@@ -132,7 +132,7 @@ async fn alter_periodic_trigger_payload() {
             user,
             ..
         } = bootstrap_data(&app).await;
-        //
+
         // The task was already set up by bootstrap, so just check the result.
         let scheduled = wait_for(|| async {
             let values = input_queue
@@ -193,8 +193,49 @@ async fn alter_periodic_trigger_payload() {
 }
 
 #[actix_rt::test]
-#[ignore]
-async fn alter_periodic_trigger_schedule() {}
+async fn alter_periodic_trigger_schedule() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            input_queue,
+            schedule_date,
+            task: (task, mut task_input),
+            user,
+            ..
+        } = bootstrap_data(&app).await;
+
+        let new_date = schedule_date + Duration::days(1);
+
+        task_input
+            .triggers
+            .get_mut("run_it")
+            .unwrap()
+            .periodic
+            .as_mut()
+            .unwrap()[0]
+            .schedule = cron_for_date(&new_date);
+        user.client
+            .put_task(&task.task_id, &task_input)
+            .await
+            .expect("Updating trigger");
+
+        let scheduled = wait_for(|| async {
+            let scheduled = input_queue
+                .list_scheduled()
+                .await
+                .expect("Listing scheduled tasks");
+
+            Some(scheduled).filter(|v| v.get(0).map(|v| v.1 == new_date).unwrap_or(false))
+        })
+        .await
+        .expect("Waiting for scheduled task to update");
+
+        assert_eq!(scheduled.len(), 1, "Only the new task exists");
+        assert_eq!(scheduled[0].1, new_date, "Scheduled task is at new date");
+
+        Ok(())
+    })
+    .await;
+}
 
 #[actix_rt::test]
 #[ignore]
