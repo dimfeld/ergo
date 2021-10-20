@@ -88,18 +88,18 @@ pub enum JobStatus {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JobTrackingData {
-    id: String,
-    payload: Vec<u8>,
+    pub id: String,
+    pub payload: Vec<u8>,
     #[serde(with = "serde_millis")]
-    timeout: Duration,
-    retry_count: u32,
-    max_retries: u32,
-    run_at: Option<DateTime<Utc>>,
-    enqueued_at: DateTime<Utc>,
-    started_at: Option<DateTime<Utc>>,
-    ended_at: Option<DateTime<Utc>>,
-    succeeded: Option<bool>,
-    error_details: Option<String>,
+    pub timeout: Duration,
+    pub retry_count: u32,
+    pub max_retries: u32,
+    pub run_at: Option<DateTime<Utc>>,
+    pub enqueued_at: DateTime<Utc>,
+    pub started_at: Option<DateTime<Utc>>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub succeeded: Option<bool>,
+    pub error_details: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

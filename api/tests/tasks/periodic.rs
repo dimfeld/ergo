@@ -123,8 +123,74 @@ async fn new_task_with_periodic_triggers() {
 }
 
 #[actix_rt::test]
-#[ignore]
-async fn alter_periodic_trigger_payload() {}
+async fn alter_periodic_trigger_payload() {
+    run_app_test(|app| async move {
+        let BootstrappedData {
+            input_queue,
+            schedule_date,
+            task: (task, mut task_input),
+            user,
+            ..
+        } = bootstrap_data(&app).await;
+        //
+        // The task was already set up by bootstrap, so just check the result.
+        let scheduled = wait_for(|| async {
+            let values = input_queue
+                .list_scheduled()
+                .await
+                .expect("Retrieving scheduled jobs");
+
+            Some(values).filter(|v| !v.is_empty())
+        })
+        .await
+        .expect("Queue was not populated with trigger");
+
+        let queue_task_id = scheduled[0].0.as_str();
+
+        task_input
+            .triggers
+            .get_mut("run_it")
+            .unwrap()
+            .periodic
+            .as_mut()
+            .unwrap()[0]
+            .payload = json!({ "url": "https://newurl.com" });
+        user.client
+            .put_task(&task.task_id, &task_input)
+            .await
+            .expect("writing task with altered payload");
+
+        wait_for(|| async {
+            let job_details = input_queue
+                .job_info(queue_task_id)
+                .await
+                .expect("retrieving job payload");
+
+            job_details.filter(|j| {
+                println!("job {:?}", j);
+                let new_payload: serde_json::Value =
+                    serde_json::from_slice(&j.payload).expect("deserializing payload");
+                println!("Got new payload: {:?}", new_payload);
+                new_payload == json!({"url": "https://newurl.com" })
+            })
+        })
+        .await
+        .expect("Waiting for payload to update");
+
+        let scheduled = input_queue
+            .list_scheduled()
+            .await
+            .expect("Getting scheduled jobs");
+        println!("Scheduled jobs: {:?}", scheduled);
+        assert_eq!(
+            scheduled[0].1, schedule_date,
+            "trigger is still scheduled at the same time"
+        );
+
+        Ok(())
+    })
+    .await;
+}
 
 #[actix_rt::test]
 #[ignore]

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgConnection;
 
-use crate::Error;
+use crate::{generic_stage::NOTIFY_CHANNEL, Error};
 
 #[derive(Debug, Clone, Default)]
 pub struct JobUpdate<T: Serialize + Send + Sync> {
@@ -21,8 +21,12 @@ pub async fn remove_pending_job(
         queue,
         job_id
     )
-    .execute(tx)
+    .execute(&mut *tx)
     .await?;
+
+    sqlx::query(format!(r##"NOTIFY "{}""##, NOTIFY_CHANNEL).as_str())
+        .execute(tx)
+        .await?;
     Ok(())
 }
 
@@ -40,7 +44,11 @@ pub async fn update_pending_job<T: Serialize + Send + Sync>(
         sqlx::types::Json(alteration.payload.as_ref()) as _,
         alteration.run_at,
     )
-    .execute(tx)
+    .execute(&mut *tx)
     .await?;
+
+    sqlx::query(format!(r##"NOTIFY "{}""##, NOTIFY_CHANNEL).as_str())
+        .execute(tx)
+        .await?;
     Ok(())
 }

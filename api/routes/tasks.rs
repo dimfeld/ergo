@@ -363,30 +363,51 @@ async fn update_task(
         let updated = sqlx::query!(
             "UPDATE task_triggers
             SET input_id=$3, name=$4, description=$5
-            WHERE task_id=$1 and task_trigger_local_id=$2",
+            WHERE task_id=$1 and task_trigger_local_id=$2
+            RETURNING task_trigger_id",
             &task_id.0,
             &trigger_local_id,
             &trigger.input_id.0,
             &trigger.name,
             &trigger.description as _
         )
-        .execute(&mut tx)
+        .fetch_optional(&mut tx)
         .await?;
 
-        if updated.rows_affected() == 0 {
-            // The object didn't exist, so update it here.
-            add_task_trigger(
-                &mut tx,
-                &data.redis_key_prefix,
-                &trigger_local_id,
-                &task_id,
-                &payload.name,
-                &trigger,
-                user_id,
-                org_id,
-            )
-            .await?;
-        }
+        let trigger_id = match updated {
+            Some(r) => TaskTriggerId::from_uuid(r.task_trigger_id),
+            None => {
+                // The object didn't exist, so update it here.
+                add_task_trigger(
+                    &mut tx,
+                    &data.redis_key_prefix,
+                    &trigger_local_id,
+                    &task_id,
+                    &payload.name,
+                    &trigger,
+                    user_id,
+                    org_id,
+                )
+                .await?
+            }
+        };
+
+        let empty_vec = Vec::new();
+        let periodic = trigger.periodic.as_ref().unwrap_or(&empty_vec);
+        ergo_tasks::periodic::update_triggers(
+            &mut tx,
+            data.redis_key_prefix.as_deref(),
+            &trigger.input_id,
+            &trigger_id,
+            trigger_local_id.as_str(),
+            &trigger.name,
+            &task_id,
+            &payload.name,
+            user_id,
+            org_id,
+            periodic.as_slice(),
+        )
+        .await?;
     }
 
     let task_trigger_ids = payload

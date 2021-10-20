@@ -12,7 +12,7 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use tracing::{event, Level};
+use tracing::{event, instrument, Level};
 
 use super::{Job, Queue};
 use crate::error::Error;
@@ -281,6 +281,7 @@ impl<D: Drainer> StageDrainTask<D> {
         }
     }
 
+    #[instrument("DEBUG", skip(self))]
     async fn try_drain(&mut self) -> Result<bool, Error> {
         let mut conn = self.db_pool.acquire().await?;
         let mut tx = conn.begin().await?;

@@ -58,8 +58,9 @@ mod native {
     use ergo_queues::{remove_pending_job, update_pending_job, JobUpdate};
     use smallvec::SmallVec;
     use sqlx::PgConnection;
-    use tracing::{event, Level};
+    use tracing::{event, instrument, Level};
 
+    #[instrument(level = "DEBUG")]
     pub async fn update_triggers(
         tx: &mut PgConnection,
         redis_key_prefix: Option<&str>,
@@ -94,6 +95,7 @@ mod native {
         for new_value in periodic {
             if let Some(ex) = existing.iter().find(|ex| ex.schedule == new_value.schedule) {
                 // Update the existing trigger
+                event!(Level::DEBUG, old=?ex, new=?new_value, "Updating periodic trigger");
                 sqlx::query!(
                     r##"UPDATE periodic_triggers
                     SET name=$2, payload=$3, enabled=$4, run_as_user=$5
@@ -131,6 +133,7 @@ mod native {
 
                 matched_existing.push(&ex.periodic_trigger_id);
             } else {
+                event!(Level::DEBUG, new=?new_value, "Adding periodic trigger");
                 let pt_id = PeriodicTriggerId::new();
                 sqlx::query!(
                    "INSERT INTO periodic_triggers (periodic_trigger_id, task_trigger_id, name, schedule, payload, run_as_user, enabled)
@@ -157,6 +160,7 @@ mod native {
             .iter()
             .filter(|ex| matched_existing.contains(&&ex.periodic_trigger_id) == false)
         {
+            event!(Level::DEBUG, old=?existing, "Deleting old trigger");
             if let Some(job_id) = existing.queue_job_id.as_deref() {
                 remove_pending_job(tx, queue_name.as_ref(), job_id).await?;
             }
