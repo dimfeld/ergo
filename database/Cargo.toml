@@ -2,7 +2,7 @@
 name = "ergo-database"
 version = "0.1.0"
 authors = ["Daniel Imfeld <daniel@imfeld.dev>"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 path = "lib.rs"
