@@ -9,6 +9,8 @@
   import PlusIcon from '$lib/components/icons/Plus.svelte';
   import DangerButton from '$lib/components/DangerButton.svelte';
   import InlineEditTextField from '$lib/components/InlineEditTextField.svelte';
+  import Dropdown from '../../components/Dropdown.svelte';
+  import Clock from '../../components/icons/Clock.svelte';
 
   const dispatch = createEventDispatcher<{ change: void }>();
   const notify = () => dispatch('change');
@@ -52,6 +54,7 @@
         input_id: input?.input_id,
         name: '',
         description: null,
+        periodic: [],
       },
       input,
       isNewItem: true,
@@ -107,6 +110,7 @@
   <span class="header">Trigger Name</span>
   <span class="header">Input Type</span>
   <span class="header" />
+  <span class="header" />
   {#each triggerRows as trigger (trigger.localId)}
     <InlineEditTextField
       value={trigger.localId}
@@ -125,6 +129,22 @@
         <option value={id}>{name}</option>
       {/each}
     </select>
+
+    <Dropdown arrow={null}>
+      <div slot="button">
+        <Button iconButton={true}>
+          <div
+            title="Schedule"
+            class:text-gray-400={!trigger.trigger.periodic?.length}
+            class:dark:text-gray-600={!trigger.trigger.periodic?.length}
+          >
+            <Clock />
+          </div>
+        </Button>
+      </div>
+
+      <div class="w-64 p-2">Periodic triggers coming soon!</div>
+    </Dropdown>
 
     {#if trigger.isNewItem}
       <Button disabled={!trigger.localId} on:click={() => addItem(trigger)} iconButton={true}>
@@ -145,7 +165,7 @@
 <style lang="postcss">
   #task-triggers {
     display: grid;
-    grid-template-columns: repeat(3, 1fr) auto;
+    grid-template-columns: repeat(3, 1fr) repeat(2, auto);
     grid-template-rows: auto;
     column-gap: 1em;
     row-gap: 1em;

@@ -207,6 +207,11 @@ export type TaskState =
       data: TaskJsState;
     };
 
+export type PeriodicSchedule = {
+  type: "Cron";
+  data: string;
+};
+
 export interface TaskInput {
   name: string;
   description?: string | null;
@@ -243,6 +248,14 @@ export interface TaskTriggerInput {
   input_id: String;
   name: string;
   description?: string | null;
+  periodic?: PeriodicTaskTriggerInput[] | null;
+}
+
+export interface PeriodicTaskTriggerInput {
+  name?: string | null;
+  schedule: PeriodicSchedule;
+  payload: any;
+  enabled: boolean;
 }
 
 export interface TaskResult {
@@ -281,6 +294,15 @@ export interface TaskTrigger {
   name: string;
   description?: string | null;
   last_payload?: string | null;
+  periodic?: PeriodicTaskTrigger[] | null;
+}
+
+export interface PeriodicTaskTrigger {
+  periodic_trigger_id: String;
+  name?: string | null;
+  schedule: PeriodicSchedule;
+  payload: any;
+  enabled: boolean;
 }
 
 export interface TransitionCondition {
