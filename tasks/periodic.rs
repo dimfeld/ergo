@@ -5,6 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+#[cfg(not(target_family = "wasm"))]
 pub use native::*;
 
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -15,6 +16,7 @@ pub enum PeriodicSchedule {
     Cron(String),
 }
 
+#[cfg(not(target_family = "wasm"))]
 ergo_database::sqlx_json_decode!(PeriodicSchedule);
 
 impl PeriodicSchedule {
@@ -28,7 +30,8 @@ impl PeriodicSchedule {
     }
 }
 
-#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq, sqlx::FromRow)]
+#[derive(Debug, JsonSchema, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[cfg_attr(not(target_family = "wasm"), derive(sqlx::FromRow))]
 pub struct PeriodicTaskTrigger {
     pub periodic_trigger_id: PeriodicTriggerId,
     pub name: Option<String>,

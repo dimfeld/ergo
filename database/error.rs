@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+#[cfg(not(target_family = "wasm"))]
 use crate::transaction::TryIntoSqlxError;
 
 #[derive(Debug, Error)]
@@ -11,6 +12,7 @@ pub enum Error {
     StringError(String),
 
     #[error("SQL Error")]
+    #[cfg(not(target_family = "wasm"))]
     SqlError(#[from] sqlx::error::Error),
 
     #[error("Database Configuration Error: {0}")]
@@ -23,12 +25,15 @@ pub enum Error {
     TimeoutError,
 
     #[error("Redis connection error {0}")]
+    #[cfg(not(target_family = "wasm"))]
     RedisPoolError(#[from] deadpool::managed::PoolError<::redis::RedisError>),
 
     #[error("Redis pool creation error {0}")]
+    #[cfg(not(target_family = "wasm"))]
     RedisPoolCreationError(#[from] deadpool_redis::CreatePoolError),
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl sqlx::error::DatabaseError for Error {
     fn message(&self) -> &str {
         match self {
@@ -50,6 +55,7 @@ impl sqlx::error::DatabaseError for Error {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl TryIntoSqlxError for Error {
     fn try_into_sqlx_error(self) -> Result<sqlx::Error, Self> {
         match self {

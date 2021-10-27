@@ -1,4 +1,3 @@
-#[cfg(not(target_family = "wasm"))]
 mod error;
 #[cfg(not(target_family = "wasm"))]
 mod pool;
@@ -13,7 +12,6 @@ use std::env;
 
 #[cfg(not(target_family = "wasm"))]
 pub use self::redis::RedisPool;
-#[cfg(not(target_family = "wasm"))]
 pub use error::*;
 #[cfg(not(target_family = "wasm"))]
 pub use pool::*;
