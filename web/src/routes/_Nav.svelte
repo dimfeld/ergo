@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { scale } from 'svelte/transition';
-  import { cubicIn, cubicOut } from 'svelte/easing';
-  import { darkModeStore } from '../styles';
+  import { darkModeStore } from '$lib/styles';
   import Dropdown from '$lib/components/Dropdown.svelte';
   import MenuItem from '$lib/components/MenuItem.svelte';
 

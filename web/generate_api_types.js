@@ -73,7 +73,7 @@ async function main() {
   }
 
   let output = Array.from(compiledTypes).join('\n\n');
-  let outputPath = path.join(dirname, 'src', 'api_types.ts');
+  let outputPath = path.join(dirname, 'src', 'lib', 'api_types.ts');
 
   try {
     let existing = await fs.readFile(outputPath);

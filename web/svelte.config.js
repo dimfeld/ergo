@@ -29,9 +29,6 @@ const config = {
     }),
     hostHeader: 'X-Forwarded-Host',
     ssr: false,
-    files: {
-      lib: path.resolve(process.cwd(), 'src'),
-    },
     vite: () => ({
       // Vite SSR needs this for packages that expose native ESM exports to Node.
       ssr: {

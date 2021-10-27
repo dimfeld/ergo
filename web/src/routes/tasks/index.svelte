@@ -7,7 +7,7 @@
   import TaskRow from '$lib/components/TaskRow.svelte';
   import { getHeaderTextStore } from '$lib/header';
   import sorter from 'sorters';
-  import { queryStringStore } from '../../query_string_store';
+  import { queryStringStore } from '$lib/query_string_store';
 
   getHeaderTextStore().set(['Tasks']);
 

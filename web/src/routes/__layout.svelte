@@ -21,13 +21,13 @@
 <script lang="ts">
   import '../app.css';
   import { page } from '$app/stores';
-  import { createDarkStore, cssDarkModePreference } from '../styles';
+  import { createDarkStore, cssDarkModePreference } from '$lib/styles';
   import { createHeaderTextStore } from '$lib/header';
   import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import { Input, Action } from '../api_types';
-  import { setBaseData } from '../data';
+  import { Input, Action } from '$lib/api_types';
+  import { setBaseData } from '$lib/data';
 
   export let inputs: Input[];
   export let actions: Action[];

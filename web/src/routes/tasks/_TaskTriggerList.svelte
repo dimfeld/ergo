@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { TaskResult, TaskTriggerInput } from '../../api_types';
-  import { baseData } from '../../data';
+  import { TaskResult, TaskTriggerInput } from '$lib/api_types';
+  import { baseData } from '$lib/data';
   import sorter from 'sorters';
   import initWasm from '$lib/wasm';
   import { new_task_trigger_id } from 'ergo-wasm';
@@ -9,8 +9,9 @@
   import PlusIcon from '$lib/components/icons/Plus.svelte';
   import DangerButton from '$lib/components/DangerButton.svelte';
   import InlineEditTextField from '$lib/components/InlineEditTextField.svelte';
-  import Dropdown from '../../components/Dropdown.svelte';
-  import Clock from '../../components/icons/Clock.svelte';
+  import Dropdown from '$lib/components/Dropdown.svelte';
+  import ClockIcon from '$lib/components/icons/Clock.svelte';
+  import PeriodicTriggerEditor from './_PeriodicTriggerEditor.svelte';
 
   const dispatch = createEventDispatcher<{ change: void }>();
   const notify = () => dispatch('change');
@@ -138,9 +139,11 @@
             class:text-gray-400={!trigger.trigger.periodic?.length}
             class:dark:text-gray-600={!trigger.trigger.periodic?.length}
           >
-            <Clock />
+            <ClockIcon />
           </div>
         </Button>
+
+        <PeriodicTriggerEditor trigger={trigger.trigger} />
       </div>
 
       <div class="w-64 p-2">Periodic triggers coming soon!</div>

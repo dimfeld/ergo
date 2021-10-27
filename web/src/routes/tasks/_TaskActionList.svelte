@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { TaskActionInput } from '../../api_types';
-  import { baseData } from '../../data';
+  import { TaskActionInput } from '$lib/api_types';
+  import { baseData } from '$lib/data';
   import sorter from 'sorters';
   import Button from '$lib/components/Button.svelte';
   import DangerButton from '$lib/components/DangerButton.svelte';

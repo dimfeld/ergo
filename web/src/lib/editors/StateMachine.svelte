@@ -7,7 +7,7 @@
   import prettierBabel from 'prettier/parser-babel';
   import { TaskConfigValidator } from 'ergo-wasm';
 
-  import stateMachineSchema from '$lib/../../schemas/state_machine.json';
+  import stateMachineSchema from '$lib/../../../schemas/state_machine.json';
   import { EditorView } from '@codemirror/view';
   import { json5ParseCache } from './codemirror-json5';
 
