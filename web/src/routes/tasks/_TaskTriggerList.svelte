@@ -142,11 +142,9 @@
             <ClockIcon />
           </div>
         </Button>
-
-        <PeriodicTriggerEditor trigger={trigger.trigger} />
       </div>
 
-      <div class="w-64 p-2">Periodic triggers coming soon!</div>
+      <PeriodicTriggerEditor trigger={trigger.trigger} />
     </Dropdown>
 
     {#if trigger.isNewItem}
