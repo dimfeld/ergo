@@ -3918,7 +3918,7 @@ dependencies = [
 [[package]]
 name = "sqlx"
 version = "0.5.9"
-source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
+source = "git+https://github.com/dimfeld/sqlx#263ae9918b9b14c355b5ff0b0c0c2503d7cc3ae5"
 dependencies = [
  "sqlx-core",
  "sqlx-macros",
@@ -3927,7 +3927,7 @@ dependencies = [
 [[package]]
 name = "sqlx-core"
 version = "0.5.9"
-source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
+source = "git+https://github.com/dimfeld/sqlx#263ae9918b9b14c355b5ff0b0c0c2503d7cc3ae5"
 dependencies = [
  "ahash",
  "atoi",
@@ -3981,7 +3981,7 @@ dependencies = [
 [[package]]
 name = "sqlx-macros"
 version = "0.5.9"
-source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
+source = "git+https://github.com/dimfeld/sqlx#263ae9918b9b14c355b5ff0b0c0c2503d7cc3ae5"
 dependencies = [
  "dotenv",
  "either",
@@ -4000,7 +4000,7 @@ dependencies = [
 [[package]]
 name = "sqlx-rt"
 version = "0.5.9"
-source = "git+https://github.com/dimfeld/sqlx#0d9fa92595eeda2010293c0e362e99f07ed56cf6"
+source = "git+https://github.com/dimfeld/sqlx#263ae9918b9b14c355b5ff0b0c0c2503d7cc3ae5"
 dependencies = [
  "once_cell",
  "tokio",
