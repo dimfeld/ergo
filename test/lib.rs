@@ -13,7 +13,7 @@ fn configure_tracing(name: impl Into<String>, sink: impl MakeWriter + Send + Syn
         .init()
         .expect("Failed to create logger");
 
-    let env_filter = EnvFilter::try_from_env("LOG").unwrap_or(EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_env("LOG").unwrap_or_else(|_| EnvFilter::new("info"));
 
     let formatting_layer = BunyanFormattingLayer::new(name.into(), sink);
     let subscriber = Registry::default()
@@ -44,7 +44,7 @@ where
             Some(d) => return Ok(d),
             None => {
                 tokio::time::sleep(Duration::from_millis(250)).await;
-                tries = tries + 1;
+                tries += 1;
             }
         }
     }

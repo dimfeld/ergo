@@ -10,7 +10,7 @@ pub fn configure(name: impl Into<String>, sink: impl MakeWriter + Send + Sync + 
         .init()
         .expect("Failed to create logger");
 
-    let env_filter = EnvFilter::try_from_env("LOG").unwrap_or(EnvFilter::new("info"));
+    let env_filter = EnvFilter::try_from_env("LOG").unwrap_or_else(|_| EnvFilter::new("info"));
 
     let formatting_layer = BunyanFormattingLayer::new(name.into(), sink);
     let subscriber = Registry::default()

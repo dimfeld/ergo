@@ -294,7 +294,7 @@ fn job_consumer(
 
             if shutdown.shutting_down() {
                 break;
-            } else if *close_consumers.borrow() == true {
+            } else if *close_consumers.borrow() {
                 close_on_idle = true;
             }
         }

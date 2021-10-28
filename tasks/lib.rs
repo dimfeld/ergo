@@ -1,3 +1,5 @@
+#![allow(clippy::bool_assert_comparison)]
+
 pub mod actions;
 mod error;
 pub mod inputs;
@@ -281,7 +283,7 @@ mod native {
                                 ActionInvocation{
                                     task_id: task_id.clone(),
                                     payload: action.payload,
-                                    input_arrival_id: Some(input_arrival_id.clone()),
+                                    input_arrival_id: Some(input_arrival_id),
                                     user_id: user_id.clone(),
                                     task_action_local_id: action.name,
                                     actions_log_id: new_uuid(),
@@ -332,7 +334,7 @@ mod native {
                                 executor_id: task_action.executor_id.as_str(),
                                 account_required: task_action.account_required,
                                 account_id: &task_action.account_id,
-                                account_expires: task_action.account_expires.clone(),
+                                account_expires: task_action.account_expires,
                                 account_fields: task_action.account_fields.clone(),
                                 action_template_fields: &task_action.action_template_fields,
                                 task_action_template: task_action.task_action_template.clone(),
@@ -348,7 +350,7 @@ mod native {
                                     task_id: task_id.clone(),
                                     task_action_local_id: action.task_action_local_id.clone(),
                                     task_action_name: task_action.task_action_name.clone(),
-                                    error: e.into(),
+                                    error: e,
                                 })?;
 
                             log_query = log_query

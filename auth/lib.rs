@@ -163,12 +163,12 @@ impl AuthenticationInfo {
             Self::ApiKey { key, user } => match (key.inherits_user_permissions, user) {
                 (false, _) => {
                     let mut list = UserEntityList::new();
-                    list.push(key.api_key_id.clone());
+                    list.push(key.api_key_id);
                     list
                 }
                 (true, user) => {
                     let mut ids = user.user_entity_ids.clone();
-                    ids.push(key.api_key_id.clone());
+                    ids.push(key.api_key_id);
                     ids
                 }
             },
@@ -312,7 +312,7 @@ mod tests {
         fn request_user() -> RequestUser {
             let user = user_id();
             let org = org_id();
-            let ids = smallvec![user.0.clone(), org.0.clone(), role_id().0];
+            let ids = smallvec![user.0, org.0, role_id().0];
             RequestUser {
                 user_id: user,
                 org_id: org,

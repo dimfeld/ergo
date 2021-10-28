@@ -216,7 +216,7 @@ mod native {
                         let built_payload = def.data.build(context, payload).await?;
                         event!(Level::DEBUG, ?context, ?built_payload, "built payload");
                         let invocation = ActionInvocation {
-                            input_arrival_id: input_arrival_id.clone(),
+                            input_arrival_id: *input_arrival_id,
                             actions_log_id: new_uuid(),
                             task_id: task_id.clone(),
                             task_action_local_id: def.task_action_local_id.clone(),

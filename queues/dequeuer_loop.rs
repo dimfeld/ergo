@@ -12,7 +12,6 @@ use tracing::{event, Level};
 use std::time::Duration;
 
 use super::QueueWorkItem;
-use crate::error::Error;
 
 #[async_trait]
 pub trait QueueJobProcessor: Clone + Sync + Send {
@@ -101,11 +100,8 @@ where
             // Make sure we call this periodically so that futures are processed.
             tokio::select! {
                 biased;
-                r = active_tasks.next() => match r {
-                    Some(Err(e)) => {
-                        event!(Level::ERROR, error=%e, "Job task panicked");
-                    }
-                    _ => {}
+                r = active_tasks.next() => if let Some(Err(e)) = r {
+                    event!(Level::ERROR, error=%e, "Job task panicked");
                 },
                 _ = ready(()) => {}
             };

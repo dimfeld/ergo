@@ -134,7 +134,7 @@ impl Queue {
             job_data_prefix: format!("erq:{}:job:", queue_name),
             processing_timeout: default_timeout.unwrap_or_else(|| Duration::from_secs_f64(120.0)),
             max_retries: default_max_retries.unwrap_or(3),
-            retry_backoff: default_retry_backoff.unwrap_or(Duration::from_millis(30000)),
+            retry_backoff: default_retry_backoff.unwrap_or_else(|| Duration::from_millis(30000)),
             enqueue_scheduled_script: enqueue_scheduled::EnqueueScript::new(),
             dequeue_item_script: get_job::GetJobScript::new(),
             start_work_script: start_work::StartWorkScript::new(),
@@ -302,7 +302,7 @@ impl Queue {
 
         for item in items {
             pipe.add_command(self.initial_job_data_cmd(item));
-            self.add_id_to_queue(&mut pipe, &item);
+            self.add_id_to_queue(&mut pipe, item);
         }
 
         let mut conn = self.0.pool.get().await?;
@@ -404,7 +404,7 @@ impl Queue {
 
         event!(Level::INFO, queue=%self.0.name, "Starting job processor");
 
-        let backoff = backoff.unwrap_or(Box::new(Queue::default_backoff()));
+        let backoff = backoff.unwrap_or_else(|| Box::new(Queue::default_backoff()));
 
         let max_jobs = max_jobs
             .map(|n| n.get() as usize)
@@ -453,7 +453,6 @@ impl Queue {
         match item {
             Ok(item) => Ok(item),
             Err(e) => {
-                let e = Error::from(e);
                 let err_str = format!("Failed to start job: {}", e);
                 self.errored_job(job_id, &expiration, err_str.as_str())
                     .await?;
@@ -673,7 +672,7 @@ mod tests {
         }
     }
 
-    async fn run_queue_test<T, Fut, E>(test: T) -> ()
+    async fn run_queue_test<T, Fut, E>(test: T)
     where
         T: Send + Sync + FnOnce(Queue) -> Fut,
         Fut: Future<Output = Result<(), E>>,
@@ -755,7 +754,7 @@ mod tests {
             let id = "a-test".to_string();
             let job = Job {
                 id: id.clone(),
-                run_at: Some(initial_run_at.clone()),
+                run_at: Some(initial_run_at),
                 payload: SimplePayload::generate()?,
                 ..Default::default()
             };
@@ -792,7 +791,7 @@ mod tests {
             // Reschedule the job further in the future.
             let new_run_at = initial_run_at + Duration::days(50);
             queue
-                .update_job(id.as_str(), Some(new_run_at.clone()), None)
+                .update_job(id.as_str(), Some(new_run_at), None)
                 .await?;
 
             let rescheduled = queue.list_scheduled().await.expect("Listing scheduled");
@@ -822,7 +821,7 @@ mod tests {
             queue
                 .update_job(
                     id.as_str(),
-                    Some(schedule_in_past.clone()),
+                    Some(schedule_in_past),
                     Some(new_payload.as_ref()),
                 )
                 .await

@@ -73,27 +73,17 @@ impl Executor for RawCommandExecutor {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        if let Some(args) = payload.get("args") {
-            match args {
-                serde_json::Value::Array(array) => {
-                    for v in array {
-                        let value = json_primitive_as_string("args", None, v, false)?;
-                        cmd.arg(value.as_ref());
-                    }
-                }
-                _ => {}
+        if let Some(serde_json::Value::Array(array)) = payload.get("args") {
+            for v in array {
+                let value = json_primitive_as_string("args", None, v, false)?;
+                cmd.arg(value.as_ref());
             }
         }
 
-        if let Some(env) = payload.get("env") {
-            match env {
-                serde_json::Value::Object(m) => {
-                    for (k, v) in m {
-                        let value = json_primitive_as_string("env", Some(k), v, false)?;
-                        cmd.env(k, value.as_ref());
-                    }
-                }
-                _ => {}
+        if let Some(serde_json::Value::Object(m)) = payload.get("env") {
+            for (k, v) in m {
+                let value = json_primitive_as_string("env", Some(k), v, false)?;
+                cmd.env(k, value.as_ref());
             }
         }
 

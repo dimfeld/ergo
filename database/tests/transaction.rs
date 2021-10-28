@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use ergo_database::{test::run_database_test, transaction};
 use futures::future::FutureExt;
 use sqlx::Row;

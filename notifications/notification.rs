@@ -35,7 +35,7 @@ impl Notification {
         }
 
         if let Some(p) = self.payload.as_ref() {
-            let payload = serde_json::to_string(p).unwrap_or(String::new());
+            let payload = serde_json::to_string(p).unwrap_or_else(|_| String::new());
             output.push(("Payload", Cow::from(payload), false));
         }
 

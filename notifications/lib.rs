@@ -32,7 +32,7 @@ trait Notifier {
     async fn notify(&self, notification: &Notification) -> Result<(), Error>;
 }
 
-const QUEUE_NAME: &'static str = "notifications";
+const QUEUE_NAME: &str = "notifications";
 
 pub struct NotificationManager(Arc<NotificationManagerInner>);
 

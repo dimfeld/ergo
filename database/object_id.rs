@@ -76,6 +76,12 @@ impl<const PREFIX: usize> ObjectId<PREFIX> {
     }
 }
 
+impl<const PREFIX: usize> Default for ObjectId<PREFIX> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const PREFIX: usize> PartialEq<Uuid> for ObjectId<PREFIX> {
     fn eq(&self, other: &Uuid) -> bool {
         &self.0 == other
@@ -96,9 +102,9 @@ impl<const PREFIX: usize> From<Uuid> for ObjectId<PREFIX> {
     }
 }
 
-impl<const PREFIX: usize> Into<Uuid> for ObjectId<PREFIX> {
-    fn into(self) -> Uuid {
-        self.0
+impl<const PREFIX: usize> From<ObjectId<PREFIX>> for Uuid {
+    fn from(data: ObjectId<PREFIX>) -> Self {
+        data.0
     }
 }
 
@@ -134,7 +140,7 @@ impl<const PREFIX: usize> FromStr for ObjectId<PREFIX> {
             return Err(ObjectIdError::InvalidPrefix(expected_prefix));
         }
 
-        decode_suffix(&s[expected_prefix.len()..]).map(|u| Self(u))
+        decode_suffix(&s[expected_prefix.len()..]).map(Self)
     }
 }
 
@@ -169,7 +175,7 @@ impl<'de, const PREFIX: usize> serde::de::Visitor<'de> for ObjectIdVisitor<PREFI
                 // See if it's in UUID format instead of the encoded format. This mostly happens when
                 // deserializing from a JSON object generated in Postgres with jsonb_build_object.
                 Uuid::from_str(v)
-                    .map(|u| ObjectId::<PREFIX>::from_uuid(u))
+                    .map(ObjectId::<PREFIX>::from_uuid)
                     // Return the more descriptive original error instead of the UUID parsing error
                     .map_err(|_| e)
             }

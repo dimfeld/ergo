@@ -45,7 +45,7 @@ impl SerializedState {
         };
 
         let wall_time = Utc::now();
-        let result = pending.result.unwrap_or_else(|| serde_json::Value::Null);
+        let result = pending.result.unwrap_or(serde_json::Value::Null);
         let v8_result = to_v8(scope, &result)?;
         let serialized = raw_serde::serialize(scope, v8_result)?;
 
@@ -103,7 +103,7 @@ struct EventTracker {
 }
 
 impl Runtime {
-    pub fn install_serialized_execution(self: &mut Self, history: SerializedState) {
+    pub fn install_serialized_execution(&mut self, history: SerializedState) {
         {
             let scope = &mut self.handle_scope();
 
@@ -150,7 +150,7 @@ impl Runtime {
     /// Run with serialized execution. This pumps the event loop to completion, and also
     /// catches the execution termination exception.
     pub async fn run_serialized(
-        self: &mut Self,
+        &mut self,
         name: &str,
         script: &str,
     ) -> Result<Option<SerializedState>, AnyError> {
@@ -172,7 +172,7 @@ impl Runtime {
 
     /// Extract the serialized state from the runtime. This clears the saved state to avoid cloning,
     /// so should only be done once this runtime is finished.
-    pub fn take_serialize_state(self: &mut Self) -> Option<SerializedState> {
+    pub fn take_serialize_state(&mut self) -> Option<SerializedState> {
         let isolate = self.runtime.v8_isolate();
         let events = isolate.get_slot_mut::<EventTracker>();
 

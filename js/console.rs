@@ -104,7 +104,7 @@ impl BufferConsole {
 
     /// Set a maximum capacity on the buffer.
     pub fn capacity(mut self, capacity: Option<ConsoleLimit>) -> Self {
-        self.capacity = capacity.unwrap_or_else(ConsoleLimit::default);
+        self.capacity = capacity.unwrap_or_default();
         self
     }
 
@@ -134,7 +134,7 @@ impl Console for BufferConsole {
 
         self.current_size += message_size;
         self.messages.push_back(message);
-        return true;
+        true
     }
 
     fn take_messages(&mut self) -> Vec<ConsoleMessage> {
@@ -203,7 +203,7 @@ impl Console for PrintConsole {
             ConsoleLevel::Info => println!("{}", message.message),
         };
 
-        return true;
+        true
     }
 
     fn clone_settings(&self) -> Box<dyn Console> {

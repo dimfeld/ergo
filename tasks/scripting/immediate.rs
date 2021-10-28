@@ -40,8 +40,7 @@ pub async fn run_task(
             // TODO ability to configure `allow_net`
             let mut runtime = create_nonserialized_task_script_runtime(true);
 
-            set_up_task_env(&mut runtime, &state, &payload)
-                .map_err(|e| Error::TaskScriptSetup(e.into()))?;
+            set_up_task_env(&mut runtime, &state, &payload).map_err(Error::TaskScriptSetup)?;
 
             let run_result = runtime.run_main_module(main_url, config.script).await;
             let console = runtime.take_console_messages();
@@ -78,7 +77,7 @@ pub async fn run_task(
     result
 }
 
-const TASK_HELPERS: &'static str = include_str!("./task_helpers.js");
+const TASK_HELPERS: &str = include_str!("./task_helpers.js");
 
 fn set_up_task_env(
     runtime: &mut Runtime,

@@ -224,7 +224,7 @@ impl<D: Drainer> StageDrainTask<D> {
                     .and_then(|mut l| {
                         let channel = notify_channel.as_str();
                         async move {
-                            l.listen(&channel).await?;
+                            l.listen(channel).await?;
                             Ok(l)
                         }
                     })
@@ -292,7 +292,7 @@ impl<D: Drainer> StageDrainTask<D> {
         .fetch_one(&mut tx)
         .await?;
         let acquired_lock: bool = lock_result.get(0);
-        if acquired_lock == false {
+        if !acquired_lock {
             // Something else has the lock, so just exit and try again after a sleep.
             return Ok(false);
         }
@@ -359,6 +359,6 @@ impl<D: Drainer> StageDrainTask<D> {
         }
         tx.commit().await?;
 
-        return Ok::<bool, Error>(true);
+        Ok::<bool, Error>(true)
     }
 }

@@ -66,7 +66,7 @@ impl TemplateFieldFormat {
     ) -> Result<(), TemplateValidationFailure> {
         let ok = match value {
             serde_json::Value::String(s) => {
-                if is_payload_template(&s) {
+                if is_payload_template(s) {
                     true
                 } else {
                     match self {
@@ -79,7 +79,7 @@ impl TemplateFieldFormat {
                                 // Requires more than one argument
                                 false
                             } else {
-                                choices.iter().find(|&x| x == s).is_some()
+                                choices.iter().any(|x| x == s)
                             }
                         }
                         _ => false,
@@ -97,17 +97,13 @@ impl TemplateFieldFormat {
                         a.iter().all(|value| {
                             choices
                                 .iter()
-                                .find(|&c| value.as_str().map(|s| s == c).unwrap_or(false))
-                                .is_some()
+                                .any(|c| value.as_str().map(|s| s == c).unwrap_or(false))
                         })
                     }
                 }
                 _ => false,
             },
-            serde_json::Value::Bool(_) => match self {
-                Self::String | Self::Boolean => true,
-                _ => false,
-            },
+            serde_json::Value::Bool(_) => matches!(self, Self::String | Self::Boolean),
             serde_json::Value::Number(n) => match self {
                 Self::String | Self::Float => true,
                 Self::Integer => n.is_i64(),
@@ -273,9 +269,9 @@ impl std::ops::Deref for TemplateFields {
     }
 }
 
-impl Into<Vec<TemplateField>> for TemplateFields {
-    fn into(self) -> Vec<TemplateField> {
-        self.0
+impl From<TemplateFields> for Vec<TemplateField> {
+    fn from(f: TemplateFields) -> Vec<TemplateField> {
+        f.0
     }
 }
 
@@ -352,7 +348,7 @@ pub fn validate(
         .iter()
         .filter_map(
             |field| match (values.get(field.name.as_ref()), field.optional) {
-                (Some(v), _) => Some(field.format.validate(field.name.as_ref(), &v)),
+                (Some(v), _) => Some(field.format.validate(field.name.as_ref(), v)),
                 (None, true) => None,
                 (None, false) => Some(Err(TemplateValidationFailure::Required(
                     field.name.to_owned(),
@@ -386,7 +382,7 @@ fn apply_field(
 ) -> Result<serde_json::Value, TemplateError> {
     let result = match template {
         serde_json::Value::String(template) => {
-            if is_payload_template(&template) {
+            if is_payload_template(template) {
                 // This is ok because we already verified that the skipped se of bytes are
                 // ASCII in starts_with and ends_with.
                 let field_name = &template[3..template.len() - 2];
@@ -451,7 +447,7 @@ pub fn validate_and_apply<'a>(
 ) -> Result<FxHashMap<String, serde_json::Value>, TemplateError> {
     event!(Level::DEBUG, id=%id, fields=?fields, template=?template, values=?values);
     validate(object, Some(id), fields, values)?;
-    apply(template, values).map_err(|e| e.into())
+    apply(template, values)
 }
 
 #[cfg(test)]

@@ -34,7 +34,7 @@ impl TryFrom<&str> for NetHostAndPort {
     type Error = url::ParseError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let (url, port) = if value.contains("/") {
+        let (url, port) = if value.contains('/') {
             let url = Url::parse(value)?;
             let port = url.port_or_known_default();
             (url, port)
@@ -77,7 +77,7 @@ impl Permissions {
             || (!self.net_allow_list.is_empty()
                 && !self.net_allow_list.iter().any(|hp| hp.check(host, port)))
         {
-            return Err(PermissionsError::NetAddressDenied.into());
+            return Err(PermissionsError::NetAddressDenied);
         }
 
         Ok(())

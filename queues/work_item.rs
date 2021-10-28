@@ -82,7 +82,7 @@ impl<'a, T: Send + Sync> QueueWorkItem<T> {
             Err(e) => {
                 let e = anyhow!(e);
                 self.queue
-                    .errored_job(self.id.as_str(), &self.expires, &e.to_string().as_str())
+                    .errored_job(self.id.as_str(), &self.expires, e.to_string().as_str())
                     .await?;
                 Err(Error::JobError(e))
             }

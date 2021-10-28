@@ -120,7 +120,7 @@ pub async fn enqueue_jobs<T: Serialize + Send + Sync>(
 
 pub struct QueueDrainer {}
 
-pub(crate) const NOTIFY_CHANNEL: &'static str = "queue-generic";
+pub(crate) const NOTIFY_CHANNEL: &str = "queue-generic";
 
 #[async_trait]
 impl Drainer for QueueDrainer {

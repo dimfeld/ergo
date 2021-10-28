@@ -93,8 +93,8 @@ pub async fn start(config: Config) -> Result<Server> {
     let backend_app_data = crate::backend_data::app_data(
         backend_pg_pool.clone(),
         notifications.clone(),
-        input_queue.clone(),
-        action_queue.clone(),
+        input_queue,
+        action_queue,
         redis_queue_prefix.clone(),
     )?;
 
@@ -125,8 +125,8 @@ pub async fn start(config: Config) -> Result<Server> {
     })?;
 
     let action_runner = ActionExecutor::new(ActionExecutorConfig {
-        redis_pool: redis_pool.clone(),
-        pg_pool: backend_pg_pool.clone(),
+        redis_pool,
+        pg_pool: backend_pg_pool,
         shutdown: shutdown.clone(),
         notifications: Some(notifications.clone()),
         max_concurrent_jobs: None,

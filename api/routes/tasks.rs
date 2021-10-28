@@ -381,11 +381,11 @@ async fn update_task(
                 add_task_trigger(
                     &mut tx,
                     &data.redis_key_prefix,
-                    &trigger_local_id,
+                    trigger_local_id,
                     &task_id,
                     &payload.name,
                     payload.enabled,
-                    &trigger,
+                    trigger,
                     user_id,
                     org_id,
                 )
@@ -586,13 +586,13 @@ async fn new_task(
         add_task_trigger(
             &mut tx,
             &data.redis_key_prefix,
-            &local_id,
+            local_id,
             &task_id,
             payload.name.as_str(),
             payload.enabled,
             trigger,
-            &user_id,
-            &org_id,
+            user_id,
+            org_id,
         )
         .await?;
     }

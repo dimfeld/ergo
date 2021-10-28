@@ -1,3 +1,5 @@
+#![allow(clippy::bool_assert_comparison)]
+
 mod console;
 pub mod module_loader;
 pub mod permissions;
@@ -123,7 +125,7 @@ impl Runtime {
         runtime
             .op_state()
             .borrow_mut()
-            .put(options.permissions.unwrap_or_else(Default::default));
+            .put(options.permissions.unwrap_or_default());
 
         if !has_snapshot {
             // If we have a snapshot, then this will already have run. If not, then run it now.
@@ -264,7 +266,7 @@ struct ConsoleWrapper {
     console: Box<dyn Console>,
 }
 
-const CONSOLE_EXTENSION_JS: &'static str = r##"
+const CONSOLE_EXTENSION_JS: &str = r##"
     globalThis.console = new globalThis.__bootstrap.console.Console(
         (level, message) => Deno.core.opSync("ergo_js_console", level, message)
     );"##;
@@ -288,7 +290,7 @@ fn console_extension(console: Box<dyn Console>) -> deno_core::Extension {
 /// When evaluating a raw expression like { a: 5 }, V8 sees the
 /// first brace as entering a scope rather than creating an object.
 /// Wrapping the expressison in parentheses prevents this.
-pub fn safe_braces<'a>(mut expr: &'a str) -> Cow<'a, str> {
+pub fn safe_braces(mut expr: &str) -> Cow<'_, str> {
     expr = expr.trim();
 
     // Handle expressions that end in ;

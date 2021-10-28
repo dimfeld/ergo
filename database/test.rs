@@ -45,7 +45,7 @@ fn password_sql(role: &str) -> String {
     }
 }
 
-pub async fn run_database_test<F, R>(f: F) -> ()
+pub async fn run_database_test<F, R>(f: F)
 where
     F: FnOnce(TestDatabase) -> R,
     R: Future<Output = Result<(), anyhow::Error>>,
@@ -146,8 +146,8 @@ END; $$;
     ))
 }
 
-pub const PASSWORD: &'static str = "test password";
-const PASSWORD_HASH: &'static str = "$argon2id$v=19$m=15360,t=2,p=1$PUpyHXvHTSOKvr9Sc6vK8g$GSyd7TMMKrS7bkObHL3+aOtRmULRJTNP1xLP4C/3zzY";
+pub const PASSWORD: &str = "test password";
+const PASSWORD_HASH: &str = "$argon2id$v=19$m=15360,t=2,p=1$PUpyHXvHTSOKvr9Sc6vK8g$GSyd7TMMKrS7bkObHL3+aOtRmULRJTNP1xLP4C/3zzY";
 
 lazy_static! {
     static ref ADMIN_USER_ID: UserId =

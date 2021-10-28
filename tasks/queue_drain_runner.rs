@@ -22,9 +22,9 @@ impl AllQueuesDrain {
         let generic_drain = QueueStageDrain::new(QueueStageDrainConfig {
             queue: None,
             drainer: generic_stage::QueueDrainer {},
-            db_pool: pg_pool.clone(),
-            redis_pool: redis_pool.clone(),
-            shutdown: shutdown.clone(),
+            db_pool: pg_pool,
+            redis_pool,
+            shutdown,
         })?;
 
         Ok(AllQueuesDrain { generic_drain })

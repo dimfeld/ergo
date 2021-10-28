@@ -1,3 +1,5 @@
+#![allow(clippy::bool_assert_comparison)]
+
 use tokio::{
     select,
     signal::ctrl_c,
@@ -62,13 +64,19 @@ impl GracefulShutdown {
     }
 }
 
+impl Default for GracefulShutdown {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GracefulShutdownConsumer {
     pub fn shutting_down(&mut self) -> bool {
         *self.0.borrow()
     }
 
-    pub async fn wait_for_shutdown(&mut self) -> () {
-        if *self.0.borrow() == true {
+    pub async fn wait_for_shutdown(&mut self) {
+        if *self.0.borrow() {
             return;
         }
 
@@ -76,7 +84,7 @@ impl GracefulShutdownConsumer {
             match self.0.changed().await {
                 Ok(_) => {
                     // Sender is still open, but value is true so we're shutting down.
-                    if *self.0.borrow() == true {
+                    if *self.0.borrow() {
                         return;
                     }
                 }

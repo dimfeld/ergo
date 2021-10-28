@@ -184,10 +184,9 @@ mod native {
     ) -> Result<serde_json::Value, Error> {
         event!(Level::DEBUG, ?invocation);
 
-        let actions_log_id = invocation.actions_log_id.clone();
         sqlx::query!(
             "UPDATE actions_log SET status='running', updated=now() WHERE actions_log_id=$1",
-            invocation.actions_log_id
+            &invocation.actions_log_id
         )
         .execute(pg_pool)
         .await
@@ -219,7 +218,7 @@ mod native {
         sqlx::query!(
             "UPDATE actions_log SET status=$2, result=$3, updated=now()
         WHERE actions_log_id=$1",
-            actions_log_id,
+            &invocation.actions_log_id,
             status as _,
             response
         )
@@ -322,7 +321,7 @@ mod native {
                 payload: Some(invocation.payload.clone()),
                 error: None,
                 task_name: action.task_name.clone(),
-                log_id: Some(invocation.actions_log_id.clone()),
+                log_id: Some(invocation.actions_log_id),
                 local_id: action.task_action_local_id.clone(),
                 local_object_id: None,
                 local_object_name: action.task_action_name.clone(),
@@ -392,7 +391,7 @@ mod native {
                             &[("output", &result), ("payload", &invocation.payload)],
                         )
                         .await
-                        .map_err(|e| ExecuteErrorSource::ScriptError(e))?;
+                        .map_err(ExecuteErrorSource::ScriptError)?;
 
                         if !processed.is_null() {
                             Ok(processed)
@@ -425,7 +424,7 @@ mod native {
                         payload: Some(invocation.payload.clone()),
                         error: None,
                         task_name: action.task_name.clone(),
-                        log_id: Some(invocation.actions_log_id.clone()),
+                        log_id: Some(invocation.actions_log_id),
                         local_id: action.task_action_local_id.clone(),
                         local_object_id: None,
                         local_object_name: action.task_action_name.clone(),
@@ -468,7 +467,7 @@ mod native {
                 payload: Some(invocation.payload.clone()),
                 error: Some(error.to_string()),
                 task_name: action.task_name.clone(),
-                log_id: Some(invocation.actions_log_id.clone()),
+                log_id: Some(invocation.actions_log_id),
                 local_id: action.task_action_local_id.clone(),
                 local_object_id: None,
                 local_object_name: action.task_action_name.clone(),
@@ -561,8 +560,8 @@ mod native {
             ScriptOrTemplate::Template(t) => template::validate_and_apply(
                 "action",
                 &action.action_id,
-                &action.action_template_fields,
-                &t,
+                action.action_template_fields,
+                t,
                 &action_payload,
             )?,
             ScriptOrTemplate::Script(s) => {

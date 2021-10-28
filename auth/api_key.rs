@@ -54,6 +54,12 @@ impl ApiKeyData {
     }
 }
 
+impl Default for ApiKeyData {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn hash_key(key: &str) -> Vec<u8> {
     let mut hasher = sha3::Sha3_512::default();
     hasher.update(key.as_bytes());
@@ -66,11 +72,7 @@ fn decode_key(key: &str) -> Result<(Uuid, Vec<u8>), Error> {
     }
 
     let hash = hash_key(key);
-    let id_portion = key
-        .split('.')
-        .skip(1)
-        .next()
-        .ok_or(Error::AuthenticationError)?;
+    let id_portion = key.split('.').nth(1).ok_or(Error::AuthenticationError)?;
     let api_key_bytes = base64::decode_config(id_portion.as_bytes(), base64::URL_SAFE_NO_PAD)
         .map_err(|_| Error::AuthenticationError)?;
     let api_key_id = Uuid::from_slice(&api_key_bytes).map_err(|_| Error::AuthenticationError)?;
@@ -88,6 +90,7 @@ async fn handle_api_key(
     key: &str,
 ) -> Result<super::AuthenticationInfo, Error> {
     let (api_key_id, hash) = decode_key(key)?;
+    event!(Level::DEBUG, ?hash, ?api_key_id, "checking key");
     let auth_key = sqlx::query_as!(
         ApiKeyAuth,
         r##"SELECT api_key_id,
@@ -102,7 +105,7 @@ async fn handle_api_key(
     )
     .fetch_optional(&auth_data.pg)
     .await?
-    .ok_or_else(|| Error::AuthenticationError)?;
+    .ok_or(Error::AuthenticationError)?;
 
     // This could be combined with the query above, but for simplicity we just keep it separate
     // for now.
@@ -114,7 +117,7 @@ async fn handle_api_key(
     })
 }
 
-fn extract_api_key<'a>(req: &'a ServiceRequest) -> Option<String> {
+fn extract_api_key(req: &ServiceRequest) -> Option<String> {
     if let Ok(query) = actix_web::web::Query::<ApiQueryString>::from_query(req.query_string()) {
         event!(Level::DEBUG, key=%query.0.api_key, "Got key from query string");
         return Some(query.0.api_key);
@@ -136,7 +139,7 @@ pub async fn get_api_key(
 ) -> Result<Option<super::AuthenticationInfo>, Error> {
     event!(Level::DEBUG, "Fetching api key");
     if let Some(key) = extract_api_key(req) {
-        let auth = handle_api_key(auth_data, &key.borrow()).await?;
+        let auth = handle_api_key(auth_data, key.borrow()).await?;
         return Ok(Some(auth));
     }
 
@@ -166,7 +169,7 @@ mod tests {
         let data = ApiKeyData::new();
 
         // Alter the key.
-        let mut key = String::from(data.key);
+        let mut key = data.key;
         key.pop();
         key.push('a');
 

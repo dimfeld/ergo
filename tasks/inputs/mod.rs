@@ -68,7 +68,7 @@ pub fn validate_input_payload(
     payload_schema: &serde_json::Value,
     payload: &serde_json::Value,
 ) -> Result<(), Error> {
-    let compiled_schema = jsonschema::JSONSchema::compile(&payload_schema)?;
-    compiled_schema.validate(&payload)?;
+    let compiled_schema = jsonschema::JSONSchema::compile(payload_schema)?;
+    compiled_schema.validate(payload)?;
     Ok(())
 }

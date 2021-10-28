@@ -35,7 +35,7 @@ impl Default for DatabaseConfiguration {
 pub fn database_configuration_from_env() -> Result<DatabaseConfiguration, Error> {
     Ok(DatabaseConfiguration {
         host: env::var("DATABASE_HOST").unwrap_or_else(|_| "localhost".to_string()),
-        port: envoption::with_default("DATABASE_PORT", 5432 as u16)
+        port: envoption::with_default("DATABASE_PORT", 5432_u16)
             .map_err(|e| Error::ConfigError(e.to_string()))?,
         database: env::var("DATABASE").unwrap_or_else(|_| "ergo".to_string()),
     })

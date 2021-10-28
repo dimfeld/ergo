@@ -164,7 +164,7 @@ mod native {
         // from the database.
         for existing in existing
             .iter()
-            .filter(|ex| matched_existing.contains(&&ex.periodic_trigger_id) == false)
+            .filter(|ex| !matched_existing.contains(&&ex.periodic_trigger_id))
         {
             event!(Level::DEBUG, old=?existing, "Deleting old trigger");
             if let Some(job_id) = existing.queue_job_id.as_deref() {
@@ -271,7 +271,7 @@ mod native {
                     payload: trigger.payload,
                     payload_schema: &trigger.payload_schema,
                     periodic_trigger_id: Some(trigger.periodic_trigger_id),
-                    redis_key_prefix: redis_key_prefix.clone(),
+                    redis_key_prefix,
                     trigger_at: Some(next_time),
                 })
                 .await?;

@@ -132,7 +132,7 @@ impl TaskConfigValidator {
                                 .map(|s| match s {
                                     ValidatePathSegment::Index(i) => PathSegment::Index(*i),
                                     ValidatePathSegment::String(s) => {
-                                        PathSegment::String(Cow::from(s.clone()))
+                                        PathSegment::String(s.clone())
                                     }
                                 })
                                 .collect::<Vec<_>>()
