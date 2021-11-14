@@ -281,7 +281,7 @@ impl<D: Drainer> StageDrainTask<D> {
         }
     }
 
-    #[instrument("DEBUG", skip(self))]
+    #[instrument(level = "DEBUG", skip(self))]
     async fn try_drain(&mut self) -> Result<bool, Error> {
         let mut conn = self.db_pool.acquire().await?;
         let mut tx = conn.begin().await?;
