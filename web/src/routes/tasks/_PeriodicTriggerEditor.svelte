@@ -4,8 +4,13 @@
   import DangerButton from '$lib/components/DangerButton.svelte';
   import PlusIcon from '$lib/components/icons/Plus.svelte';
   import InlineEditTextField from '$lib/components/InlineEditTextField.svelte';
+  import initWasm from '$lib/wasm';
+  import { parse_schedule } from 'ergo-wasm';
 
   export let trigger: TaskTrigger;
+
+  let wasmLoaded = false;
+  initWasm().then(() => (wasmLoaded = true));
 
   function defaultNewItem() {
     return {
@@ -34,51 +39,73 @@
 
     newItem = defaultNewItem();
   }
+
+  function nextCron(schedule: string) {
+    if (!schedule) {
+      return '';
+    }
+
+    try {
+      let next = parse_schedule(schedule);
+      return next?.toISOString() ?? 'Never';
+    } catch (e) {
+      console.error(e);
+      let err = e as Error;
+      return err.message ?? err;
+    }
+  }
 </script>
 
-<div class="max-h-32 w-96 p-2">
-  <p class="text-lg">Periodic Triggers</p>
-  <header class="periodic-row mt-2 text-sm font-medium">
-    <span>Name</span>
-    <span />
-  </header>
-  <ul class="flex flex-col mt-2 space-y-2">
-    {#each periodic as { periodic, isNewItem }, i}
-      <li class="periodic-row">
-        <InlineEditTextField
-          bind:value={periodic.name}
-          placeholder={isNewItem ? 'New Trigger Name' : ''}
-        />
+{#if wasmLoaded}
+  <div class="max-h-32 w-[48rem] py-2 px-4">
+    <p class="text-lg">Periodic Triggers</p>
+    <header class="periodic-row mt-2 text-sm font-medium">
+      <span>Name</span>
+      <span>Schedule</span>
+      <span>Next Run</span>
+      <span />
+    </header>
+    <ul class="flex flex-col mt-2 space-y-2">
+      {#each periodic as { periodic, isNewItem }, i}
+        <li class="periodic-row">
+          <InlineEditTextField
+            bind:value={periodic.name}
+            placeholder={isNewItem ? 'New Schedule Name' : ''}
+          />
 
-        <span> Schedule goes here</span>
+          <InlineEditTextField bind:value={periodic.schedule.data} placeholder="Schedule" />
 
-        {#if isNewItem}
-          <Button
-            disabled={!periodic.schedule.data}
-            on:click={() => addItem(periodic)}
-            iconButton={true}
-          >
-            <PlusIcon />
-          </Button>
-        {:else}
-          <DangerButton on:click={() => deleteIndex(i)}>
-            <span slot="title"
-              >Delete Trigger <span class="text-gray-700 dark:text-gray-200 font-bold"
-                >{periodic.name}</span
-              ></span
+          <span class="text-sm">{nextCron(periodic.schedule.data)}</span>
+
+          {#if isNewItem}
+            <Button
+              disabled={!periodic.schedule.data}
+              on:click={() => addItem(periodic)}
+              iconButton={true}
             >
-          </DangerButton>
-        {/if}
-      </li>
-    {/each}
-  </ul>
-</div>
+              <PlusIcon />
+            </Button>
+          {:else}
+            <DangerButton on:click={() => deleteIndex(i)}>
+              <span slot="title"
+                >Delete Trigger <span class="text-gray-700 dark:text-gray-200 font-bold"
+                  >{periodic.name}</span
+                ></span
+              >
+            </DangerButton>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  </div>
+{/if}
 
 <style>
   .periodic-row {
     display: grid;
-    grid-template-rows: 1;
-    grid-template-columns: repeat(2, 1fr) auto;
+    grid-template-rows: auto;
+    grid-template-columns: repeat(2, 1fr) 16rem 2rem;
+    align-items: center;
     column-gap: 1em;
   }
 </style>

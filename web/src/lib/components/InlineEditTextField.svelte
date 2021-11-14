@@ -4,7 +4,7 @@
   import XIcon from '$lib/components/icons/X.svelte';
   import CheckIcon from '$lib/components/icons/Check.svelte';
 
-  const dispatch = createEventDispatcher<{ change: string }>();
+  const dispatch = createEventDispatcher<{ change: string; input: string }>();
 
   export let value: string;
   export let editing = false;
@@ -25,8 +25,11 @@
   let textField: HTMLInputElement;
   let currentInput = value;
   function handleInput(e: InputEvent) {
+    let currentValue = (e.currentTarget as HTMLInputElement)?.value ?? '';
+
+    dispatch('input', currentValue);
     if (validate && validateOn === 'input') {
-      error = validate((e.currentTarget as HTMLInputElement)?.value, value);
+      error = validate(currentValue, value);
     }
   }
 

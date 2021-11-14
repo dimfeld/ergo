@@ -131,7 +131,7 @@
       {/each}
     </select>
 
-    <Dropdown arrow={null}>
+    <Dropdown arrow={null} closeOnClickInside={false}>
       <div slot="button">
         <Button iconButton={true}>
           <div

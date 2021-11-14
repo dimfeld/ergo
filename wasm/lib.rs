@@ -4,7 +4,7 @@ use ergo_database::object_id::TaskTriggerId;
 use ergo_tasks::{
     actions::{Action, TaskAction},
     inputs::Input,
-    TaskConfig, TaskTrigger, ValidatePathSegment,
+    PeriodicSchedule, TaskConfig, TaskTrigger, ValidatePathSegment,
 };
 use fxhash::FxHashMap;
 use serde::Serialize;
@@ -150,4 +150,15 @@ impl TaskConfigValidator {
 #[wasm_bindgen]
 pub fn new_task_trigger_id() -> String {
     TaskTriggerId::new().to_string()
+}
+
+#[wasm_bindgen]
+pub fn parse_schedule(schedule: JsValue) -> Result<JsValue, JsValue> {
+    let schedule: String = serde_wasm_bindgen::from_value(schedule)?;
+    let next = PeriodicSchedule::Cron(schedule)
+        .next_run()
+        .map_err(|e| e.to_string())?;
+
+    let output = serde_wasm_bindgen::to_value(&next)?;
+    Ok(output)
 }
