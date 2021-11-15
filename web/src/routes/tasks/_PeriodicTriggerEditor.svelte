@@ -42,18 +42,20 @@
 
   function nextCron(schedule: string) {
     if (!schedule) {
-      return '';
+      return { valid: false, text: '' };
     }
 
     try {
       let next = parse_schedule(schedule);
-      return next?.toISOString() ?? 'Never';
+      return { valid: Boolean(next), text: next ?? 'Never' };
     } catch (e) {
       console.error(e);
       let err = e as Error;
-      return err.message ?? err;
+      return { valid: false, text: err.message ?? err };
     }
   }
+
+  let parsed = new WeakMap<object, string>();
 </script>
 
 {#if wasmLoaded}
@@ -61,7 +63,11 @@
     <p class="text-lg">Periodic Triggers</p>
     <header class="periodic-row mt-2 text-sm font-medium">
       <span>Name</span>
-      <span>Schedule</span>
+      <div>
+        <p>Schedule</p>
+        <p>S M H D M DOW [Year]</p>
+      </div>
+
       <span>Next Run</span>
       <span />
     </header>
@@ -73,9 +79,18 @@
             placeholder={isNewItem ? 'New Schedule Name' : ''}
           />
 
-          <InlineEditTextField bind:value={periodic.schedule.data} placeholder="Schedule" />
+          <InlineEditTextField
+            bind:value={periodic.schedule.data}
+            on:input={({ detail }) => {
+              parsed.set(periodic, nextCron(detail).text);
+              parsed = parsed;
+            }}
+            placeholder="Schedule"
+          />
 
-          <span class="text-sm">{nextCron(periodic.schedule.data)}</span>
+          <span class="text-sm"
+            >{parsed.get(periodic) ?? nextCron(periodic.schedule.data).text}</span
+          >
 
           {#if isNewItem}
             <Button
@@ -105,7 +120,14 @@
     display: grid;
     grid-template-rows: auto;
     grid-template-columns: repeat(2, 1fr) 16rem 2rem;
-    align-items: center;
     column-gap: 1em;
+  }
+
+  header.periodic-row {
+    align-items: end;
+  }
+
+  li.periodic-row {
+    align-items: center;
   }
 </style>
