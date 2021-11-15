@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { TaskTrigger } from '$lib/api_types';
+  import { PeriodicTaskTrigger, TaskTrigger } from '$lib/api_types';
   import Button from '$lib/components/Button.svelte';
   import DangerButton from '$lib/components/DangerButton.svelte';
   import PlusIcon from '$lib/components/icons/Plus.svelte';
@@ -30,11 +30,15 @@
     newItem,
   ];
 
-  function deleteIndex(i) {
+  function deleteIndex(i: number) {
+    if (!trigger.periodic) {
+      return;
+    }
+
     trigger.periodic = [...trigger.periodic.slice(0, i), ...trigger.periodic.slice(i + 1)];
   }
 
-  function addItem(p) {
+  function addItem(p: PeriodicTaskTrigger) {
     trigger.periodic = [...(trigger.periodic || []), p];
 
     newItem = defaultNewItem();
@@ -49,9 +53,8 @@
       let next = parse_schedule(schedule);
       return { valid: Boolean(next), text: next ?? 'Never' };
     } catch (e) {
-      console.error(e);
       let err = e as Error;
-      return { valid: false, text: err.message ?? err };
+      return { valid: false, text: 'Invalid Cron Pattern' };
     }
   }
 
