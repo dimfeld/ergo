@@ -8,7 +8,9 @@
 <ul class="space-y-4">
   {#each Array.from($inputs.values()) as input (input.input_id)}
     <li>
-      {input.name}
+      <p>
+        {input.name}{#if input.description} &mdash; {input.description}{/if}
+      </p>
       <ul class="ml-4">
         {#each Object.entries(input.payload_schema.properties) as [field, fieldType] (field)}
           <li>
