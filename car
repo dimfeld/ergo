@@ -1,6 +1,6 @@
 #!/bin/bash
 if [ `which mold` ]; then
-  RUSTC_FORCE_INCREMENTAL=1 mold -run cargo "$@"
+  mold -run cargo "$@"
 else
   cargo "$@"
 fi
