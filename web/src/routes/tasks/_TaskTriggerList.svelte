@@ -144,7 +144,7 @@
         </Button>
       </div>
 
-      <PeriodicTriggerEditor trigger={trigger.trigger} />
+      <PeriodicTriggerEditor bind:trigger={trigger.trigger} />
     </Dropdown>
 
     {#if trigger.isNewItem}

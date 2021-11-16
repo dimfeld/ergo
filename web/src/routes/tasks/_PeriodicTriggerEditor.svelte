@@ -5,17 +5,21 @@
   import PlusIcon from '$lib/components/icons/Plus.svelte';
   import InlineEditTextField from '$lib/components/InlineEditTextField.svelte';
   import initWasm from '$lib/wasm';
-  import { parse_schedule } from 'ergo-wasm';
+  import { parse_schedule, new_periodic_trigger_id } from 'ergo-wasm';
 
   export let trigger: TaskTrigger;
 
   let wasmLoaded = false;
-  initWasm().then(() => (wasmLoaded = true));
+  initWasm().then(() => {
+    newItem = defaultNewItem();
+    wasmLoaded = true;
+  });
 
   function defaultNewItem() {
     return {
       isNewItem: true,
       periodic: {
+        periodic_trigger_id: new_periodic_trigger_id(),
         name: '',
         payload: {},
         enabled: true,
@@ -24,11 +28,10 @@
     };
   }
 
-  let newItem = defaultNewItem();
-  $: periodic = [
-    ...(trigger.periodic ?? []).map((periodic) => ({ periodic, isNewItem: false })),
-    newItem,
-  ];
+  let newItem: ReturnType<typeof defaultNewItem>;
+  $: periodic = wasmLoaded
+    ? [...(trigger.periodic ?? []).map((periodic) => ({ periodic, isNewItem: false })), newItem]
+    : [];
 
   function deleteIndex(i: number) {
     if (!trigger.periodic) {
@@ -53,7 +56,6 @@
       let next = parse_schedule(schedule);
       return { valid: Boolean(next), text: next ?? 'Never' };
     } catch (e) {
-      let err = e as Error;
       return { valid: false, text: 'Invalid Cron Pattern' };
     }
   }
@@ -62,7 +64,7 @@
 </script>
 
 {#if wasmLoaded}
-  <div class="max-h-32 w-[48rem] py-2 px-4">
+  <div class="w-[48rem] py-2 px-4">
     <p class="text-lg">Periodic Triggers</p>
     <header class="periodic-row mt-2 text-sm font-medium">
       <span>Name</span>

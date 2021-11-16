@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use ergo_database::object_id::TaskTriggerId;
+use ergo_database::object_id::{PeriodicTriggerId, TaskTriggerId};
 use ergo_tasks::{
     actions::{Action, TaskAction},
     inputs::Input,
@@ -150,6 +150,11 @@ impl TaskConfigValidator {
 #[wasm_bindgen]
 pub fn new_task_trigger_id() -> String {
     TaskTriggerId::new().to_string()
+}
+
+#[wasm_bindgen]
+pub fn new_periodic_trigger_id() -> String {
+    PeriodicTriggerId::new().to_string()
 }
 
 #[wasm_bindgen]
