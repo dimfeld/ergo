@@ -9,7 +9,7 @@ export default {
       dedupe: ['svelte'],
       // Since some packages assume that "module" means Node :(
       alias: {
-        '^': path.resolve(process.cwd(), 'src'),
+        $lib: path.resolve(process.cwd(), 'src/lib'),
         svelte: path.resolve(process.cwd(), 'node_modules/svelte'),
       },
     },

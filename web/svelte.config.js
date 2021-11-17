@@ -24,6 +24,7 @@ const config = {
       sourceMap: true,
     }),
   ],
+  disableDependencyReinclusion: ['svench'],
   kit: {
     adapter: adapter({
       fallback: 'index.html',
@@ -37,6 +38,9 @@ const config = {
       },
       define: {
         'window.ERGO_API_KEY': `'${process.env.API_KEY}'`,
+      },
+      optimizeDeps: {
+        // exclude: ['svench'],
       },
       server: {
         fs: {

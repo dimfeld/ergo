@@ -31,6 +31,7 @@
     "@sveltejs/adapter-static": "~1.0.0-next.21",
     "@sveltejs/adapter-vercel": "~1.0.0-next.31",
     "@sveltejs/kit": "~1.0.0-next.195",
+    "@sveltejs/vite-plugin-svelte": "~1.0.0-next.30",
     "@tailwindcss/forms": "~0.3.4",
     "@testing-library/jest-dom": "^5.15.0",
     "@testing-library/svelte": "^3.0.3",
@@ -59,11 +60,13 @@
     "svelte-jester": "^1.8.2",
     "svelte-loader": "^3.1.2",
     "svelte-preprocess": "~4.9.8",
+    "svench": "~0.2.0-31",
     "tailwindcss": "~2.2.19",
     "tippy.js": "^6.3.7",
     "ts-jest": "^27.0.7",
     "ts-node": "^10.4.0",
-    "tslib": "^2.3.1"
+    "tslib": "^2.3.1",
+    "vite": "~2.6.14"
   },
   "type": "module",
   "dependencies": {
