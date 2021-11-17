@@ -3,6 +3,7 @@ import { Diagnostic } from '@codemirror/lint';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { SyntaxNode, Tree } from '@lezer/common';
+import { FileMap, injectTypes, setDiagnostics } from './typescript';
 
 // This is the same as CodeMirror's LintSource type but it's not currently exported.
 export type LintSource = (
@@ -197,7 +198,7 @@ export function nodeAtCursor(state: EditorState, cursorPos: number): SyntaxNode 
 
   // If we're in whitespace between nodes, `resolveInner` will match on the parent node of the children
   // the cursor is between, so find the actual closest node.
-  while (true) {
+  while (node) {
     let child = node.childBefore(cursorPos);
     if (!child) {
       break;
@@ -207,4 +208,9 @@ export function nodeAtCursor(state: EditorState, cursorPos: number): SyntaxNode 
   }
 
   return node;
+}
+
+export async function injectTsTypes(view: EditorView, types: FileMap) {
+  view.dispatch(injectTypes(types));
+  view.dispatch(await setDiagnostics(view.state));
 }

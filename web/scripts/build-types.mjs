@@ -1,6 +1,8 @@
-import glob from "fast-glob";
-import fs from "fs";
-import path from "path";
+// Taken from https://github.com/prisma/text-editors/blob/main/src/extensions/typescript/index.ts
+// which is licensed under Apache 2.0. This file is modified from the original version.
+import glob from 'fast-glob';
+import fs from 'fs';
+import path from 'path';
 
 // The goal of this build step is to generate two artifacts (per dependency):
 // 1. Metadata: version + file list of dependency (meta.js)
@@ -12,24 +14,27 @@ import path from "path";
 const dependencies = {
   // Core TS libs
   typescript: {
-    version: "4.3.5",
-    src: ["lib/*.d.ts"],
-  },
-  // Node lubs
-  "@types/node": {
-    version: "14", // Because this is the version of Node on Vercel
-    src: ["*.d.ts"],
+    version: '4.4.4',
+    src: ['lib/*.d.ts'],
   },
 };
 
-const DEST_ROOT = path.resolve("./src/extensions/typescript/types");
-const DISCLAIMER = "// This file was generated, do not edit manually\n\n";
+const DEST_ROOT = path.resolve('./src/lib/editors/typescript/types');
+const DISCLAIMER = '// This file was generated, do not edit manually\n\n';
 
 // Clean out the destination
-fs.rmdirSync(DEST_ROOT, { recursive: true, force: true });
+try {
+  fs.rmdirSync(DEST_ROOT, { recursive: true, force: true });
+} catch (e) {
+  console.dir(e);
+  if (e.code !== 'ENOENT') {
+    throw e;
+  }
+}
+
 fs.mkdirSync(DEST_ROOT, { recursive: true });
 
-console.log("Prebuilding types");
+console.log('Prebuilding types');
 
 for (const [dep, { version, src }] of Object.entries(dependencies)) {
   console.log(`Using ${dep} version: ${version}`);
@@ -39,7 +44,7 @@ for (const [dep, { version, src }] of Object.entries(dependencies)) {
 
   // Get a list of files in this dependency
   const files = await glob(
-    src.map(g => `./node_modules/${dep}/${g}`),
+    src.map((g) => `./node_modules/${dep}/${g}`),
     { absolute: true }
   );
 
@@ -51,12 +56,12 @@ for (const [dep, { version, src }] of Object.entries(dependencies)) {
   const metaStream = fs.createWriteStream(`${DEST_ROOT}/${dep}/meta.js`);
   metaStream.write(DISCLAIMER);
   metaStream.write(`export const version = "${version}"\n\n`);
-  metaStream.write("export const files = [");
-  files.forEach(f => {
+  metaStream.write('export const files = [');
+  files.forEach((f) => {
     const name = path.basename(f);
     metaStream.write(`\n  "${name}",`);
   });
-  metaStream.write("\n]\n");
+  metaStream.write('\n]\n');
   metaStream.end();
   // Generate typedefs so Vite can import it with types
   fs.writeFileSync(
@@ -68,14 +73,14 @@ for (const [dep, { version, src }] of Object.entries(dependencies)) {
   const dataStream = fs.createWriteStream(`${DEST_ROOT}/${dep}/data.js`);
   dataStream.write(DISCLAIMER);
   dataStream.write(`export const version = "${version}"\n\n`);
-  dataStream.write("export const files = {");
-  files.forEach(f => {
+  dataStream.write('export const files = {');
+  files.forEach((f) => {
     const name = path.basename(f);
-    const content = fs.readFileSync(path.resolve(f), "utf8");
+    const content = fs.readFileSync(path.resolve(f), 'utf8');
     dataStream.write(`\n"${name}": `);
     dataStream.write(`${JSON.stringify(content)},`);
   });
-  dataStream.write("\n}\n");
+  dataStream.write('\n}\n');
   dataStream.end();
   // Generate typedefs so Vite can import it with types
   fs.writeFileSync(

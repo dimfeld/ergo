@@ -50,6 +50,7 @@ specifiers:
   eslint-config-prettier: ^8.3.0
   eslint-plugin-svelte3: ^3.2.1
   fast-deep-equal: ~3.1.3
+  fast-glob: ~3.2.7
   jest: ^27.3.1
   jest-transform-css: ^2.1.0
   json-schema-to-typescript: ^10.1.5
@@ -148,6 +149,7 @@ devDependencies:
   eslint: 7.32.0
   eslint-config-prettier: 8.3.0_eslint@7.32.0
   eslint-plugin-svelte3: 3.2.1_eslint@7.32.0+svelte@3.44.1
+  fast-glob: 3.2.7
   jest: 27.3.1_ts-node@10.4.0
   jest-transform-css: 2.1.0_postcss@8.3.11
   json-schema-to-typescript: 10.1.5

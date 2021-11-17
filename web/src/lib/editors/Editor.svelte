@@ -33,16 +33,18 @@
   import Button from '$lib/components/Button.svelte';
 
   import { autocompleter, AutocompleteSpec } from './autocomplete';
-  import { LintSource } from './editor';
+  import { injectTsTypes, LintSource } from './editor';
   import { PanelConstructor, showPanel } from '@codemirror/panel';
   import { jsonSchemaSupport } from './json_schema';
   import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
+  import { FileMap, typescript } from './typescript';
 
   export let contents: string;
   export let format: 'js' | 'json' | 'json5';
   export let enableWrapping = true;
   export let notifyOnChange = false;
   export let jsonSchema: JSONSchema4 | JSONSchema6 | JSONSchema7 | undefined = undefined;
+  export let tsDefs: FileMap | undefined = undefined;
 
   export let linter: LintSource | undefined = undefined;
 
@@ -56,9 +58,9 @@
   const darkMode = darkModeStore();
 
   const languages = {
-    js: javascript,
-    json,
-    json5,
+    js: () => [javascript(), typescript()],
+    json: () => [json()],
+    json5: () => [json5()],
   };
 
   const linters = {
@@ -149,7 +151,7 @@
     ? showPanel.of(jsonSchemaComponents.panel)
     : null;
   $: languageComponents = [
-    languages[format](),
+    ...languages[format](),
     lintExtension,
     autocompleteExtension,
     jsonSchemaPanel,
@@ -160,6 +162,10 @@
   $: updateCompartment(lintCompartment, [lintExtension].filter(Boolean) as Extension[]);
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
   $: updateCompartment(theme, $darkMode ?? cssDarkModePreference() ? [oneDark] : []);
+
+  $: if (tsDefs) {
+    injectTsTypes(view, tsDefs);
+  }
 
   function editor(node: HTMLDivElement) {
     node.appendChild(view.dom);

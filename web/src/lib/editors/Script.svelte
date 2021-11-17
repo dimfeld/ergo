@@ -3,7 +3,11 @@
 
   import Editor from './Editor.svelte';
 
-  export let source: {} | null;
+  export let source: {
+    // TODO figure out the format for this
+    simulations: unknown[];
+    script: string;
+  } | null;
 
   export let compiled: {
     timeout: number | undefined;
@@ -19,12 +23,14 @@
         type: 'Js',
         data: {
           simulations: [],
+          script: s,
         },
       },
       compiled: {
         type: 'Js',
         data: {
           timeout: undefined,
+          // TODO Compile TS down to JS for "compiled"
           script: s,
         },
       },
@@ -32,4 +38,4 @@
   }
 </script>
 
-<Editor format="js" bind:view contents={compiled?.script ?? ''} />
+<Editor format="js" bind:view contents={compiled?.script ?? source?.script ?? ''} />

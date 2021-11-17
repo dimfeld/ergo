@@ -16,7 +16,8 @@
     "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --check --plugin-search-dir=. . && eslint --ignore-path .gitignore .",
     "format": "prettier --write --plugin-search-dir=. .",
-    "generate-api-types": "rimraf ../schemas/*.json && ../car run --release dev make-json-schema && node generate_api_types.js"
+    "generate-api-types": "rimraf ../schemas/*.json && ../car run --release dev make-json-schema && node generate_api_types.js",
+    "generate-ts-defs": "node scripts/build-types.mjs"
   },
   "pnpm": {
     "overrides": {
@@ -45,6 +46,7 @@
     "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-plugin-svelte3": "^3.2.1",
+    "fast-glob": "~3.2.7",
     "jest": "^27.3.1",
     "jest-transform-css": "^2.1.0",
     "json-schema-to-typescript": "^10.1.5",

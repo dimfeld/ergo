@@ -17,7 +17,7 @@ import {
 } from '@codemirror/state';
 import { hoverTooltip, Tooltip } from '@codemirror/tooltip';
 import { EditorView } from '@codemirror/view';
-import throttle from 'lodash/throttle';
+import throttle from 'just-throttle';
 import { DiagnosticCategory, displayPartsToString, flattenDiagnosticMessageText } from 'typescript';
 import { onChangeCallback } from '../change-callback';
 import { log } from './log';
