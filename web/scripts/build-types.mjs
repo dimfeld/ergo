@@ -26,7 +26,6 @@ const DISCLAIMER = '// This file was generated, do not edit manually\n\n';
 try {
   fs.rmdirSync(DEST_ROOT, { recursive: true, force: true });
 } catch (e) {
-  console.dir(e);
   if (e.code !== 'ENOENT') {
     throw e;
   }

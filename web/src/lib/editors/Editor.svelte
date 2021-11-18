@@ -57,15 +57,37 @@
 
   const darkMode = darkModeStore();
 
-  const languages = {
-    js: () => [javascript(), typescript()],
-    json: () => [json()],
-    json5: () => [json5()],
-  };
+  interface LanguageSupport {
+    extension: () => Extension;
+    linter?: () => LintSource;
+    autocomplete?: () => Extension;
+  }
 
-  const linters = {
-    json: jsonParseLinter,
-    json5: json5ParseLinter,
+  $: jsonSchemaComponents = jsonSchema ? jsonSchemaSupport(jsonSchema) : null;
+
+  function jsonSchemaAutocomplete() {
+    return autocompletion({
+      activateOnTyping: true,
+      override: [
+        autocompleter([jsonSchemaComponents?.autocomplete].filter(Boolean) as AutocompleteSpec[]),
+      ],
+    });
+  }
+
+  const languages: Record<string, LanguageSupport> = {
+    js: {
+      extension: typescript,
+    },
+    json: {
+      extension: json,
+      linter: jsonParseLinter,
+      autocomplete: jsonSchemaAutocomplete,
+    },
+    json5: {
+      extension: json5,
+      linter: json5ParseLinter,
+      autocomplete: jsonSchemaAutocomplete,
+    },
   };
 
   export const view = new EditorView({
@@ -136,24 +158,16 @@
     view.focus();
   }
 
-  $: activeLinter = linter ?? linters[format]?.();
+  $: activeLinter = linter ?? languages[format]?.linter?.();
   $: lintExtension = activeLinter ? makeLinter(activeLinter) : undefined;
 
-  $: jsonSchemaComponents = jsonSchema ? jsonSchemaSupport(jsonSchema) : null;
-
-  $: autocompleteExtension = autocompletion({
-    activateOnTyping: true,
-    override: [
-      autocompleter([jsonSchemaComponents?.autocomplete].filter(Boolean) as AutocompleteSpec[]),
-    ],
-  });
   $: jsonSchemaPanel = jsonSchemaComponents?.panel
     ? showPanel.of(jsonSchemaComponents.panel)
     : null;
   $: languageComponents = [
-    ...languages[format](),
+    languages[format].extension(),
     lintExtension,
-    autocompleteExtension,
+    languages[format].autocomplete?.(),
     jsonSchemaPanel,
   ].filter(Boolean) as Extension[];
 
@@ -163,9 +177,7 @@
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
   $: updateCompartment(theme, $darkMode ?? cssDarkModePreference() ? [oneDark] : []);
 
-  $: if (tsDefs) {
-    injectTsTypes(view, tsDefs);
-  }
+  $: injectTsTypes(view, tsDefs ?? {});
 
   function editor(node: HTMLDivElement) {
     node.appendChild(view.dom);

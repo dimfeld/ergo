@@ -80,6 +80,13 @@ const completionSource = async (ctx: CompletionContext): Promise<CompletionResul
       return null;
     }
 
+    let beforeDot = ctx.matchBefore(/\./);
+    if (beforeDot) {
+      // Force explicit to true if the user just typed a period, so that autocompletion
+      // will show up.
+      ctx = new CompletionContext(ctx.state, ctx.pos, true);
+    }
+
     return completeFromList(
       completions.entries.map((c, i) => ({
         type: c.kind,
