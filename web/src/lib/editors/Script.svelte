@@ -2,6 +2,7 @@
   import { EditorView } from '@codemirror/view';
 
   import Editor from './Editor.svelte';
+  import ergoTypeDefs from './types/TaskScript.d.ts?raw';
 
   export let source: {
     // TODO figure out the format for this
@@ -38,4 +39,9 @@
   }
 </script>
 
-<Editor format="js" bind:view contents={compiled?.script ?? source?.script ?? ''} />
+<Editor
+  format="js"
+  bind:view
+  contents={compiled?.script ?? source?.script ?? ''}
+  tsDefs={{ 'TaskScript.d.ts': ergoTypeDefs }}
+/>
