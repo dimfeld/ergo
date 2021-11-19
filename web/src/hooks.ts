@@ -6,8 +6,9 @@ const apiKey = process.env.API_KEY;
 export const handle: Handle = async ({ request, resolve }) => {
   if (!request.host && request.path.startsWith('/api')) {
     let url = apiServer + request.path;
-    if (request.query) {
-      url += '?' + request.query.toString();
+    let query = request.query.toString();
+    if (query) {
+      url += '?' + query;
     }
 
     let result = await fetch(url, {
