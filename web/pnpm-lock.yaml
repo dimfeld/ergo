@@ -55,6 +55,7 @@ specifiers:
   jest-transform-css: ^2.1.0
   json-schema-to-typescript: ^10.1.5
   json5: ~2.2.0
+  just-camel-case: ~6.0.1
   just-capitalize: ~3.0.0
   just-clone: ~5.0.0
   just-debounce-it: ~3.0.1
@@ -117,6 +118,7 @@ dependencies:
   ergo-wasm: link:../wasm/pkg
   fast-deep-equal: 3.1.3
   json5: 2.2.0
+  just-camel-case: 6.0.1
   just-capitalize: 3.0.0
   just-clone: 5.0.0
   just-debounce-it: 3.0.1
@@ -4441,6 +4443,10 @@ packages:
     optionalDependencies:
       graceful-fs: 4.2.8
     dev: true
+
+  /just-camel-case/6.0.1:
+    resolution: {integrity: sha512-cFuLe+LDw0sOLDiaftpasYMNe3g8X5BZbmJcr9GZ8nL8ViR5x6ML3KrAq1+nftFJ+lesSr1nZKsCNp8WcN8O8A==}
+    dev: false
 
   /just-capitalize/3.0.0:
     resolution: {integrity: sha512-fzsXFCxCtL/v89Xn9QYaLMXy+s+oqA4CW4EjRayoqPRK+8LfsVEsuDAl/tEs39VyggDTykB3YsG8Wy7gFO2tCQ==}

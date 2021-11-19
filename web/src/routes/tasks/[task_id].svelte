@@ -169,6 +169,8 @@
           bind:getState={getEditorState}
           source={task.source?.data}
           compiled={task.compiled?.data}
+          taskTriggers={task.triggers}
+          taskActions={task.actions}
           {validator}
         />
       </div>

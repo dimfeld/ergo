@@ -1,8 +1,12 @@
 <script lang="ts">
   import { EditorView } from '@codemirror/view';
+  import { TaskAction, TaskTrigger } from '../api_types';
+  import { baseData } from '../data';
+  import { scriptTypeDefinitions } from './types/task_script_definitions';
 
   import Editor from './Editor.svelte';
-  import ergoTypeDefs from './types/TaskScript.d.ts?raw';
+
+  let { actions, inputs } = baseData();
 
   export let source: {
     // TODO figure out the format for this
@@ -14,6 +18,16 @@
     timeout: number | undefined;
     script: string;
   } | null;
+
+  export let taskTriggers: Record<string, TaskTrigger>;
+  export let taskActions: Record<string, TaskAction>;
+
+  $: scriptTypeDefs = scriptTypeDefinitions({
+    taskTriggers,
+    taskActions,
+    actions: $actions,
+    inputs: $inputs,
+  });
 
   let view: EditorView;
   export function getState() {
@@ -43,5 +57,5 @@
   format="js"
   bind:view
   contents={compiled?.script ?? source?.script ?? ''}
-  tsDefs={{ 'TaskScript.d.ts': ergoTypeDefs }}
+  tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}
 />
