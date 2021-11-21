@@ -1,5 +1,6 @@
 <script lang="ts">
   import { portal } from 'svelte-portal';
+  import { focus } from 'focus-svelte';
   import { fade } from 'svelte/transition';
 
   type DIALOGINPUT = $$Generic;
@@ -39,7 +40,7 @@
       transition:fade={{ duration: 150 }}
       on:click={() => hide()}
     />
-    <div class="z-10">
+    <div class="z-10" use:focus={{ enabled: true }}>
       <slot finish={hide} data={showInput} />
     </div>
   </div>
