@@ -6,7 +6,7 @@
 
   const dispatch = createEventDispatcher<{ change: string; input: string }>();
 
-  export let value: string;
+  export let value: string | null | undefined;
   export let editing = false;
   export let placeholder: string | undefined = undefined;
   export let error: string | null | undefined = undefined;
@@ -23,13 +23,13 @@
   $: classNames = editing ? editingClasses : normalClasses;
 
   let textField: HTMLInputElement;
-  let currentInput = value;
+  let currentInput = value ?? '';
   function handleInput(e: InputEvent) {
     let currentValue = (e.currentTarget as HTMLInputElement)?.value ?? '';
 
     dispatch('input', currentValue);
     if (validate && validateOn === 'input') {
-      error = validate(currentValue, value);
+      error = validate(currentValue, value ?? '');
     }
   }
 
@@ -58,18 +58,18 @@
   function cancel() {
     editing = false;
     error = null;
-    currentInput = value;
+    currentInput = value ?? '';
   }
 
   function save() {
-    error = validate?.(currentInput, value);
+    error = validate?.(currentInput, value ?? '');
     if (error) {
       textField?.focus();
       return false;
     }
 
     editing = false;
-    if (value !== currentInput) {
+    if (value != currentInput) {
       value = currentInput;
       dispatch('change', value);
     }
