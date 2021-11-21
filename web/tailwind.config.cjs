@@ -13,6 +13,9 @@ const config = {
       fontFamily: {
         sans: ['Inter var', ...defaultTheme.fontFamily.sans],
       },
+      zIndex: {
+        1000: '1000'
+      }
     },
   },
   plugins: [formsPlugin],

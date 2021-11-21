@@ -78,6 +78,7 @@ specifiers:
   svelte-check: ^2.2.8
   svelte-jester: ^1.8.2
   svelte-loader: ^3.1.2
+  svelte-portal: ~2.1.2
   svelte-preprocess: ~4.9.8
   svench: ~0.2.0-31
   tailwindcss: ~2.2.19
@@ -130,6 +131,7 @@ dependencies:
   localforage: 1.10.0
   rfdc: 1.3.0
   sorters: 1.0.0
+  svelte-portal: 2.1.2
   typescript: 4.4.4
 
 devDependencies:
@@ -6274,6 +6276,10 @@ packages:
       svelte-dev-helper: 1.1.9
       svelte-hmr: 0.14.7_svelte@3.44.1
     dev: true
+
+  /svelte-portal/2.1.2:
+    resolution: {integrity: sha512-u1ONI4ZJDNhVJPDW7tH6RH1ZIzALt6kJZbF00Hz9bgNIVRlzvzimsnwf35rGFMtPFA+FYenvsTHUR815yYNc9A==}
+    dev: false
 
   /svelte-preprocess/4.9.8_c72c7611c8bc1e5dc409c0e06c0741ea:
     resolution: {integrity: sha512-EQS/oRZzMtYdAprppZxY3HcysKh11w54MgA63ybtL+TAZ4hVqYOnhw41JVJjWN9dhPnNjjLzvbZ2tMhTsla1Og==}
