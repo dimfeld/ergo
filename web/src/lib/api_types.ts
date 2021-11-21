@@ -231,6 +231,10 @@ export interface TaskInput {
 export interface TaskJsConfig {
   timeout?: number | null;
   script: string;
+  /**
+   * The source map for the compiled script
+   */
+  map?: string;
 }
 
 export interface TaskJsState {

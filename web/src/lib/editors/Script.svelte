@@ -3,9 +3,10 @@
   import { TaskAction, TaskTrigger } from '../api_types';
   import { baseData } from '../data';
   import { scriptTypeDefinitions } from './types/task_script_definitions';
-
+  import { logger } from '../logger';
   import Editor from './Editor.svelte';
 
+  const log = logger('script-editor', 'coral');
   let { actions, inputs } = baseData();
 
   export let source: {
@@ -29,6 +30,8 @@
     inputs: $inputs,
   });
 
+  $: log('generated script type definitions', scriptTypeDefs);
+
   let view: EditorView;
   export function getState() {
     // TODO Extra lint checks and validation once those are in place.
@@ -47,6 +50,7 @@
           timeout: undefined,
           // TODO Compile TS down to JS for "compiled"
           script: s,
+          map: null,
         },
       },
     };

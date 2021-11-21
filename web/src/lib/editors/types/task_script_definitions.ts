@@ -44,23 +44,26 @@ export function scriptTypeDefinitions({
     `;
   });
 
-  let inputPayloadTypes = Object.entries(taskTriggers).map(([localId, trigger]) => {
-    let inputFields =
-      Object.entries(inputs.get(trigger.input_id)?.payload_schema.properties ?? {})
-        .map(([fieldName, fieldInfo]) => {
-          // TODO Handle differences between JSON schema and Typescript types.
-          // Also handle nested objects.
-          return `${fieldName}: ${(fieldInfo as any).type};`;
-        })
-        .join('\n') || '[key: string]: any;';
+  let inputPayloadTypes =
+    Object.entries(taskTriggers)
+      .map(([localId, trigger]) => {
+        let inputFields =
+          Object.entries(inputs.get(trigger.input_id)?.payload_schema.properties ?? {})
+            .map(([fieldName, fieldInfo]) => {
+              // TODO Handle differences between JSON schema and Typescript types.
+              // Also handle nested objects.
+              return `${fieldName}: ${(fieldInfo as any).type};`;
+            })
+            .join('\n') || '[key: string]: any;';
 
-    return `{
-      trigger: '${camelCase(localId)}',
-      data: {
-        ${inputFields}
-      }
-    }`;
-  });
+        return `{
+        trigger: '${camelCase(localId)}',
+        data: {
+          ${inputFields}
+        }
+      }`;
+      })
+      .join('\n| ') || 'never';
 
   return `
 type InputPayload = ${inputPayloadTypes};

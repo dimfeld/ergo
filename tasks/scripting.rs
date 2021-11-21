@@ -12,6 +12,9 @@ pub mod immediate;
 pub struct TaskJsConfig {
     pub timeout: Option<usize>,
     pub script: String,
+    /// The source map for the compiled script
+    #[serde(default)]
+    pub map: String,
 }
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, Eq, PartialEq)]
