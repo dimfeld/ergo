@@ -34,7 +34,6 @@ fn build_snapshots() {
 
 fn build_js_helpers() {
     println!("cargo:rerun-if-changed=scripting/js_helpers");
-    println!("cargo:rerun-if-changed=scripting/task_helpers.js");
 
     let input_glob = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("scripting")
