@@ -1,0 +1,52 @@
+<script>
+  import { View } from 'svench';
+  import Modal from './Modal.svelte';
+  import Button from './Button.svelte';
+  import Card from './Card.svelte';
+
+  let modalInputValue = '';
+  let showModal;
+  let result = '';
+
+  async function doIt() {
+    let modalResult = await showModal(modalInputValue);
+    if (modalResult) {
+      result = modalResult;
+    }
+  }
+
+  function autofocus(node) {
+    node.focus();
+  }
+</script>
+
+<View name="Default">
+  <Modal bind:open={showModal} let:data let:close>
+    <Card class="bg-white">
+      <form
+        on:submit={(e) => {
+          e.preventDefault();
+          // Normally you would do something better here.
+          close(document.querySelector('#modal-text')?.value ?? '');
+        }}
+      >
+        <input id="modal-text" type="text" class="px-3 py-2" use:autofocus value={data} />
+        <div class="w-full flex justify-end mt-2 space-x-2">
+          <Button type="submit">OK</Button>
+          <Button on:click={() => close()}>Cancel</Button>
+        </div>
+      </form>
+    </Card>
+  </Modal>
+
+  <form
+    on:submit={(e) => {
+      e.preventDefault();
+      doIt();
+    }}
+  >
+    <p>Modal Input: <input type="text" bind:value={modalInputValue} /></p>
+    <p>Modal Result: {result}</p>
+    <p><Button type="submit">Show It!</Button></p>
+  </form>
+</View>

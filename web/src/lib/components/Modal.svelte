@@ -1,3 +1,10 @@
+<script context="module" lang="ts">
+  export type ModalOpener<DIALOGINPUT, DIALOGRESULT> = (
+    data: DIALOGINPUT
+  ) => Promise<DIALOGRESULT | undefined>;
+  export type ModalCloser<DIALOGRESULT> = (result?: DIALOGRESULT) => void;
+</script>
+
 <script lang="ts">
   import { portal } from 'svelte-portal';
   import { focus } from 'focus-svelte';
@@ -7,26 +14,48 @@
   type DIALOGRESULT = $$Generic;
 
   interface $$Slots {
-    default: { finish: (value?: DIALOGRESULT) => void; data: DIALOGINPUT };
+    default: { close: ModalCloser<DIALOGRESULT>; data: DIALOGINPUT };
+    backdrop: { close: ModalCloser<DIALOGRESULT> };
   }
 
-  let promiseResolve: ((value?: DIALOGRESULT) => void) | undefined;
-  let showInput: DIALOGINPUT;
+  export let backdrop = true;
+  export let closeOnEsc = true;
+  export let closeOnClickOutside = true;
 
-  export function show(data: DIALOGINPUT): Promise<DIALOGRESULT | undefined> {
+  let promiseResolve: ((value?: DIALOGRESULT) => void) | undefined;
+  let openInput: DIALOGINPUT;
+
+  export function open(data: DIALOGINPUT): Promise<DIALOGRESULT | undefined> {
     if (promiseResolve) {
       // Resolve any existing promise in case something else tries to open this modal while it's already open.
       promiseResolve();
     }
 
-    showInput = data;
+    openInput = data;
     let p = new Promise<DIALOGRESULT | undefined>((resolve) => (promiseResolve = resolve));
     return p;
   }
 
-  export function hide(value?: DIALOGRESULT) {
+  export function close(value?: DIALOGRESULT) {
     promiseResolve?.(value);
     promiseResolve = undefined;
+  }
+
+  function closeOnEscAction() {
+    if (!closeOnEsc) {
+      return {};
+    }
+
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (closeOnEsc && e.key === 'Escape') {
+        close();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeydown, { passive: true });
+    return {
+      destroy: () => document.removeEventListener('keydown', handleKeydown, { passive: true }),
+    };
   }
 </script>
 
@@ -35,13 +64,18 @@
     use:portal
     class="relative h-screen w-screen grid grid-cols-1 grid-rows-1 place-items-center z-1000"
   >
-    <div
-      class="absolute inset-0 bg-black bg-opacity-25"
-      transition:fade={{ duration: 150 }}
-      on:click={() => hide()}
-    />
-    <div class="z-10" use:focus={{ enabled: true }}>
-      <slot finish={hide} data={showInput} />
+    {#if backdrop}
+      <slot name="backdrop" {close}>
+        <div
+          class="absolute inset-0 bg-black bg-opacity-25"
+          in:fade={{ duration: 150 }}
+          out:fade={{ duration: 100 }}
+          on:click={() => closeOnClickOutside && close()}
+        />
+      </slot>
+    {/if}
+    <div class="z-10" use:closeOnEscAction use:focus={{ enabled: true }}>
+      <slot {close} data={openInput} />
     </div>
   </div>
 {/if}
