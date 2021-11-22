@@ -39,9 +39,6 @@ const config = {
       define: {
         'window.ERGO_API_KEY': `'${process.env.API_KEY}'`,
       },
-      optimizeDeps: {
-        // exclude: ['svench'],
-      },
       server: {
         fs: {
           allow: ['.', '../wasm/pkg'],

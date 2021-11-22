@@ -21,6 +21,7 @@
 
   export let target = 'body';
   export let backdrop = true;
+  export let trapFocus = true;
   export let closeOnEsc = true;
   export let closeOnClickOutside = true;
 
@@ -80,7 +81,7 @@
     {/if}
     <div
       use:closeOnEscAction
-      use:focus={{ enabled: true }}
+      use:focus={{ enabled: trapFocus }}
       class="z-10 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-400 shadow-xl"
     >
       <slot {close} data={openInput} />

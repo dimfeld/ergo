@@ -29,9 +29,11 @@
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
   import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
-  import type { TaskResult } from '$lib/api_types';
+  import type { TaskAction, TaskResult, TaskTrigger } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
+  import makeClone from 'rfdc';
+  const clone = makeClone();
 
   import ScriptEditor from '$lib/editors/Script.svelte';
   import StateMachineEditor from '$lib/editors/StateMachine.svelte';
@@ -39,6 +41,8 @@
   import apiClient from '$lib/api';
   import { TaskConfigValidator } from 'ergo-wasm';
   import initWasm from '$lib/wasm';
+  import Labelled from '../../lib/components/Labelled.svelte';
+  import Pencil from '../../lib/components/icons/Pencil.svelte';
 
   export let task: TaskResult = defaultTask();
 
@@ -131,6 +135,41 @@
     wasmLoaded = false;
     validator?.free();
   });
+
+  interface TaskActionEditorData {
+    taskActionId: string | null;
+    action: TaskAction;
+  }
+  let openTaskActionEditor: ModalOpener<TaskActionEditorData | undefined, TaskActionEditorData>;
+  async function editTaskAction(taskActionId: string | null) {
+    let result = await openTaskActionEditor({ taskActionId, action: task.actions[taskActionId] });
+    if (result) {
+      if (taskActionId && result.taskActionId !== taskActionId) {
+        delete task.actions[taskActionId];
+      }
+
+      task.actions[result.taskActionId] = result.action;
+    }
+  }
+
+  interface TaskTriggerEditorData {
+    taskTriggerId: string | null;
+    trigger: TaskTrigger;
+  }
+  let openTaskTriggerEditor: ModalOpener<TaskTriggerEditorData | undefined, TaskTriggerEditorData>;
+  async function editTaskTrigger(taskTriggerId: string | null) {
+    let result = await openTaskTriggerEditor({
+      taskTriggerId,
+      trigger: clone(task.triggers[taskTriggerId]),
+    });
+    if (result) {
+      if (taskTriggerId && result.taskTriggerId !== taskTriggerId) {
+        delete task.triggers[taskTriggerId];
+      }
+
+      task.triggers[result.taskTriggerId] = result.trigger;
+    }
+  }
 </script>
 
 <div class="flex flex-col flex-grow">
@@ -139,36 +178,70 @@
     <Button on:click={revert}>Revert</Button>
     <Button style="primary" on:click={save}>Save</Button>
   </section>
-  <Card class="mt-2 flex flex-col">
-    <div class="flex w-full justify-between">
-      <p class="text-sm">
+  <Card class="mt-2 flex flex-col space-y-4">
+    <div class="flex w-full justify-between space-x-4">
+      <Labelled label="Name" class="w-full"
+        ><input class="w-full" type="text" bind:value={task.name} /></Labelled
+      >
+      <Labelled label="Alias">
+        <input type="text" bind:value={task.alias} placeholder="None" />
+      </Labelled>
+    </div>
+    <Labelled label="Description"
+      ><input type="text" class="w-full" bind:value={task.description} /></Labelled
+    >
+    <div class="flex space-x-4 justify-between">
+      <p class="text-sm whitespace-nowrap">
         ID: <span class:text-gray-500={!task.task_id}>{task.task_id || 'New Task'}</span>
       </p>
-      <p>
-        <span class="font-medium text-sm text-gray-700 dark:text-gray-300">Alias</span>
-        <input type="text" bind:value={task.alias} placeholder="None" class="ml-2" />
-      </p>
+      <p class="text-sm">Modified {task.modified}</p>
     </div>
-    <p>Description: <input type="text" bind:value={task.description} /></p>
-    <p>Modified {task.modified}</p>
   </Card>
 
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Actions</p>
-    <TaskActionList
-      taskId={task.task_id}
-      bind:taskActions={task.actions}
-      on:change={() => (task.actions = task.actions)}
-    />
+
+    <div class="w-full task-item-list">
+      <span class="font-medium">Local ID</span>
+      <span class="font-medium">Description</span>
+      <span class="font-medium">Action Type</span>
+      <span />
+      {#each Object.entries(task.actions) as [taskActionId, taskAction] (taskActionId)}
+        <span>{taskActionId}</span>
+        <span>{taskAction.name}</span>
+        <span>{$actions.get(taskAction.action_id)?.name ?? 'Unknown'}</span>
+        <span
+          ><Button iconButton on:click={() => editTaskAction(taskActionId)}><Pencil /></Button
+          ></span
+        >
+      {/each}
+    </div>
+    <Modal bind:open={openTaskActionEditor} let:close let:data>
+      <!-- <TaskActionEditor actionId={data.actionId} action={data.action} {close} /> -->
+    </Modal>
   </Card>
 
   <Card class="mt-4 flex flex-col">
     <p class="section-header">Triggers</p>
-    <TaskTriggerList
-      taskId={task.task_id}
-      bind:triggers={task.triggers}
-      on:change={() => (task.triggers = task.triggers)}
-    />
+    <div class="w-full task-item-list">
+      <span class="font-medium">Trigger ID</span>
+      <span class="font-medium">Trigger Name</span>
+      <span class="font-medium">Input Type</span>
+      <span />
+
+      {#each Object.entries(task.triggers) as [taskTriggerId, trigger] (taskTriggerId)}
+        <span>{taskTriggerId}</span>
+        <span>{trigger.name}</span>
+        <span>{$inputs.get(trigger.input_id)?.name ?? 'Unknown'}</span>
+        <span
+          ><Button iconButton on:click={() => editTaskTrigger(taskTriggerId)}><Pencil /></Button
+          ></span
+        >
+      {/each}
+    </div>
+    <Modal bind:open={openTaskTriggerEditor} let:close let:data>
+      <!-- TaskTriggerEditor triggerId={data.triggerId} trigger={data.trigger} {close} /> -->
+    </Modal>
   </Card>
 
   <Card class="flex flex-col flex-grow mt-4 h-[64em]">
@@ -201,5 +274,11 @@
 <style lang="postcss">
   .section-header {
     @apply font-bold text-gray-700 dark:text-gray-300;
+  }
+
+  .task-item-list {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) auto;
+    gap: 0.5rem 1rem;
   }
 </style>

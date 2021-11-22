@@ -100,7 +100,7 @@
 
 <div id="task-actions">
   <span class="header">Local ID</span>
-  <span class="header">Local Action Name</span>
+  <span class="header">Description</span>
   <span class="header">Action Type</span>
   <span class="header" />
   {#each actionRows as action (action.localId)}
@@ -151,6 +151,6 @@
   }
 
   .header {
-    @apply font-medium text-gray-800 dark:text-gray-200 pb-2;
+    @apply font-medium text-gray-800 dark:text-gray-200;
   }
 </style>
