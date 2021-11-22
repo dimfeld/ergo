@@ -1,6 +1,13 @@
 @tailwind base;
 
 /* Write your global styles here, in PostCSS syntax */
+body {
+  @apply bg-gray-50 text-gray-900;
+}
+
+body.dark {
+  @apply bg-gray-900 text-gray-100;
+}
 
 select {
   @apply sm:text-sm dark:bg-gray-800 rounded-md focus:border-accent-500 focus:ring-accent-500 dark:border-gray-600;

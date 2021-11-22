@@ -54,6 +54,14 @@
 
   let headerTextList = createHeaderTextStore();
   $: titleText = $headerTextList.slice().reverse().join(' - ');
+
+  $: if (typeof document !== 'undefined') {
+    if (darkMode) {
+      document.body.classList.add('dark');
+    } else {
+      document.body.classList.remove('dark');
+    }
+  }
 </script>
 
 <svelte:head>
@@ -61,11 +69,7 @@
 </svelte:head>
 
 <QueryClientProvider client={queryClient}>
-  <div
-    id="top"
-    class:dark={darkMode}
-    class="min-h-screen overflow-y-auto overflow-x-hidden flex flex-col"
-  >
+  <div id="top" class="min-h-screen overflow-y-auto overflow-x-hidden flex flex-col">
     <Nav {section} />
     <header class="bg-white dark:bg-black shadow-sm">
       <div class="mx-auto py-4 px-4 sm:px-6 lg:px-8">
@@ -98,13 +102,3 @@
     </main>
   </div>
 </QueryClientProvider>
-
-<style lang="postcss">
-  #top {
-    @apply bg-gray-50 text-gray-900;
-  }
-
-  #top.dark {
-    @apply bg-gray-900 text-gray-100;
-  }
-</style>
