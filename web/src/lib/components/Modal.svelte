@@ -15,9 +15,11 @@
 
   interface $$Slots {
     default: { close: ModalCloser<DIALOGRESULT>; data: DIALOGINPUT };
+    opener: { open: ModalOpener<DIALOGINPUT, DIALOGRESULT> };
     backdrop: { close: ModalCloser<DIALOGRESULT> };
   }
 
+  export let target = 'body';
   export let backdrop = true;
   export let closeOnEsc = true;
   export let closeOnClickOutside = true;
@@ -59,22 +61,28 @@
   }
 </script>
 
+<slot name="opener" {open} />
+
 {#if promiseResolve}
   <div
-    use:portal
-    class="relative h-screen w-screen grid grid-cols-1 grid-rows-1 place-items-center z-1000"
+    use:portal={target}
+    class="absolute inset-0 h-screen w-screen grid grid-cols-1 grid-rows-1 place-items-center z-1000"
   >
     {#if backdrop}
       <slot name="backdrop" {close}>
         <div
-          class="absolute inset-0 bg-black bg-opacity-25"
+          class="absolute inset-0 bg-black bg-opacity-25 dark:bg-opacity-75"
           in:fade={{ duration: 150 }}
           out:fade={{ duration: 100 }}
           on:click={() => closeOnClickOutside && close()}
         />
       </slot>
     {/if}
-    <div class="z-10" use:closeOnEscAction use:focus={{ enabled: true }}>
+    <div
+      use:closeOnEscAction
+      use:focus={{ enabled: true }}
+      class="z-10 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-400 shadow-xl"
+    >
       <slot {close} data={openInput} />
     </div>
   </div>

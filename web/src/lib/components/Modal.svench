@@ -8,8 +8,9 @@
   let showModal;
   let result = '';
 
-  async function doIt() {
-    let modalResult = await showModal(modalInputValue);
+  async function doIt(opener) {
+    opener = opener ?? showModal;
+    let modalResult = await opener(modalInputValue);
     if (modalResult) {
       result = modalResult;
     }
@@ -20,23 +21,22 @@
   }
 </script>
 
-<View name="Default">
-  <Modal bind:open={showModal} let:data let:close>
-    <Card class="bg-white">
-      <form
-        on:submit={(e) => {
-          e.preventDefault();
-          // Normally you would do something better here.
-          close(document.querySelector('#modal-text')?.value ?? '');
-        }}
-      >
-        <input id="modal-text" type="text" class="px-3 py-2" use:autofocus value={data} />
-        <div class="w-full flex justify-end mt-2 space-x-2">
-          <Button type="submit">OK</Button>
-          <Button on:click={() => close()}>Cancel</Button>
-        </div>
-      </form>
-    </Card>
+<View name="External Opener">
+  <p>This version uses the exported open function to interact with the dialog.</p>
+  <Modal target="body" bind:open={showModal} let:data let:close>
+    <form
+      on:submit={(e) => {
+        e.preventDefault();
+        // Normally you would do something better here.
+        close(document.querySelector('#modal-text')?.value ?? '');
+      }}
+    >
+      <input id="modal-text" type="text" class="px-3 py-2" use:autofocus value={data} />
+      <div class="w-full flex justify-end mt-4 space-x-2">
+        <Button type="submit">OK</Button>
+        <Button on:click={() => close()}>Cancel</Button>
+      </div>
+    </form>
   </Modal>
 
   <form
@@ -49,4 +49,36 @@
     <p>Modal Result: {result}</p>
     <p><Button type="submit">Show It!</Button></p>
   </form>
+</View>
+
+<View name="Integrated Opener">
+  <p>This version puts the opening form inside the Modal and uses a slot.</p>
+  <Modal target="body" let:data let:close>
+    <form
+      slot="opener"
+      let:open
+      on:submit={(e) => {
+        e.preventDefault();
+        doIt(open);
+      }}
+    >
+      <p>Modal Input: <input type="text" bind:value={modalInputValue} /></p>
+      <p>Modal Result: {result}</p>
+      <p><Button type="submit">Show It!</Button></p>
+    </form>
+
+    <form
+      on:submit={(e) => {
+        e.preventDefault();
+        // Normally you would do something better here.
+        close(document.querySelector('#modal-text')?.value ?? '');
+      }}
+    >
+      <input id="modal-text" type="text" class="px-3 py-2" use:autofocus value={data} />
+      <div class="w-full flex justify-end mt-4 space-x-2">
+        <Button type="submit">OK</Button>
+        <Button on:click={() => close()}>Cancel</Button>
+      </div>
+    </form>
+  </Modal>
 </View>
