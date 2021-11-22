@@ -28,7 +28,7 @@
   import TaskActionList from './_TaskActionList.svelte';
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
-  import TextField from '$lib/components/TextField.svelte';
+  import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
   import type { TaskResult } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
@@ -103,8 +103,18 @@
   const headerText = getHeaderTextStore();
   $: headerText.set(['Tasks', task.name || 'New Task']);
 
-  function initializeSource(type: string) {
-    task.source = { type, data: null };
+  let showNewTaskDialog: ModalOpener<void, string>;
+  $: if (newTask && showNewTaskDialog && !task.source) {
+    initializeSource();
+  }
+
+  async function initializeSource() {
+    let type = await showNewTaskDialog();
+    if (type) {
+      task.source = { type, data: null };
+    } else {
+      goto('/tasks');
+    }
   }
 
   $: taskSource = task.source || task.compiled;
@@ -139,7 +149,7 @@
         <input type="text" bind:value={task.alias} placeholder="None" class="ml-2" />
       </p>
     </div>
-    <p>Description: {task.description || ''}</p>
+    <p>Description: <input type="text" bind:value={task.description} /></p>
     <p>Modified {task.modified}</p>
   </Card>
 
@@ -175,16 +185,18 @@
         />
       </div>
     {/if}
-    <p class="mt-4">
-      {#if taskSource}Change the task type{:else}Select a task type{/if}
-    </p>
-    <p class="flex space-x-2">
-      <Button on:click={() => initializeSource('StateMachine')}>State Machine</Button>
-      <Button on:click={() => initializeSource('Js')}>Script</Button>
-      <Button on:click={() => initializeSource('Flowchart')}>FlowChart</Button>
-    </p>
   </Card>
 </div>
+
+{#if newTask}
+  <Modal bind:open={showNewTaskDialog} let:close>
+    <p class="flex space-x-2">
+      <Button on:click={() => close('StateMachine')}>State Machine</Button>
+      <Button on:click={() => close('Js')}>Script</Button>
+      <Button on:click={() => close('Flowchart')}>FlowChart</Button>
+    </p>
+  </Modal>
+{/if}
 
 <style lang="postcss">
   .section-header {
