@@ -65,26 +65,29 @@
 <slot name="opener" {open} />
 
 {#if promiseResolve}
-  <div
-    use:portal={target}
-    class="absolute inset-0 h-screen w-screen grid grid-cols-1 grid-rows-1 place-items-center z-1000"
-  >
-    {#if backdrop}
-      <slot name="backdrop" {close}>
-        <div
-          class="absolute inset-0 bg-black bg-opacity-25 dark:bg-opacity-75"
-          in:fade={{ duration: 150 }}
-          out:fade={{ duration: 100 }}
-          on:click={() => closeOnClickOutside && close()}
-        />
-      </slot>
-    {/if}
+  <!-- Extra wrapping div to keep Svelte from erroring -->
+  <div class="hidden">
     <div
-      use:closeOnEscAction
-      use:focus={{ enabled: trapFocus }}
-      class="z-10 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-400 shadow-xl"
+      use:portal={target}
+      class="absolute inset-0 h-screen w-screen grid grid-cols-1 grid-rows-1 place-items-center z-1000"
     >
-      <slot {close} data={openInput} />
+      {#if backdrop}
+        <slot name="backdrop" {close}>
+          <div
+            class="absolute inset-0 bg-black bg-opacity-25 dark:bg-opacity-75"
+            in:fade={{ duration: 150 }}
+            out:fade={{ duration: 100 }}
+            on:click={() => closeOnClickOutside && close()}
+          />
+        </slot>
+      {/if}
+      <div
+        use:closeOnEscAction
+        use:focus={{ enabled: trapFocus }}
+        class="z-10 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-400 shadow-xl"
+      >
+        <slot {close} data={openInput} />
+      </div>
     </div>
   </div>
 {/if}
