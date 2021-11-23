@@ -12,9 +12,6 @@
   import { ModalCloser } from '$lib/components/Modal.svelte';
   import { baseData } from '$lib/data';
   import sorter from 'sorters';
-  import initWasm from '$lib/wasm';
-  import { parse_schedule, new_periodic_trigger_id } from 'ergo-wasm';
-  import Plus from '$lib/components/icons/Plus.svelte';
   import PeriodicTriggerEditor from './_PeriodicTriggerEditor.svelte';
 
   export let triggerId: string;
@@ -25,9 +22,6 @@
   let existingTriggerId = triggerId;
 
   let errorMessage: string | undefined = '';
-
-  let wasmLoaded = false;
-  initWasm().then(() => (wasmLoaded = true));
 
   function validateId() {
     if (triggerId === existingTriggerId) {
@@ -54,26 +48,13 @@
     }
   }
 
-  function nextCron(schedule: string) {
-    if (!schedule) {
-      return { valid: false, text: '' };
-    }
-
-    try {
-      let next = parse_schedule(schedule);
-      return { valid: Boolean(next), text: next ?? 'Never' };
-    } catch (e) {
-      return { valid: false, text: 'Invalid Cron Pattern' };
-    }
-  }
-
   const { inputs } = baseData();
   $: inputTypes = Array.from($inputs.values())
     .map((input) => ({ id: input.input_id, name: input.name }))
     .sort(sorter('name'));
 </script>
 
-<form class="w-full max-w-xl flex flex-col space-y-4" on:submit|preventDefault={handleSubmit}>
+<form class="w-full max-w-2xl flex flex-col space-y-4" on:submit|preventDefault={handleSubmit}>
   <div class="w-full flex space-x-4">
     <Labelled class="flex-1" label="Local ID"
       ><input class="w-full" type="text" bind:value={triggerId} /></Labelled
@@ -98,16 +79,3 @@
     <Button on:click={() => close()}>Cancel</Button>
   </div>
 </form>
-
-<style lang="postcss">
-  .periodic-row {
-    display: grid;
-    grid-template-rows: auto;
-    grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 1fr) 16rem auto;
-    column-gap: 1em;
-  }
-
-  header.periodic-row {
-    align-items: end;
-  }
-</style>

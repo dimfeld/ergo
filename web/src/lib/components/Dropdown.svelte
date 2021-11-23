@@ -5,6 +5,7 @@
   import Button from './Button.svelte';
   import { SvelteComponent } from 'svelte';
   import { showTippy, Position } from './tippy';
+  import { focus } from 'focus-svelte';
 
   export let open = false;
   export let disabled = false;
@@ -56,6 +57,7 @@
       on:click={clicked}
     >
       <div
+        use:focus={{ enabled: true }}
         class="py-2 rounded-md shadow-lg bg-white dark:bg-black ring-1 ring-black dark:ring-gray-200 ring-opacity-5 focus:outline-none"
       >
         <slot />

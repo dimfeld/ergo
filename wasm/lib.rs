@@ -162,7 +162,8 @@ pub fn parse_schedule(schedule: JsValue) -> Result<JsValue, JsValue> {
     let schedule: String = serde_wasm_bindgen::from_value(schedule)?;
     let next = PeriodicSchedule::Cron(schedule)
         .next_run()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())?
+        .map(|d| d.timestamp_millis());
 
     let output = serde_wasm_bindgen::to_value(&next)?;
     Ok(output)
