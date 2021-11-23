@@ -64,60 +64,55 @@
 </script>
 
 {#if wasmLoaded}
-  <div class="w-[48rem] py-2 px-4">
-    <p class="text-lg">Periodic Triggers</p>
-    <header class="periodic-row mt-2 text-sm font-medium">
-      <span>Name</span>
-      <div>
-        <p>Schedule</p>
-        <p>S M H D M DOW [Year]</p>
-      </div>
+  <header class="periodic-row mt-2 text-sm font-medium">
+    <span>Name</span>
+    <div>
+      <p>Schedule</p>
+      <p>S M H D M DOW [Year]</p>
+    </div>
 
-      <span>Next Run</span>
-      <span />
-    </header>
-    <ul class="flex flex-col mt-2 space-y-2">
-      {#each periodic as { periodic, isNewItem }, i}
-        <li class="periodic-row">
-          <InlineEditTextField
-            bind:value={periodic.name}
-            placeholder={isNewItem ? 'New Schedule Name' : ''}
-          />
+    <span>Next Run</span>
+    <span />
+  </header>
+  <ul class="flex flex-col mt-2 space-y-2">
+    {#each periodic as { periodic, isNewItem }, i}
+      <li class="periodic-row">
+        <InlineEditTextField
+          bind:value={periodic.name}
+          placeholder={isNewItem ? 'New Schedule Name' : ''}
+        />
 
-          <InlineEditTextField
-            bind:value={periodic.schedule.data}
-            on:input={({ detail }) => {
-              parsed.set(periodic, nextCron(detail).text);
-              parsed = parsed;
-            }}
-            placeholder="Schedule"
-          />
+        <InlineEditTextField
+          bind:value={periodic.schedule.data}
+          on:input={({ detail }) => {
+            parsed.set(periodic, nextCron(detail).text);
+            parsed = parsed;
+          }}
+          placeholder="Schedule"
+        />
 
-          <span class="text-sm"
-            >{parsed.get(periodic) ?? nextCron(periodic.schedule.data).text}</span
+        <span class="text-sm">{parsed.get(periodic) ?? nextCron(periodic.schedule.data).text}</span>
+
+        {#if isNewItem}
+          <Button
+            disabled={!periodic.schedule.data}
+            on:click={() => addItem(periodic)}
+            iconButton={true}
           >
-
-          {#if isNewItem}
-            <Button
-              disabled={!periodic.schedule.data}
-              on:click={() => addItem(periodic)}
-              iconButton={true}
+            <PlusIcon />
+          </Button>
+        {:else}
+          <DangerButton on:click={() => deleteIndex(i)}>
+            <span slot="title"
+              >Delete Trigger <span class="text-gray-700 dark:text-gray-200 font-bold"
+                >{periodic.name}</span
+              ></span
             >
-              <PlusIcon />
-            </Button>
-          {:else}
-            <DangerButton on:click={() => deleteIndex(i)}>
-              <span slot="title"
-                >Delete Trigger <span class="text-gray-700 dark:text-gray-200 font-bold"
-                  >{periodic.name}</span
-                ></span
-              >
-            </DangerButton>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-  </div>
+          </DangerButton>
+        {/if}
+      </li>
+    {/each}
+  </ul>
 {/if}
 
 <style>
