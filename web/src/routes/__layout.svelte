@@ -69,7 +69,7 @@
 </svelte:head>
 
 <QueryClientProvider client={queryClient}>
-  <div id="top" class="min-h-screen overflow-y-auto overflow-x-hidden flex flex-col">
+  <div id="top" class="h-screen overflow-y-auto overflow-x-hidden flex flex-col">
     <Nav {section} />
     <header class="bg-white dark:bg-black shadow-sm">
       <div class="mx-auto py-4 px-4 sm:px-6 lg:px-8">

@@ -11,6 +11,7 @@
   export let disabled = false;
   export let position: Position = 'bottom-end';
   export let label: string | undefined = undefined;
+  export let pad = true;
   export let arrow: typeof SvelteComponent | undefined | null | false = ChevronDown;
   export let closeOnClickInside = true;
 
@@ -58,7 +59,8 @@
     >
       <div
         use:focus={{ enabled: true }}
-        class="py-2 rounded-md shadow-lg bg-white dark:bg-black ring-1 ring-black dark:ring-gray-200 ring-opacity-5 focus:outline-none"
+        class:py-2={pad}
+        class="rounded-md shadow-lg bg-white dark:bg-black ring-1 ring-black dark:ring-gray-200 ring-opacity-5 focus:outline-none"
       >
         <slot />
       </div>

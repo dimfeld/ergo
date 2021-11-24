@@ -54,7 +54,7 @@
     .sort(sorter('name'));
 </script>
 
-<form class="w-full max-w-2xl flex flex-col space-y-4" on:submit|preventDefault={handleSubmit}>
+<form class="w-[40rem] flex flex-col space-y-4" on:submit|preventDefault={handleSubmit}>
   <div class="w-full flex space-x-4">
     <Labelled class="flex-1" label="Local ID"
       ><input class="w-full" type="text" bind:value={triggerId} /></Labelled
@@ -73,9 +73,9 @@
   <Labelled label="Schedules">
     <PeriodicTriggerEditor {trigger} />
   </Labelled>
-  <div class="flex space-x-4 items-center justify-end">
+  <div class="flex space-x-2 items-center justify-end">
     <span class="flex-1 text-red-500">{errorMessage ?? ''}</span>
-    <Button type="submit">OK</Button>
+    <Button style="primary" type="submit">OK</Button>
     <Button on:click={() => close()}>Cancel</Button>
   </div>
 </form>

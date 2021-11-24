@@ -44,7 +44,7 @@
     promiseResolve = undefined;
   }
 
-  function closeOnEscAction() {
+  function closeOnEscAction(_node: HTMLElement) {
     if (!closeOnEsc) {
       return {};
     }

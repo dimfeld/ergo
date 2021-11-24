@@ -3,10 +3,8 @@
   import Editor from './Editor.svelte';
   import zip from 'just-zip-it';
   import { objectLinter, ObjectLintResult } from './lint';
-  import prettier from 'prettier/standalone';
-  import prettierBabel from 'prettier/parser-babel';
   import { TaskConfigValidator } from 'ergo-wasm';
-
+  import { formatJson } from './format';
   import stateMachineSchema from '$lib/../../../schemas/state_machine.json';
   import { EditorView } from '@codemirror/view';
   import { json5ParseCache } from './codemirror-json5';
@@ -62,13 +60,6 @@
 
     return vals;
   };
-
-  function prettierFormat(s: object | string) {
-    return prettier.format(typeof s === 'string' ? s : JSON.stringify(s), {
-      parser: 'json5',
-      plugins: [prettierBabel],
-    });
-  }
 </script>
 
 <div class="flex flex-col space-y-4 h-full">
@@ -76,7 +67,7 @@
     <div class="flex-1">
       <Editor
         format="json5"
-        contents={source?.config || prettierFormat(compiled)}
+        contents={source?.config || formatJson(compiled)}
         linter={objectLinter(lint)}
         jsonSchema={stateMachineSchema}
         bind:view={editors[i]}

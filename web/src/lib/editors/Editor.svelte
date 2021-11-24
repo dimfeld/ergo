@@ -119,7 +119,7 @@
           ...commentKeymap,
           ...completionKeymap,
           ...lintKeymap,
-          indentWithTab,
+          // indentWithTab,
         ]),
       ],
     }),
