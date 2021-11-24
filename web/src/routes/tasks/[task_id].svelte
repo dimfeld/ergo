@@ -24,8 +24,6 @@
 <script lang="ts">
   import { goto, invalidate } from '$app/navigation';
   import { getStores, page } from '$app/stores';
-  import TaskTriggerList from './_TaskTriggerList.svelte';
-  import TaskActionList from './_TaskActionList.svelte';
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
   import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
@@ -44,6 +42,7 @@
   import Labelled from '../../lib/components/Labelled.svelte';
   import Pencil from '../../lib/components/icons/Pencil.svelte';
   import TaskTriggerEditor, { TaskTriggerEditorData } from './_TaskTriggerEditor.svelte';
+  import TaskActionEditor, { TaskActionEditorData } from './_TaskActionEditor.svelte';
 
   export let task: TaskResult = defaultTask();
 
@@ -137,11 +136,6 @@
     validator?.free();
   });
 
-  interface TaskActionEditorData {
-    taskActionId: string;
-    action: TaskAction;
-  }
-
   async function editTaskAction(
     showDialog: ModalOpener<Partial<TaskActionEditorData>, TaskActionEditorData>,
     taskActionId: string | undefined
@@ -223,7 +217,12 @@
               >
             </svelte:fragment>
 
-            <!-- <TaskActionEditor actionId={data.actionId} action={data.action} {close} /> -->
+            <TaskActionEditor
+              allActions={task.actions}
+              taskActionId={data.taskActionId}
+              action={data.action}
+              {close}
+            />
           </Modal>
         </span>
       {/each}
