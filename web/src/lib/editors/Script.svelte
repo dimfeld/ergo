@@ -50,7 +50,7 @@
           timeout: undefined,
           // TODO Compile TS down to JS for "compiled"
           script: s,
-          map: null,
+          map: '',
         },
       },
     };

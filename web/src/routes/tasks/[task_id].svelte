@@ -39,8 +39,8 @@
   import apiClient from '$lib/api';
   import { TaskConfigValidator } from 'ergo-wasm';
   import initWasm from '$lib/wasm';
-  import Labelled from '../../lib/components/Labelled.svelte';
-  import Pencil from '../../lib/components/icons/Pencil.svelte';
+  import Labelled from '$lib/components/Labelled.svelte';
+  import Pencil from '$lib/components/icons/Pencil.svelte';
   import TaskTriggerEditor, { TaskTriggerEditorData } from './_TaskTriggerEditor.svelte';
   import TaskActionEditor, { TaskActionEditorData } from './_TaskActionEditor.svelte';
 

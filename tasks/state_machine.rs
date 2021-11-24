@@ -174,6 +174,13 @@ impl StateMachine {
             }
         }
     }
+
+    pub fn default_state(&self) -> StateMachineData {
+        StateMachineData {
+            state: self.initial.to_string(),
+            context: serde_json::json!({}),
+        }
+    }
 }
 
 #[cfg(not(target_family = "wasm"))]

@@ -17,6 +17,14 @@ pub struct TaskJsConfig {
     pub map: String,
 }
 
+impl TaskJsConfig {
+    pub fn default_state(&self) -> TaskJsState {
+        TaskJsState {
+            context: "null".to_string(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, Eq, PartialEq)]
 pub struct TaskJsState {
     pub context: String,

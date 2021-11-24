@@ -219,7 +219,7 @@ export interface TaskInput {
   enabled: boolean;
   compiled: TaskConfig;
   source: any;
-  state: TaskState;
+  state?: TaskState | null;
   actions: {
     [k: string]: TaskActionInput;
   };

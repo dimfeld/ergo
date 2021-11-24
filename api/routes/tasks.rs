@@ -259,7 +259,7 @@ pub struct TaskInput {
     pub enabled: bool,
     pub compiled: TaskConfig,
     pub source: serde_json::Value,
-    pub state: TaskState,
+    pub state: Option<TaskState>,
     pub actions: FxHashMap<String, TaskActionInput>,
     pub triggers: FxHashMap<String, TaskTriggerInput>,
 }
@@ -289,7 +289,9 @@ async fn update_task(
     } = sqlx::query_as!(
         TaskUpdateResult,
         "UPDATE tasks SET
-        name=$2, description=$3, alias=$4, enabled=$5, state=$6, modified=now()
+        name=$2, description=$3, alias=$4, enabled=$5,
+        state=COALESCE($6, state),
+        modified=now()
         WHERE task_id=$1 AND org_id=$7 AND EXISTS (
             SELECT 1 FROM user_entity_permissions
             WHERE permissioned_object IN (uuid_nil(), tasks.task_id)
@@ -303,7 +305,7 @@ async fn update_task(
         payload.description as _,
         payload.alias as _,
         payload.enabled,
-        sqlx::types::Json(&payload.state) as _,
+        payload.state.as_ref().map(sqlx::types::Json) as _,
         auth.org_id().0,
         user_ids.as_slice()
     )
@@ -520,6 +522,10 @@ async fn new_task(
     let task_template_id = TaskTemplateId::new();
     let org_id = auth.org_id();
 
+    let task_state = payload
+        .state
+        .unwrap_or_else(|| payload.compiled.default_state());
+
     sqlx::query!(
         r##"
         INSERT INTO task_templates (task_template_id, task_template_version, org_id,
@@ -532,7 +538,7 @@ async fn new_task(
         payload.description,
         &payload.source,
         sqlx::types::Json(payload.compiled) as _,
-        sqlx::types::Json(&payload.state) as _
+        sqlx::types::Json(&task_state) as _
     )
     .execute(&mut tx)
     .await?;
@@ -549,7 +555,7 @@ async fn new_task(
         payload.description,
         payload.alias,
         payload.enabled,
-        sqlx::types::Json(&payload.state) as _
+        sqlx::types::Json(&task_state) as _
     )
     .execute(&mut tx)
     .await?;

@@ -59,6 +59,15 @@ impl TaskConfig {
             Err(TaskValidateErrors(errors))
         }
     }
+
+    pub fn default_state(&self) -> TaskState {
+        match self {
+            Self::StateMachine(config) => {
+                TaskState::StateMachine(config.iter().map(|s| s.default_state()).collect())
+            }
+            Self::Js(config) => TaskState::Js(config.default_state()),
+        }
+    }
 }
 
 #[derive(Debug, JsonSchema, Serialize, Deserialize)]
