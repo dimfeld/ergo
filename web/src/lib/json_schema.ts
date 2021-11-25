@@ -33,3 +33,5 @@ export function defaultFromJsonSchema(schema: JSONSchema4) {
 
   return output;
 }
+
+export const stringFormats = ['date-time', 'time', 'date', 'email', 'uuid', 'uri'];

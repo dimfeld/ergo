@@ -55,9 +55,9 @@
       }
     };
 
-    document.addEventListener('keydown', handleKeydown, { passive: true });
+    document.addEventListener('keyup', handleKeydown, { passive: true });
     return {
-      destroy: () => document.removeEventListener('keydown', handleKeydown, { passive: true }),
+      destroy: () => document.removeEventListener('keyup', handleKeydown, { passive: true }),
     };
   }
 </script>

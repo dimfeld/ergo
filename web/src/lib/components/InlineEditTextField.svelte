@@ -36,13 +36,19 @@
   function handleKeyUp(e: KeyboardEvent) {
     if (editing) {
       if (e.key === 'Escape') {
+        e.stopPropagation();
+        e.preventDefault();
         cancel();
       } else if (e.key === 'Enter') {
+        e.stopPropagation();
+        e.preventDefault();
         save();
       }
     } else {
       if (e.key === 'Enter') {
         startEditing();
+        e.stopPropagation();
+        e.preventDefault();
       }
     }
   }
@@ -86,6 +92,10 @@
   }
 
   let container: HTMLDivElement;
+
+  $: if (!editing) {
+    currentInput = value ?? '';
+  }
 </script>
 
 <div bind:this={container} class="relative" on:focusout={handleBlur}>

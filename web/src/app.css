@@ -19,5 +19,9 @@ textarea {
   @apply bg-white dark:bg-gray-800 focus:ring-accent-500 focus:border-accent-500 sm:text-sm rounded-md;
 }
 
+.label {
+  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+}
+
 @tailwind components;
 @tailwind utilities;
