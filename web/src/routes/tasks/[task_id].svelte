@@ -37,7 +37,7 @@
   import StateMachineEditor from '$lib/editors/StateMachine.svelte';
   import { baseData } from '$lib/data';
   import apiClient from '$lib/api';
-  import { TaskConfigValidator } from 'ergo-wasm';
+  import { new_task_trigger_id, TaskConfigValidator } from 'ergo-wasm';
   import initWasm from '$lib/wasm';
   import Labelled from '$lib/components/Labelled.svelte';
   import Pencil from '$lib/components/icons/Pencil.svelte';
@@ -136,13 +136,22 @@
     validator?.free();
   });
 
-  async function editTaskAction(
-    showDialog: ModalOpener<Partial<TaskActionEditorData>, TaskActionEditorData>,
-    taskActionId: string | undefined
-  ) {
-    let result = await showDialog({
+  function newTaskAction(): TaskAction {
+    return {
+      name: '',
+      task_id: task.task_id,
+      action_id: $actions.keys().next().value,
+      task_local_id: '',
+      account_id: null,
+      action_template: null,
+    };
+  }
+
+  let openTaskActionEditor: ModalOpener<Partial<TaskActionEditorData>, TaskActionEditorData>;
+  async function editTaskAction(taskActionId: string | undefined) {
+    let result = await openTaskActionEditor({
       taskActionId,
-      action: taskActionId ? task.actions[taskActionId] : undefined,
+      action: taskActionId ? task.actions[taskActionId] : newTaskAction(),
     });
     if (result) {
       if (taskActionId && result.taskActionId !== taskActionId) {
@@ -153,13 +162,22 @@
     }
   }
 
-  async function editTaskTrigger(
-    showDialog: ModalOpener<Partial<TaskTriggerEditorData>, TaskTriggerEditorData>,
-    triggerId: string | undefined
-  ) {
-    let result = await showDialog({
+  function newTaskTrigger(): TaskTrigger {
+    return {
+      task_id: task.task_id,
+      name: '',
+      input_id: $inputs.keys().next().value,
+      task_trigger_id: new_task_trigger_id(),
+      description: null,
+      periodic: null,
+    };
+  }
+
+  let openTaskTriggerEditor: ModalOpener<Partial<TaskTriggerEditorData>, TaskTriggerEditorData>;
+  async function editTaskTrigger(triggerId: string | undefined) {
+    let result = await openTaskTriggerEditor({
       triggerId,
-      trigger: triggerId ? clone(task.triggers[triggerId]) : undefined,
+      trigger: triggerId ? clone(task.triggers[triggerId]) : newTaskTrigger(),
     });
     if (result) {
       if (triggerId && result.triggerId !== triggerId) {
@@ -210,23 +228,23 @@
         <span>{taskAction.name}</span>
         <span>{$actions.get(taskAction.action_id)?.name ?? 'Unknown'}</span>
         <span>
-          <Modal let:close let:data>
-            <svelte:fragment slot="opener" let:open>
-              <Button iconButton on:click={() => editTaskAction(open, taskActionId)}
-                ><Pencil /></Button
-              >
-            </svelte:fragment>
-
-            <TaskActionEditor
-              allActions={task.actions}
-              taskActionId={data.taskActionId}
-              action={data.action}
-              {close}
-            />
-          </Modal>
+          <Button iconButton on:click={() => editTaskAction(taskActionId)}><Pencil /></Button>
         </span>
       {/each}
     </div>
+
+    <div class="items-start mt-2">
+      <Button on:click={() => editTaskAction(null)}>New Task Action</Button>
+    </div>
+
+    <Modal bind:open={openTaskActionEditor} let:close let:data>
+      <TaskActionEditor
+        allActions={task.actions}
+        taskActionId={data.taskActionId}
+        action={data.action}
+        {close}
+      />
+    </Modal>
   </Card>
 
   <Card class="mt-4 flex flex-col">
@@ -242,23 +260,23 @@
         <span>{trigger.name}</span>
         <span>{$inputs.get(trigger.input_id)?.name ?? 'Unknown'}</span>
         <span>
-          <Modal let:close let:data>
-            <svelte:fragment slot="opener" let:open>
-              <Button iconButton on:click={() => editTaskTrigger(open, taskTriggerId)}
-                ><Pencil /></Button
-              >
-            </svelte:fragment>
-
-            <TaskTriggerEditor
-              allTriggers={task.triggers}
-              triggerId={data.triggerId}
-              trigger={data.trigger}
-              {close}
-            />
-          </Modal>
+          <Button iconButton on:click={() => editTaskTrigger(taskTriggerId)}><Pencil /></Button>
         </span>
       {/each}
     </div>
+
+    <div class="items-start mt-2">
+      <Button on:click={() => editTaskTrigger(null)}>New Task Trigger</Button>
+    </div>
+
+    <Modal bind:open={openTaskTriggerEditor} let:close let:data>
+      <TaskTriggerEditor
+        allTriggers={task.triggers}
+        triggerId={data.triggerId}
+        trigger={data.trigger}
+        {close}
+      />
+    </Modal>
   </Card>
 
   <Card class="flex flex-col flex-grow mt-4 h-[64em]">
