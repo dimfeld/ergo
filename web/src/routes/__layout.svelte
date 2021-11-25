@@ -27,12 +27,15 @@
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
   import { Input, Action } from '$lib/api_types';
-  import { setBaseData } from '$lib/data';
+  import { initBaseData } from '$lib/data';
 
   export let inputs: Input[];
   export let actions: Action[];
 
-  setBaseData(inputs, actions);
+  const { inputs: inputStore, actions: actionStore } = initBaseData();
+
+  $: $inputStore = new Map(inputs.map((i) => [i.input_id, i]));
+  $: $actionStore = new Map(actions.map((a) => [a.action_id, a]));
 
   const apiClient = createApiClient();
   setApiClientContext(apiClient);

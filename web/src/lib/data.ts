@@ -9,14 +9,14 @@ export interface BaseData {
   actions: Writable<Map<string, Action>>;
 }
 
-export function setBaseData(inputs: Input[], actions: Action[]) {
-  let inputMap = new Map(inputs.map((i) => [i.input_id, i]));
-  let actionMap = new Map(actions.map((a) => [a.action_id, a]));
+export function initBaseData() {
+  let stores = {
+    inputs: writable(new Map()),
+    actions: writable(new Map()),
+  };
 
-  setContext(KEY, {
-    inputs: writable(inputMap),
-    actions: writable(actionMap),
-  });
+  setContext(KEY, stores);
+  return stores;
 }
 
 export function baseData(): BaseData {
