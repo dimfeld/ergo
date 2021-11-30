@@ -6,38 +6,17 @@
   import ActionEditor from './_ActionEditor.svelte';
   import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
   import { Action } from '$lib/api_types';
-  import { new_action_id } from 'ergo-wasm';
   import clone from 'just-clone';
   import apiClient from '$lib/api';
-  import { invalidate } from '$app/navigation';
+  import { goto, invalidate } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
   const { actions } = baseData();
 
   getHeaderTextStore().set(['Actions']);
 
-  function newAction(): Action {
-    return {
-      action_id: new_action_id(),
-      name: '',
-      executor_id: '',
-      template_fields: [],
-      executor_template: { t: 'Template', c: [] },
-      account_required: false,
-      action_category_id: undefined, // TODO
-    };
-  }
-
-  const api = apiClient();
   let openDialog: ModalOpener<Action, Action>;
   async function editAction(action: Action | undefined) {
-    let result = await openDialog(action ? clone(action) : newAction());
-    if (result) {
-      await api.put(`api/actions/${result.action_id}`, {
-        json: result,
-      });
-
-      invalidate('/api/inputs');
-    }
+    goto(`/actions/${action?.action_id ?? 'new'}`);
   }
 </script>
 

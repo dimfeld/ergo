@@ -113,6 +113,11 @@ export interface EventHandler {
   actions?: ActionInvokeDef[] | null;
 }
 
+export interface ExecutorInfo {
+  name: string;
+  template_fields: TemplateFields;
+}
+
 export interface Input {
   input_id: String;
   input_category_id?: String | null;

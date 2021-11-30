@@ -8,12 +8,35 @@ use ergo_database::{
     object_id::{ActionCategoryId, ActionId},
     sql_insert_parameters,
 };
-use ergo_tasks::actions::{execute::ScriptOrTemplate, template::TemplateFields, Action};
+use ergo_tasks::actions::{
+    execute::{ScriptOrTemplate, EXECUTOR_REGISTRY},
+    template::TemplateFields,
+    Action,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::Connection;
 
 use crate::{error::Result, web_app_server::AppStateData};
+
+#[derive(Serialize, Clone, Debug, JsonSchema)]
+pub struct ExecutorInfo<'a> {
+    pub name: &'a str,
+    pub template_fields: &'a TemplateFields,
+}
+
+#[get("/executors")]
+pub async fn list_executors() -> Result<impl Responder> {
+    let info = EXECUTOR_REGISTRY
+        .iter()
+        .map(|(_, exec)| ExecutorInfo {
+            name: exec.name(),
+            template_fields: exec.template_fields(),
+        })
+        .collect::<Vec<_>>();
+
+    Ok(HttpResponse::Ok().json(info))
+}
 
 #[get("/actions")]
 pub async fn list_actions(data: AppStateData) -> Result<impl Responder> {
@@ -219,5 +242,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
     cfg.service(list_actions)
         .service(new_action)
         .service(write_action)
-        .service(delete_action);
+        .service(delete_action)
+        .service(list_executors);
 }

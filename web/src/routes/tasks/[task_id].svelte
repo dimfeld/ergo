@@ -214,9 +214,7 @@
     </div>
   </Card>
 
-  <Card class="mt-4 flex flex-col">
-    <p class="section-header">Actions</p>
-
+  <Card class="mt-4 flex flex-col" label="Actions">
     <div class="w-full task-item-list">
       <span class="font-medium">Local ID</span>
       <span class="font-medium">Description</span>
@@ -246,8 +244,7 @@
     </Modal>
   </Card>
 
-  <Card class="mt-4 flex flex-col">
-    <p class="section-header">Triggers</p>
+  <Card class="mt-4 flex flex-col" label="Triggers">
     <div class="w-full task-item-list">
       <span class="font-medium">Trigger ID</span>
       <span class="font-medium">Trigger Name</span>
@@ -306,10 +303,6 @@
 {/if}
 
 <style lang="postcss">
-  .section-header {
-    @apply font-bold text-gray-700 dark:text-gray-300;
-  }
-
   .task-item-list {
     display: grid;
     grid-template-columns: repeat(3, 1fr) auto;

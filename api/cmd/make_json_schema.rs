@@ -1,4 +1,5 @@
 use crate::routes::{
+    actions::ExecutorInfo,
     inputs::InputPayload,
     tasks::{InputsLogEntry, TaskDescription, TaskInput, TaskResult},
 };
@@ -35,6 +36,9 @@ pub fn main() -> crate::error::Result<()> {
             return Err(e.into());
         }
     }
+
+    let schema = schema_for!(ExecutorInfo);
+    write(&dir, "executor_info", &schema)?;
 
     let schema = schema_for!(TaskDescription);
     write(&dir, "task_description", &schema)?;

@@ -6,15 +6,12 @@
   import Card from '$lib/components/Card.svelte';
   import Modal, { ModalCloser, ModalOpener } from '$lib/components/Modal.svelte';
   import { new_input_id } from 'ergo-wasm';
-  import initWasm from '$lib/wasm';
   import { baseData } from '$lib/data';
   import { getHeaderTextStore } from '$lib/header';
   import clone from 'just-clone';
   import InputEditor from './_InputEditor.svelte';
   const { inputs } = baseData();
   getHeaderTextStore().set(['Inputs']);
-
-  initWasm();
 
   const api = apiClient();
   let openDialog: ModalOpener<Input | undefined, Input>;

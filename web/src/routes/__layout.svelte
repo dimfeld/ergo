@@ -1,18 +1,32 @@
 <script context="module" lang="ts">
   import { createApiClient, loadFetch } from '$lib/api';
   import type { Load } from '@sveltejs/kit';
+  import initWasm from '$lib/wasm';
 
   export const load: Load = async function load({ fetch }) {
+    await initWasm();
     fetch = loadFetch(fetch);
-    let [inputs, actions] = await Promise.all([
-      fetch('/api/inputs').then((r) => r.json()),
-      fetch('/api/actions').then((r) => r.json()),
-    ]);
+    let [inputList, actionList, executorList]: [Input[], Action[], ExecutorInfo[]] =
+      await Promise.all([
+        fetch('/api/inputs').then((r) => r.json()),
+        fetch('/api/actions').then((r) => r.json()),
+        fetch('/api/executors').then((r) => r.json()),
+      ]);
+
+    let inputs = new Map(inputList.map((i) => [i.input_id, i]));
+    let actions = new Map(actionList.map((a) => [a.action_id, a]));
+    let executors = new Map(executorList.map((e) => [e.name, e]));
 
     return {
       props: {
         inputs,
         actions,
+        executors,
+      },
+      stuff: {
+        inputs,
+        actions,
+        executors,
       },
     };
   };
@@ -26,16 +40,18 @@
   import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import { Input, Action } from '$lib/api_types';
+  import { Input, Action, ExecutorInfo } from '$lib/api_types';
   import { initBaseData } from '$lib/data';
 
-  export let inputs: Input[];
-  export let actions: Action[];
+  export let inputs: Map<string, Input>;
+  export let actions: Map<string, Action>;
+  export let executors: Map<string, ExecutorInfo>;
 
-  const { inputs: inputStore, actions: actionStore } = initBaseData();
+  const { inputs: inputStore, actions: actionStore, executors: executorStore } = initBaseData();
 
-  $: $inputStore = new Map(inputs.map((i) => [i.input_id, i]));
-  $: $actionStore = new Map(actions.map((a) => [a.action_id, a]));
+  $: $inputStore = inputs;
+  $: $actionStore = actions;
+  $: $executorStore = executors;
 
   const apiClient = createApiClient();
   setApiClientContext(apiClient);
