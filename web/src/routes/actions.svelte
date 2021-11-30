@@ -2,60 +2,104 @@
   import { baseData } from '$lib/data';
   import { getHeaderTextStore } from '$lib/header';
   import Card from '$lib/components/Card.svelte';
+  import Labelled from '$lib/components/Labelled.svelte';
+  import ActionEditor from './_ActionEditor.svelte';
+  import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
+  import { Action } from '$lib/api_types';
+  import { new_action_id } from 'ergo-wasm';
+  import clone from 'just-clone';
+  import apiClient from '$lib/api';
+  import { invalidate } from '$app/navigation';
+  import Button from '$lib/components/Button.svelte';
   const { actions } = baseData();
+
   getHeaderTextStore().set(['Actions']);
+
+  function newAction(): Action {
+    return {
+      action_id: new_action_id(),
+      name: '',
+      executor_id: '',
+      template_fields: [],
+      executor_template: { t: 'Template', c: [] },
+      account_required: false,
+      action_category_id: undefined, // TODO
+    };
+  }
+
+  const api = apiClient();
+  let openDialog: ModalOpener<Action, Action>;
+  async function editAction(action: Action | undefined) {
+    let result = await openDialog(action ? clone(action) : newAction());
+    if (result) {
+      await api.put(`api/actions/${result.action_id}`, {
+        json: result,
+      });
+
+      invalidate('/api/inputs');
+    }
+  }
 </script>
 
 <ul class="space-y-4">
   {#each Array.from($actions.values()) as action (action.action_id)}
     <li>
-      <Card>
-        <p>
-          <span class="font-medium text-gray-800 dark:text-gray-200">{action.name}</span>
-          {#if action.description} &mdash; {action.description}{/if}
-        </p>
-        <div class="ml-4">
-          <p />
-          <p>{action.executor_id}</p>
-          <div>
-            <p>Action Inputs</p>
-            <ul class="ml-4">
-              {#each action.template_fields as templateField}
-                <li>
-                  {templateField.name} &mdash;
-                  {JSON.stringify(templateField.format)}
-                </li>
-              {/each}
-            </ul>
-          </div>
-          <div>
-            <p>Executor Template</p>
-            {#if action.executor_template.t === 'Template'}
-              <ul class="ml-4">
-                {#each action.executor_template.c as [field, value] (field)}
-                  <li>{field} &mdash; {JSON.stringify(value)}</li>
-                {/each}
-              </ul>
-            {:else if action.executor_template.t === 'Script'}
-              <code><pre>{action.executor_template.c}</pre></code>
+      <Card class="flex">
+        <div>
+          <p>
+            <span class="font-medium text-gray-800 dark:text-gray-200">{action.name}</span>
+            {#if action.description} &mdash; {action.description}{/if}
+          </p>
+          <div class="ml-4">
+            <p />
+            <p><span class="font-medium">Executor:</span> {action.executor_id}</p>
+            {#if action.timeout}
+              <p>Timeout: {action.timeout} seconds</p>
+            {/if}
+            <div>
+              <Labelled label="Action Inputs">
+                <ul class="ml-4">
+                  {#each action.template_fields as templateField}
+                    <li>
+                      {templateField.name} &mdash;
+                      {JSON.stringify(templateField.format)}
+                    </li>
+                  {/each}
+                </ul>
+              </Labelled>
+            </div>
+            <div>
+              <Labelled label="Executor Template">
+                {#if action.executor_template.t === 'Template'}
+                  <ul class="ml-4">
+                    {#each action.executor_template.c as [field, value] (field)}
+                      <li>{field} &mdash; {JSON.stringify(value)}</li>
+                    {/each}
+                  </ul>
+                {:else if action.executor_template.t === 'Script'}
+                  <code><pre>{action.executor_template.c}</pre></code>
+                {/if}
+              </Labelled>
+            </div>
+            {#if action.account_types?.length}
+              <p>
+                Account Types{#if action.account_required}
+                  (required){/if}:{action.account_types.join(', ')}
+              </p>
+            {/if}
+            {#if action.postprocess_script}
+              <Labelled label="Postprocessing Script">
+                <code><pre class="whitespace-pre-wrap">{action.postprocess_script}</pre></code>
+              </Labelled>
             {/if}
           </div>
-          {#if action.account_types?.length}
-            <p>
-              Account Types{#if action.account_required} (required){/if}:{action.account_types.join(
-                ', '
-              )}
-            </p>
-          {/if}
-          {#if action.timeout}
-            <p>Timeout: {action.timeout} seconds</p>
-          {/if}
-          {#if action.postprocess_script}
-            <p>Postprocessing Script</p>
-            <code><pre class="whitespace-pre-wrap">{action.postprocess_script}</pre></code>
-          {/if}
         </div>
+        <Button class="ml-auto self-start" on:click={() => editAction(action)}>Edit</Button>
       </Card>
     </li>
   {/each}
 </ul>
+
+<Modal bind:open={openDialog} let:data let:close>
+  <ActionEditor {close} {data} />
+</Modal>

@@ -30,8 +30,7 @@
   import type { TaskAction, TaskResult, TaskTrigger } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
-  import makeClone from 'rfdc';
-  const clone = makeClone();
+  import clone from 'just-clone';
 
   import ScriptEditor from '$lib/editors/Script.svelte';
   import StateMachineEditor from '$lib/editors/StateMachine.svelte';
@@ -234,7 +233,7 @@
     </div>
 
     <div class="items-start mt-2">
-      <Button on:click={() => editTaskAction(null)}>New Task Action</Button>
+      <Button on:click={() => editTaskAction(undefined)}>New Task Action</Button>
     </div>
 
     <Modal bind:open={openTaskActionEditor} let:close let:data>

@@ -57,20 +57,20 @@
     <ul class="mt-2 flex flex-col space-y-4">
       {#each Object.entries(data.payload_schema.properties) as [field, fieldType] (field)}
         <li class="flex space-x-4">
-          <div class="w-1/2">
+          <div class="w-1/3">
             <InlineEditTextField
               value={field}
               validate={validateKey}
               on:change={({ detail }) => updateKey(detail, field)}
             />
           </div>
-          <select class="w-1/2" bind:value={fieldType.type}>
+          <select class="w-1/3" bind:value={fieldType.type}>
             {#each fieldTypes as type}
               <option>{type}</option>
             {/each}
           </select>
           <select
-            class="w-1/2"
+            class="w-1/3"
             disabled={fieldType.type !== 'string'}
             bind:value={fieldType.format}
           >
@@ -82,7 +82,7 @@
         </li>
       {/each}
       <li class="flex space-x-4">
-        <div class="w-1/2">
+        <div class="w-1/3">
           <InlineEditTextField
             bind:value={newFieldName}
             validate={validateKey}
@@ -96,12 +96,12 @@
             }}
           />
         </div>
-        <select class="w-1/2" bind:value={newFieldType}>
+        <select class="w-1/3" bind:value={newFieldType}>
           {#each fieldTypes as type}
             <option>{type}</option>
           {/each}
         </select>
-        <select class="w-1/2" disabled={newFieldType !== 'string'} bind:value={newFieldFormat}>
+        <select class="w-1/3" disabled={newFieldType !== 'string'} bind:value={newFieldFormat}>
           <option value={undefined}>Any</option>
           {#each stringFormats as format}
             <option>{format}</option>
