@@ -36,6 +36,7 @@
 
 <script lang="ts">
   import Button from '$lib/components/Button.svelte';
+  import Checkbox from '$lib/components/Checkbox.svelte';
   import Labelled from '$lib/components/Labelled.svelte';
   import { ModalCloser } from '$lib/components/Modal.svelte';
   import { baseData } from '$lib/data';
@@ -132,9 +133,7 @@
     </ul>
   </Card>
   <Card label="Accounts">
-    <label class="label"
-      ><input type="checkbox" bind:checked={action.account_required} /> Account Required?</label
-    >
+    <Checkbox bind:value={action.account_required} label="Account Required?" />
     <!-- account types -->
   </Card>
   <Card label="Postprocessing" class="relative">
