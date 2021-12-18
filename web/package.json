@@ -19,20 +19,12 @@
     "generate-api-types": "rimraf ../schemas/*.json && ../car run --release dev make-json-schema && node generate_api_types.js",
     "generate-ts-defs": "node scripts/build-types.mjs"
   },
-  "pnpm": {
-    "overrides": {
-      "broadcast-channel": "github:dimfeld/broadcast-channel"
-    }
-  },
-  "resolutions": {
-    "broadcast-channel": "github:dimfeld/broadcast-channel"
-  },
   "devDependencies": {
     "@babel/core": "^7.16.0",
-    "@sveltejs/adapter-static": "~1.0.0-next.21",
-    "@sveltejs/adapter-vercel": "~1.0.0-next.31",
-    "@sveltejs/kit": "~1.0.0-next.195",
-    "@sveltejs/vite-plugin-svelte": "~1.0.0-next.30",
+    "@sveltejs/adapter-static": "~1.0.0-next.22",
+    "@sveltejs/adapter-vercel": "~1.0.0-next.32",
+    "@sveltejs/kit": "~1.0.0-next.202",
+    "@sveltejs/vite-plugin-svelte": "~1.0.0-next.32",
     "@tailwindcss/forms": "~0.4.0",
     "@testing-library/jest-dom": "^5.15.0",
     "@testing-library/svelte": "^3.0.3",
@@ -41,6 +33,7 @@
     "@typescript-eslint/parser": "^4.33.0",
     "autoprefixer": "^10.4.0",
     "babel-loader": "^8.2.3",
+    "broadcast-channel": "~4.8.0",
     "cssnano": "^5.0.10",
     "dotenv": "~10.0.0",
     "eslint": "^7.32.0",
@@ -61,40 +54,40 @@
     "svelte-check": "^2.2.8",
     "svelte-jester": "^1.8.2",
     "svelte-loader": "^3.1.2",
-    "svelte-preprocess": "~4.9.8",
+    "svelte-preprocess": "~4.10.1",
     "svench": "~0.2.0-31",
     "tailwindcss": "~3.0.7",
     "tippy.js": "^6.3.7",
     "ts-jest": "^27.0.7",
     "ts-node": "^10.4.0",
     "tslib": "^2.3.1",
-    "vite": "~2.6.14"
+    "vite": "~2.7.3"
   },
   "type": "module",
   "dependencies": {
-    "@codemirror/autocomplete": "~0.19.5",
+    "@codemirror/autocomplete": "~0.19.9",
     "@codemirror/closebrackets": "~0.19.0",
-    "@codemirror/commands": "~0.19.5",
+    "@codemirror/commands": "~0.19.6",
     "@codemirror/comment": "~0.19.0",
-    "@codemirror/gutter": "~0.19.4",
+    "@codemirror/gutter": "~0.19.9",
     "@codemirror/highlight": "~0.19.6",
     "@codemirror/history": "~0.19.0",
-    "@codemirror/lang-javascript": "~0.19.2",
+    "@codemirror/lang-javascript": "~0.19.3",
     "@codemirror/lang-json": "~0.19.1",
-    "@codemirror/language": "~0.19.3",
+    "@codemirror/language": "~0.19.7",
     "@codemirror/lint": "~0.19.3",
     "@codemirror/matchbrackets": "~0.19.3",
-    "@codemirror/panel": "~0.19.0",
-    "@codemirror/rangeset": "~0.19.1",
-    "@codemirror/search": "~0.19.2",
-    "@codemirror/state": "~0.19.4",
+    "@codemirror/panel": "~0.19.1",
+    "@codemirror/rangeset": "~0.19.4",
+    "@codemirror/search": "~0.19.5",
+    "@codemirror/state": "~0.19.6",
     "@codemirror/text": "~0.19.5",
     "@codemirror/theme-one-dark": "~0.19.1",
-    "@codemirror/tooltip": "~0.19.6",
-    "@codemirror/view": "~0.19.15",
+    "@codemirror/tooltip": "~0.19.10",
+    "@codemirror/view": "~0.19.34",
     "@lezer/common": "~0.15.8",
     "@popperjs/core": "^2.10.2",
-    "@sveltestack/svelte-query": "~1.4.1",
+    "@sveltestack/svelte-query": "~1.5.0",
     "@typescript/vfs": "~1.3.5",
     "ajv": "~8.7.1",
     "date-fns": "~2.25.0",
@@ -114,7 +107,7 @@
     "localforage": "~1.10.0",
     "sorters": "~1.0.0",
     "svelte-portal": "~2.1.2",
-    "typescript": "^4.4.4"
+    "typescript": "^4.5.4"
   },
   "jest": {
     "setupFilesAfterEnv": [
