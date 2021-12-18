@@ -44,6 +44,8 @@
   import { getHeaderTextStore } from '$lib/header';
   import { goto, invalidate } from '$app/navigation';
   import Card from '$lib/components/Card.svelte';
+  import Editor from '$lib/editors/Editor.svelte';
+  import { EditorView } from '@codemirror/view';
 
   export let action: Action;
 
@@ -57,6 +59,7 @@
 
   $: executor = $executors.get(action.executor_id);
 
+  let postprocessContents: () => string;
   let actionCategories = {}; // TODO
 
   async function handleSubmit() {
@@ -65,18 +68,19 @@
       return;
     }
 
+    action.postprocess_script = postprocessContents();
+
     if (action.action_id) {
+      await api.put(`/api/actions/${action.action_id}`, {
+        json: action,
+      });
+    } else {
       let result = await api
-        .post('api/actions', {
+        .post(`/api/actions`, {
           json: action,
         })
         .json<Action>();
-
       goto(`/actions/${result.action_id}`, { replaceState: true, noscroll: true, keepfocus: true });
-    } else {
-      await api.put(`api/actions/${action.action_id}`, {
-        json: action,
-      });
     }
 
     invalidate(`/api/actions`);
@@ -138,6 +142,12 @@
   </Card>
   <Card label="Postprocessing" class="relative">
     <!-- postprocess script -->
-    <textarea class="mt-2 w-full h-48" bind:value={action.postprocess_script} />
+    <div class="mt-2 w-full flex flex-col min-h-[12rem] max-h-[32rem]">
+      <Editor
+        format="js"
+        bind:getContents={postprocessContents}
+        contents={action.postprocess_script || ''}
+      />
+    </div>
   </Card>
 </form>
