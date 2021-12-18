@@ -36,7 +36,7 @@
   import StateMachineEditor from '$lib/editors/StateMachine.svelte';
   import { baseData } from '$lib/data';
   import apiClient from '$lib/api';
-  import { new_task_trigger_id, TaskConfigValidator } from 'ergo-wasm';
+  import { new_task_id, new_task_trigger_id, TaskConfigValidator } from 'ergo-wasm';
   import initWasm from '$lib/wasm';
   import Labelled from '$lib/components/Labelled.svelte';
   import Pencil from '$lib/components/icons/Pencil.svelte';
@@ -53,6 +53,10 @@
   const { page } = getStores();
   const { inputs, actions } = baseData();
   const client = apiClient();
+
+  function taskId() {
+    return task.task_id || new_task_id();
+  }
 
   function defaultTask(): TaskResult {
     let created = new Date().toISOString();
@@ -96,7 +100,17 @@
 
     if (newTask) {
       let result = await client.post(`/api/tasks`, { json: task }).json<{ task_id: string }>();
+
+      // Update all the tasks IDs with the new one.
       task.task_id = result.task_id;
+      for (let trigger of Object.values(task.triggers)) {
+        trigger.task_id = result.task_id;
+      }
+
+      for (let action of Object.values(task.actions)) {
+        action.task_id = result.task_id;
+      }
+
       goto(result.task_id, { replaceState: true, noscroll: true, keepfocus: true });
     } else {
       await client.put(`/api/tasks/${$page.params.task_id}`, { json: task });
@@ -138,7 +152,7 @@
   function newTaskAction(): TaskAction {
     return {
       name: '',
-      task_id: task.task_id,
+      task_id: taskId(),
       action_id: $actions.keys().next().value,
       task_local_id: '',
       account_id: null,
@@ -163,7 +177,7 @@
 
   function newTaskTrigger(): TaskTrigger {
     return {
-      task_id: task.task_id,
+      task_id: taskId(),
       name: '',
       input_id: $inputs.keys().next().value,
       task_trigger_id: new_task_trigger_id(),
