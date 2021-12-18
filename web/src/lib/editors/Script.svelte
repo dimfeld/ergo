@@ -58,7 +58,7 @@
 </script>
 
 <Editor
-  format="js"
+  format="ts"
   bind:view
   contents={compiled?.script ?? source?.script ?? ''}
   tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}

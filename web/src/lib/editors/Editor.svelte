@@ -40,7 +40,7 @@
   import { FileMap, typescript } from './typescript';
 
   export let contents: string;
-  export let format: 'js' | 'json' | 'json5';
+  export let format: 'js' | 'ts' | 'json' | 'json5';
   export let enableWrapping = true;
   export let notifyOnChange = false;
   export let jsonSchema: JSONSchema4 | JSONSchema6 | JSONSchema7 | undefined = undefined;
@@ -61,6 +61,7 @@
     extension: () => Extension;
     linter?: () => LintSource;
     autocomplete?: () => Extension;
+    prettierParser: string;
   }
 
   $: jsonSchemaComponents = jsonSchema ? jsonSchemaSupport(jsonSchema) : null;
@@ -77,18 +78,29 @@
   const languages: Record<string, LanguageSupport> = {
     js: {
       extension: typescript,
+      prettierParser: 'babel',
+    },
+    ts: {
+      extension: typescript,
+      prettierParser: 'babel-ts',
     },
     json: {
       extension: json,
       linter: jsonParseLinter,
       autocomplete: jsonSchemaAutocomplete,
+      prettierParser: 'json',
     },
     json5: {
       extension: json5,
       linter: json5ParseLinter,
       autocomplete: jsonSchemaAutocomplete,
+      prettierParser: 'json5',
     },
   };
+
+  export function getContents() {
+    return view.state.doc.toString();
+  }
 
   export const view = new EditorView({
     state: EditorState.create({
@@ -147,7 +159,7 @@
     let currentCursor = view.state.selection.ranges[view.state.selection.mainIndex].to;
     let newText = prettier.formatWithCursor(view.state.doc.toString(), {
       cursorOffset: currentCursor,
-      parser: format,
+      parser: languages[format].prettierParser,
       plugins: [prettierBabel],
     });
 
@@ -187,14 +199,14 @@
   }
 </script>
 
-<div class="editor h-full flex flex-col">
+<div class="editor h-full min-h-0 flex flex-col">
   <div class="py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
     <div class="ml-auto flex flex-row space-x-4 items-center">
       <Button size="xs" on:click={runPrettier}>Format</Button>
       <label><input type="checkbox" bind:checked={enableWrapping} /> Wrap</label>
     </div>
   </div>
-  <div class="flex-grow" use:editor />
+  <div class="min-h-0 flex-1 flex flex-col" use:editor />
   <slot />
 </div>
 
@@ -204,6 +216,7 @@
   }
 
   .editor :global(.cm-editor) {
+    min-height: 0;
     height: 100%;
   }
 </style>
