@@ -35,6 +35,9 @@ const config = {
       define: {
         'window.ERGO_API_KEY': `'${process.env.API_KEY}'`,
       },
+      ssr: {
+        noExternal: ['ergo-wasm', 'sorters'],
+      },
       server: {
         fs: {
           allow: ['.', '../wasm/pkg'],
