@@ -2,9 +2,12 @@
   import { createApiClient, loadFetch } from '$lib/api';
   import type { Load } from '@sveltejs/kit';
   import initWasm from '$lib/wasm';
+  import { browser } from '$app/env';
 
   export const load: Load = async function load({ fetch }) {
-    await initWasm();
+    if (browser) {
+      await initWasm();
+    }
     fetch = loadFetch(fetch);
     let [inputList, actionList, executorList]: [Input[], Action[], ExecutorInfo[]] =
       await Promise.all([
