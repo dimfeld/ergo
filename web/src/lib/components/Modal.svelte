@@ -6,7 +6,7 @@
 </script>
 
 <script lang="ts">
-  import { portal } from 'svelte-portal';
+  import { portal } from 'svelte-portal/src/Portal.svelte';
   import { focus } from 'focus-svelte';
   import { fade } from 'svelte/transition';
 

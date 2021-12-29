@@ -1,6 +1,6 @@
 // Taken from https://github.com/prisma/text-editors/blob/main/src/extensions/typescript/tsfs.ts
 // which is licensed under Apache 2.0.
-import localforage from 'localforage';
+import * as localforage from 'localforage';
 import { log } from './log';
 
 type LibName = 'typescript';

@@ -38,6 +38,9 @@ const config = {
       ssr: {
         noExternal: ['ergo-wasm', 'sorters'],
       },
+      optimizeDeps: {
+        include: ['rollup'],
+      },
       server: {
         fs: {
           allow: ['.', '../wasm/pkg'],
