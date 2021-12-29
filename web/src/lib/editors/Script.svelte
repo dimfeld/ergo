@@ -5,6 +5,8 @@
   import { scriptTypeDefinitions } from './types/task_script_definitions';
   import { logger } from '../logger';
   import Editor from './Editor.svelte';
+  import { Bundler } from '$lib/bundler';
+  import { onDestroy } from 'svelte';
 
   const log = logger('script-editor', 'coral');
   let { actions, inputs } = baseData();
@@ -23,6 +25,9 @@
   export let taskTriggers: Record<string, TaskTrigger>;
   export let taskActions: Record<string, TaskAction>;
 
+  const bundler = new Bundler();
+  onDestroy(() => bundler.destroy());
+
   $: scriptTypeDefs = scriptTypeDefinitions({
     taskTriggers,
     taskActions,
@@ -33,9 +38,21 @@
   $: log('generated script type definitions', scriptTypeDefs);
 
   let view: EditorView;
-  export function getState() {
+  export async function getState() {
     // TODO Extra lint checks and validation once those are in place.
     let s = view.state.doc.toString();
+
+    let bundle = await bundler.bundle({
+      production: true,
+      files: {
+        'index.ts': s,
+      },
+    });
+
+    if (bundle.error) {
+      throw bundle.error;
+    }
+
     return {
       source: {
         type: 'Js',
@@ -48,9 +65,8 @@
         type: 'Js',
         data: {
           timeout: undefined,
-          // TODO Compile TS down to JS for "compiled"
-          script: s,
-          map: '',
+          script: bundle.code,
+          map: bundle.map,
         },
       },
     };

@@ -1,5 +1,5 @@
-import type { BundlerWorkerMessage } from './worker';
 import { SourceMap } from 'rollup';
+import type { BundlerWorkerMessage } from './worker';
 import Worker from './worker?worker';
 
 export interface BundleJob {
@@ -29,18 +29,27 @@ interface JobData {
   reject: (e: Error) => void;
 }
 
+let worker: Worker | undefined;
+let clients = new Set<Bundler>();
+let lastJobId = 0;
+
 export class Bundler {
-  worker: Worker;
-  lastJobId = 0;
   activeJobs = new Map<number, JobData>();
+  handler;
 
   constructor() {
-    this.worker = new Worker();
-    this.worker.onmessage = (e) => this._handleMessage(e);
+    clients.add(this);
+    if (!worker) {
+      worker = new Worker();
+    }
+
+    // Save the handler reference so we can remove it later.
+    this.handler = (e: MessageEvent<Result>) => this._handleMessage(e);
+    worker.addEventListener('message', this.handler);
   }
 
   bundle(job: BundleJob, abort?: AbortSignal): Promise<Result> {
-    let jobId = this.lastJobId++;
+    let jobId = lastJobId++;
     if (abort) {
       abort.addEventListener('abort', () => this._cancel(jobId));
     }
@@ -65,8 +74,18 @@ export class Bundler {
     this._postMessage({ type: 'clear_cache' });
   }
 
+  destroy() {
+    clients.delete(this);
+    this.activeJobs.clear();
+    worker?.removeEventListener('message', this.handler);
+    if (!clients.size && worker) {
+      worker.terminate();
+      worker = undefined;
+    }
+  }
+
   _postMessage(message: BundlerWorkerMessage) {
-    this.worker.postMessage(message);
+    worker?.postMessage(message);
   }
 
   _handleMessage(e: MessageEvent<Result>) {
