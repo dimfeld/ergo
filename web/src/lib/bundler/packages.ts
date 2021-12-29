@@ -16,7 +16,7 @@ export function clearCache() {
 
 const UNPKG = 'https://unpkg.com/';
 
-function getOrFetch(jobId: string, url: string) {
+function getOrFetch(jobId: number, url: string) {
   let cached = fetchCache.get(url);
   if (cached) {
     return cached;
@@ -49,7 +49,7 @@ function getOrFetch(jobId: string, url: string) {
   return promise;
 }
 
-export default function (jobId: string, packagesUrl: string = UNPKG): Plugin {
+export default function (jobId: number, packagesUrl: string = UNPKG): Plugin {
   return {
     name: 'packages',
     async resolveId(source) {

@@ -3,9 +3,9 @@ import typescript from '@rollup/plugin-typescript';
 import virtual from '@rollup/plugin-virtual';
 import replace from '@rollup/plugin-replace';
 import resolvePackages from './packages';
-import { JobData, Result } from './worker';
+import { BundleJob, Result } from './worker';
 
-export default async function bundle(job: JobData): Promise<Result> {
+export default async function bundle(job: BundleJob): Promise<Result> {
   let input = 'index.ts' in job.files ? 'index.ts' : Object.keys(job.files)[0];
 
   let files = Object.fromEntries(

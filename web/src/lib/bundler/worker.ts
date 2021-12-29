@@ -1,14 +1,8 @@
-import { SourceMap } from 'rollup';
+import { AbortError, BundleJob, Result } from './index';
 import bundle from './bundle';
 import { clearCache } from './packages';
 
-export interface JobData {
-  jobId: string;
-  files: Record<string, string>;
-  production?: boolean;
-}
-
-export const activeJobs = new Set<string>();
+export const activeJobs = new Set<number>();
 
 export function abortedError(message = 'aborted') {
   let e = new Error(message);
@@ -16,9 +10,7 @@ export function abortedError(message = 'aborted') {
   return e;
 }
 
-export type AbortError = Error & { aborted: true };
-
-export function checkActiveJob(jobId: string) {
+export function checkActiveJob(jobId: number) {
   if (!activeJobs.has(jobId)) {
     throw abortedError();
   }
@@ -30,30 +22,15 @@ export interface ClearCacheMessage {
 
 export interface BundleMessage {
   type: 'bundle';
-  data: JobData;
+  data: { jobId: number } & BundleJob;
 }
 
 export interface CancelMessage {
   type: 'cancel';
-  data: { jobId: string };
+  data: { jobId: number };
 }
 
 export type BundlerWorkerMessage = ClearCacheMessage | BundleMessage | CancelMessage;
-
-export interface BundleResult {
-  jobId: string;
-  code: string;
-  map?: SourceMap;
-  warnings: string[];
-  error: null;
-}
-
-export interface ErrorResult {
-  jobId: string;
-  error: Error | AbortError;
-}
-
-export type Result = BundleResult | ErrorResult;
 
 function cloneableError(e: Error) {
   if (!e) {
@@ -87,7 +64,8 @@ self.addEventListener('message', async (event: MessageEvent<BundlerWorkerMessage
       activeJobs.delete(event.data.data.jobId);
       break;
     case 'bundle': {
-      let { jobId } = event.data.data;
+      let job = event.data.data;
+      let { jobId } = job;
       try {
         activeJobs.add(jobId);
         let result = await bundle(event.data.data);
@@ -95,9 +73,9 @@ self.addEventListener('message', async (event: MessageEvent<BundlerWorkerMessage
           return;
         }
 
-        postMessage(cloneableResult(result));
+        self.postMessage(cloneableResult(result));
       } catch (e: unknown) {
-        postMessage({ jobId, error: e });
+        self.postMessage({ jobId, error: e });
       } finally {
         activeJobs.delete(jobId);
       }
