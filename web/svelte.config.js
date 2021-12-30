@@ -16,11 +16,7 @@ const config = {
   preprocess: [
     preprocess({
       postcss: postcssConfig,
-      typescript: {
-        compilerOptions: {
-          target: 'es2021',
-        },
-      },
+      typescript: true,
       sourceMap: true,
     }),
   ],

@@ -5,7 +5,7 @@ import {
   createVirtualTypeScriptEnvironment,
   VirtualTypeScriptEnvironment,
 } from '@typescript/vfs';
-import * as typescript from 'typescript';
+import typescript from 'typescript';
 import { log } from './log';
 import { TSFS } from './tsfs';
 

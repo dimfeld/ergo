@@ -1,13 +1,11 @@
 import * as rollup from 'rollup';
-import * as ts from 'typescript';
-import * as path from 'path-browserify';
-import MagicString from 'magic-string';
+import ts from 'typescript';
+import path from 'path-browserify';
 import resolvePackages from './packages';
 import { BundleJob, Result } from './index';
-import { checkActiveJob } from './worker';
 
 interface VirtualOptions {
-  jobId: number;
+  checkActive: () => void;
   files?: Record<string, string>;
   modules?: Record<string, string>;
 }
@@ -15,7 +13,7 @@ interface VirtualOptions {
 const suffixes = ['', '.js', '.ts'];
 const VIRTUAL_PREFIX = '\0virtual';
 
-function virtual({ jobId, files = {}, modules = {} }: VirtualOptions): rollup.Plugin {
+function virtual({ checkActive, files = {}, modules = {} }: VirtualOptions): rollup.Plugin {
   const resolvedIds = new Map([
     ...(Object.entries(files).map(([id, contents]) => {
       return [path.resolve('/', id), contents];
@@ -26,33 +24,31 @@ function virtual({ jobId, files = {}, modules = {} }: VirtualOptions): rollup.Pl
   return {
     name: 'virtual',
     resolveId(source, importer) {
-      checkActiveJob(jobId);
+      checkActive();
       const realImporter = importer?.startsWith(VIRTUAL_PREFIX)
         ? importer.slice(VIRTUAL_PREFIX.length)
         : importer;
       // Prefix with root directory since we won't have a real CWD in the browser.
-      const importerDir = realImporter ? '/' + path.dirname(realImporter) : null;
+      const importerDir = realImporter ? '/' + path.dirname(realImporter) : '/';
+      const resolved = path.resolve(importerDir, source);
 
-      for (let suffix in suffixes) {
-        let full = source + suffix;
+      // Only try the suffixes if this path doesn't have one already.
+      let thisSuffixes = path.extname(resolved) ? [''] : suffixes;
+
+      for (let suffix of thisSuffixes) {
+        let full = resolved + suffix;
         if (resolvedIds.has(full)) {
           return VIRTUAL_PREFIX + full;
-        }
-
-        if (importerDir) {
-          const resolved = path.resolve(importerDir, full);
-          if (resolvedIds.has(resolved)) {
-            return VIRTUAL_PREFIX + resolved;
-          }
         }
       }
 
       return null;
     },
     load(id) {
+      checkActive();
       if (id.startsWith(VIRTUAL_PREFIX)) {
         let p = id.slice(VIRTUAL_PREFIX.length);
-        return files[p] ?? resolvedIds.get(p);
+        return resolvedIds.get(p);
       }
 
       return null;
@@ -65,7 +61,7 @@ function replace(env: string): rollup.Plugin {
     name: 'replace',
     transform(code) {
       let replaced = code.replaceAll('process.env.NODE_ENV', env);
-      if (replaced) {
+      if (replaced !== code) {
         return { code: replaced };
       }
 
@@ -74,15 +70,17 @@ function replace(env: string): rollup.Plugin {
   };
 }
 
-export default async function bundle(job: BundleJob & { jobId: number }): Promise<Result> {
+export default async function bundle(
+  job: BundleJob & { jobId: number; checkActive: () => void }
+): Promise<Result> {
   let input = 'index.ts' in job.files ? 'index.ts' : Object.keys(job.files)[0];
 
   let warnings: string[] = [];
   let bundler = await rollup.rollup({
-    input,
+    input: '/' + input,
     plugins: [
-      virtual({ jobId: job.jobId, files: job.files }),
-      resolvePackages(job.jobId),
+      virtual({ checkActive: job.checkActive, files: job.files }),
+      resolvePackages(job.checkActive),
       replace(JSON.stringify(job.production ? 'production' : 'development')),
       {
         name: 'typescript',
@@ -90,6 +88,7 @@ export default async function bundle(job: BundleJob & { jobId: number }): Promis
           let result = ts.transpileModule(code, {
             moduleName: id,
             compilerOptions: {
+              sourceMap: true,
               module: ts.ModuleKind.ESNext,
               target: ts.ScriptTarget.ESNext,
               lib: ['esnext'],
@@ -110,7 +109,7 @@ export default async function bundle(job: BundleJob & { jobId: number }): Promis
     let result = (
       await bundler.generate({
         format: 'iife',
-        name: input,
+        name: job.name ?? input,
         sourcemap: true,
       })
     ).output[0];

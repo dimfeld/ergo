@@ -9,7 +9,7 @@
     "build:svelte": "svelte-kit build",
     "preview": "run-s clean build && SERVE_DIR=build ../car run --release server | bunyan",
     "preview:svelte": "svelte-kit preview",
-    "test": "jest src",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest src",
     "test:watch": "run-s test -- --watch",
     "clean": "rimraf build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
@@ -33,7 +33,7 @@
     "@sveltejs/kit": "1.0.0-next.202",
     "@sveltejs/vite-plugin-svelte": "1.0.0-next.31",
     "@tailwindcss/forms": "~0.4.0",
-    "@testing-library/jest-dom": "^5.15.0",
+    "@testing-library/jest-dom": "^5.16.1",
     "@testing-library/svelte": "^3.0.3",
     "@types/json-schema": "~7.0.9",
     "@typescript-eslint/eslint-plugin": "^4.33.0",
@@ -49,7 +49,9 @@
     "fast-glob": "~3.2.7",
     "jest": "^27.3.1",
     "jest-transform-css": "^2.1.0",
+    "jsdom": "~19.0.0",
     "json-schema-to-typescript": "^10.1.5",
+    "ky-universal": "~0.9.1",
     "npm-run-all": "^4.1.5",
     "postcss": "^8.3.11",
     "postcss-nested": "~5.0.6",
@@ -59,7 +61,7 @@
     "source-map-support": "^0.5.20",
     "svelte": "~3.44.1",
     "svelte-check": "^2.2.8",
-    "svelte-jester": "^1.8.2",
+    "svelte-jester": "^2.1.5",
     "svelte-loader": "^3.1.2",
     "svelte-portal": "~2.1.2",
     "svelte-preprocess": "~4.10.1",
@@ -69,6 +71,7 @@
     "ts-jest": "^27.0.7",
     "ts-node": "^10.4.0",
     "tslib": "^2.3.1",
+    "uvu": "~0.5.2",
     "vite": "~2.7.9"
   },
   "type": "module",
@@ -120,10 +123,10 @@
     "typescript": "^4.5.4"
   },
   "jest": {
-    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect"],
+    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect", "./jest-setup.js"],
     "transform": {
       "^.+\\.svelte$": [
-        "svelte-jester",
+        "./node_modules/svelte-jester/dist/transformer.mjs",
         {
           "preprocess": true
         }
@@ -131,9 +134,12 @@
       "^.+\\.(j|t)s$": "ts-jest",
       "^.+\\.p?css$": "jest-transform-css"
     },
+    "moduleFileExtensions": ["js", "ts", "svelte"],
+    "extensionsToTreatAsEsm": [".ts", ".svelte"],
     "globals": {
       "ts-jest": {
-        "diagnostics": false
+        "diagnostics": false,
+        "useESM": true
       }
     }
   }

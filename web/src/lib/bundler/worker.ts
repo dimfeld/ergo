@@ -68,7 +68,9 @@ self.addEventListener('message', async (event: MessageEvent<BundlerWorkerMessage
       let { jobId } = job;
       try {
         activeJobs.add(jobId);
-        let result = await bundle(event.data.data);
+        let checkActive = () => checkActiveJob(jobId);
+
+        let result = await bundle({ ...event.data.data, checkActive });
         if ((result.error as AbortError)?.aborted) {
           return;
         }

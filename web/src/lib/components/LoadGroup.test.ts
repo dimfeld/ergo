@@ -5,14 +5,15 @@ import '@testing-library/jest-dom/extend-expect';
 import { act, render } from '@testing-library/svelte';
 import LoadGroupSample from './fixtures/LoadGroupSample.svelte';
 import { writable } from 'svelte/store';
+import { LoadGroupStoreData } from './loadGroup';
 
 function mockLoadingStore() {
-  let s = writable({ isLoading: true, isError: false, error: null });
+  let s = writable<LoadGroupStoreData>({ isLoading: true, isError: false, error: undefined });
   return {
     ...s,
     setLoading: (isLoading: boolean) => s.update((v) => ({ ...v, isLoading })),
     setError: (error: Error) => s.set({ isLoading: false, isError: Boolean(error), error }),
-    setSuccess: () => s.set({ isLoading: false, isError: false, error: null }),
+    setSuccess: () => s.set({ isLoading: false, isError: false, error: undefined }),
   };
 }
 

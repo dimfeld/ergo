@@ -1,4 +1,3 @@
-import { checkActiveJob } from './worker';
 import { Plugin } from 'rollup';
 import { resolve, legacy as legacyResolve } from 'resolve.exports';
 import ky from 'ky';
@@ -16,13 +15,13 @@ export function clearCache() {
 
 const UNPKG = 'https://unpkg.com/';
 
-function getOrFetch(jobId: number, url: string) {
+function getOrFetch(checkActive: () => void, url: string) {
   let cached = fetchCache.get(url);
   if (cached) {
     return cached;
   }
 
-  checkActiveJob(jobId);
+  checkActive();
 
   const promise = ky
     .get(url)
@@ -49,15 +48,15 @@ function getOrFetch(jobId: number, url: string) {
   return promise;
 }
 
-export default function (jobId: number, packagesUrl: string = UNPKG): Plugin {
+export default function (checkActive: () => void, packagesUrl: string = UNPKG): Plugin {
   return {
     name: 'packages',
     async resolveId(source) {
-      if (source.startsWith('./')) {
+      if (source.startsWith('./') || source.startsWith('/')) {
         return null;
       }
 
-      checkActiveJob(jobId);
+      checkActive();
 
       let packageComponents = source.split('/', 2);
       let packageName =
@@ -65,7 +64,7 @@ export default function (jobId: number, packagesUrl: string = UNPKG): Plugin {
           ? packageComponents.slice(0, 2).join('/')
           : packageComponents[0];
 
-      let pkgJson = await getOrFetch(jobId, `${packagesUrl}/${packageName}/package.json`);
+      let pkgJson = await getOrFetch(checkActive, `${packagesUrl}${packageName}/package.json`);
       let pkg = JSON.parse(pkgJson.body);
 
       // @ts-ignore Return types on these functions are a little weird
@@ -78,15 +77,13 @@ export default function (jobId: number, packagesUrl: string = UNPKG): Plugin {
         file = file.slice(2);
       }
 
-      let fullUrl = `${packagesUrl}/${packageName}/${file}`;
+      let fullUrl = `${packagesUrl}${packageName}/${file}`;
 
-      let result = await getOrFetch(jobId, fullUrl);
+      let result = await getOrFetch(checkActive, fullUrl);
       return result.url;
     },
     async load(resolved) {
-      checkActiveJob(jobId);
-
-      let result = await getOrFetch(jobId, resolved);
+      let result = await getOrFetch(checkActive, resolved);
       return result.body;
     },
   };

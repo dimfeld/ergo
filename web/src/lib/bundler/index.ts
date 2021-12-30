@@ -3,6 +3,7 @@ import type { BundlerWorkerMessage } from './worker';
 import Worker from './worker?worker';
 
 export interface BundleJob {
+  name?: string;
   files: Record<string, string>;
   production?: boolean;
 }
