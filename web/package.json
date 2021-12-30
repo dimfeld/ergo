@@ -9,7 +9,7 @@
     "build:svelte": "svelte-kit build",
     "preview": "run-s clean build && SERVE_DIR=build ../car run --release server | bunyan",
     "preview:svelte": "svelte-kit preview",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest src",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "run-s test -- --watch",
     "clean": "rimraf build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
@@ -36,6 +36,7 @@
     "@testing-library/jest-dom": "^5.16.1",
     "@testing-library/svelte": "^3.0.3",
     "@types/json-schema": "~7.0.9",
+    "@types/lodash-es": "~4.17.5",
     "@typescript-eslint/eslint-plugin": "^4.33.0",
     "@typescript-eslint/parser": "^4.33.0",
     "autoprefixer": "^10.4.0",
@@ -116,6 +117,7 @@
     "ky": "~0.28.7",
     "lezer-json5": "~1.0.2",
     "localforage": "~1.10.0",
+    "lodash-es": "~4.17.21",
     "path-browserify": "~1.0.1",
     "resolve.exports": "~1.1.0",
     "rollup": "~2.62.0",
@@ -123,7 +125,10 @@
     "typescript": "^4.5.4"
   },
   "jest": {
-    "setupFilesAfterEnv": ["@testing-library/jest-dom/extend-expect", "./jest-setup.js"],
+    "setupFilesAfterEnv": [
+      "@testing-library/jest-dom/extend-expect",
+      "./jest-setup.js"
+    ],
     "transform": {
       "^.+\\.svelte$": [
         "./node_modules/svelte-jester/dist/transformer.mjs",
@@ -134,8 +139,15 @@
       "^.+\\.(j|t)s$": "ts-jest",
       "^.+\\.p?css$": "jest-transform-css"
     },
-    "moduleFileExtensions": ["js", "ts", "svelte"],
-    "extensionsToTreatAsEsm": [".ts", ".svelte"],
+    "moduleFileExtensions": [
+      "js",
+      "ts",
+      "svelte"
+    ],
+    "extensionsToTreatAsEsm": [
+      ".ts",
+      ".svelte"
+    ],
     "globals": {
       "ts-jest": {
         "diagnostics": false,

@@ -38,14 +38,12 @@
   import Button from '$lib/components/Button.svelte';
   import Checkbox from '$lib/components/Checkbox.svelte';
   import Labelled from '$lib/components/Labelled.svelte';
-  import { ModalCloser } from '$lib/components/Modal.svelte';
   import { baseData } from '$lib/data';
   import apiClient from '$lib/api';
   import { getHeaderTextStore } from '$lib/header';
   import { goto, invalidate } from '$app/navigation';
   import Card from '$lib/components/Card.svelte';
   import Editor from '$lib/editors/Editor.svelte';
-  import { EditorView } from '@codemirror/view';
 
   export let action: Action;
 
@@ -84,6 +82,13 @@
     }
 
     invalidate(`/api/actions`);
+  }
+
+  function wrapPostprocessCode() {
+    return {
+      prefix: 'function(output: any) {',
+      suffix: '}',
+    };
   }
 </script>
 
@@ -145,6 +150,7 @@
     <div class="mt-2 w-full flex flex-col min-h-[12rem] max-h-[32rem]">
       <Editor
         format="js"
+        wrapCode={wrapPostprocessCode}
         bind:getContents={postprocessContents}
         contents={action.postprocess_script || ''}
       />

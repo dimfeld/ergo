@@ -1,5 +1,5 @@
 // Taken from https://github.com/prisma/text-editors/blob/main/src/extensions/typescript/index.ts
-// which is licensed under Apache 2.0.
+// which is licensed under Apache 2.0. With additional modifications.
 import {
   autocompletion,
   completeFromList,
@@ -17,7 +17,7 @@ import {
 } from '@codemirror/state';
 import { hoverTooltip, Tooltip } from '@codemirror/tooltip';
 import { EditorView } from '@codemirror/view';
-import throttle from 'just-throttle';
+import { throttle } from 'lodash-es';
 import { DiagnosticCategory, displayPartsToString, flattenDiagnosticMessageText } from 'typescript';
 import { onChangeCallback } from '../change-callback';
 import { log } from './log';
@@ -41,19 +41,29 @@ export type { FileMap };
  * The "correct" way to read this file is from bottom to top.
  */
 
+interface TsStateField {
+  project: TypescriptProject;
+  prefix: string;
+  suffix: string;
+}
+
 /**
  * A State field that represents the Typescript project that is currently "open" in the EditorView
  */
-const tsStateField = StateField.define<TypescriptProject>({
+const tsStateField = StateField.define<TsStateField>({
   create(state) {
-    return new TypescriptProject(state.sliceDoc(0));
+    return {
+      project: new TypescriptProject(state.sliceDoc(0)),
+      prefix: '',
+      suffix: '',
+    };
   },
 
   update(ts, transaction) {
     // For all transactions that run, this state field's value will only "change" if a `injectTypesEffect` StateEffect is attached to the transaction
     transaction.effects.forEach((e) => {
       if (e.is(injectTypesEffect)) {
-        ts.injectTypes(e.value);
+        ts.project.injectTypes(e.value);
       }
     });
 
@@ -70,11 +80,17 @@ const tsStateField = StateField.define<TypescriptProject>({
  * A CompletionSource that returns completions to show at the current cursor position (via tsserver)
  */
 const completionSource = async (ctx: CompletionContext): Promise<CompletionResult | null> => {
-  const { state, pos } = ctx;
+  let { state, pos } = ctx;
   const ts = state.field(tsStateField);
 
+  pos += ts.prefix.length;
+
   try {
-    const completions = (await ts.lang()).getCompletionsAtPosition(ts.entrypoint, pos, {});
+    const completions = (await ts.project.lang()).getCompletionsAtPosition(
+      ts.project.entrypoint,
+      pos,
+      {}
+    );
     if (!completions) {
       log('Unable to get completions', { pos });
       return null;
@@ -84,7 +100,7 @@ const completionSource = async (ctx: CompletionContext): Promise<CompletionResul
     if (beforeDot) {
       // Force explicit to true if the user just typed a period, so that autocompletion
       // will show up.
-      ctx = new CompletionContext(ctx.state, ctx.pos, true);
+      ctx = new CompletionContext(ctx.state, pos, true);
     }
 
     return completeFromList(
@@ -105,7 +121,7 @@ const completionSource = async (ctx: CompletionContext): Promise<CompletionResul
  */
 const lintDiagnostics = async (state: EditorState): Promise<Diagnostic[]> => {
   const ts = state.field(tsStateField);
-  const diagnostics = (await ts.lang()).getSemanticDiagnostics(ts.entrypoint);
+  const diagnostics = (await ts.project.lang()).getSemanticDiagnostics(ts.project.entrypoint);
 
   return diagnostics
     .filter((d) => d.start !== undefined && d.length !== undefined)
@@ -117,9 +133,11 @@ const lintDiagnostics = async (state: EditorState): Promise<Diagnostic[]> => {
         severity = 'warning';
       }
 
+      let start = (d.start || 0) - ts.prefix.length;
+
       return {
-        from: d.start!, // `!` is fine because of the `.filter()` before the `.map()`
-        to: d.start! + d.length!, // `!` is fine because of the `.filter()` before the `.map()`
+        from: start, // `!` is fine because of the `.filter()` before the `.map()`
+        to: start + d.length!, // `!` is fine because of the `.filter()` before the `.map()`
         severity,
         message: flattenDiagnosticMessageText(d.messageText, '\n', 0),
       };
@@ -132,7 +150,10 @@ const lintDiagnostics = async (state: EditorState): Promise<Diagnostic[]> => {
 const hoverTooltipSource = async (state: EditorState, pos: number): Promise<Tooltip | null> => {
   const ts = state.field(tsStateField);
 
-  const quickInfo = (await ts.lang()).getQuickInfoAtPosition(ts.entrypoint, pos);
+  const quickInfo = (await ts.project.lang()).getQuickInfoAtPosition(
+    ts.project.entrypoint,
+    pos + ts.prefix.length
+  );
   if (!quickInfo) {
     return null;
   }
@@ -177,17 +198,36 @@ export async function setDiagnostics(state: EditorState): Promise<TransactionSpe
 /**
  * A (throttled) function that updates the view of the currently open "file" on TSServer
  */
-const updateTSFileThrottled = throttle((code: string, view: EditorView) => {
+const updateTSFileThrottled = throttle((view: EditorView) => {
   const ts = view.state.field(tsStateField);
+  // Update tsserver's view of this file
+  let code = view.state.sliceDoc(0);
+  code = `${ts.prefix}${code}${ts.suffix}`;
 
   // Don't `await` because we do not want to block
-  ts.env().then((env) => env.updateFile(ts.entrypoint, code || ' ')); // tsserver deletes the file if the text content is empty; we can't let that happen
+  ts.project.env().then((env) => env.updateFile(ts.project.entrypoint, code || ' ')); // tsserver deletes the file if the text content is empty; we can't let that happen
 }, 100);
 
-// Export a function that will build & return an Extension
-export function typescript(): Extension {
+/** Export a function that will build & return an Extension
+ * @param wrapCode a function provides a prefix and suffix in which the code will be wrapped.
+ */
+export function typescript(wrapCode?: () => { prefix?: string; suffix?: string }): Extension {
   return [
-    tsStateField,
+    tsStateField.init((state) => {
+      let wrapper = wrapCode?.() ?? {};
+
+      let code = state.sliceDoc(0);
+      let prefix = wrapper.prefix ?? '';
+      let suffix = wrapper.suffix ?? '';
+
+      code = `${prefix}${code}${suffix}`;
+
+      return {
+        project: new TypescriptProject(code),
+        prefix,
+        suffix,
+      };
+    }),
     javascript({ typescript: true, jsx: false }),
     autocompletion({
       activateOnTyping: true,
@@ -200,10 +240,8 @@ export function typescript(): Extension {
     }),
     EditorView.updateListener.of(({ view, docChanged }) => {
       // We're not doing this in the `onChangeCallback` extension because we do not want TS file updates to be debounced (we want them throttled)
-
       if (docChanged) {
-        // Update tsserver's view of this file
-        updateTSFileThrottled(view.state.sliceDoc(0), view);
+        updateTSFileThrottled(view);
       }
     }),
     onChangeCallback(async (_code, view) => {

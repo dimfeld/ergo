@@ -45,6 +45,7 @@
   export let notifyOnChange = false;
   export let jsonSchema: JSONSchema4 | JSONSchema6 | JSONSchema7 | undefined = undefined;
   export let tsDefs: FileMap | undefined = undefined;
+  export let wrapCode: ((code: string) => string) | undefined = undefined;
 
   export let linter: LintSource | undefined = undefined;
 
@@ -77,11 +78,11 @@
 
   const languages: Record<string, LanguageSupport> = {
     js: {
-      extension: typescript,
+      extension: () => typescript(wrapCode),
       prettierParser: 'babel',
     },
     ts: {
-      extension: typescript,
+      extension: () => typescript(wrapCode),
       prettierParser: 'babel-ts',
     },
     json: {
