@@ -1,23 +1,22 @@
 import { Handle } from '@sveltejs/kit';
 
-const apiServer = `http://localhost:${process.env.API_PORT || 6543}`;
+const apiServer = new URL(
+  `http://${process.env.API_HOST || 'localhost'}:${process.env.API_PORT || 6543}`
+);
 const apiKey = process.env.API_KEY;
 
 export const handle: Handle = async ({ request, resolve }) => {
-  if (!request.host && request.path.startsWith('/api')) {
-    let url = apiServer + request.path;
-    let query = request.query.toString();
-    if (query) {
-      url += '?' + query;
+  if (request.url.pathname.startsWith('/api')) {
+    request.url.host = apiServer.host;
+    request.url.protocol = apiServer.protocol;
+    if (apiKey) {
+      request.headers['Authorization'] = 'Bearer ' + apiKey;
     }
 
-    let result = await fetch(url, {
+    let result = await fetch(request.url.toString(), {
       method: request.method,
       body: request.rawBody,
-      headers: {
-        ...request.headers,
-        Authorization: 'Bearer ' + apiKey,
-      },
+      headers: request.headers,
     });
 
     let body = await result.text();

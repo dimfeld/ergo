@@ -25,7 +25,9 @@ const config = {
     adapter: adapter({
       fallback: 'index.html',
     }),
-    hostHeader: 'X-Forwarded-Host',
+    headers: {
+      host: 'X-Forwarded-Host',
+    },
     ssr: false,
     vite: () => ({
       define: {
@@ -39,7 +41,7 @@ const config = {
       },
       server: {
         fs: {
-          allow: ['.', '../wasm/pkg'],
+          allow: ['.', path.resolve('../wasm/pkg')],
         },
         proxy: {
           '/api': `http://localhost:${process.env.BIND_PORT || 6543}`,

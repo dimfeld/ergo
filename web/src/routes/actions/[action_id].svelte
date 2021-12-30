@@ -15,8 +15,8 @@
     };
   }
 
-  export const load: Load = async function load({ stuff, page }) {
-    let { action_id } = page.params;
+  export const load: Load = async function load({ stuff, params }) {
+    let { action_id } = params;
 
     let action = action_id !== 'new' ? stuff.actions.get(action_id) : newAction();
     if (!action) {

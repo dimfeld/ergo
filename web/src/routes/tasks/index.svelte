@@ -22,7 +22,7 @@
 
   let sortField: keyof typeof sortFields = 'run';
   $: {
-    let field = $page.query.get('sort');
+    let field = $page.url.searchParams.get('sort');
     sortField = field && field in sortFields ? (field as keyof typeof sortFields) : 'run';
   }
 </script>

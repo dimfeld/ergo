@@ -2,16 +2,16 @@
   import { loadFetch } from '$lib/api';
   import type { Load } from '@sveltejs/kit';
 
-  export const load: Load = async function load({ fetch, page }) {
+  export const load: Load = async function load({ fetch, params }) {
     fetch = loadFetch(fetch);
 
-    if (page.params.task_id === 'new') {
+    if (params.task_id === 'new') {
       return {
         props: {},
       };
     }
 
-    let task: TaskResult = await fetch(`/api/tasks/${page.params.task_id}`).then((r) => r.json());
+    let task: TaskResult = await fetch(`/api/tasks/${params.task_id}`).then((r) => r.json());
 
     return {
       props: {

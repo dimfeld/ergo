@@ -72,7 +72,7 @@
 
   let darkModeStore = createDarkStore();
   $: darkMode = $darkModeStore ?? cssDarkModePreference();
-  $: section = $page.path.split('/')[1];
+  $: section = $page.url.pathname.split('/')[1];
 
   let headerTextList = createHeaderTextStore();
   $: titleText = $headerTextList.slice().reverse().join(' - ');
