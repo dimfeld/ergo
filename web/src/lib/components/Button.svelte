@@ -6,6 +6,7 @@
   export let size: keyof typeof sizes = 'md';
   export let style: keyof typeof styles = 'normal';
   export let iconButton = false;
+  export let title: string | undefined = undefined;
 
   let classNames = '';
   export { classNames as class };
@@ -46,6 +47,7 @@
   bind:this={element}
   {type}
   {disabled}
+  {title}
   on:click
   class="inline-flex justify-center items-center border shadow-sm font-medium text-gray-700 disabled:text-gray-400 dark:text-gray-300 dark:disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 transition-colors duration-200 {dynamicClasses}"
   class:cursor-not-allowed={disabled}

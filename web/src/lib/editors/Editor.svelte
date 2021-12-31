@@ -27,7 +27,7 @@
   import prettierBabel from 'prettier/parser-babel';
 
   import { darkModeStore, cssDarkModePreference } from '$lib/styles';
-  import throttle from 'just-throttle';
+  import { throttle } from 'lodash-es';
 
   import Button from '$lib/components/Button.svelte';
 
@@ -47,6 +47,7 @@
   export let jsonSchema: JSONSchema4 | JSONSchema6 | JSONSchema7 | undefined = undefined;
   export let tsDefs: FileMap | undefined = undefined;
   export let wrapCode: WrapCodeFn | undefined = undefined;
+  export let toolbar = true;
 
   export let linter: LintSource | undefined = undefined;
 
@@ -146,9 +147,7 @@
 
   setContext('editorView', view);
 
-  const notifyDocChanged = throttle(() => dispatch('change', view.state.doc.toString()), 500, {
-    trailing: true,
-  });
+  const notifyDocChanged = throttle(() => dispatch('change', view.state.sliceDoc(0)), 100);
 
   function viewUpdated(update: ViewUpdate) {
     if (notifyOnChange && update.docChanged) {
@@ -227,16 +226,18 @@
 </script>
 
 <div class="editor h-full min-h-0 flex flex-col">
-  <div class="py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
-    <div class="ml-auto flex flex-row space-x-4 items-center">
-      {#if language.compilable}
-        <!-- for use while this feature is in early development -->
-        <Button size="xs" on:click={previewCompile}>Preview Compile</Button>
-      {/if}
-      <Button size="xs" on:click={runPrettier}>Format</Button>
-      <label><input type="checkbox" bind:checked={enableWrapping} /> Wrap</label>
+  {#if toolbar}
+    <div class="py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
+      <div class="ml-auto flex flex-row space-x-4 items-center">
+        {#if language.compilable}
+          <!-- for use while this feature is in early development -->
+          <Button size="xs" on:click={previewCompile}>Preview Compile</Button>
+        {/if}
+        <Button size="xs" on:click={runPrettier}>Format</Button>
+        <label><input type="checkbox" bind:checked={enableWrapping} /> Wrap</label>
+      </div>
     </div>
-  </div>
+  {/if}
   <div class="min-h-0 flex-1 flex flex-col" use:editor />
   <slot />
 </div>

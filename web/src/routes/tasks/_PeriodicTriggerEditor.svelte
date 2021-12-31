@@ -10,6 +10,7 @@
   import * as dateFns from 'date-fns';
   import { parse_schedule, new_periodic_trigger_id } from 'ergo-wasm';
   import { formatJson } from '$lib/editors/format';
+  import Editor from '$lib/editors/Editor.svelte';
 
   export let trigger: TaskTrigger;
 
@@ -103,13 +104,16 @@
         <div class="flex space-x-2">
           <Dropdown closeOnClickInside={false} pad={false}>
             <svelte:fragment slot="button">
-              <Button class="w-8" iconButton>[]</Button>
+              <Button class="w-8" title="Payload" iconButton>[]</Button>
             </svelte:fragment>
-            <textarea
-              class="w-64 h-64"
-              value={formatJson(periodic.payload, 'json')}
-              on:change={(e) => parsePayloadValue(periodic, e.target.value)}
-            />
+            <div class="w-64 h-64 p-0.5">
+              <Editor
+                format="json"
+                toolbar={false}
+                contents={formatJson(periodic.payload, 'json')}
+                on:change={({ detail: text }) => parsePayloadValue(periodic, text)}
+              />
+            </div>
           </Dropdown>
 
           <DangerButton on:click={() => deleteIndex(i)}>
