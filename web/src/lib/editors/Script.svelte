@@ -48,7 +48,6 @@
     // TODO Extra lint checks and validation once those are in place.
     let s = view.state.doc.toString();
 
-    console.log('bundling');
     let bundle = await bundler!.bundle({
       production: true,
       files: {
@@ -73,7 +72,7 @@
         data: {
           timeout: undefined,
           script: bundle.code,
-          map: bundle.map,
+          map: JSON.stringify(bundle.map),
         },
       },
     };
@@ -83,6 +82,6 @@
 <Editor
   format="ts"
   bind:view
-  contents={compiled?.script ?? source?.script ?? ''}
+  contents={source?.script ?? compiled?.script ?? ''}
   tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}
 />

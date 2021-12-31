@@ -244,7 +244,7 @@
 {#if bundlePreview}
   <Card class="mt-8" label="Bundle Preview {bundlePreview.error ? '(Error)' : ''}">
     {#if bundlePreview.error}
-      {bundlePreview.error}
+      {bundlePreview.error.message}
     {:else}
       {#if bundlePreview.warnings?.length}
         <h3>Warnings</h3>

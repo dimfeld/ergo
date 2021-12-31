@@ -289,7 +289,7 @@
     </Modal>
   </Card>
 
-  <Card class="flex flex-col flex-grow mt-4 h-[64em]">
+  <Card class="flex flex-col flex-grow mt-4 min-h-[64em]">
     {#if taskSource}
       <div class="flex-1 grid grid-rows-1 grid-cols-1 place-items-stretch">
         <svelte:component
