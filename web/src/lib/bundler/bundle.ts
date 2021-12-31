@@ -86,6 +86,10 @@ export default async function bundle(
       {
         name: 'typescript',
         transform(code, id) {
+          if (!id.endsWith('.ts')) {
+            return null;
+          }
+
           let result = ts.transpileModule(code, {
             moduleName: id,
             reportDiagnostics: true,
