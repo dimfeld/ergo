@@ -27,15 +27,17 @@ test('Compiles a simple file', async () => {
 });
 
 test('Imports packages', async () => {
+  // import two packages that have internal functions with the same name to ensure that they get bundled properly.
   let source = `
-    import sorter from 'sorters';
+    import * as sorters from 'sorters';
+    import get from 'just-safe-get';
     let list = [
       {a: 5},
       {a: 2},
       {a: 1}
     ];
 
-    list.sort(sorter((o) => o.a));
+    list.sort(sorters.sorter((o) => get(o, 'a')));
     globalThis.output = list;
   `;
 
