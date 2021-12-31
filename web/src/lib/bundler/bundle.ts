@@ -4,8 +4,8 @@ import type { Plugin } from 'rollup';
 import ts from 'typescript';
 // @ts-ignore
 import path from 'path-browserify';
-import resolvePackages from './packages.js';
-import { BundleJob, Result } from './types.js';
+import resolvePackages from './packages';
+import { BundleJob, Result } from './types';
 
 interface VirtualOptions {
   checkActive: () => void;
@@ -108,7 +108,7 @@ export default async function bundle(
   try {
     let result = (
       await bundler.generate({
-        format: 'iife',
+        format: 'es',
         name: job.name ?? input,
         sourcemap: true,
       })
