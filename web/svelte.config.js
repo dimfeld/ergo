@@ -37,7 +37,7 @@ const config = {
         noExternal: ['ergo-wasm', 'sorters'],
       },
       optimizeDeps: {
-        include: ['rollup'],
+        exclude: ['rollup'],
       },
       server: {
         fs: {

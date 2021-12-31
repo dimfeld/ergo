@@ -1,34 +1,7 @@
-import { SourceMap } from 'rollup';
-import type { BundlerWorkerMessage } from './worker';
-import Worker from './worker?worker';
+import BundleWorker from './worker?worker';
+import { BundleJob, BundlerWorkerMessage, JobData, WorkerLog, Result } from './types';
 
-export interface BundleJob {
-  name?: string;
-  files: Record<string, string>;
-  production?: boolean;
-}
-
-export interface BundleResult {
-  jobId: number;
-  code: string;
-  map?: SourceMap;
-  warnings: string[];
-  error: null;
-}
-
-export type AbortError = Error & { aborted: true };
-
-export interface ErrorResult {
-  jobId: number;
-  error: Error | AbortError;
-}
-
-export type Result = BundleResult | ErrorResult;
-
-interface JobData {
-  resolve: (r: Result) => void;
-  reject: (e: Error) => void;
-}
+export type { BundleJob, Result };
 
 let worker: Worker | undefined;
 let clients = new Set<Bundler>();
@@ -41,7 +14,9 @@ export class Bundler {
   constructor() {
     clients.add(this);
     if (!worker) {
-      worker = new Worker();
+      worker = new BundleWorker();
+      worker.onmessageerror = (e) => console.error('worker messageerror', e);
+      worker.onerror = (e) => console.error('worker error', e);
     }
 
     // Save the handler reference so we can remove it later.
@@ -86,7 +61,7 @@ export class Bundler {
   }
 
   _postMessage(message: BundlerWorkerMessage) {
-    worker?.postMessage(message);
+    worker!.postMessage(message);
   }
 
   _handleMessage(e: MessageEvent<Result>) {

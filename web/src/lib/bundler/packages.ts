@@ -1,4 +1,4 @@
-import { Plugin } from 'rollup';
+import type { Plugin } from 'rollup';
 import { resolve, legacy as legacyResolve } from 'resolve.exports';
 import ky from 'ky';
 

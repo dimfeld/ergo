@@ -20,7 +20,6 @@
   import { commentKeymap } from '@codemirror/comment';
   import { defaultHighlightStyle } from '@codemirror/highlight';
   import { Diagnostic, linter as makeLinter, lintKeymap } from '@codemirror/lint';
-  import { javascript } from '@codemirror/lang-javascript';
   import { json, jsonParseLinter } from '@codemirror/lang-json';
   import { json5, json5ParseLinter } from './codemirror-json5';
   import { oneDark } from '@codemirror/theme-one-dark';
@@ -37,7 +36,9 @@
   import { PanelConstructor, showPanel } from '@codemirror/panel';
   import { jsonSchemaSupport } from './json_schema';
   import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
-  import { FileMap, typescript } from './typescript';
+  import { FileMap, WrapCodeFn, typescript } from './typescript';
+  import * as bundler from '$lib/bundler/index';
+  import Card from '$lib/components/Card.svelte';
 
   export let contents: string;
   export let format: 'js' | 'ts' | 'json' | 'json5';
@@ -45,13 +46,13 @@
   export let notifyOnChange = false;
   export let jsonSchema: JSONSchema4 | JSONSchema6 | JSONSchema7 | undefined = undefined;
   export let tsDefs: FileMap | undefined = undefined;
-  export let wrapCode: ((code: string) => string) | undefined = undefined;
+  export let wrapCode: WrapCodeFn | undefined = undefined;
 
   export let linter: LintSource | undefined = undefined;
 
   const dispatch = createEventDispatcher<{ change: string }>();
 
-  let language = new Compartment();
+  let languageCompartment = new Compartment();
   let lintCompartment = new Compartment();
   let lineWrapping = new Compartment();
   let theme = new Compartment();
@@ -63,6 +64,7 @@
     linter?: () => LintSource;
     autocomplete?: () => Extension;
     prettierParser: string;
+    compilable?: boolean;
   }
 
   $: jsonSchemaComponents = jsonSchema ? jsonSchemaSupport(jsonSchema) : null;
@@ -80,10 +82,12 @@
     js: {
       extension: () => typescript(wrapCode),
       prettierParser: 'babel',
+      compilable: true,
     },
     ts: {
       extension: () => typescript(wrapCode),
       prettierParser: 'babel-ts',
+      compilable: true,
     },
     json: {
       extension: json,
@@ -99,6 +103,8 @@
     },
   };
 
+  $: language = languages[format];
+
   export function getContents() {
     return view.state.doc.toString();
   }
@@ -108,7 +114,7 @@
       doc: contents,
       extensions: [
         EditorView.updateListener.of(viewUpdated),
-        language.of([]),
+        languageCompartment.of([]),
         lintCompartment.of([]),
         lineWrapping.of([]),
         theme.of([]),
@@ -160,7 +166,7 @@
     let currentCursor = view.state.selection.ranges[view.state.selection.mainIndex].to;
     let newText = prettier.formatWithCursor(view.state.doc.toString(), {
       cursorOffset: currentCursor,
-      parser: languages[format].prettierParser,
+      parser: language.prettierParser,
       plugins: [prettierBabel],
     });
 
@@ -171,20 +177,40 @@
     view.focus();
   }
 
-  $: activeLinter = linter ?? languages[format]?.linter?.();
+  let bundlePreview: bundler.Result | null = null;
+  async function previewCompile() {
+    let code = view.state.sliceDoc(0);
+    let worker = new bundler.Bundler();
+
+    console.log(`Compiling`, code);
+    bundlePreview = null;
+    try {
+      let result = await worker.bundle({
+        files: {
+          'index.ts': code,
+        },
+      });
+
+      bundlePreview = result;
+    } finally {
+      worker.destroy();
+    }
+  }
+
+  $: activeLinter = linter ?? language?.linter?.();
   $: lintExtension = activeLinter ? makeLinter(activeLinter) : undefined;
 
   $: jsonSchemaPanel = jsonSchemaComponents?.panel
     ? showPanel.of(jsonSchemaComponents.panel)
     : null;
   $: languageComponents = [
-    languages[format].extension(),
+    language.extension(),
     lintExtension,
-    languages[format].autocomplete?.(),
+    language.autocomplete?.(),
     jsonSchemaPanel,
   ].filter(Boolean) as Extension[];
 
-  $: updateCompartment(language, languageComponents);
+  $: updateCompartment(languageCompartment, languageComponents);
 
   $: updateCompartment(lintCompartment, [lintExtension].filter(Boolean) as Extension[]);
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
@@ -203,6 +229,10 @@
 <div class="editor h-full min-h-0 flex flex-col">
   <div class="py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
     <div class="ml-auto flex flex-row space-x-4 items-center">
+      {#if language.compilable}
+        <!-- for use while this feature is in early development -->
+        <Button size="xs" on:click={previewCompile}>Preview Compile</Button>
+      {/if}
       <Button size="xs" on:click={runPrettier}>Format</Button>
       <label><input type="checkbox" bind:checked={enableWrapping} /> Wrap</label>
     </div>
@@ -210,6 +240,27 @@
   <div class="min-h-0 flex-1 flex flex-col" use:editor />
   <slot />
 </div>
+
+{#if bundlePreview}
+  <Card class="mt-8" label="Bundle Preview {bundlePreview.error ? '(Error)' : ''}">
+    {#if bundlePreview.error}
+      {bundlePreview.error}
+    {:else}
+      {#if bundlePreview.warnings?.length}
+        <h3>Warnings</h3>
+        <ul>
+          {#each bundlePreview.warnings as warning}
+            <li>{warning}</li>
+          {/each}
+        </ul>
+      {/if}
+
+      <textarea class="h-48 w-full">
+        {bundlePreview.code}
+      </textarea>
+    {/if}
+  </Card>
+{/if}
 
 <style>
   .editor :global(.cm-scroller) {

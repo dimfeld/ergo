@@ -25,8 +25,8 @@ specifiers:
   '@lezer/common': ~0.15.11
   '@popperjs/core': ^2.11.0
   '@sveltejs/adapter-static': ~1.0.0-next.24
-  '@sveltejs/adapter-vercel': ~1.0.0-next.33
-  '@sveltejs/kit': ~1.0.0-next.208
+  '@sveltejs/adapter-vercel': ~1.0.0-next.34
+  '@sveltejs/kit': ~1.0.0-next.210
   '@sveltejs/vite-plugin-svelte': ~1.0.0-next.33
   '@sveltestack/svelte-query': ~1.5.0
   '@tailwindcss/forms': ~0.4.0
@@ -144,8 +144,8 @@ dependencies:
 devDependencies:
   '@babel/core': 7.16.5
   '@sveltejs/adapter-static': 1.0.0-next.24
-  '@sveltejs/adapter-vercel': 1.0.0-next.33
-  '@sveltejs/kit': 1.0.0-next.208_svelte@3.44.3
+  '@sveltejs/adapter-vercel': 1.0.0-next.34
+  '@sveltejs/kit': 1.0.0-next.210_svelte@3.44.3
   '@sveltejs/vite-plugin-svelte': 1.0.0-next.33_svelte@3.44.3+vite@2.7.10
   '@tailwindcss/forms': 0.4.0_tailwindcss@3.0.8
   '@testing-library/jest-dom': 5.16.1
@@ -1121,14 +1121,14 @@ packages:
       tiny-glob: 0.2.9
     dev: true
 
-  /@sveltejs/adapter-vercel/1.0.0-next.33:
-    resolution: {integrity: sha512-7an9TyvF+oSaj35WZC1nReajLyq647T3+IXEzG8/MzsTs3oJ2nnIOkrSfCSdeZ7uKZ+Q2TGPjDbloDnrMoRkYA==}
+  /@sveltejs/adapter-vercel/1.0.0-next.34:
+    resolution: {integrity: sha512-TQDQK2wjDQkoSkNVuFVu4a/hzqKIWCGL15Zi7zQv740ZSd6F2Lg9QHlFfEXMglu6mhoep084h6JiLtzavNiZeA==}
     dependencies:
       esbuild: 0.13.15
     dev: true
 
-  /@sveltejs/kit/1.0.0-next.208_svelte@3.44.3:
-    resolution: {integrity: sha512-4iHhkne7WvJPLRh/WNnm0NgbLpYz95aju44RkdpfMTyZMC9IMnKidHG/mPC7PPNh3OxQdWGuxjAe383rzJrHPQ==}
+  /@sveltejs/kit/1.0.0-next.210_svelte@3.44.3:
+    resolution: {integrity: sha512-Lf0Kb076njOCy9OU1/BPR1gLKTJ9auSGEjaKpgmueLcuRHmnsCh5tNX738uVPQJyJBdRkCVdCdurpFKSkuSyew==}
     engines: {node: '>=14.13'}
     hasBin: true
     peerDependencies:

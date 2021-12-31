@@ -25,6 +25,7 @@ import { FileMap, TypescriptProject } from './project';
 
 export { TypescriptProject };
 export type { FileMap };
+export type WrapCodeFn = () => { prefix?: string; suffix?: string };
 
 /**
  * This file exports an extension that makes Typescript language services work. This includes:
@@ -41,7 +42,7 @@ export type { FileMap };
  * The "correct" way to read this file is from bottom to top.
  */
 
-interface TsStateField {
+export interface TsStateField {
   project: TypescriptProject;
   prefix: string;
   suffix: string;
@@ -211,7 +212,7 @@ const updateTSFileThrottled = throttle((view: EditorView) => {
 /** Export a function that will build & return an Extension
  * @param wrapCode a function provides a prefix and suffix in which the code will be wrapped.
  */
-export function typescript(wrapCode?: () => { prefix?: string; suffix?: string }): Extension {
+export function typescript(wrapCode?: WrapCodeFn): Extension {
   return [
     tsStateField.init((state) => {
       let wrapper = wrapCode?.() ?? {};

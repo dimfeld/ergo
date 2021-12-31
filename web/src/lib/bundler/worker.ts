@@ -1,36 +1,20 @@
-import { AbortError, BundleJob, Result } from './index';
+import { AbortError, BundlerWorkerMessage, Result } from './types';
 import bundle from './bundle';
 import { clearCache } from './packages';
 
-export const activeJobs = new Set<number>();
+const activeJobs = new Set<number>();
 
-export function abortedError(message = 'aborted') {
+function abortedError(message = 'aborted') {
   let e = new Error(message);
   (e as AbortError).aborted = true;
   return e;
 }
 
-export function checkActiveJob(jobId: number) {
+function checkActiveJob(jobId: number) {
   if (!activeJobs.has(jobId)) {
     throw abortedError();
   }
 }
-
-export interface ClearCacheMessage {
-  type: 'clear_cache';
-}
-
-export interface BundleMessage {
-  type: 'bundle';
-  data: { jobId: number } & BundleJob;
-}
-
-export interface CancelMessage {
-  type: 'cancel';
-  data: { jobId: number };
-}
-
-export type BundlerWorkerMessage = ClearCacheMessage | BundleMessage | CancelMessage;
 
 function cloneableError(e: Error) {
   if (!e) {
@@ -55,7 +39,7 @@ function cloneableResult(result: Result) {
   }
 }
 
-self.addEventListener('message', async (event: MessageEvent<BundlerWorkerMessage>) => {
+self.onmessage = async (event: MessageEvent<BundlerWorkerMessage>) => {
   switch (event.data.type) {
     case 'clear_cache':
       clearCache();
@@ -69,19 +53,17 @@ self.addEventListener('message', async (event: MessageEvent<BundlerWorkerMessage
       try {
         activeJobs.add(jobId);
         let checkActive = () => checkActiveJob(jobId);
-
         let result = await bundle({ ...event.data.data, checkActive });
         if ((result.error as AbortError)?.aborted) {
           return;
         }
-
         self.postMessage(cloneableResult(result));
       } catch (e: unknown) {
-        self.postMessage({ jobId, error: e });
+        self.postMessage({ type: 'result', jobId, error: e });
       } finally {
         activeJobs.delete(jobId);
       }
       break;
     }
   }
-});
+};

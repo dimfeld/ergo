@@ -1,8 +1,11 @@
-import * as rollup from 'rollup';
+// @ts-ignore
+import * as rollup from 'rollup/dist/es/rollup.browser.js';
+import type { Plugin } from 'rollup';
 import ts from 'typescript';
+// @ts-ignore
 import path from 'path-browserify';
-import resolvePackages from './packages';
-import { BundleJob, Result } from './index';
+import resolvePackages from './packages.js';
+import { BundleJob, Result } from './types.js';
 
 interface VirtualOptions {
   checkActive: () => void;
@@ -13,7 +16,7 @@ interface VirtualOptions {
 const suffixes = ['', '.js', '.ts'];
 const VIRTUAL_PREFIX = '\0virtual';
 
-function virtual({ checkActive, files = {}, modules = {} }: VirtualOptions): rollup.Plugin {
+function virtual({ checkActive, files = {}, modules = {} }: VirtualOptions): Plugin {
   const resolvedIds = new Map([
     ...(Object.entries(files).map(([id, contents]) => {
       return [path.resolve('/', id), contents];
@@ -56,15 +59,14 @@ function virtual({ checkActive, files = {}, modules = {} }: VirtualOptions): rol
   };
 }
 
-function replace(env: string): rollup.Plugin {
+function replace(env: string): Plugin {
   return {
     name: 'replace',
     transform(code) {
-      let replaced = code.replaceAll('process.env.NODE_ENV', env);
+      let replaced = code.replace(/process\.env\.NODE_ENV/g, env);
       if (replaced !== code) {
         return { code: replaced };
       }
-
       return null;
     },
   };
@@ -74,7 +76,6 @@ export default async function bundle(
   job: BundleJob & { jobId: number; checkActive: () => void }
 ): Promise<Result> {
   let input = 'index.ts' in job.files ? 'index.ts' : Object.keys(job.files)[0];
-
   let warnings: string[] = [];
   let bundler = await rollup.rollup({
     input: '/' + input,
@@ -87,6 +88,7 @@ export default async function bundle(
         transform(code, id) {
           let result = ts.transpileModule(code, {
             moduleName: id,
+            reportDiagnostics: true,
             compilerOptions: {
               sourceMap: true,
               module: ts.ModuleKind.ESNext,
@@ -94,7 +96,6 @@ export default async function bundle(
               lib: ['esnext'],
             },
           });
-
           return {
             code: result.outputText,
             map: result.sourceMapText,
@@ -104,7 +105,6 @@ export default async function bundle(
     ],
     onwarn: (w) => warnings.push(w.message),
   });
-
   try {
     let result = (
       await bundler.generate({
@@ -113,8 +113,8 @@ export default async function bundle(
         sourcemap: true,
       })
     ).output[0];
-
     return {
+      type: 'result',
       jobId: job.jobId,
       code: result.code,
       map: result.map,
@@ -123,6 +123,7 @@ export default async function bundle(
     };
   } catch (e) {
     return {
+      type: 'result',
       jobId: job.jobId,
       error: e as Error,
     };

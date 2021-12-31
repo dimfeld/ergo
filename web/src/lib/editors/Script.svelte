@@ -6,7 +6,7 @@
   import { logger } from '../logger';
   import Editor from './Editor.svelte';
   import { Bundler } from '$lib/bundler';
-  import { onDestroy } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
 
   const log = logger('script-editor', 'coral');
   let { actions, inputs } = baseData();
@@ -25,8 +25,14 @@
   export let taskTriggers: Record<string, TaskTrigger>;
   export let taskActions: Record<string, TaskAction>;
 
-  const bundler = new Bundler();
-  onDestroy(() => bundler.destroy());
+  let bundler: Bundler | null;
+  onMount(() => {
+    bundler = new Bundler();
+    return () => {
+      bundler.destroy();
+      bundler = null;
+    };
+  });
 
   $: scriptTypeDefs = scriptTypeDefinitions({
     taskTriggers,
@@ -42,7 +48,8 @@
     // TODO Extra lint checks and validation once those are in place.
     let s = view.state.doc.toString();
 
-    let bundle = await bundler.bundle({
+    console.log('bundling');
+    let bundle = await bundler!.bundle({
       production: true,
       files: {
         'index.ts': s,
