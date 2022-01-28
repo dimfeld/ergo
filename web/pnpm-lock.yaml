@@ -74,6 +74,7 @@ specifiers:
   postcss-nested: ~5.0.6
   prettier: ~2.5.1
   prettier-plugin-svelte: ^2.6.0
+  prettier-plugin-tailwindcss: ~0.1.4
   resolve.exports: ~1.1.0
   rimraf: ~3.0.2
   rollup: ~2.66.1
@@ -174,6 +175,7 @@ devDependencies:
   postcss-nested: 5.0.6_postcss@8.4.5
   prettier: 2.5.1
   prettier-plugin-svelte: 2.6.0_prettier@2.5.1+svelte@3.46.3
+  prettier-plugin-tailwindcss: 0.1.4_prettier@2.5.1
   rimraf: 3.0.2
   source-map-support: 0.5.21
   svelte: 3.46.3
@@ -5479,6 +5481,14 @@ packages:
     dependencies:
       prettier: 2.5.1
       svelte: 3.46.3
+    dev: true
+
+  /prettier-plugin-tailwindcss/0.1.4_prettier@2.5.1:
+    resolution: {integrity: sha512-kt3YFWqxcG9+bilBI0hPF7RjQZNtgBRvjJZGw6B2MNAjPqlfcYIiZnNaIEnq4XimKLTzZYxz6jQnUXmSQ/5njg==}
+    peerDependencies:
+      prettier: '>=2.2.0'
+    dependencies:
+      prettier: 2.5.1
     dev: true
 
   /prettier/2.5.1:

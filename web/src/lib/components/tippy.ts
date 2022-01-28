@@ -19,26 +19,43 @@ export type Position =
 
 export interface TippyOptions {
   trigger?: HTMLElement;
-  position: Position;
+  on?: 'manual' | 'click' | 'mouseenter focus';
+  position?: Position;
   fixed?: boolean;
   interactive?: boolean;
+  showOnCreate?: boolean;
   role?: string;
+  arrow?: boolean;
   close?: () => void;
+
+  onTrigger?: () => void;
+  onUntrigger?: () => void;
 }
 
 export function showTippy(
   node: HTMLDivElement,
-  { trigger, position, fixed, interactive, role, close }: TippyOptions
+  {
+    trigger,
+    position = 'auto',
+    fixed,
+    interactive = false,
+    role,
+    close,
+    showOnCreate = true,
+    on = 'manual',
+    onTrigger,
+    onUntrigger,
+  }: TippyOptions
 ) {
   let tippyInstance = tippy(trigger ?? node.parentElement ?? node, {
-    interactive: interactive ?? false,
+    interactive,
     animation: false,
     hideOnClick: 'toggle',
-    trigger: 'manual',
+    trigger: on,
     maxWidth: 'none',
     placement: position,
     role,
-    showOnCreate: true,
+    showOnCreate,
     popperOptions: {
       strategy: fixed ? 'fixed' : 'absolute',
       modifiers: [{ name: 'flip' }, { name: 'preventOverflow' }],
@@ -46,6 +63,8 @@ export function showTippy(
     render(_instance) {
       return { popper: node };
     },
+    onUntrigger,
+    onTrigger,
     onClickOutside: close,
   });
 

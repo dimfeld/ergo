@@ -3,6 +3,7 @@
   import Button from '$lib/components/Button.svelte';
   import DangerButton from '$lib/components/DangerButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';
+  import Tooltip from '$lib/components/Tooltip.svelte';
   import PlusIcon from '$lib/components/icons/Plus.svelte';
   import { defaultFromJsonSchema } from '$lib/json_schema';
   import { baseData } from '$lib/data';
@@ -12,6 +13,7 @@
   import { formatJson } from '$lib/editors/format';
   import cronstrue from 'cronstrue';
   import Editor from '$lib/editors/Editor.svelte';
+  import { showTippy } from '$lib/components/tippy';
 
   export let trigger: TaskTrigger;
 
@@ -29,7 +31,8 @@
       name: '',
       payload: defaultFromJsonSchema($inputs.get(trigger.input_id)?.payload_schema),
       enabled: true,
-      schedule: { type: 'Cron', data: '' },
+      // Default to every hour since that's convenient
+      schedule: { type: 'Cron', data: '0 0 * * * *' },
     };
   }
 
@@ -57,15 +60,13 @@
       if (!next) {
         return {
           valid: false,
-          date: 'Never',
-          time: '',
+          time: 'Never',
         };
       }
 
       let d = new Date(next);
-      let date = dateFns.formatISO9075(d, { representation: 'date' });
-      let time = dateFns.formatISO9075(d, { representation: 'time' });
-      return { valid: true, desc: cronstrue.toString(schedule), date, time };
+      let time = dateFns.formatISO9075(d, { representation: 'complete' });
+      return { valid: true, desc: cronstrue.toString(schedule), time };
     } catch (e) {
       return { valid: false, date: 'Invalid Cron Pattern', time: '' };
     }
@@ -81,15 +82,15 @@
 {#if wasmLoaded}
   <header class="periodic-row mt-2 text-sm font-medium">
     <span>Name</span>
-    <div>
+    <div class="pl-1">
       <p>Schedule</p>
       <p>S M H D M DOW [Year]</p>
     </div>
 
-    <span>Next Run</span>
+    <span>Will Run</span>
     <span />
   </header>
-  <ul class="flex flex-col mt-2 space-y-2">
+  <ul class="mt-2 flex flex-col space-y-2">
     {#each trigger.periodic ?? [] as periodic, i}
       {@const next = nextCron(periodic.schedule.data)}
       <li class="periodic-row">
@@ -99,8 +100,16 @@
         <input type="text" bind:value={periodic.schedule.data} placeholder="Schedule" />
 
         <div class="flex flex-col">
-          <p class="text-sm leading-4">{next.date}</p>
-          <p class="text-sm leading-4">{next.time}</p>
+          {#if next.valid}
+            <div class="text-xs leading-4">
+              {next.desc}
+              <Tooltip class="text-sm font-medium">
+                Next Run: {next.time}
+              </Tooltip>
+            </div>
+          {:else}
+            <p class="text-xs">Invalid Pattern</p>
+          {/if}
         </div>
 
         <div class="flex space-x-2">
@@ -108,7 +117,7 @@
             <svelte:fragment slot="button">
               <Button class="w-8" title="Payload" iconButton>[]</Button>
             </svelte:fragment>
-            <div class="w-64 h-64 p-0.5">
+            <div class="h-64 w-64 p-0.5">
               <Editor
                 format="json"
                 toolbar={false}
@@ -120,7 +129,7 @@
 
           <DangerButton on:click={() => deleteIndex(i)}>
             <span slot="title"
-              >Delete Trigger <span class="text-gray-700 dark:text-gray-200 font-bold"
+              >Delete Trigger <span class="font-bold text-gray-700 dark:text-gray-200"
                 >{periodic.name}</span
               ></span
             >
