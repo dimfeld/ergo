@@ -10,6 +10,7 @@
   import * as dateFns from 'date-fns';
   import { parse_schedule, new_periodic_trigger_id } from 'ergo-wasm';
   import { formatJson } from '$lib/editors/format';
+  import cronstrue from 'cronstrue';
   import Editor from '$lib/editors/Editor.svelte';
 
   export let trigger: TaskTrigger;
@@ -64,7 +65,7 @@
       let d = new Date(next);
       let date = dateFns.formatISO9075(d, { representation: 'date' });
       let time = dateFns.formatISO9075(d, { representation: 'time' });
-      return { valid: true, date, time };
+      return { valid: true, desc: cronstrue.toString(schedule), date, time };
     } catch (e) {
       return { valid: false, date: 'Invalid Cron Pattern', time: '' };
     }
@@ -90,6 +91,7 @@
   </header>
   <ul class="flex flex-col mt-2 space-y-2">
     {#each trigger.periodic ?? [] as periodic, i}
+      {@const next = nextCron(periodic.schedule.data)}
       <li class="periodic-row">
         <!-- TODO Make this into a "name, next run" pair that expands into the rest -->
         <input type="text" bind:value={periodic.name} placeholder="Schedule Name" />
@@ -97,8 +99,8 @@
         <input type="text" bind:value={periodic.schedule.data} placeholder="Schedule" />
 
         <div class="flex flex-col">
-          <p class="text-sm leading-4">{nextCron(periodic.schedule.data).date}</p>
-          <p class="text-sm leading-4">{nextCron(periodic.schedule.data).time}</p>
+          <p class="text-sm leading-4">{next.date}</p>
+          <p class="text-sm leading-4">{next.time}</p>
         </div>
 
         <div class="flex space-x-2">

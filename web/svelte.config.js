@@ -25,10 +25,6 @@ const config = {
     adapter: adapter({
       fallback: 'index.html',
     }),
-    headers: {
-      host: 'X-Forwarded-Host',
-    },
-    ssr: false,
     vite: () => ({
       define: {
         'window.ERGO_API_KEY': `'${process.env.API_KEY}'`,

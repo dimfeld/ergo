@@ -5,30 +5,18 @@ const apiServer = new URL(
 );
 const apiKey = process.env.API_KEY;
 
-export const handle: Handle = async ({ request, resolve }) => {
-  if (request.url.pathname.startsWith('/api')) {
-    request.url.host = apiServer.host;
-    request.url.protocol = apiServer.protocol;
+export const handle: Handle = async ({ event, resolve }) => {
+  if (event.url.pathname.startsWith('/api')) {
+    event.url.host = apiServer.host;
+    event.url.protocol = apiServer.protocol;
     if (apiKey) {
-      request.headers['Authorization'] = 'Bearer ' + apiKey;
+      event.request.headers.set('Authorization', 'Bearer ' + apiKey);
     }
 
-    let result = await fetch(request.url.toString(), {
-      method: request.method,
-      body: request.rawBody,
-      headers: request.headers,
-    });
-
-    let body = await result.text();
-
-    let response = {
-      status: result.status,
-      headers: Object.fromEntries(Array.from(result.headers.entries())),
-      body,
-    };
-
-    return response;
+    let req = new Request(event.url.toString(), event.request);
+    return fetch(req);
   }
 
-  return resolve(request);
+  // TODO Reenable SSR in everything except the editor, which will show a placeholder
+  return resolve(event, { ssr: false });
 };
