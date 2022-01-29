@@ -1,0 +1,17 @@
+<script>
+  import { View } from 'svench';
+  import StringListEditor from './StringListEditor.svelte';
+
+  let values = ['harder', 'better', 'faster', 'stronger'];
+</script>
+
+<View name="default" let:action>
+  <StringListEditor bind:values on:change={(e) => action(e)} />
+
+  <h2>Results</h2>
+  <ol>
+    {#each values as value}
+      <li>{value}</li>
+    {/each}
+  </ol>
+</View>

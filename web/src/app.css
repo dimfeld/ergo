@@ -1,4 +1,6 @@
 @tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 /* Write your global styles here, in PostCSS syntax */
 body {
@@ -9,19 +11,18 @@ body.dark {
   @apply bg-gray-900 text-gray-100;
 }
 
-select {
-  @apply sm:text-sm dark:bg-gray-800 rounded-md focus:border-accent-500 focus:ring-accent-500 dark:border-gray-600;
-}
+@layer components {
+  select {
+    @apply rounded-md focus:border-accent-500 focus:ring-accent-500 dark:border-gray-600 dark:bg-gray-800 sm:text-sm;
+  }
 
-input[type='text'],
-input[type='number'],
-textarea {
-  @apply bg-white dark:bg-gray-800 focus:ring-accent-500 focus:border-accent-500 sm:text-sm rounded-md;
-}
+  input[type='text'],
+  input[type='number'],
+  textarea {
+    @apply rounded-md bg-white focus:border-accent-500 focus:ring-accent-500 dark:bg-gray-800 sm:text-sm;
+  }
 
-.label {
-  @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+  .label {
+    @apply text-sm font-medium text-gray-700 dark:text-gray-300;
+  }
 }
-
-@tailwind components;
-@tailwind utilities;

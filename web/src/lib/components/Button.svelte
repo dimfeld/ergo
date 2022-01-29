@@ -48,8 +48,9 @@
   {type}
   {disabled}
   {title}
+  {...$$restProps}
   on:click
-  class="inline-flex justify-center items-center border shadow-sm font-medium text-gray-700 disabled:text-gray-400 dark:text-gray-300 dark:disabled:text-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 dark:focus:ring-offset-gray-900 transition-colors duration-200 {dynamicClasses}"
+  class="inline-flex items-center justify-center border font-medium text-gray-700 shadow-sm transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-100 disabled:text-gray-400 dark:text-gray-300 dark:focus:ring-offset-gray-900 dark:disabled:text-gray-400 {dynamicClasses}"
   class:cursor-not-allowed={disabled}
   ><slot />
 </button>

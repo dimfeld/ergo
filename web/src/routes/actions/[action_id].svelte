@@ -44,6 +44,7 @@
   import { goto, invalidate } from '$app/navigation';
   import Card from '$lib/components/Card.svelte';
   import Editor from '$lib/editors/Editor.svelte';
+  import ExecutorTemplateEditor from './_ExecutorTemplateEditor.svelte';
 
   export let action: Action;
 
@@ -157,13 +158,7 @@
     <ul class="flex flex-col space-y-4">
       {#each executor?.template_fields || [] as field, i}
         <li>
-          <Labelled label="{field.name} - {field.format.type}" help={field.description}>
-            <input
-              class="w-full"
-              type="text"
-              value={executorTemplateArguments[field.name]?.value ?? ''}
-            />
-          </Labelled>
+          <ExecutorTemplateEditor {field} value={executorTemplateArguments[field.name]?.value} />
         </li>
       {/each}
     </ul>
