@@ -60,6 +60,21 @@
   let postprocessContents: () => string;
   let actionCategories = {}; // TODO
 
+  $: executorTemplateArguments =
+    action.executor_template.t === 'Template'
+      ? Object.fromEntries(
+          action.executor_template.c.map(([name, value], index) => {
+            return [
+              name,
+              {
+                value,
+                index,
+              },
+            ];
+          })
+        )
+      : {};
+
   async function handleSubmit() {
     if (!action.name) {
       // TODO error message
@@ -128,14 +143,26 @@
       </Labelled>
     </div>
   </Card>
-  <Card class="flex flex-col space-y-4" label="Template Inputs" />
+  <Card class="flex flex-col space-y-4" label="Template Inputs">
+    <ul class="flex flex-col space-y-4">
+      {#each action.template_fields as template_field (template_field.name)}
+        <li>
+          <pre>{JSON.stringify(template_field)}</pre>
+        </li>
+      {/each}
+    </ul>
+  </Card>
   <Card label="Executor Template">
     <!-- TODO script/template toggle -->
     <ul class="flex flex-col space-y-4">
       {#each executor?.template_fields || [] as field, i}
         <li>
-          <Labelled label={field.name} help={field.description}>
-            {JSON.stringify(field)}
+          <Labelled label="{field.name} - {field.format.type}" help={field.description}>
+            <input
+              class="w-full"
+              type="text"
+              value={executorTemplateArguments[field.name]?.value ?? ''}
+            />
           </Labelled>
         </li>
       {/each}
@@ -147,7 +174,7 @@
   </Card>
   <Card label="Postprocessing" class="relative">
     <!-- postprocess script -->
-    <div class="mt-2 w-full flex flex-col min-h-[12rem] max-h-[32rem]">
+    <div class="mt-2 flex max-h-[32rem] min-h-[12rem] w-full flex-col">
       <Editor
         format="js"
         wrapCode={wrapPostprocessCode}
