@@ -14,7 +14,7 @@
     onTrigger: () => (showing = true),
     onUntrigger: () => (showing = false),
   }}
-  class="rounded-lg border border-black bg-white py-2 px-3 dark:border-gray-200 dark:bg-black {classNames}"
+  class="rounded-lg border border-black bg-white py-2 px-3 shadow-lg dark:border-gray-400 dark:bg-black {classNames}"
   class:hidden={!showing}
 >
   <slot />
