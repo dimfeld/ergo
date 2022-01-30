@@ -1,25 +1,26 @@
 <script context="module" lang="ts">
-  import { Action } from '$lib/api_types';
+  import { Action, ActionCategory } from '$lib/api_types';
   import clone from 'just-clone';
   import type { Load } from '@sveltejs/kit';
   import pascalCase from 'just-pascal-case';
   import { new_action_id } from 'ergo-wasm';
 
-  function newAction(): Action {
+  function newAction(actionCategories: Map<string, ActionCategory>): Action {
     return {
       name: '',
       executor_id: '',
       template_fields: [],
       executor_template: { t: 'Template', c: [] },
       account_required: false,
-      action_category_id: undefined, // TODO
+      action_category_id: actionCategories.keys().next().value,
     };
   }
 
   export const load: Load = async function load({ stuff, params }) {
     let { action_id } = params;
 
-    let action = action_id !== 'new' ? stuff.actions.get(action_id) : newAction();
+    let action =
+      action_id !== 'new' ? stuff.actions.get(action_id) : newAction(stuff.actionCategories);
     if (!action) {
       return {
         status: 404,
@@ -51,7 +52,7 @@
   export let action: Action;
 
   const api = apiClient();
-  const { executors } = baseData();
+  const { actionCategories, executors } = baseData();
 
   $: actionName = $page.params.action_id === 'new' ? 'New Action' : action.name;
 
@@ -61,7 +62,6 @@
   $: executor = $executors.get(action.executor_id);
 
   let postprocessContents: () => string;
-  let actionCategories = {}; // TODO
 
   $: executorTemplateArguments =
     action.executor_template.t === 'Template'
@@ -145,8 +145,8 @@
       >
       <Labelled class="flex-1" label="Category">
         <select class="w-full " bind:value={action.action_category_id}>
-          {#each Object.entries(actionCategories) as [id, name]}
-            <option value={id}>{name}</option>
+          {#each Array.from($actionCategories.entries()) as [id, category]}
+            <option value={id}>{category.name}</option>
           {/each}
         </select>
       </Labelled>
@@ -185,17 +185,27 @@
   <Card label="Executor Template">
     <!-- TODO script/template toggle -->
     <ul class="flex flex-col space-y-4">
-      {#each executor?.template_fields || [] as field, i}
+      {#each executor?.template_fields || [] as field}
         <li>
           <Labelled
             label={field.name}
             help="{pascalCase(field.format.type)} &mdash; {field.description}"
           >
-            <AnyEditor
-              type={field.format.type}
-              value={executorTemplateArguments[field.name]?.value}
-              on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}
-            />
+            {#if field.name === 'script' && field.format.type === 'string'}
+              <!-- Gross hardcoded case but it's the only one for now :) -->
+              <Editor
+                format="js"
+                contents={executorTemplateArguments[field.name]?.value}
+                notifyOnChange={true}
+                on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}
+              />
+            {:else}
+              <AnyEditor
+                format={field.format}
+                value={executorTemplateArguments[field.name]?.value}
+                on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}
+              />
+            {/if}
           </Labelled>
         </li>
       {/each}

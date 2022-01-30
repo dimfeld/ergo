@@ -4,23 +4,17 @@
   import ObjectEditor from './ObjectEditor.svelte';
   import isEmpty from 'just-is-empty';
   import ObjectOrJsonTextEditor from './ObjectOrJsonTextEditor.svelte';
+  import { TemplateFieldFormat } from '$lib/api_types';
 
   const dispatch = createEventDispatcher();
 
   export let value: any;
   export let optional = false;
-  export let type:
-    | 'string'
-    | 'string_array'
-    | 'object'
-    | 'boolean'
-    | 'integer'
-    | 'float'
-    | 'choice';
+  export let format: TemplateFieldFormat;
 
   const notify = (newValue: any) => {
     if (optional) {
-      switch (type) {
+      switch (format.type) {
         case 'string':
         case 'string_array':
         case 'object':
@@ -43,7 +37,7 @@
       } else {
         return;
       }
-    } else if (type === 'integer') {
+    } else if (format.type === 'integer') {
       newValue = Math.trunc(newValue);
     }
 
@@ -52,22 +46,26 @@
   }
 </script>
 
-{#if type === 'string'}
+{#if format.type === 'string'}
   <input class="w-full" type="text" value={value ?? ''} on:input={(e) => notify(e.target.value)} />
-{:else if type === 'string_array'}
+{:else if format.type === 'string_array'}
   <StringListEditor values={value ?? []} on:change={(e) => notify(e.detail)} />
-{:else if type === 'object'}
-  <ObjectOrJsonTextEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
-{:else if type === 'boolean'}
+{:else if format.type === 'object'}
+  {#if format.nested}
+    <ObjectOrJsonTextEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
+  {:else}
+    <ObjectEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
+  {/if}
+{:else if format.type === 'boolean'}
   <label>
     <!-- TODO this should be some sort of tri-state when optional is true -->
     <input type="checkbox" checked={value ?? false} on:change={(e) => notify(e.target.checked)} />
     <span class="font-medium text-sm">Enabled?</span>
   </label>
-{:else if type === 'integer' || type === 'float'}
+{:else if format.type === 'integer' || format.type === 'float'}
   <input
     type="number"
-    step={type === 'float' ? 0.01 : 1}
+    step={format.type === 'float' ? 0.01 : 1}
     {value}
     on:input={(e) => notifyNumber(e.target.valueAsNumber)}
   />

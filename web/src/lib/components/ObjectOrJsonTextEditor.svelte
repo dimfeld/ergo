@@ -10,8 +10,6 @@
   export let value: object;
   export let complexMode = true;
 
-  $: console.log({ value });
-
   $: useEditor = complexMode || simpleModeDisallowed;
   $: simpleModeDisallowed = Object.values(value).some((v) => typeof v === 'object');
 
@@ -31,13 +29,15 @@
   </div>
 
   {#if useEditor}
-    <Editor
-      format="json"
-      toolbar={false}
-      notifyOnChange={true}
-      contents={formatJson(JSON.stringify(value), 'json')}
-      on:change={({ detail: text }) => updateText(text)}
-    />
+    <div class="border border-dgray-500">
+      <Editor
+        format="json"
+        toolbar={false}
+        notifyOnChange={true}
+        contents={formatJson(JSON.stringify(value), 'json')}
+        on:change={({ detail: text }) => updateText(text)}
+      />
+    </div>
   {:else}
     <ObjectEditor bind:value on:change />
   {/if}
