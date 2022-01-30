@@ -2,11 +2,12 @@
   import StringListEditor from './StringListEditor.svelte';
   import { createEventDispatcher } from 'svelte';
   import ObjectEditor from './ObjectEditor.svelte';
+  import isEmpty from 'just-is-empty';
 
   const dispatch = createEventDispatcher();
-  const notify = (value: any) => dispatch('change', value);
 
   export let value: any;
+  export let optional = false;
   export let type:
     | 'string'
     | 'string_array'
@@ -16,33 +17,50 @@
     | 'float'
     | 'choice';
 
-  if (value === undefined) {
-    switch (type) {
-      case 'string':
-        value = '';
-        break;
-      case 'string_array':
-        value = [];
-        break;
-      case 'object':
-        value = {};
-        break;
-      case 'boolean':
-        value = false;
-        break;
+  const notify = (newValue: any) => {
+    if (optional) {
+      switch (type) {
+        case 'string':
+        case 'string_array':
+        case 'object':
+        case 'choice':
+          if (isEmpty(newValue)) {
+            newValue = null;
+          }
+          break;
+      }
     }
+
+    dispatch('change', newValue);
+    value = newValue;
+  };
+
+  function notifyNumber(newValue: number | null) {
+    if (Number.isNaN(value)) {
+      if (optional) {
+        newValue = null;
+      } else {
+        return;
+      }
+    } else if (type === 'integer' && typeof newValue === 'number') {
+      newValue = Math.trunc(newValue);
+    }
+
+    dispatch('change', newValue);
+    value = newValue;
   }
 </script>
 
 {#if type === 'string'}
-  <input class="w-full" type="text" {value} on:input={(e) => notify(e.target.value)} />
+  <input class="w-full" type="text" value={value ?? ''} on:input={(e) => notify(e.target.value)} />
 {:else if type === 'string_array'}
-  <StringListEditor values={value} on:change={(e) => notify(e.detail)} />
+  <StringListEditor values={value ?? []} on:change={(e) => notify(e.detail)} />
 {:else if type === 'object'}
-  <ObjectEditor {value} on:change={(e) => notify(e.detail)} />
+  <ObjectEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
 {:else if type === 'boolean'}
   <label>
-    <input type="checkbox" checked={value} on:change={(e) => notify(e.target.checked)} />
+    <!-- TODO this should be some sort of tri-state when optional is true -->
+    <input type="checkbox" checked={value ?? false} on:change={(e) => notify(e.target.checked)} />
     <span class="font-medium text-sm">Enabled?</span>
   </label>
 {:else if type === 'integer' || type === 'float'}
@@ -50,6 +68,6 @@
     type="number"
     step={type === 'float' ? 0.01 : 1}
     {value}
-    on:input={(e) => notify(e.target.value)}
+    on:input={(e) => notifyNumber(e.target.valueAsNumber)}
   />
 {/if}
