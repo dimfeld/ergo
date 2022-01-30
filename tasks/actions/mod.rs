@@ -31,7 +31,7 @@ use self::{
     template::TemplateFields,
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ActionCategory {
     pub action_category_id: ActionCategoryId,
     pub name: String,

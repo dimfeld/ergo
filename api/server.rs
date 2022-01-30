@@ -169,6 +169,7 @@ pub async fn start(config: Config) -> Result<Server> {
                 .wrap(identity)
                 .wrap(TracingLogger::default())
                 .configure(routes::actions::config)
+                .configure(routes::action_categories::config)
                 .configure(routes::inputs::config)
                 .configure(routes::status::config)
                 .configure(routes::tasks::config),

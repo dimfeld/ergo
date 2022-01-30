@@ -9,26 +9,34 @@
       await initWasm();
     }
     fetch = loadFetch(fetch);
-    let [inputList, actionList, executorList]: [Input[], Action[], ExecutorInfo[]] =
-      await Promise.all([
-        fetch('/api/inputs').then((r) => r.json()),
-        fetch('/api/actions').then((r) => r.json()),
-        fetch('/api/executors').then((r) => r.json()),
-      ]);
+    let [inputList, actionList, actionCategoryList, executorList]: [
+      Input[],
+      Action[],
+      ActionCategory[],
+      ExecutorInfo[]
+    ] = await Promise.all([
+      fetch('/api/inputs').then((r) => r.json()),
+      fetch('/api/actions').then((r) => r.json()),
+      fetch('/api/action_categories').then((r) => r.json()),
+      fetch('/api/executors').then((r) => r.json()),
+    ]);
 
     let inputs = new Map(inputList.map((i) => [i.input_id, i]));
     let actions = new Map(actionList.map((a) => [a.action_id, a]));
+    let actionCategories = new Map(actionCategoryList.map((a) => [a.action_category_id, a]));
     let executors = new Map(executorList.map((e) => [e.name, e]));
 
     return {
       props: {
         inputs,
         actions,
+        actionCategories,
         executors,
       },
       stuff: {
         inputs,
         actions,
+        actionCategories,
         executors,
       },
     };
@@ -43,17 +51,24 @@
   import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import { Input, Action, ExecutorInfo } from '$lib/api_types';
+  import { Input, Action, ActionCategory, ExecutorInfo } from '$lib/api_types';
   import { initBaseData } from '$lib/data';
 
   export let inputs: Map<string, Input>;
   export let actions: Map<string, Action>;
+  export let actionCategories: Map<string, ActionCategory>;
   export let executors: Map<string, ExecutorInfo>;
 
-  const { inputs: inputStore, actions: actionStore, executors: executorStore } = initBaseData();
+  const {
+    inputs: inputStore,
+    actions: actionStore,
+    actionCategories: actionCategoryStore,
+    executors: executorStore,
+  } = initBaseData();
 
   $: $inputStore = inputs;
   $: $actionStore = actions;
+  $: $actionCategoryStore = actionCategories;
   $: $executorStore = executors;
 
   const apiClient = createApiClient();
@@ -91,17 +106,17 @@
 </svelte:head>
 
 <QueryClientProvider client={queryClient}>
-  <div id="top" class="h-screen overflow-y-auto overflow-x-hidden flex flex-col">
+  <div id="top" class="flex h-screen flex-col overflow-y-auto overflow-x-hidden">
     <Nav {section} />
-    <header class="bg-white dark:bg-black shadow-sm">
+    <header class="bg-white shadow-sm dark:bg-black">
       <div class="mx-auto py-4 px-4 sm:px-6 lg:px-8">
         <h1
-          class="text-lg leading-6 font-semibold text-gray-900 dark:text-gray-100 flex space-x-2 items-center"
+          class="flex items-center space-x-2 text-lg font-semibold leading-6 text-gray-900 dark:text-gray-100"
         >
           {#each $headerTextList as t, i}
             {#if i > 0}
               <svg
-                class="flex-shrink-0 h-5 w-5 text-gray-400 dark:text-gray-600"
+                class="h-5 w-5 flex-shrink-0 text-gray-400 dark:text-gray-600"
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 20 20"
                 fill="currentColor"
@@ -119,7 +134,7 @@
         </h1>
       </div>
     </header>
-    <main class="flex-grow w-full mx-auto py-10 px-4 sm:px-6 lg:px-8 flex flex-col">
+    <main class="mx-auto flex w-full flex-grow flex-col py-10 px-4 sm:px-6 lg:px-8">
       <slot />
     </main>
   </div>

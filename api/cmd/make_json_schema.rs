@@ -8,7 +8,7 @@ use ergo_tasks::{
     actions::{
         execute::ScriptOrTemplate,
         template::{TemplateField, TemplateFieldFormat},
-        Action,
+        Action, ActionCategory,
     },
     inputs::Input,
     state_machine::{
@@ -66,6 +66,9 @@ pub fn main() -> crate::error::Result<()> {
 
     let schema = schema_for!(ActionInvokeDefDataField);
     write(&dir, "action_invoke_def_data_field", &schema)?;
+
+    let schema = schema_for!(ActionCategory);
+    write(&dir, "action_category", &schema)?;
 
     let schema = schema_for!(ScriptOrTemplate);
     write(&dir, "script_or_template", &schema)?;

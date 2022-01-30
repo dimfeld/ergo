@@ -66,6 +66,12 @@ export interface TemplateField {
   description?: string | null;
 }
 
+export interface ActionCategory {
+  action_category_id: String;
+  name: string;
+  description?: string | null;
+}
+
 export type ActionPayloadBuilder =
   | {
       t: "FieldMap";
