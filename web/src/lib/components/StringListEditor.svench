@@ -6,9 +6,9 @@
 </script>
 
 <View name="default" let:action>
-  <StringListEditor bind:values on:change={(e) => action(e)} />
+  <StringListEditor bind:values on:change={(e) => action('change', e.detail)} />
 
-  <h2>Results</h2>
+  <h2 class="mt-8 border-t">Results</h2>
   <ol>
     {#each values as value}
       <li>{value}</li>

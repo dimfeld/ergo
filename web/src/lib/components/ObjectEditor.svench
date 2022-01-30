@@ -1,0 +1,43 @@
+<script>
+  import { View } from 'svench';
+  import ObjectEditor from './ObjectEditor.svelte';
+
+  let value = {
+    apples: 'cold',
+    bananas: 'sweet',
+    canteloupe: 'melony',
+    durian: 'smoky',
+  };
+
+  let numberValue = {
+    'Coffee Cups': 10,
+    'Watter Bottles': 5,
+  };
+</script>
+
+<View name="default" let:action>
+  <ObjectEditor bind:value on:change={(e) => action('change', e.detail)} />
+
+  <h2 class="mt-8 border-t">Results</h2>
+  <pre>
+    {JSON.stringify(value, null, 2)}
+  </pre>
+</View>
+
+<View name="with slot" let:action>
+  <ObjectEditor bind:value={numberValue} on:change={(e) => action('change', e.detail)}>
+    <input
+      slot="value"
+      let:value
+      let:update
+      type="number"
+      {value}
+      on:input={(e) => update(e.target.valueAsNumber)}
+    />
+  </ObjectEditor>
+
+  <h2 class="mt-8 border-t">Results</h2>
+  <pre>
+    {JSON.stringify(numberValue, null, 2)}
+  </pre>
+</View>
