@@ -77,10 +77,31 @@
         )
       : {};
 
-  function updateExecutorTemplateValue(index: number, value: any) {
+  function updateExecutorTemplateValue(name: string, value: any) {
     if (action.executor_template.t === 'Template') {
-      action.executor_template.c[index][1] = value;
+      let templateValueIndex = action.executor_template.c.findIndex((v) => v[0] === name);
+      if (templateValueIndex >= 0) {
+        if (value === null) {
+          // Remove the item from the template
+          action.executor_template.c = [
+            ...action.executor_template.c.slice(0, templateValueIndex),
+            ...action.executor_template.c.slice(templateValueIndex + 1),
+          ];
+        } else {
+          action.executor_template.c[templateValueIndex][1] = value;
+        }
+      } else {
+        action.executor_template.c = [...action.executor_template.c, [name, value]];
+      }
     }
+  }
+
+  function changeExecutor(e: InputEvent) {
+    action.executor_id = e.target.value;
+    action.executor_template = {
+      t: 'Template',
+      c: [],
+    };
   }
 
   async function handleSubmit() {
@@ -135,7 +156,7 @@
     >
     <div class="flex space-x-4">
       <Labelled class="w-1/2" label="Executor">
-        <select class="w-full" bind:value={action.executor_id}>
+        <select class="w-full" value={action.executor_id} on:change={changeExecutor}>
           {#each Array.from($executors.values()) as info}
             <option>{info.name}</option>
           {/each}
@@ -172,7 +193,7 @@
             <AnyEditor
               type={field.format.type}
               value={executorTemplateArguments[field.name]?.value}
-              on:change={(e) => updateExecutorTemplateValue(i, e.detail)}
+              on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}
             />
           </Labelled>
         </li>
