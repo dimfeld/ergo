@@ -38,7 +38,7 @@ const FIELD_TIMEOUT: TemplateField = TemplateField::from_static(
 
 const FIELD_JSON: TemplateField = TemplateField::from_static(
     "json",
-    TemplateFieldFormat::Object,
+    TemplateFieldFormat::Object { nested: true },
     true,
     "A JSON body to send with the request",
 );
@@ -52,14 +52,14 @@ const FIELD_BODY: TemplateField = TemplateField::from_static(
 
 const FIELD_QUERY: TemplateField = TemplateField::from_static(
     "query",
-    TemplateFieldFormat::Object,
+    TemplateFieldFormat::Object { nested: false },
     true,
     "Query string to send",
 );
 
 const FIELD_HEADERS: TemplateField = TemplateField::from_static(
     "headers",
-    TemplateFieldFormat::Object,
+    TemplateFieldFormat::Object { nested: false },
     true,
     "HTTP header values for the request",
 );

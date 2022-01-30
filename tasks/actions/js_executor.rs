@@ -26,7 +26,7 @@ const FIELD_SCRIPT: TemplateField = TemplateField::from_static(
 );
 const FIELD_ARGS: TemplateField = TemplateField::from_static(
     "args",
-    TemplateFieldFormat::Object,
+    TemplateFieldFormat::Object { nested: true },
     true,
     "Arguments to the script. Exposed as 'args' in the script",
 );

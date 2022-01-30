@@ -39,7 +39,7 @@ const FIELD_TIME: TemplateField = TemplateField::from_static(
 
 const FIELD_PAYLOAD: TemplateField = TemplateField::from_static(
     "payload",
-    TemplateFieldFormat::Object,
+    TemplateFieldFormat::Object { nested: true },
     true,
     "The payload to send to the trigger",
 );

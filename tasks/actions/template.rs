@@ -1,5 +1,6 @@
 use std::{borrow::Cow, fmt::Display};
 
+use assert_matches::assert_matches;
 use ergo_database::sqlx_json_decode;
 use fxhash::FxHashMap;
 use itertools::Itertools;
@@ -38,7 +39,14 @@ pub enum TemplateFieldFormat {
     Integer,
     Float,
     Boolean,
-    Object,
+    Object {
+        /// If true, the object can have values that are arrays or other objects.
+        /// If false, the object's values must all be primitives.
+        /// This isn't currently validated but does inform the UI's decisions on
+        /// how to proceed.
+        #[serde(default)]
+        nested: bool,
+    },
     Choice {
         choices: Cow<'static, [Cow<'static, str>]>,
         min: Option<usize>,
@@ -109,7 +117,8 @@ impl TemplateFieldFormat {
                 Self::Integer => n.is_i64(),
                 _ => false,
             },
-            serde_json::Value::Object(_) => *self == TemplateFieldFormat::Object,
+            // TODO If nested is false, validate that the top-level values in the object are all primitives.
+            serde_json::Value::Object(_) => matches!(self, &TemplateFieldFormat::Object { .. }),
             serde_json::Value::Null => false,
         };
 
@@ -133,7 +142,7 @@ impl ToString for TemplateFieldFormat {
             Self::Integer => "integer".to_string(),
             Self::Float => "number".to_string(),
             Self::Boolean => "boolean".to_string(),
-            Self::Object => "object".to_string(),
+            Self::Object { .. } => "object".to_string(),
             Self::Choice { choices, min, max } => {
                 let choice_strings = choices.iter().join(", ");
                 match (min, max) {
@@ -242,7 +251,7 @@ impl TemplateField {
         &self,
         payload: &'a FxHashMap<String, serde_json::Value>,
     ) -> Result<Option<&'a serde_json::Value>, TemplateValidationFailure> {
-        assert_eq!(self.format, TemplateFieldFormat::Object);
+        assert_matches!(self.format, TemplateFieldFormat::Object { .. });
 
         let value = payload.get(self.name.as_ref());
         match value {
@@ -605,28 +614,29 @@ mod tests {
 
         #[test]
         fn object() -> Result<(), TemplateValidationFailure> {
-            TemplateFieldFormat::Object
+            TemplateFieldFormat::Object { nested: true }
                 .validate("string", &Value::String(String::new()))
                 .expect_err("string");
 
-            TemplateFieldFormat::Object
+            TemplateFieldFormat::Object { nested: true }
                 .validate("integer", &serde_json::json!({"a": 5})["a"])
                 .expect_err("integer");
 
-            TemplateFieldFormat::Object
+            TemplateFieldFormat::Object { nested: true }
                 .validate(
                     "float",
                     &Value::Number(value::Number::from_f64(5.5).unwrap()),
                 )
                 .expect_err("float");
 
-            TemplateFieldFormat::Object
+            TemplateFieldFormat::Object { nested: true }
                 .validate("boolean", &Value::Bool(true))
                 .expect_err("boolean");
 
-            TemplateFieldFormat::Object.validate("object", &Value::Object(value::Map::new()))?;
+            TemplateFieldFormat::Object { nested: true }
+                .validate("object", &Value::Object(value::Map::new()))?;
 
-            TemplateFieldFormat::Object
+            TemplateFieldFormat::Object { nested: true }
                 .validate("array", &Value::Array(Vec::new()))
                 .expect_err("array input");
 
@@ -819,8 +829,8 @@ mod tests {
         use super::super::apply;
         use assert_matches::assert_matches;
         use fxhash::FxHashMap;
-        use serde_json::{json, value, Value};
-        use std::{array::IntoIter, error::Error, iter::FromIterator};
+        use serde_json::json;
+        use std::{array::IntoIter, iter::FromIterator};
 
         #[test]
         fn simple_template() -> Result<(), anyhow::Error> {

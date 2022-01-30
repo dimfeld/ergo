@@ -28,6 +28,10 @@ export type TemplateFieldFormat =
     }
   | {
       type: "object";
+      /**
+       * If true, the object can have values that are arrays or other objects. If false, the object's values must all be primitives. This isn't currently validated but does inform the UI's decisions on how to proceed.
+       */
+      nested?: boolean;
     }
   | {
       type: "choice";

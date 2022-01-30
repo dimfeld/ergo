@@ -105,6 +105,7 @@ mod tests {
             "##;
         let config = TaskJsConfig {
             script: script.to_string(),
+            map: String::new(),
             timeout: None,
         };
 
@@ -142,6 +143,7 @@ mod tests {
             "##;
         let config = TaskJsConfig {
             script: script.to_string(),
+            map: String::new(),
             timeout: None,
         };
 
@@ -181,6 +183,7 @@ mod tests {
 
         let config = TaskJsConfig {
             script: script.to_string(),
+            map: String::new(),
             timeout: None,
         };
 

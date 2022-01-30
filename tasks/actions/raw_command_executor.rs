@@ -26,7 +26,7 @@ const FIELD_ARGS: TemplateField = TemplateField::from_static(
 );
 const FIELD_ENV: TemplateField = TemplateField::from_static(
     "env",
-    TemplateFieldFormat::Object,
+    TemplateFieldFormat::Object { nested: false },
     true,
     "Environment variables to set",
 );
