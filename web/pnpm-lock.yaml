@@ -62,6 +62,7 @@ specifiers:
   just-debounce-it: ~3.0.1
   just-is-empty: ~3.1.1
   just-once: ~2.0.1
+  just-pascal-case: ~3.0.1
   just-throttle: ~4.0.1
   just-zip-it: ~3.0.2
   ky: ~0.28.7
@@ -134,6 +135,7 @@ dependencies:
   just-debounce-it: 3.0.1
   just-is-empty: 3.1.1
   just-once: 2.0.1
+  just-pascal-case: 3.0.1
   just-throttle: 4.0.1
   just-zip-it: 3.0.2
   ky: 0.28.7
@@ -4405,6 +4407,10 @@ packages:
 
   /just-once/2.0.1:
     resolution: {integrity: sha512-r/s9ilXHAh+uia0/HaHe/ZxvTX9JbCDjtwEwVe7YhSzIZ4vBiCz4MB4Acij1wegnWoytnhkAfQWYZ2SI9Z1n/g==}
+    dev: false
+
+  /just-pascal-case/3.0.1:
+    resolution: {integrity: sha512-8jLoc17+DcYoxAFJujmsoRU9+G9mlcByKRTwSJw1bsydynMo5TTgxsm4mDii/E4h1zRmzoscY+qm4eKB+l6mpQ==}
     dev: false
 
   /just-throttle/4.0.1:

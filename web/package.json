@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "run-p dev:svelte dev:server",
-    "dev:svelte": "svelte-kit dev",
+    "dev:svelte": "svelte-kit dev --port ${PORT:-3000}",
     "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && ../car run --release server | bunyan'",
     "build": "run-s generate-api-types build:svelte",
     "build:svelte": "svelte-kit build",
@@ -107,6 +107,7 @@
     "just-debounce-it": "~3.0.1",
     "just-is-empty": "~3.1.1",
     "just-once": "~2.0.1",
+    "just-pascal-case": "~3.0.1",
     "just-throttle": "~4.0.1",
     "just-zip-it": "~3.0.2",
     "ky": "~0.28.7",

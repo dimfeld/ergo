@@ -31,8 +31,8 @@
       }
     }
 
-    dispatch('change', newValue);
     value = newValue;
+    dispatch('change', newValue);
   };
 
   function notifyNumber(newValue: number | null) {

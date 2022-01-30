@@ -2,6 +2,7 @@
   import { Action } from '$lib/api_types';
   import clone from 'just-clone';
   import type { Load } from '@sveltejs/kit';
+  import pascalCase from 'just-pascal-case';
   import { new_action_id } from 'ergo-wasm';
 
   function newAction(): Action {
@@ -44,7 +45,7 @@
   import { goto, invalidate } from '$app/navigation';
   import Card from '$lib/components/Card.svelte';
   import Editor from '$lib/editors/Editor.svelte';
-  import ExecutorTemplateEditor from './_ExecutorTemplateEditor.svelte';
+  import AnyEditor from '$lib/components/AnyEditor.svelte';
 
   export let action: Action;
 
@@ -75,6 +76,12 @@
           })
         )
       : {};
+
+  function updateExecutorTemplateValue(index: number, value: any) {
+    if (action.executor_template.t === 'Template') {
+      action.executor_template.c[index][1] = value;
+    }
+  }
 
   async function handleSubmit() {
     if (!action.name) {
@@ -158,7 +165,16 @@
     <ul class="flex flex-col space-y-4">
       {#each executor?.template_fields || [] as field, i}
         <li>
-          <ExecutorTemplateEditor {field} value={executorTemplateArguments[field.name]?.value} />
+          <Labelled
+            label={field.name}
+            help="{pascalCase(field.format.type)} &mdash; {field.description}"
+          >
+            <AnyEditor
+              type={field.format.type}
+              value={executorTemplateArguments[field.name]?.value}
+              on:change={(e) => updateExecutorTemplateValue(i, e.detail)}
+            />
+          </Labelled>
         </li>
       {/each}
     </ul>
