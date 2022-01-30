@@ -40,6 +40,7 @@
   import Checkbox from '$lib/components/Checkbox.svelte';
   import Labelled from '$lib/components/Labelled.svelte';
   import { baseData } from '$lib/data';
+  import { page } from '$app/stores';
   import apiClient from '$lib/api';
   import { getHeaderTextStore } from '$lib/header';
   import { goto, invalidate } from '$app/navigation';
@@ -52,7 +53,7 @@
   const api = apiClient();
   const { executors } = baseData();
 
-  $: actionName = action.name ?? (action.action_id ? '' : 'New Action');
+  $: actionName = $page.params.action_id === 'new' ? 'New Action' : action.name;
 
   const header = getHeaderTextStore();
   $: $header = ['Actions', actionName];

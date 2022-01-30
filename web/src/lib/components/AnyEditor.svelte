@@ -3,6 +3,7 @@
   import { createEventDispatcher } from 'svelte';
   import ObjectEditor from './ObjectEditor.svelte';
   import isEmpty from 'just-is-empty';
+  import ObjectOrJsonTextEditor from './ObjectOrJsonTextEditor.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -36,13 +37,13 @@
   };
 
   function notifyNumber(newValue: number | null) {
-    if (Number.isNaN(value)) {
+    if (Number.isNaN(value) || newValue === null) {
       if (optional) {
         newValue = null;
       } else {
         return;
       }
-    } else if (type === 'integer' && typeof newValue === 'number') {
+    } else if (type === 'integer') {
       newValue = Math.trunc(newValue);
     }
 
@@ -56,7 +57,7 @@
 {:else if type === 'string_array'}
   <StringListEditor values={value ?? []} on:change={(e) => notify(e.detail)} />
 {:else if type === 'object'}
-  <ObjectEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
+  <ObjectOrJsonTextEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
 {:else if type === 'boolean'}
   <label>
     <!-- TODO this should be some sort of tri-state when optional is true -->

@@ -15,7 +15,7 @@ export interface AutocompleteSpec<T = unknown> {
 
 export function autocompleter<T>(specs: AutocompleteSpec<T>[]) {
   return (context: CompletionContext) => {
-    let obj = context.state.field(json5ParseCache)?.obj;
+    let obj = context.state.field(json5ParseCache, false)?.obj;
     if (!obj) {
       return null;
     }

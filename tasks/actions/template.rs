@@ -383,7 +383,7 @@ fn apply_field(
     let result = match template {
         serde_json::Value::String(template) => {
             if is_payload_template(template) {
-                // This is ok because we already verified that the skipped se of bytes are
+                // This is ok because we already verified that the skipped set of bytes are
                 // ASCII in starts_with and ends_with.
                 let field_name = &template[3..template.len() - 2];
                 values

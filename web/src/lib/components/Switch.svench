@@ -1,0 +1,12 @@
+<script>
+  import { View } from 'svench';
+  import Switch from './Switch.svelte';
+</script>
+
+<View name="Unchecked">
+  <Switch name="a" value={false} />
+</View>
+
+<View name="Checked">
+  <Switch name="a" value={true} />
+</View>

@@ -83,7 +83,7 @@ specifiers:
   sorters: ~1.0.0
   source-map-support: ^0.5.21
   svelte: ~3.46.3
-  svelte-check: ^2.3.0
+  svelte-check: ^2.4.0
   svelte-jester: ^2.1.5
   svelte-loader: ^3.1.2
   svelte-portal: ~2.1.2
@@ -183,7 +183,7 @@ devDependencies:
   rimraf: 3.0.2
   source-map-support: 0.5.21
   svelte: 3.46.3
-  svelte-check: 2.3.0_b83c80e335af653a6692bd93ac9545b4
+  svelte-check: 2.4.0_b83c80e335af653a6692bd93ac9545b4
   svelte-jester: 2.1.5_jest@27.4.7+svelte@3.46.3
   svelte-loader: 3.1.2_svelte@3.46.3
   svelte-portal: 2.1.2
@@ -6146,8 +6146,8 @@ packages:
     engines: {node: '>= 0.4'}
     dev: true
 
-  /svelte-check/2.3.0_b83c80e335af653a6692bd93ac9545b4:
-    resolution: {integrity: sha512-SBKdJyUmxzPmJf/ZPqDSQOoa9JzOcgEpV7u3UaYcgVn7fA0veZ3FA5JgLU8KYtf84Gp6guBVcrC7XKLjJa5SXQ==}
+  /svelte-check/2.4.0_b83c80e335af653a6692bd93ac9545b4:
+    resolution: {integrity: sha512-IBPK3MJPNEYoDGE1GF12JgvL2+5hzFtEF79jjwFDaBE6LMiKCyDn69NBXoVaNlTBfnfZb3ZkgUAG6U+QtAkVYQ==}
     hasBin: true
     peerDependencies:
       svelte: ^3.24.0
