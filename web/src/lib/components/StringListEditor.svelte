@@ -40,20 +40,21 @@
 <ol class="flex w-full flex-col space-y-2">
   {#each values as value, i}
     <li class="flex items-stretch space-x-2">
-      <input
-        type="text"
-        {value}
-        on:input={(e) => updateIndex(e, i)}
-        class="w-full !rounded-none border-0 border-b py-0 focus:!rounded-md"
-      /><Button iconButton aria-label="Delete" on:click={() => remove(i)}><X /></Button>
+      <input type="text" {value} on:input={(e) => updateIndex(e, i)} class="w-full py-0" /><Button
+        iconButton
+        aria-label="Delete"
+        on:click={() => remove(i)}><X /></Button
+      >
     </li>
   {/each}
   <li class="flex items-stretch space-x-2">
     <input
       type="text"
-      class="w-full !rounded-none border-0 border-b border-gray-300 py-0 focus:!rounded-md dark:border-gray-700"
+      placeholder="Add New Item"
+      aria-label="New item"
+      class="w-full border-gray-300 py-0 dark:border-gray-700"
       on:keydown={handleKeydown}
-    /><Button iconButton aria-label="Add new line" on:click={(e) => addNew(e.target)}
+    /><Button iconButton aria-label="Add new item" on:click={(e) => addNew(e.target)}
       ><Plus /></Button
     >
   </li>

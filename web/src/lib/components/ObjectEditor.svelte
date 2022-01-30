@@ -67,38 +67,44 @@
 
 <ol class="flex w-full flex-col space-y-2">
   {#each Object.entries(value).sort(sorter((x) => x[0])) as [key, value], i (key)}
-    <li class="flex items-stretch space-x-2">
+    <li class="flex items-stretch ">
       <input
         type="text"
         bind:this={keyTextfields[key]}
+        aria-label="Key {key}"
         value={key}
         on:input={(e) => updateKey(e, key)}
-        class="flex-1 !rounded-none border-0 border-b py-0 focus:!rounded-md"
+        class="mr-4 w-full flex-1 py-0"
       />
       <slot name="value" {value} update={(newValue) => updateValue(key, newValue)}>
         <input
           type="text"
+          aria-label="Value for key {key}"
           {value}
           on:input={(e) => updateValue(key, e.target.value)}
-          class="flex-1 !rounded-none border-0 border-b py-0 focus:!rounded-md"
+          class="mr-2 w-full flex-1 py-0"
         />
       </slot>
-      <Button iconButton aria-label="Delete" on:click={() => remove(key)}><X /></Button>
+      <Button iconButton aria-label="Delete key {key}" on:click={() => remove(key)}><X /></Button>
     </li>
   {/each}
-  <li class="flex items-stretch space-x-2">
+  <li class="flex items-stretch">
     <input
       type="text"
-      class="w-full !rounded-none border-0 border-b border-gray-300 py-0 focus:!rounded-md dark:border-gray-700"
+      class="mr-4 w-full border-gray-300 py-0 dark:border-gray-700"
+      placeholder="Key"
+      aria-label="New item key"
       bind:value={newKey}
       bind:this={newKeyField}
     />
     <input
       type="text"
-      class="w-full !rounded-none border-0 border-b border-gray-300 py-0 focus:!rounded-md dark:border-gray-700"
+      class="mr-2 w-full border-gray-300 py-0 dark:border-gray-700"
+      placeholder="Value"
+      aria-label="New item value"
       bind:value={newValue}
       on:keydown={handleValueKeydown}
     />
-    <Button iconButton aria-label="Add new line" on:click={addNew}><Plus /></Button>
+    <Button iconButton aria-label="Add new item" on:click={addNew}><Plus /></Button>
   </li>
 </ol>
