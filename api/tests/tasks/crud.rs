@@ -51,7 +51,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             enabled: true,
             compiled: machine.clone(),
             source: serde_json::Value::Null,
-            state: states.clone(),
+            state: Some(states.clone()),
             actions: test_actions.clone(),
             triggers: test_triggers.clone(),
         },
@@ -62,7 +62,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             enabled: true,
             compiled: machine.clone(),
             source: serde_json::Value::Null,
-            state: states.clone(),
+            state: Some(states.clone()),
             actions: test_actions.clone(),
             triggers: test_triggers.clone(),
         },
@@ -73,7 +73,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
             enabled: false,
             compiled: machine.clone(),
             source: serde_json::Value::Null,
-            state: states.clone(),
+            state: Some(states.clone()),
             actions: test_actions.clone(),
             triggers: test_triggers.clone(),
         },
@@ -86,7 +86,7 @@ async fn bootstrap_data(app: &TestApp) -> Result<BootstrappedData> {
         enabled: true,
         compiled: machine.clone(),
         source: serde_json::Value::Null,
-        state: states.clone(),
+        state: Some(states.clone()),
         actions: test_actions.clone(),
         triggers: test_triggers.clone(),
     };
@@ -212,7 +212,8 @@ async fn get_task() {
                 i
             );
             assert_eq!(
-                task.state.0, input.state,
+                Some(task.state.0),
+                input.state,
                 "Task {}: state machine states should match",
                 i
             );
@@ -366,7 +367,7 @@ async fn put_existing_task() {
             enabled: false,
             compiled: config.clone(),
             source: serde_json::Value::Null,
-            state: state.clone(),
+            state: Some(state.clone()),
             actions: vec![].into_iter().collect::<FxHashMap<_, _>>(),
             triggers: vec![].into_iter().collect::<FxHashMap<_, _>>(),
         };

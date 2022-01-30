@@ -64,7 +64,7 @@ async fn bootstrap_data(app: &TestApp) -> BootstrappedData {
         description: None,
         enabled: true,
         compiled: config,
-        state,
+        state: Some(state),
         source: serde_json::Value::Null,
         actions: simple_task_actions(&actions),
         triggers,

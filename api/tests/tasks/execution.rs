@@ -26,7 +26,7 @@ use serde_json::json;
 use smallvec::smallvec;
 use uuid::Uuid;
 use wiremock::{
-    matchers::{self, body_json, method, path},
+    matchers::{body_json, method, path},
     Mock, MockServer, ResponseTemplate,
 };
 
@@ -163,7 +163,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
             },
             TemplateField {
                 name: Cow::from("payload"),
-                format: TemplateFieldFormat::Object,
+                format: TemplateFieldFormat::Object { nested: true },
                 optional: false,
                 description: None,
             },
@@ -188,10 +188,10 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         description: None,
         alias: Some("run_script".to_string()),
         enabled: true,
-        state: TaskState::StateMachine(smallvec![StateMachineData {
+        state: Some(TaskState::StateMachine(smallvec![StateMachineData {
             state: "initial".to_string(),
             context: json!(null)
-        }]),
+        }])),
 
         source: json!(null),
         compiled: TaskConfig::StateMachine(smallvec![StateMachine {
@@ -267,11 +267,12 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         description: None,
         alias: None,
         enabled: true,
-        state: TaskState::Js(TaskJsState {
+        state: Some(TaskState::Js(TaskJsState {
             context: String::new(),
-        }),
+        })),
         source: serde_json::Value::Null,
         compiled: TaskConfig::Js(TaskJsConfig {
+            map: String::new(),
             script,
             timeout: None,
         }),
