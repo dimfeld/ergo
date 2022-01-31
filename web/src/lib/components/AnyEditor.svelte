@@ -41,9 +41,16 @@
       newValue = Math.trunc(newValue);
     }
 
-    dispatch('change', newValue);
     value = newValue;
+    dispatch('change', newValue);
   }
+
+  function notifyChoice(newValue: string | string[]) {
+    value = Array.isArray(newValue) ? newValue : [newValue];
+    dispatch('change', value);
+  }
+
+  $: multiple = format.type === 'choice' && format.max > 1;
 </script>
 
 {#if format.type === 'string'}
@@ -64,9 +71,21 @@
   </label>
 {:else if format.type === 'integer' || format.type === 'float'}
   <input
+    class="w-full"
     type="number"
     step={format.type === 'float' ? 0.01 : 1}
     {value}
     on:input={(e) => notifyNumber(e.target.valueAsNumber)}
   />
+{:else if format.type === 'choice'}
+  <select
+    class="w-full"
+    {multiple}
+    value={multiple ? value : value?.[0]}
+    on:change={(e) => notifyChoice(e.target.value)}
+  >
+    {#each format.choices as choice}
+      <option>{choice}</option>
+    {/each}
+  </select>
 {/if}
