@@ -2,6 +2,7 @@
   import { Action, ActionCategory } from '$lib/api_types';
   import clone from 'just-clone';
   import type { Load } from '@sveltejs/kit';
+  import * as help from './_helpText';
   import pascalCase from 'just-pascal-case';
   import { new_action_id } from 'ergo-wasm';
 
@@ -63,6 +64,8 @@
 
   let postprocessContents: () => string;
 
+  // TODO: Support scripts. This will require generating typescript types from the executor's template for both the
+  // inputs and outputs.
   $: executorTemplateArguments =
     action.executor_template.t === 'Template'
       ? Object.fromEntries(
@@ -99,6 +102,7 @@
 
   function changeExecutor(e: InputEvent) {
     action.executor_id = e.target.value;
+    // None of the old template values will apply to the new template, so clear it out.
     action.executor_template = {
       t: 'Template',
       c: [],
@@ -173,7 +177,7 @@
       </Labelled>
     </div>
   </Card>
-  <Card class="flex flex-col space-y-4" label="Template Inputs">
+  <Card class="flex flex-col space-y-4" label="Template Inputs" help={help.templateInputs}>
     <ul class="flex flex-col space-y-4">
       {#each action.template_fields as template_field (template_field.name)}
         <li>
@@ -182,7 +186,7 @@
       {/each}
     </ul>
   </Card>
-  <Card label="Executor Template">
+  <Card label="Executor Template" help={help.executorTemplate}>
     <!-- TODO script/template toggle -->
     <ul class="flex flex-col space-y-4">
       {#each executor?.template_fields || [] as field}
@@ -201,6 +205,7 @@
               />
             {:else}
               <AnyEditor
+                optional={field.optional}
                 format={field.format}
                 value={executorTemplateArguments[field.name]?.value}
                 on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}

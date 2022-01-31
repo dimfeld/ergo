@@ -19,7 +19,7 @@ export type Position =
 
 export interface TippyOptions {
   trigger?: HTMLElement;
-  on?: 'manual' | 'click' | 'mouseenter focus';
+  on?: 'manual' | 'click focus' | 'mouseenter focus';
   position?: Position;
   fixed?: boolean;
   interactive?: boolean;
