@@ -66,7 +66,7 @@ pub async fn bootstrap_inputs_and_actions(
         ]),
         template_fields: vec![TemplateField {
             name: Cow::from("text"),
-            format: ergo_tasks::actions::template::TemplateFieldFormat::String,
+            format: ergo_tasks::actions::template::TemplateFieldFormat::string_without_default(),
             optional: false,
             description: None,
         }]

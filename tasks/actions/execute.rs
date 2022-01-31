@@ -71,6 +71,9 @@ pub enum ExecutorError {
         expected: String,
     },
 
+    #[error("Executor requires database connection but none was provided")]
+    MissingDatabase,
+
     #[error("Error during command execution: {source}")]
     CommandError {
         source: anyhow::Error,
@@ -103,9 +106,20 @@ impl From<TemplateValidationFailure> for ExecutorError {
 #[derive(Clone, Debug)]
 #[cfg(not(target_family = "wasm"))]
 pub struct ExecutorState {
-    pub pg_pool: PostgresPool,
+    pub pg_pool: Option<PostgresPool>,
     pub redis_key_prefix: Option<String>,
     pub user_id: UserId,
+}
+
+#[cfg(test)]
+impl ExecutorState {
+    pub fn new_test_state() -> Self {
+        ExecutorState {
+            pg_pool: None,
+            redis_key_prefix: None,
+            user_id: UserId::new(),
+        }
+    }
 }
 
 #[async_trait]
@@ -372,7 +386,7 @@ mod native {
         // Send the executor payload to the executor to actually run it.
         let postprocess = action.postprocess_script.as_ref();
         let executor_state = ExecutorState {
-            pg_pool: pg_pool.clone(),
+            pg_pool: Some(pg_pool.clone()),
             redis_key_prefix,
             user_id: action
                 .run_as

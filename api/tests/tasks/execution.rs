@@ -121,7 +121,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         ]),
         template_fields: vec![TemplateField {
             name: Cow::from("script"),
-            format: TemplateFieldFormat::String,
+            format: TemplateFieldFormat::string_without_default(),
             optional: false,
             description: None,
         }]
@@ -157,13 +157,16 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         template_fields: vec![
             TemplateField {
                 name: Cow::from("url"),
-                format: TemplateFieldFormat::String,
+                format: TemplateFieldFormat::string_without_default(),
                 optional: false,
                 description: None,
             },
             TemplateField {
                 name: Cow::from("payload"),
-                format: TemplateFieldFormat::Object { nested: true },
+                format: TemplateFieldFormat::Object {
+                    nested: true,
+                    default: Cow::from("{}"),
+                },
                 optional: false,
                 description: None,
             },

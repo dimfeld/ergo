@@ -12,27 +12,27 @@ use tracing::{event, instrument, Level};
 #[cfg(target_family = "unix")]
 use std::os::unix::process::ExitStatusExt;
 
-const FIELD_COMMAND: TemplateField = TemplateField::from_static(
+static FIELD_COMMAND: TemplateField = TemplateField::from_static(
     "command",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::string_without_default(),
     false,
     "The executable to run",
 );
-const FIELD_ARGS: TemplateField = TemplateField::from_static(
+static FIELD_ARGS: TemplateField = TemplateField::from_static(
     "args",
-    TemplateFieldFormat::StringArray,
+    TemplateFieldFormat::string_array_without_default(),
     true,
     "An array of arguments to the executable",
 );
-const FIELD_ENV: TemplateField = TemplateField::from_static(
+static FIELD_ENV: TemplateField = TemplateField::from_static(
     "env",
-    TemplateFieldFormat::Object { nested: false },
+    TemplateFieldFormat::object_without_default(false),
     true,
     "Environment variables to set",
 );
-const FIELD_ALLOW_FAILURE: TemplateField = TemplateField::from_static(
+static FIELD_ALLOW_FAILURE: TemplateField = TemplateField::from_static(
     "allow_failure",
-    TemplateFieldFormat::Boolean,
+    TemplateFieldFormat::Boolean { default: false },
     true,
     "If true, ignore the process exit code. By default, a nonzero exit code counts as failure",
 );
@@ -44,8 +44,13 @@ pub struct RawCommandExecutor {
 
 impl RawCommandExecutor {
     pub fn new() -> RawCommandExecutor {
-        let template_fields =
-            vec![FIELD_COMMAND, FIELD_ARGS, FIELD_ENV, FIELD_ALLOW_FAILURE].into();
+        let template_fields = [
+            &FIELD_COMMAND,
+            &FIELD_ARGS,
+            &FIELD_ENV,
+            &FIELD_ALLOW_FAILURE,
+        ]
+        .into();
 
         RawCommandExecutor { template_fields }
     }
@@ -64,8 +69,7 @@ impl Executor for RawCommandExecutor {
         _state: super::execute::ExecutorState,
         payload: FxHashMap<String, serde_json::Value>,
     ) -> Result<serde_json::Value, ExecutorError> {
-        let command = get_primitive_payload_value(&payload, "command", false)?;
-
+        let command = FIELD_COMMAND.extract_str(&payload)?;
         let mut cmd = tokio::process::Command::new(command.as_ref());
 
         // Don't leak our environment, which may contain secrets, to other commands.
@@ -73,24 +77,20 @@ impl Executor for RawCommandExecutor {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        if let Some(serde_json::Value::Array(array)) = payload.get("args") {
-            for v in array {
-                let value = json_primitive_as_string("args", None, v, false)?;
-                cmd.arg(value.as_ref());
-            }
+        let args = FIELD_ARGS.extract_string_array(&payload)?;
+        for v in args {
+            cmd.arg(v.as_ref());
         }
 
-        if let Some(serde_json::Value::Object(m)) = payload.get("env") {
+        let env = FIELD_ENV.extract_object(&payload)?;
+        if let serde_json::Value::Object(m) = env.as_ref() {
             for (k, v) in m {
-                let value = json_primitive_as_string("env", Some(k), v, false)?;
+                let value = json_primitive_as_string("env", Some(k), &v, false)?;
                 cmd.env(k, value.as_ref());
             }
         }
 
-        let allow_failure = match payload.get("allow_failure") {
-            Some(serde_json::Value::Bool(b)) => *b,
-            _ => false,
-        };
+        let allow_failure: bool = FIELD_ALLOW_FAILURE.extract(&payload)?;
 
         event!(Level::DEBUG, ?cmd);
 

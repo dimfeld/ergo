@@ -13,18 +13,23 @@ export type ScriptOrTemplate =
 export type TemplateFieldFormat =
   | {
       type: "string";
+      default: string;
     }
   | {
       type: "string_array";
+      default: string[];
     }
   | {
       type: "integer";
+      default: number;
     }
   | {
       type: "float";
+      default: number;
     }
   | {
       type: "boolean";
+      default: boolean;
     }
   | {
       type: "object";
@@ -32,12 +37,17 @@ export type TemplateFieldFormat =
        * If true, the object can have values that are arrays or other objects. If false, the object's values must all be primitives. This isn't currently validated but does inform the UI's decisions on how to proceed.
        */
       nested?: boolean;
+      /**
+       * The default value, represented as a string
+       */
+      default?: string;
     }
   | {
       type: "choice";
       choices: string[];
       min?: number | null;
       max?: number | null;
+      default: string[];
     };
 
 export type TemplateFields = TemplateField[];

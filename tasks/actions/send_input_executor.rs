@@ -16,30 +16,30 @@ use ergo_database::object_id::{InputId, TaskId, TaskTriggerId};
 #[cfg(not(target_family = "wasm"))]
 use sqlx::Connection;
 
-const FIELD_TASK: TemplateField = TemplateField::from_static(
+static FIELD_TASK: TemplateField = TemplateField::from_static(
     "task",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::string_without_default(),
     false,
     "The task to send the input to",
 );
 
-const FIELD_TRIGGER: TemplateField = TemplateField::from_static(
+static FIELD_TRIGGER: TemplateField = TemplateField::from_static(
     "trigger_name",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::string_without_default(),
     false,
     "The local ID of the task's trigger",
 );
 
-const FIELD_TIME: TemplateField = TemplateField::from_static(
+static FIELD_TIME: TemplateField = TemplateField::from_static(
     "time",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::string_without_default(),
     true,
     "When to send the input",
 );
 
-const FIELD_PAYLOAD: TemplateField = TemplateField::from_static(
+static FIELD_PAYLOAD: TemplateField = TemplateField::from_static(
     "payload",
-    TemplateFieldFormat::Object { nested: true },
+    TemplateFieldFormat::object_without_default(true),
     true,
     "The payload to send to the trigger",
 );
@@ -51,7 +51,7 @@ pub struct SendInputExecutor {
 
 impl SendInputExecutor {
     pub fn new() -> SendInputExecutor {
-        let template_fields = vec![FIELD_TRIGGER, FIELD_TASK, FIELD_TIME, FIELD_PAYLOAD].into();
+        let template_fields = [&FIELD_TRIGGER, &FIELD_TASK, &FIELD_TIME, &FIELD_PAYLOAD].into();
         SendInputExecutor { template_fields }
     }
 }
@@ -66,30 +66,32 @@ impl Executor for SendInputExecutor {
     ) -> Result<serde_json::Value, super::execute::ExecutorError> {
         use super::execute::ExecutorError;
 
-        let task_id = TaskId::from_str(FIELD_TASK.extract_str(&template_values)?.unwrap())
+        let task_id = TaskId::from_str(FIELD_TASK.extract_str(&template_values)?.as_ref())
             .map_err(|e| ExecutorError::FieldFormatError {
                 field: FIELD_TASK.name.to_string(),
                 subfield: None,
                 expected: e.to_string(),
             })?;
-        let trigger_name = FIELD_TRIGGER.extract_str(&template_values)?.unwrap_or("");
-        let when = FIELD_TIME
-            .extract_str(&template_values)?
-            .map(|s| DateTime::parse_from_rfc3339(s))
-            .transpose()
-            .map_err(|e| ExecutorError::FieldFormatError {
-                field: FIELD_TIME.name.to_string(),
-                subfield: None,
-                expected: e.to_string(),
-            })?
-            .map(|t| t.with_timezone(&Utc));
-        let payload = FIELD_PAYLOAD
-            .extract_object(&template_values)?
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        let trigger_name = FIELD_TRIGGER.extract_str(&template_values)?;
 
-        let mut conn = state
-            .pg_pool
+        let time_arg = FIELD_TIME.extract_str(&template_values)?;
+        let when = if time_arg.len() > 0 {
+            let parsed_time = DateTime::parse_from_rfc3339(time_arg.as_ref())
+                .map(|t| t.with_timezone(&Utc))
+                .map_err(|e| ExecutorError::FieldFormatError {
+                    field: FIELD_TIME.name.to_string(),
+                    subfield: None,
+                    expected: e.to_string(),
+                })?;
+            Some(parsed_time)
+        } else {
+            None
+        };
+
+        let payload = FIELD_PAYLOAD.extract_object(&template_values)?.into_owned();
+
+        let pg_pool = state.pg_pool.ok_or(ExecutorError::MissingDatabase)?;
+        let mut conn = pg_pool
             .acquire()
             .await
             .map_err(ExecutorError::command_error_without_result)?;
@@ -119,15 +121,14 @@ impl Executor for SendInputExecutor {
             )"##,
             user.user_entity_ids.as_slice(),
             &user.org_id.0,
-            &trigger_name,
+            trigger_name.as_ref(),
             &task_id.0,
         )
         .fetch_one(&mut tx)
         .await
         .map_err(ExecutorError::command_error_without_result)?;
 
-        let mut conn = state
-            .pg_pool
+        let mut conn = pg_pool
             .acquire()
             .await
             .map_err(ExecutorError::command_error_without_result)?;

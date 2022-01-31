@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::{
     execute::{Executor, ExecutorError},
     template::{TemplateField, TemplateFieldFormat, TemplateFields},
@@ -9,24 +11,29 @@ use async_trait::async_trait;
 
 use fxhash::FxHashMap;
 #[cfg(not(target_family = "wasm"))]
-use tracing::{event, instrument, Level};
+use tracing::{event, Level};
 use url::Url;
 
-const FIELD_NAME: TemplateField = TemplateField::from_static(
+static FIELD_NAME: TemplateField = TemplateField::from_static(
     "name",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::String {
+        default: Cow::Borrowed("script"),
+    },
     true,
     "The name of the action",
 );
-const FIELD_SCRIPT: TemplateField = TemplateField::from_static(
+static FIELD_SCRIPT: TemplateField = TemplateField::from_static(
     "script",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::string_without_default(),
     false,
     "The script to execute",
 );
-const FIELD_ARGS: TemplateField = TemplateField::from_static(
+static FIELD_ARGS: TemplateField = TemplateField::from_static(
     "args",
-    TemplateFieldFormat::Object { nested: true },
+    TemplateFieldFormat::Object {
+        nested: true,
+        default: Cow::Borrowed("{}"),
+    },
     true,
     "Arguments to the script. Exposed as 'args' in the script",
 );
@@ -38,13 +45,13 @@ pub struct JsExecutor {
 
 impl JsExecutor {
     pub fn new() -> JsExecutor {
-        let template_fields = vec![FIELD_NAME, FIELD_SCRIPT, FIELD_ARGS].into();
+        let template_fields = [&FIELD_NAME, &FIELD_SCRIPT, &FIELD_ARGS].into();
 
         JsExecutor { template_fields }
     }
 }
 
-const EXECUTOR_STARTUP_SCRIPT: &'static str = r##"
+const EXECUTOR_STARTUP_SCRIPT: &str = r##"
 globalThis.Ergo = globalThis.Ergo || {};
 Ergo.setResult = function(value) {
     globalThis.__ergo_result = value;
@@ -65,19 +72,14 @@ impl Executor for JsExecutor {
     ) -> Result<serde_json::Value, ExecutorError> {
         let (console, result) = scripting::POOL
             .run(move || async move {
-                let name = FIELD_NAME.extract_str(&payload)?.unwrap_or("script");
-                let script = FIELD_SCRIPT.extract_str(&payload)?.unwrap_or("");
+                let name = FIELD_NAME.extract_str(&payload)?;
+                let script = FIELD_SCRIPT.extract_str(&payload)?;
 
                 let mut runtime = scripting::create_executor_runtime();
-                if let Some(args) = FIELD_ARGS.extract_object(&payload)? {
-                    runtime
-                        .set_global_value("args", args)
-                        .map_err(ExecutorError::command_error_without_result)?;
-                } else {
-                    runtime
-                        .set_global_value("args", &serde_json::json!({}))
-                        .map_err(ExecutorError::command_error_without_result)?;
-                }
+                let args = FIELD_ARGS.extract_object(&payload)?;
+                runtime
+                    .set_global_value("args", args.as_ref())
+                    .map_err(ExecutorError::command_error_without_result)?;
 
                 event!(Level::DEBUG, %script, "executing script");
                 let name_url =
