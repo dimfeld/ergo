@@ -152,7 +152,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
         executor_template: ScriptOrTemplate::Template(vec![
             ("url".to_string(), json!("{{url}}")),
             ("json".to_string(), json!("{{/payload}}")),
-            ("method".to_string(), json!("{{method}}")),
+            ("method".to_string(), json!("POST")),
         ]),
         template_fields: vec![
             TemplateField {
@@ -164,12 +164,6 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
             TemplateField {
                 name: Cow::from("payload"),
                 format: TemplateFieldFormat::Object { nested: true },
-                optional: false,
-                description: None,
-            },
-            TemplateField {
-                name: Cow::from("method"),
-                format: TemplateFieldFormat::String,
                 optional: false,
                 description: None,
             },

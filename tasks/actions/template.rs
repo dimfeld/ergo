@@ -224,6 +224,39 @@ impl TemplateField {
         }
     }
 
+    pub fn extract_choice<'a>(
+        &self,
+        payload: &'a FxHashMap<String, serde_json::Value>,
+    ) -> Result<Option<Vec<Cow<'a, str>>>, TemplateValidationFailure> {
+        match payload.get(self.name.as_ref()) {
+            Some(v) => match v {
+                serde_json::Value::String(s) => Ok(Some(vec![Cow::Borrowed(s.as_str())])),
+                serde_json::Value::Array(values) => {
+                    let result = values
+                        .iter()
+                        .map(|s| match s.as_str() {
+                            Some(sref) => Cow::Borrowed(sref),
+                            None => Cow::Owned(s.to_string()),
+                        })
+                        .collect::<Vec<_>>();
+                    Ok(Some(result))
+                }
+                _ => Err(TemplateValidationFailure::Invalid {
+                    name: self.name.clone(),
+                    actual: v.clone(),
+                    expected: self.format.clone(),
+                }),
+            },
+            None => {
+                if self.optional {
+                    Ok(None)
+                } else {
+                    Err(TemplateValidationFailure::Required(self.name.clone()))
+                }
+            }
+        }
+    }
+
     pub fn extract_str<'a>(
         &self,
         payload: &'a FxHashMap<String, serde_json::Value>,

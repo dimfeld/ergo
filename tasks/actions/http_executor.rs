@@ -17,7 +17,19 @@ const FIELD_URL: TemplateField = TemplateField::from_static(
 
 const FIELD_METHOD: TemplateField = TemplateField::from_static(
     "method",
-    TemplateFieldFormat::String,
+    TemplateFieldFormat::from_static_choices(
+        &[
+            Cow::Borrowed("GET"),
+            Cow::Borrowed("POST"),
+            Cow::Borrowed("PUT"),
+            Cow::Borrowed("PATCH"),
+            Cow::Borrowed("DELETE"),
+            Cow::Borrowed("HEAD"),
+            Cow::Borrowed("OPTIONS"),
+        ],
+        Some(1),
+        Some(1),
+    ),
     true,
     "The HTTP method to use. Defaults to GET",
 );
@@ -144,13 +156,19 @@ mod execute {
                 .build()
                 .map_err(ExecutorError::command_error_without_result)?;
 
-            let method =
-                reqwest::Method::try_from(FIELD_METHOD.extract_str(&payload)?.unwrap_or("GET"))
-                    .map_err(|_| ExecutorError::FieldFormatError {
-                        field: "method".to_string(),
-                        subfield: None,
-                        expected: "Valid HTTP method".to_string(),
-                    })?;
+            let method_choice = FIELD_METHOD
+                .extract_choice(&payload)?
+                .unwrap_or_else(Vec::new)
+                .drain(..)
+                .next()
+                .unwrap_or(Cow::Borrowed("GET"));
+            let method = reqwest::Method::try_from(method_choice.as_ref()).map_err(|_| {
+                ExecutorError::FieldFormatError {
+                    field: "method".to_string(),
+                    subfield: None,
+                    expected: "Valid HTTP method".to_string(),
+                }
+            })?;
 
             let url = FIELD_URL.extract_str(&payload)?.unwrap_or("");
 
@@ -416,7 +434,7 @@ mod tests {
 
         let payload = std::array::IntoIter::new([
             ("url", json!(format!("{}/a_url", mock_server.uri()))),
-            ("method", json!("POST")),
+            ("method", json!(["POST"])),
             ("json", json!({"a": 4, "b": "c"})),
             ("result_format", json!(["json"])),
         ])
