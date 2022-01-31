@@ -29,10 +29,9 @@
   </div>
 
   {#if useEditor}
-    <div class="border border-dgray-500">
+    <div class="border border-dgray-500 pr-2">
       <Editor
         format="json"
-        toolbar={false}
         notifyOnChange={true}
         contents={formatJson(JSON.stringify(value), 'json')}
         on:change={({ detail: text }) => updateText(text)}
