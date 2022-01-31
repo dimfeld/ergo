@@ -23,7 +23,7 @@ const config = {
   plugins: [
     formsPlugin,
     autoDarkPlugin({
-      mainElement: '#top',
+      mainElement: 'body',
       colors: ['gray', 'accent'],
     }),
   ],
