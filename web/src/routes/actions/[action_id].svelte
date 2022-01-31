@@ -1,5 +1,5 @@
 <script context="module" lang="ts">
-  import { Action, ActionCategory } from '$lib/api_types';
+  import { Action, ActionCategory, TemplateFieldFormat } from '$lib/api_types';
   import clone from 'just-clone';
   import type { Load } from '@sveltejs/kit';
   import * as help from './_helpText';
@@ -46,9 +46,11 @@
   import apiClient from '$lib/api';
   import { getHeaderTextStore } from '$lib/header';
   import { goto, invalidate } from '$app/navigation';
+  import { keyHandler } from '$lib/keyhandlers';
   import Card from '$lib/components/Card.svelte';
   import Editor from '$lib/editors/Editor.svelte';
   import AnyEditor from '$lib/components/AnyEditor.svelte';
+  import StringListEditor from '$lib/components/StringListEditor.svelte';
 
   export let action: Action;
 
@@ -139,6 +141,40 @@
       suffix: '}',
     };
   }
+
+  function addTemplateInput(e: Event) {
+    e.preventDefault();
+    if (!newTemplateInputName) {
+      return;
+    }
+
+    action.template_fields = [
+      ...action.template_fields,
+      {
+        name: newTemplateInputName,
+        format:
+          newTemplateInputType === 'choice'
+            ? { type: 'choice', choices: [], min: 1, max: 1 }
+            : {
+                type: newTemplateInputType,
+              },
+        optional: true,
+        description: '',
+      },
+    ];
+
+    newTemplateInputName = '';
+  }
+
+  function removeTemplateField(index: number) {
+    action.template_fields = [
+      ...action.template_fields.slice(0, index),
+      ...action.template_fields.slice(index + 1),
+    ];
+  }
+
+  let newTemplateInputType: TemplateFieldFormat['type'] = 'string';
+  let newTemplateInputName = '';
 </script>
 
 <form on:submit|preventDefault={handleSubmit} class="flex flex-col space-y-6">
@@ -178,12 +214,61 @@
     </div>
   </Card>
   <Card class="flex flex-col space-y-4" label="Template Inputs" help={help.templateInputs}>
-    <ul class="flex flex-col space-y-4">
-      {#each action.template_fields as template_field (template_field.name)}
-        <li>
-          <pre>{JSON.stringify(template_field)}</pre>
+    <ul class="flex flex-col divide-y divide-dgray-300">
+      {#each action.template_fields as template_field, i (template_field.name)}
+        <li class:pt-4={i > 0} class="pb-4">
+          <Labelled
+            big={true}
+            label={template_field.name}
+            help={pascalCase(template_field.format.type)}
+          >
+            <div class="flex flex-col space-y-4">
+              {#if template_field.format.type === 'choice'}
+                <StringListEditor
+                  bind:values={template_field.format.choices}
+                  placeholder="Add New Choice"
+                />
+                <div class="flex justify-between space-x-4">
+                  <Labelled class="w-full" label="Choose at least">
+                    <input class="w-full" type="number" bind:value={template_field.format.min} />
+                  </Labelled>
+                  <Labelled class="w-full" label="Choose at most">
+                    <input class="w-full" type="number" bind:value={template_field.format.max} />
+                  </Labelled>
+                </div>
+              {:else if template_field.format.type === 'object'}
+                <Checkbox bind:value={template_field.format.nested} label="Allow Nested Objects" />
+              {/if}
+              <Labelled label="Description">
+                <input class="w-full" type="text" bind:value={template_field.description} />
+              </Labelled>
+              <div class="flex items-center justify-between">
+                <Checkbox bind:value={template_field.optional} label="Optional" />
+                <Button style="danger" on:click={() => removeTemplateField(i)}>Delete</Button>
+              </div>
+            </div>
+          </Labelled>
         </li>
       {/each}
+      <li class="flex items-center space-x-2 pt-4">
+        <span>Add new</span>
+        <select bind:value={newTemplateInputType}>
+          <option>string</option>
+          <option value="string_array">string array</option>
+          <option value="object">object</option>
+          <option>boolean</option>
+          <option>choice</option>
+          <option>integer</option>
+          <option>float</option>
+        </select>
+        <span>named</span>
+        <input
+          type="text"
+          bind:value={newTemplateInputName}
+          on:keydown={keyHandler(['Enter'], addTemplateInput)}
+        />
+        <Button on:click={addTemplateInput}>Add</Button>
+      </li>
     </ul>
   </Card>
   <Card label="Executor Template" help={help.executorTemplate}>

@@ -25,4 +25,8 @@ body.dark {
   .label {
     @apply text-sm font-medium text-gray-700 dark:text-gray-300;
   }
+
+  .big-label {
+    @apply text-base font-normal;
+  }
 }

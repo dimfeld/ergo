@@ -92,7 +92,7 @@
     <input
       type="text"
       class="mr-4 w-full border-gray-300 py-0 dark:border-gray-700"
-      placeholder="Key"
+      placeholder="New Item Key"
       aria-label="New item key"
       bind:value={newKey}
       bind:this={newKeyField}
@@ -100,7 +100,7 @@
     <input
       type="text"
       class="mr-2 w-full border-gray-300 py-0 dark:border-gray-700"
-      placeholder="Value"
+      placeholder="New Item Value"
       aria-label="New item value"
       bind:value={newValue}
       on:keydown={handleValueKeydown}

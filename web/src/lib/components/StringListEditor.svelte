@@ -8,6 +8,7 @@
   const notify = () => dispatch('change', values);
 
   export let values: string[];
+  export let placeholder = 'Add New Item';
 
   function updateIndex(e: InputEvent, i: number) {
     let value = e.target?.value ?? '';
@@ -50,7 +51,7 @@
   <li class="flex items-stretch space-x-2">
     <input
       type="text"
-      placeholder="Add New Item"
+      {placeholder}
       aria-label="New item"
       class="w-full border-gray-300 py-0 dark:border-gray-700"
       on:keydown={handleKeydown}
