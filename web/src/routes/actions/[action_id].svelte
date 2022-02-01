@@ -46,12 +46,10 @@
   import apiClient from '$lib/api';
   import { getHeaderTextStore } from '$lib/header';
   import { goto, invalidate } from '$app/navigation';
-  import { keyHandler } from '$lib/keyhandlers';
   import Card from '$lib/components/Card.svelte';
   import Editor from '$lib/editors/Editor.svelte';
-  import AnyEditor from '$lib/components/AnyEditor.svelte';
-  import StringListEditor from '$lib/components/StringListEditor.svelte';
   import TemplateFieldsEditor from '$lib/components/TemplateFieldsEditor.svelte';
+  import TemplateValuesEditor from '$lib/components/TemplateValuesEditor.svelte';
 
   export let action: Action;
 
@@ -66,42 +64,6 @@
   $: executor = $executors.get(action.executor_id);
 
   let postprocessContents: () => string;
-
-  // TODO: Support scripts. This will require generating typescript types from the executor's template for both the
-  // inputs and outputs.
-  $: executorTemplateArguments =
-    action.executor_template.t === 'Template'
-      ? Object.fromEntries(
-          action.executor_template.c.map(([name, value], index) => {
-            return [
-              name,
-              {
-                value,
-                index,
-              },
-            ];
-          })
-        )
-      : {};
-
-  function updateExecutorTemplateValue(name: string, value: any) {
-    if (action.executor_template.t === 'Template') {
-      let templateValueIndex = action.executor_template.c.findIndex((v) => v[0] === name);
-      if (templateValueIndex >= 0) {
-        if (value === null) {
-          // Remove the item from the template
-          action.executor_template.c = [
-            ...action.executor_template.c.slice(0, templateValueIndex),
-            ...action.executor_template.c.slice(templateValueIndex + 1),
-          ];
-        } else {
-          action.executor_template.c[templateValueIndex][1] = value;
-        }
-      } else {
-        action.executor_template.c = [...action.executor_template.c, [name, value]];
-      }
-    }
-  }
 
   function changeExecutor(e: InputEvent) {
     action.executor_id = e.target.value;
@@ -184,34 +146,10 @@
     <TemplateFieldsEditor bind:fields={action.template_fields} />
   </Card>
   <Card label="Executor Template" help={help.executorTemplate}>
-    <!-- TODO script/template toggle -->
-    <ul class="flex flex-col space-y-4">
-      {#each executor?.template_fields || [] as field}
-        <li>
-          <Labelled
-            label={field.name}
-            help="{pascalCase(field.format.type)} &mdash; {field.description}"
-          >
-            {#if field.name === 'script' && field.format.type === 'string'}
-              <!-- Gross hardcoded case but it's the only one for now :) -->
-              <Editor
-                format="js"
-                contents={executorTemplateArguments[field.name]?.value}
-                notifyOnChange={true}
-                on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}
-              />
-            {:else}
-              <AnyEditor
-                optional={field.optional}
-                format={field.format}
-                value={executorTemplateArguments[field.name]?.value}
-                on:change={(e) => updateExecutorTemplateValue(field.name, e.detail)}
-              />
-            {/if}
-          </Labelled>
-        </li>
-      {/each}
-    </ul>
+    <TemplateValuesEditor
+      fields={executor?.template_fields || []}
+      bind:values={action.executor_template}
+    />
   </Card>
   <Card label="Accounts">
     <Checkbox bind:value={action.account_required} label="Account Required?" />
