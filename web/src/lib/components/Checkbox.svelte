@@ -3,7 +3,7 @@
 </script>
 
 <script lang="ts">
-  export let value: boolean;
+  export let value: boolean | undefined;
   export let label: string;
 
   let id = `checkbox-${checkboxId++}`;
