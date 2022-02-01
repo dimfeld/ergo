@@ -69,7 +69,8 @@
   <div class="hidden">
     <div
       use:portal={target}
-      class="absolute inset-0 h-screen w-screen grid grid-cols-1 grid-rows-1 place-items-center z-1000"
+      style:z-index={1000}
+      class="absolute inset-0 grid h-screen w-screen grid-cols-1 grid-rows-1 place-items-center"
     >
       {#if backdrop}
         <slot name="backdrop" {close}>
@@ -84,7 +85,7 @@
       <div
         use:closeOnEscAction
         use:focus={{ enabled: trapFocus }}
-        class="z-10 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-400 shadow-xl"
+        class="z-10 rounded-lg border border-gray-200 bg-gray-50 p-4 shadow-xl dark:border-gray-400 dark:bg-gray-900"
       >
         <slot {close} data={openInput} />
       </div>
