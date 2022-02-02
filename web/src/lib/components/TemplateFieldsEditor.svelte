@@ -66,7 +66,7 @@
 
 <ul class="flex flex-col divide-y divide-dgray-300">
   {#each fields as template_field, i (template_field.name)}
-    <li class:pt-4={i > 0} class="pb-4">
+    <li class:pt-8={i > 0} class="pb-8">
       <Labelled
         big={true}
         label={template_field.name}
@@ -115,9 +115,9 @@
       </Labelled>
     </li>
   {/each}
-  <li class="flex items-center space-x-2 pt-4">
+  <li class="flex items-center space-x-2 pt-8">
     <span>Add new</span>
-    <select bind:value={newTemplateInputType}>
+    <select class="h-8 py-0" bind:value={newTemplateInputType}>
       <option>string</option>
       <option value="string_array">string array</option>
       <option value="object">object</option>
@@ -128,10 +128,11 @@
     </select>
     <span>named</span>
     <input
+      class="h-8 py-0"
       type="text"
       bind:value={newTemplateInputName}
       on:keydown={keyHandler(['Enter'], addTemplateInput)}
     />
-    <Button on:click={addTemplateInput}>Add</Button>
+    <Button size="sm" on:click={addTemplateInput}>Add</Button>
   </li>
 </ul>
