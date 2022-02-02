@@ -9,6 +9,10 @@ export interface ScriptDefinitionOptions {
   inputs: Map<string, Input>;
 }
 
+function pluralValues(v: number) {
+  return v === 1 ? 'value' : 'values';
+}
+
 export function scriptTypeDefinitions({
   taskTriggers,
   taskActions,
@@ -18,22 +22,57 @@ export function scriptTypeDefinitions({
   let actionFunctions = Object.entries(taskActions).map(([localId, action]) => {
     let payloadTypeName = camelCase(localId) + 'ActionPayload';
 
-    let actionPayloadDef: string;
-    let actionTemplate = actions.get(action.action_id)?.executor_template;
-    if (actionTemplate?.t === 'Template') {
-      actionPayloadDef = actionTemplate.c
-        .map(([fieldName, fieldTemplate]) => {
-          return `
-      /** ${JSON.stringify(fieldTemplate)} */
-      ${fieldName}: string;
-      `;
-        })
-        .join('\n');
-    } else {
-      // Fallback for now when the template is done via script.
-      // TODO Change the script type to include some type information.
-      actionPayloadDef = `[key:string]: any;`;
-    }
+    let actionTemplate = actions.get(action.action_id)?.template_fields;
+    let actionPayloadDef = (actionTemplate ?? [])
+      .map((field) => {
+        let tsType = field.format.type as string;
+        let constraints = '';
+        switch (field.format.type) {
+          case 'choice':
+            {
+              let choiceString = field.format.choices.join(', ');
+              let { min, max } = field.format;
+
+              if (min && max) {
+                if (min === max) {
+                  constraints = `${min} ${pluralValues(min)} from ${choiceString}`;
+                } else {
+                  constraints = `${min} to ${max} values from ${choiceString}`;
+                }
+              } else if (min) {
+                constraints = `At least ${min} ${pluralValues(min)} from ${choiceString}`;
+              } else if (max) {
+                constraints = `At most ${max} ${pluralValues(max)} from ${choiceString}`;
+              } else {
+                constraints = `Any number of values from ${choiceString}`;
+              }
+
+              tsType = 'string[]';
+            }
+            break;
+          case 'string_array':
+            tsType = 'string[]';
+            break;
+          case 'float':
+          case 'integer':
+            tsType = 'number';
+            break;
+        }
+
+        let commentContents = [
+          field.description,
+          field.optional ? `@default ${field.format.default}` : null,
+          constraints,
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+        let comment = commentContents ? `/** ${commentContents} */` : '';
+        let fieldDef = `${field.name}${field.optional ? '?' : ''}: ${tsType};`;
+
+        return [comment, fieldDef].filter(Boolean).join('\n');
+      })
+      .join('\n\n');
 
     return `
     interface ${payloadTypeName} {
