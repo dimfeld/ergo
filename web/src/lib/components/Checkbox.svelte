@@ -11,7 +11,7 @@
   let id = `checkbox-${checkboxId++}`;
 </script>
 
-<label class="label {classNames}" for={id}>
-  <input {id} type="checkbox" bind:checked={value} />
-  {label}
+<label class="label flex items-center {classNames}" for={id}>
+  <input {id} class="mr-2" type="checkbox" bind:checked={value} />
+  <slot>{label}</slot>
 </label>
