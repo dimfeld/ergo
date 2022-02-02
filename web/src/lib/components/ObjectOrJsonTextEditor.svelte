@@ -4,6 +4,7 @@
   import Switch from './Switch.svelte';
   import { formatJson } from '$lib/editors/format';
   import { createEventDispatcher } from 'svelte';
+  import StringListEditor from './StringListEditor.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -37,6 +38,8 @@
         on:change={({ detail: text }) => updateText(text)}
       />
     </div>
+  {:else if Array.isArray(value)}
+    <StringListEditor bind:values={value} on:change />
   {:else}
     <ObjectEditor bind:value on:change />
   {/if}

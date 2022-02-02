@@ -59,7 +59,6 @@
   $: multiple = format.type === 'choice' && format.max > 1;
 
   function makeObjectValue(v) {
-    console.log({ v });
     return objectAsString ? JSON.parse(v || '{}') : v || {};
   }
 </script>
