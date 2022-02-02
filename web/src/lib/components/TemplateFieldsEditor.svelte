@@ -3,13 +3,14 @@
   Edit the fields in a TemplateFields object
 -->
 <script lang="ts">
-  import { TemplateFieldFormat, TemplateFields } from '$lib/api_types';
+  import { TemplateField, TemplateFieldFormat, TemplateFields } from '$lib/api_types';
   import Button from './Button.svelte';
   import Checkbox from './Checkbox.svelte';
   import Labelled from './Labelled.svelte';
   import StringListEditor from './StringListEditor.svelte';
   import { keyHandler } from '../keyhandlers';
   import pascalCase from 'just-pascal-case';
+  import AnyEditor from './AnyEditor.svelte';
 
   export let fields: TemplateFields;
 
@@ -19,17 +20,34 @@
       return;
     }
 
+    let format: TemplateField['format'];
+    switch (newTemplateInputType) {
+      case 'choice':
+        format = { type: 'choice', choices: [], min: 1, max: 1, default: [] };
+        break;
+      case 'string':
+        format = { type: newTemplateInputType, default: '' };
+        break;
+      case 'object':
+        format = { type: newTemplateInputType, default: '{}' };
+        break;
+      case 'integer':
+      case 'float':
+        format = { type: newTemplateInputType, default: 0 };
+        break;
+      case 'string_array':
+        format = { type: 'string_array', default: [] };
+        break;
+      case 'boolean':
+        format = { type: 'boolean', default: false };
+        break;
+    }
+
     fields = [
       ...fields,
       {
         name: newTemplateInputName,
-        format:
-          newTemplateInputType === 'choice'
-            ? { type: 'choice', choices: [], min: 1, max: 1, default: [] }
-            : {
-                type: newTemplateInputType,
-                default: undefined,
-              },
+        format,
         optional: true,
         description: '',
       },
@@ -55,6 +73,9 @@
         help={pascalCase(template_field.format.type)}
       >
         <div class="flex flex-col space-y-4">
+          <Labelled label="Description">
+            <input class="w-full" type="text" bind:value={template_field.description} />
+          </Labelled>
           {#if template_field.format.type === 'choice'}
             <StringListEditor
               bind:values={template_field.format.choices}
@@ -68,16 +89,27 @@
                 <input class="w-full" type="number" bind:value={template_field.format.max} />
               </Labelled>
             </div>
-          {:else if template_field.format.type === 'object'}
-            <Checkbox bind:value={template_field.format.nested} label="Allow Nested Objects" />
           {/if}
-          <Labelled label="Description">
-            <input class="w-full" type="text" bind:value={template_field.description} />
+          <Labelled label="Default Value">
+            <AnyEditor
+              optional={false}
+              objectAsString={true}
+              format={template_field.format}
+              bind:value={template_field.format.default}
+            />
           </Labelled>
-          <!-- TODO Add support for default values -->
-          <div class="flex items-center justify-between">
-            <Checkbox bind:value={template_field.optional} label="Optional" />
-            <Button style="danger" on:click={() => removeTemplateField(i)}>Delete</Button>
+          <div class="flex items-center">
+            <Checkbox bind:value={template_field.optional} label="Optional" class="mr-4" />
+            {#if template_field.format.type === 'object'}
+              <Checkbox
+                bind:value={template_field.format.nested}
+                label="Allow Nested Objects"
+                class="ml-8 mr-4"
+              />
+            {/if}
+            <Button class="ml-auto" style="danger" on:click={() => removeTemplateField(i)}
+              >Delete</Button
+            >
           </div>
         </div>
       </Labelled>

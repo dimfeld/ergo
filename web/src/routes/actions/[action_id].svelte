@@ -3,7 +3,6 @@
   import clone from 'just-clone';
   import type { Load } from '@sveltejs/kit';
   import * as help from './_helpText';
-  import pascalCase from 'just-pascal-case';
   import { new_action_id } from 'ergo-wasm';
 
   function newAction(actionCategories: Map<string, ActionCategory>): Action {

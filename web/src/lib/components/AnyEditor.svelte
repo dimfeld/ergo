@@ -11,6 +11,8 @@
   export let value: any;
   export let optional = false;
   export let format: TemplateFieldFormat;
+  /* If editing an object, expect `value` to be parseable JSON and then stringify it when setting `value` */
+  export let objectAsString = false;
 
   const notify = (newValue: any) => {
     if (optional) {
@@ -24,6 +26,10 @@
           }
           break;
       }
+    }
+
+    if (format.type === 'object' && objectAsString) {
+      newValue = JSON.stringify(newValue);
     }
 
     value = newValue;
@@ -51,6 +57,11 @@
   }
 
   $: multiple = format.type === 'choice' && format.max > 1;
+
+  function makeObjectValue(v) {
+    console.log({ v });
+    return objectAsString ? JSON.parse(v || '{}') : v || {};
+  }
 </script>
 
 {#if format.type === 'string'}
@@ -59,9 +70,9 @@
   <StringListEditor values={value ?? []} on:change={(e) => notify(e.detail)} />
 {:else if format.type === 'object'}
   {#if format.nested}
-    <ObjectOrJsonTextEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
+    <ObjectOrJsonTextEditor value={makeObjectValue(value)} on:change={(e) => notify(e.detail)} />
   {:else}
-    <ObjectEditor value={value ?? {}} on:change={(e) => notify(e.detail)} />
+    <ObjectEditor value={makeObjectValue(value)} on:change={(e) => notify(e.detail)} />
   {/if}
 {:else if format.type === 'boolean'}
   <label>
