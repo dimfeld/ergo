@@ -26,12 +26,19 @@
   export let taskActions: Record<string, TaskAction>;
 
   let bundler: Bundler | null;
-  onMount(() => {
+
+  function getBundler() {
+    if (bundler) {
+      return bundler;
+    }
+
     bundler = new Bundler();
-    return () => {
-      bundler.destroy();
-      bundler = null;
-    };
+    return bundler;
+  }
+
+  onDestroy(() => {
+    bundler?.destroy();
+    bundler = null;
   });
 
   $: scriptTypeDefs = scriptTypeDefinitions({
@@ -48,7 +55,7 @@
     // TODO Extra lint checks and validation once those are in place.
     let s = view.state.doc.toString();
 
-    let bundle = await bundler!.bundle({
+    let bundle = await getBundler().bundle({
       production: true,
       files: {
         'index.ts': s,
