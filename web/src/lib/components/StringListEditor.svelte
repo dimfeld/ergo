@@ -7,27 +7,33 @@
   const dispatch = createEventDispatcher();
   const notify = () => dispatch('change', values);
 
-  export let values: string[];
+  export let values: string[] | undefined;
   export let placeholder = 'Add New Item';
 
   /** If set, use a select box and limit choices to the values herein. */
-  export let possible: string[] | undefined = undefined;
+  export let possible: string[] | Record<string, string> | undefined = undefined;
+
+  $: possibleValues = Array.isArray(possible)
+    ? possible.map((p) => [p, p])
+    : typeof possible === 'object'
+    ? Object.entries(possible)
+    : undefined;
 
   function updateIndex(e: InputEvent, i: number) {
     let value = e.target?.value ?? '';
-    values = [...values.slice(0, i), value, ...values.slice(i + 1)];
+    values = [...values!.slice(0, i), value, ...values!.slice(i + 1)];
     notify();
   }
 
   function remove(i: number) {
-    values = [...values.slice(0, i), ...values.slice(i + 1)];
+    values = [...values!.slice(0, i), ...values!.slice(i + 1)];
     notify();
   }
 
   let newValue = '';
   function addNew() {
     if (newValue) {
-      values = [...values, newValue];
+      values = [...(values || []), newValue];
       notify();
       newValue = '';
     }
@@ -42,9 +48,9 @@
 </script>
 
 <ol class="flex w-full flex-col space-y-2">
-  {#each values as value, i}
+  {#each values || [] as value, i}
     <li class="flex items-stretch space-x-2">
-      {#if possible}
+      {#if possibleValues}
         <select
           {placeholder}
           class="w-full border-gray-300"
@@ -52,8 +58,8 @@
           aria-label="New item"
           on:change={(e) => updateIndex(e, i)}
         >
-          {#each possible as option}
-            <option>{option}</option>
+          {#each possibleValues as [value, desc]}
+            <option {value}>{desc}</option>
           {/each}
         </select>
       {:else}
@@ -71,8 +77,8 @@
         on:keydown={handleKeydown}
       >
         <option value="" />
-        {#each possible as option}
-          <option>{option}</option>
+        {#each possibleValues as [value, desc]}
+          <option {value}>{desc}</option>
         {/each}
       </select>
     {:else}

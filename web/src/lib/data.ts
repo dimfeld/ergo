@@ -1,4 +1,4 @@
-import { Input, Action, ExecutorInfo, ActionCategory } from './api_types';
+import { Input, Action, ExecutorInfo, ActionCategory, AccountType } from './api_types';
 import { getContext, setContext } from 'svelte';
 import { writable, Writable } from 'svelte/store';
 
@@ -9,6 +9,7 @@ export interface BaseData {
   actions: Writable<Map<string, Action>>;
   actionCategories: Writable<Map<string, ActionCategory>>;
   executors: Writable<Map<string, ExecutorInfo>>;
+  accountTypes: Writable<Map<string, AccountType>>;
 }
 
 export function initBaseData() {
@@ -17,6 +18,7 @@ export function initBaseData() {
     actions: writable(new Map()),
     actionCategories: writable(new Map()),
     executors: writable(new Map()),
+    accountTypes: writable(new Map()),
   };
 
   setContext(KEY, stores);

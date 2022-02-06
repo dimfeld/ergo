@@ -49,11 +49,12 @@
   import Editor from '$lib/editors/Editor.svelte';
   import TemplateFieldsEditor from '$lib/components/TemplateFieldsEditor.svelte';
   import TemplateValuesEditor from '$lib/components/TemplateValuesEditor.svelte';
+  import StringListEditor from '$lib/components/StringListEditor.svelte';
 
   export let action: Action;
 
   const api = apiClient();
-  const { actionCategories, executors } = baseData();
+  const { accountTypes, actionCategories, executors } = baseData();
 
   $: actionName = $page.params.action_id === 'new' ? 'New Action' : action.name;
 
@@ -150,9 +151,16 @@
       bind:values={action.executor_template}
     />
   </Card>
-  <Card label="Accounts">
+  <Card class="flex flex-col" label="Account Types">
     <Checkbox bind:value={action.account_required} label="Account Required?" />
-    <!-- account types -->
+    <Labelled class="mt-4" label="Allowed Account Types">
+      <StringListEditor
+        bind:values={action.account_types}
+        possible={Object.fromEntries(
+          Array.from($accountTypes.values(), (a) => [a.account_type_id, a.name])
+        )}
+      />
+    </Labelled>
   </Card>
   <Card label="Postprocessing" class="relative">
     <!-- postprocess script -->

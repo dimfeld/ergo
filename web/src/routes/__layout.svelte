@@ -9,28 +9,32 @@
       await initWasm();
     }
     fetch = loadFetch(fetch);
-    let [inputList, actionList, actionCategoryList, executorList]: [
+    let [inputList, actionList, actionCategoryList, executorList, accountTypeList]: [
       Input[],
       Action[],
       ActionCategory[],
-      ExecutorInfo[]
+      ExecutorInfo[],
+      AccountType[]
     ] = await Promise.all([
       fetch('/api/inputs').then((r) => r.json()),
       fetch('/api/actions').then((r) => r.json()),
       fetch('/api/action_categories').then((r) => r.json()),
       fetch('/api/executors').then((r) => r.json()),
+      fetch('/api/account_types').then((r) => r.json()),
     ]);
 
     let inputs = new Map(inputList.map((i) => [i.input_id, i]));
     let actions = new Map(actionList.map((a) => [a.action_id, a]));
     let actionCategories = new Map(actionCategoryList.map((a) => [a.action_category_id, a]));
     let executors = new Map(executorList.map((e) => [e.name, e]));
+    let accountTypes = new Map(accountTypeList.map((a) => [a.account_type_id, a]));
 
     return {
       props: {
         inputs,
         actions,
         actionCategories,
+        accountTypes,
         executors,
       },
       stuff: {
@@ -51,25 +55,28 @@
   import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import { Input, Action, ActionCategory, ExecutorInfo } from '$lib/api_types';
+  import { Input, Action, ActionCategory, ExecutorInfo, AccountType } from '$lib/api_types';
   import { initBaseData } from '$lib/data';
 
   export let inputs: Map<string, Input>;
   export let actions: Map<string, Action>;
   export let actionCategories: Map<string, ActionCategory>;
   export let executors: Map<string, ExecutorInfo>;
+  export let accountTypes: Map<string, AccountType>;
 
   const {
     inputs: inputStore,
     actions: actionStore,
     actionCategories: actionCategoryStore,
     executors: executorStore,
+    accountTypes: accountTypesStore,
   } = initBaseData();
 
   $: $inputStore = inputs;
   $: $actionStore = actions;
   $: $actionCategoryStore = actionCategories;
   $: $executorStore = executors;
+  $: $accountTypesStore = accountTypes;
 
   const apiClient = createApiClient();
   setApiClientContext(apiClient);

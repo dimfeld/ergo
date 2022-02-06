@@ -6,6 +6,7 @@ use crate::routes::{
 
 use ergo_tasks::{
     actions::{
+        accounts::{AccountPublicInfo, AccountType},
         execute::ScriptOrTemplate,
         template::{TemplateField, TemplateFieldFormat},
         Action, ActionCategory,
@@ -99,6 +100,12 @@ pub fn main() -> crate::error::Result<()> {
 
     let schema = schema_for!(InputsLogEntry);
     write(&dir, "inputs_log_schema", &schema)?;
+
+    let schema = schema_for!(AccountType);
+    write(&dir, "account_type", &schema)?;
+
+    let schema = schema_for!(AccountPublicInfo);
+    write(&dir, "account_public_info", &schema)?;
 
     Ok(())
 }

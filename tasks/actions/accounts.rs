@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
 use ergo_database::object_id::AccountId;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AccountType {
     pub account_type_id: String,
     pub name: String,
@@ -21,7 +22,7 @@ pub struct Account {
     pub expires: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AccountPublicInfo {
     pub account_id: AccountId,
     pub account_type_id: String,

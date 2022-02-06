@@ -1,5 +1,18 @@
 export type String = string;
 
+export interface AccountPublicInfo {
+  account_id: String;
+  account_type_id: string;
+  name: string;
+}
+
+export interface AccountType {
+  account_type_id: string;
+  name: string;
+  description?: string | null;
+  fields: string[];
+}
+
 export type ScriptOrTemplate =
   | {
       t: "Template";
