@@ -24,9 +24,9 @@ specifiers:
   '@codemirror/view': ~0.19.40
   '@lezer/common': ~0.15.11
   '@popperjs/core': ^2.11.2
-  '@sveltejs/adapter-static': next
-  '@sveltejs/adapter-vercel': next
-  '@sveltejs/kit': next
+  '@sveltejs/adapter-static': ~1.0.0-next.26
+  '@sveltejs/adapter-vercel': ~1.0.0-next.40
+  '@sveltejs/kit': ~1.0.0-next.258
   '@sveltejs/vite-plugin-svelte': ^1.0.0-next.36
   '@sveltestack/svelte-query': ~1.6.0
   '@tailwindcss/forms': ~0.4.0
@@ -152,7 +152,7 @@ devDependencies:
   '@babel/core': 7.16.12
   '@sveltejs/adapter-static': 1.0.0-next.26
   '@sveltejs/adapter-vercel': 1.0.0-next.40
-  '@sveltejs/kit': 1.0.0-next.251_svelte@3.46.3
+  '@sveltejs/kit': 1.0.0-next.258_svelte@3.46.3
   '@sveltejs/vite-plugin-svelte': 1.0.0-next.36_svelte@3.46.3+vite@2.7.13
   '@tailwindcss/forms': 0.4.0_tailwindcss@3.0.18
   '@testing-library/jest-dom': 5.16.1
@@ -1120,8 +1120,8 @@ packages:
       esbuild: 0.13.15
     dev: true
 
-  /@sveltejs/kit/1.0.0-next.251_svelte@3.46.3:
-    resolution: {integrity: sha512-7GtUrUHqOa7ISo86PlICcMKcfGodOZwP9p7hXnN4t1yMWIQD2eKZlJffvnwx1X+NMcJ8hLChgcjGYjc1xZABhQ==}
+  /@sveltejs/kit/1.0.0-next.258_svelte@3.46.3:
+    resolution: {integrity: sha512-e/Z3e3IUSIohJb49y/GcEYtXZRbCgnHQUKsJEn6Z+avvQUiiAhnJYRj3I2LtbzEQouDkVzJlPvqJ8K1U9312eg==}
     engines: {node: '>=14.13'}
     hasBin: true
     peerDependencies:

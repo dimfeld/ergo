@@ -13,23 +13,23 @@ export type ScriptOrTemplate =
 export type TemplateFieldFormat =
   | {
       type: "string";
-      default: string;
+      default?: string;
     }
   | {
       type: "string_array";
-      default: string[];
+      default?: string[];
     }
   | {
       type: "integer";
-      default: number;
+      default?: number;
     }
   | {
       type: "float";
-      default: number;
+      default?: number;
     }
   | {
       type: "boolean";
-      default: boolean;
+      default?: boolean;
     }
   | {
       type: "object";
@@ -47,7 +47,7 @@ export type TemplateFieldFormat =
       choices: string[];
       min?: number | null;
       max?: number | null;
-      default: string[];
+      default?: string[];
     };
 
 export type TemplateFields = TemplateField[];
