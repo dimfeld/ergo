@@ -139,7 +139,7 @@ pub async fn new_action(
 
     if !payload.account_types.is_empty() {
         let q = format!(
-            "INSERT INTO allowed_action_account_types (account_type_id, action_id) VALUES {}",
+            "INSERT INTO allowed_action_account_types (account_type_id, action_id) VALUES {} ON CONFLICT DO NOTHING",
             sql_insert_parameters::<2>(payload.account_types.len())
         );
 
@@ -150,6 +150,15 @@ pub async fn new_action(
 
         query.execute(&mut tx).await?;
     }
+
+    sqlx::query!(
+        r##"DELETE FROM allowed_action_account_types
+        WHERE action_id=$1 AND account_type_id <> ANY($2)"##,
+        &payload.action_id.0,
+        &payload.account_types
+    )
+    .execute(&mut tx)
+    .await?;
 
     tx.commit().await?;
 
