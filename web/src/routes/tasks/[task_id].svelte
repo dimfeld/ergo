@@ -202,7 +202,7 @@
   }
 </script>
 
-<div class="flex flex-col flex-grow">
+<div class="flex flex-grow flex-col">
   <section class="flex flex-row justify-end space-x-4">
     <!-- TODO add confirmation dropdown -->
     <Button on:click={revert}>Revert</Button>
@@ -220,8 +220,8 @@
     <Labelled label="Description"
       ><input type="text" class="w-full" bind:value={task.description} /></Labelled
     >
-    <div class="flex space-x-4 justify-between">
-      <p class="text-sm whitespace-nowrap">
+    <div class="flex justify-between space-x-4">
+      <p class="whitespace-nowrap text-sm">
         ID: <span class:text-gray-500={!task.task_id}>{task.task_id || 'New Task'}</span>
       </p>
       <p class="text-sm">Modified {task.modified}</p>
@@ -229,7 +229,7 @@
   </Card>
 
   <Card class="mt-4 flex flex-col" label="Actions">
-    <div class="w-full task-item-list">
+    <div class="task-item-list w-full">
       <span class="font-medium">Local ID</span>
       <span class="font-medium">Description</span>
       <span class="font-medium">Action Type</span>
@@ -244,7 +244,7 @@
       {/each}
     </div>
 
-    <div class="items-start mt-2">
+    <div class="mt-2 items-start">
       <Button on:click={() => editTaskAction(undefined)}>New Task Action</Button>
     </div>
 
@@ -259,9 +259,9 @@
   </Card>
 
   <Card class="mt-4 flex flex-col" label="Triggers">
-    <div class="w-full task-item-list">
+    <div class="task-item-list w-full">
       <span class="font-medium">Trigger ID</span>
-      <span class="font-medium">Trigger Name</span>
+      <span class="font-medium">Description</span>
       <span class="font-medium">Input Type</span>
       <span />
 
@@ -275,7 +275,7 @@
       {/each}
     </div>
 
-    <div class="items-start mt-2">
+    <div class="mt-2 items-start">
       <Button on:click={() => editTaskTrigger(null)}>New Task Trigger</Button>
     </div>
 
@@ -289,9 +289,9 @@
     </Modal>
   </Card>
 
-  <Card class="flex flex-col flex-grow mt-4 min-h-[64em]">
+  <Card class="mt-4 flex min-h-[64em] flex-grow flex-col">
     {#if taskSource}
-      <div class="flex-1 grid grid-rows-1 grid-cols-1 place-items-stretch">
+      <div class="grid flex-1 grid-cols-1 grid-rows-1 place-items-stretch">
         <svelte:component
           this={taskEditors[taskSource.type]}
           bind:getState={getEditorState}
