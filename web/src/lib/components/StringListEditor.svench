@@ -3,10 +3,23 @@
   import StringListEditor from './StringListEditor.svelte';
 
   let values = ['harder', 'better', 'faster', 'stronger'];
+
+  let possible = ['harder', 'better', 'faster', 'stronger', 'softer', 'worse', 'slower', 'weaker'];
 </script>
 
 <View name="default" let:action>
   <StringListEditor bind:values on:change={(e) => action('change', e.detail)} />
+
+  <h2 class="mt-8 border-t">Results</h2>
+  <ol>
+    {#each values as value}
+      <li>{value}</li>
+    {/each}
+  </ol>
+</View>
+
+<View name="choices" let:action>
+  <StringListEditor bind:values on:change={(e) => action('change', e.detail)} {possible} />
 
   <h2 class="mt-8 border-t">Results</h2>
   <ol>
