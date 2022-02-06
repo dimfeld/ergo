@@ -19,7 +19,7 @@
   export let close: ModalCloser<TaskActionEditorData>;
 
   let existingActionId = taskActionId;
-  const { actions } = baseData();
+  const { actions, accounts } = baseData();
 
   $: actionTypes = Array.from($actions.values())
     .map((action) => ({ id: action.action_id, name: action.name }))
@@ -46,6 +46,12 @@
       close({ taskActionId, action });
     }
   }
+
+  $: selectedAction = $actions.get(action.action_id);
+  $: allowedAccountTypes = new Set(selectedAction?.account_types || []);
+  $: accountOptions = Array.from($accounts.values()).filter((a) =>
+    allowedAccountTypes.has(a.account_type_id)
+  );
 </script>
 
 <form on:submit|preventDefault={handleSubmit} class="flex flex-col space-y-4">
@@ -64,8 +70,20 @@
   <Labelled label="Description">
     <input type="text" class="w-full" bind:value={action.name} />
   </Labelled>
-  <!-- TODO Action Template Editor -->
-  <div class="flex space-x-2 items-center justify-end">
+  {#if selectedAction?.account_types?.length && accountOptions.length}
+    <Labelled label="Account">
+      <select class="w-full" bind:value={action.account_id}>
+        {#if !selectedAction?.account_required}
+          <option value={null}>None</option>
+        {/if}
+        {#each accountOptions as account}
+          <option value={account.account_id}>{account.name}</option>
+        {/each}
+      </select>
+    </Labelled>
+  {/if}
+  <!--TODO Action Template Editor -->
+  <div class="flex items-center justify-end space-x-2">
     <span class="flex-1 text-red-500">{errorMessage ?? ''}</span>
     <Button style="primary" type="submit">OK</Button>
     <Button on:click={() => close()}>Cancel</Button>

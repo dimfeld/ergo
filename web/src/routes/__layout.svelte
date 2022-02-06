@@ -9,18 +9,20 @@
       await initWasm();
     }
     fetch = loadFetch(fetch);
-    let [inputList, actionList, actionCategoryList, executorList, accountTypeList]: [
+    let [inputList, actionList, actionCategoryList, executorList, accountTypeList, accountList]: [
       Input[],
       Action[],
       ActionCategory[],
       ExecutorInfo[],
-      AccountType[]
+      AccountType[],
+      AccountPublicInfo[]
     ] = await Promise.all([
       fetch('/api/inputs').then((r) => r.json()),
       fetch('/api/actions').then((r) => r.json()),
       fetch('/api/action_categories').then((r) => r.json()),
       fetch('/api/executors').then((r) => r.json()),
       fetch('/api/account_types').then((r) => r.json()),
+      fetch('/api/accounts').then((r) => r.json()),
     ]);
 
     let inputs = new Map(inputList.map((i) => [i.input_id, i]));
@@ -28,6 +30,7 @@
     let actionCategories = new Map(actionCategoryList.map((a) => [a.action_category_id, a]));
     let executors = new Map(executorList.map((e) => [e.name, e]));
     let accountTypes = new Map(accountTypeList.map((a) => [a.account_type_id, a]));
+    let accounts = new Map(accountList.map((a) => [a.account_id, a]));
 
     return {
       props: {
@@ -35,6 +38,7 @@
         actions,
         actionCategories,
         accountTypes,
+        accounts,
         executors,
       },
       stuff: {
@@ -55,7 +59,14 @@
   import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import { Input, Action, ActionCategory, ExecutorInfo, AccountType } from '$lib/api_types';
+  import {
+    Input,
+    Action,
+    ActionCategory,
+    ExecutorInfo,
+    AccountType,
+    AccountPublicInfo,
+  } from '$lib/api_types';
   import { initBaseData } from '$lib/data';
 
   export let inputs: Map<string, Input>;
@@ -63,6 +74,7 @@
   export let actionCategories: Map<string, ActionCategory>;
   export let executors: Map<string, ExecutorInfo>;
   export let accountTypes: Map<string, AccountType>;
+  export let accounts: Map<string, AccountPublicInfo>;
 
   const {
     inputs: inputStore,
@@ -70,6 +82,7 @@
     actionCategories: actionCategoryStore,
     executors: executorStore,
     accountTypes: accountTypesStore,
+    accounts: accountStore,
   } = initBaseData();
 
   $: $inputStore = inputs;
@@ -77,6 +90,7 @@
   $: $actionCategoryStore = actionCategories;
   $: $executorStore = executors;
   $: $accountTypesStore = accountTypes;
+  $: $accountStore = accounts;
 
   const apiClient = createApiClient();
   setApiClientContext(apiClient);
