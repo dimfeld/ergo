@@ -5,6 +5,7 @@
   import Checkbox from '$lib/components/Checkbox.svelte';
   import Editor from '$lib/editors/Editor.svelte';
   import { formatJson } from '$lib/editors/format';
+  import { onDestroy } from 'svelte';
   import iFrameContents from './iframe.html?raw';
   import { RunOutput } from './messages';
 
@@ -14,7 +15,12 @@
   export let autosaveContext = true;
   export let getBundler: () => Bundler;
 
+  let iframe: HTMLIFrameElement;
   let runOutputs: RunOutput[] = [];
+
+  function getSandbox() {}
+
+  onDestroy(() => sandbox?.destroy());
 </script>
 
 <Button>Run</Button>
@@ -40,6 +46,7 @@
 </ol>
 
 <iframe
+  bind:this={iframe}
   class="absolute top-0 right-0 h-0 w-0"
   aria-hidden="true"
   title="Simulation Sandbox"
