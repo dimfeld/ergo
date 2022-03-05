@@ -1,6 +1,13 @@
+import Worker from './worker?worker';
+
 export interface RunOutputAction {
   name: string;
   payload: object;
+}
+
+export interface ConsoleMessage {
+  level: string;
+  args: unknown[];
 }
 
 export interface RunOutput {
@@ -9,8 +16,7 @@ export interface RunOutput {
   actions: RunOutputAction[];
 }
 
-interface FrameMessage {
-  id?: number;
+export interface WorkerMessage {
   name: string;
   data: any;
 }
@@ -20,16 +26,27 @@ interface Pending {
   resolve: (data: any) => void;
 }
 
+export interface RunScriptArguments {
+  script: string;
+  context: object;
+  payload: object;
+}
+
+export interface SandboxWorker {
+  sendMessage(message: string, data: any): Promise<any>;
+  /** Terminate and restart the worker. Useful to handle stalled jobs, runaway loops, etc. */
+  restart(): void;
+  runScript(data: RunScriptArguments, timeout?: number): Promise<RunOutput>;
+  destroy(): void;
+}
+
 let msgId = 1;
 
-export function sandbox(element: HTMLIFrameElement, handlers: Record<string, (data: any) => void>) {
+export function sandboxWorker(handlers: Record<string, (data: any) => void>): SandboxWorker {
   const pending = new Map<number, Pending>();
+  let worker = new Worker();
 
-  function handleFrameMessage(evt: MessageEvent<FrameMessage>) {
-    if (evt.source !== element.contentWindow) {
-      return;
-    }
-
+  function handleWorkerMessage(evt: MessageEvent<WorkerMessage>) {
     const msg = evt.data;
 
     if (msg.id) {
@@ -41,7 +58,7 @@ export function sandbox(element: HTMLIFrameElement, handlers: Record<string, (da
 
       pending.delete(msg.id);
 
-      if (msg.name === 'respond_resolve') {
+      if (msg.name === 'respond_reject') {
         let { stack, message } = msg.data;
 
         // Reconstruct the error from the other side.
@@ -49,7 +66,7 @@ export function sandbox(element: HTMLIFrameElement, handlers: Record<string, (da
         e.stack = stack;
 
         handler.reject(e);
-      } else if (msg.name === 'respond_reject') {
+      } else if (msg.name === 'respond_resolve') {
         pending.delete(msg.id);
         handler.resolve(msg.data);
       }
@@ -58,19 +75,52 @@ export function sandbox(element: HTMLIFrameElement, handlers: Record<string, (da
     }
   }
 
-  window.addEventListener('message', handleFrameMessage);
+  worker.onmessage = handleWorkerMessage;
+
+  function sendMessage<RETVAL>(message: string, data: any) {
+    let id = msgId++;
+
+    return new Promise<RETVAL>((resolve, reject) => {
+      pending.set(id, { resolve, reject });
+      worker.postMessage({ name: message, data, id });
+    });
+  }
+
+  function destroy() {
+    worker?.terminate();
+    let terminationError = new Error('Worker terminated');
+    for (let val of pending.values()) {
+      val.reject(terminationError);
+    }
+    pending.clear();
+  }
+
+  function restart() {
+    destroy();
+    worker = new Worker();
+  }
 
   return {
-    sendMessage(message: string, data: any) {
-      let id = msgId++;
+    sendMessage,
+    restart,
+    async runScript(data: RunScriptArguments, timeout?: number) {
+      let promise = sendMessage<RunOutput>('run_script', data);
+      if (timeout) {
+        let result = await Promise.race([
+          promise,
+          new Promise<'TIMEOUT'>((res) => setTimeout(() => res('TIMEOUT'), timeout)),
+        ]);
 
-      return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
-        element.contentWindow?.postMessage({ name: message, data, id }, '*');
-      });
+        if (result === 'TIMEOUT') {
+          restart();
+          throw new Error('Timed out');
+        }
+
+        return result;
+      } else {
+        return promise;
+      }
     },
-    destroy() {
-      window.removeEventListener('message', handleFrameMessage);
-    },
+    destroy,
   };
 }

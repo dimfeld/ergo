@@ -6,8 +6,7 @@
   import Editor from '$lib/editors/Editor.svelte';
   import { formatJson } from '$lib/editors/format';
   import { onDestroy } from 'svelte';
-  import iFrameContents from './iframe.html?raw';
-  import { RunOutput } from './messages';
+  import { ConsoleMessage, RunOutput, SandboxWorker, sandboxWorker } from './messages';
 
   export let script: string;
   export let context: object;
@@ -15,21 +14,62 @@
   export let autosaveContext = true;
   export let getBundler: () => Bundler;
 
-  let iframe: HTMLIFrameElement;
   let runOutputs: RunOutput[] = [];
 
-  function getSandbox() {}
+  let sandbox: SandboxWorker | null = null;
+  onDestroy(() => {
+    sandbox?.destroy();
+    sandbox = null;
+  });
 
-  onDestroy(() => sandbox?.destroy());
+  let getContextContents: () => string;
+
+  function handleConsole(message: ConsoleMessage) {
+    // TODO Add console messages to a list
+  }
+
+  async function run() {
+    let bundler = getBundler();
+    let bundled = await bundler.bundle({
+      files: {
+        'index.ts': script,
+      },
+    });
+
+    if (bundled.error) {
+      throw bundled.error;
+    }
+
+    let context = JSON.parse(getContextContents());
+
+    if (!sandbox) {
+      sandbox = sandboxWorker({
+        console: handleConsole,
+      });
+    }
+
+    sandbox.runScript({
+      script: bundled.code,
+      context,
+      // TODO configuration of payload based on the available task triggers.
+      payload: {
+        trigger: '',
+      },
+    });
+  }
 </script>
 
-<Button>Run</Button>
+<Button on:click={run}>Run</Button>
 <Checkbox bind:value={autosaveContext} label="Automatically use output context on next run" />
 
-<Editor format="json" contents={formatJson(context || {}, 'json')} />
+<Editor
+  format="json"
+  contents={formatJson(context || {}, 'json')}
+  bind:getContents={getContextContents}
+/>
 
 <ol>
-  {#each runOutputs as runOutput (runOutput.id)}
+  {#each runOutputs as runOutput}
     <li>
       Actions:
       <ul>
@@ -44,12 +84,3 @@
     </li>
   {/each}
 </ol>
-
-<iframe
-  bind:this={iframe}
-  class="absolute top-0 right-0 h-0 w-0"
-  aria-hidden="true"
-  title="Simulation Sandbox"
-  sandbox="allow-scripts"
-  srcdoc={browser ? iFrameContents : ''}
-/>
