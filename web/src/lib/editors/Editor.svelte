@@ -225,10 +225,14 @@
   }
 </script>
 
-<div class="editor h-full min-h-0 flex flex-col">
+<div class="editor flex h-full min-h-0 flex-col">
   {#if toolbar}
-    <div class="py-1 flex w-full text-sm border-b border-gray-200 dark:border-gray-800">
-      <div class="ml-auto flex flex-row space-x-4 items-center">
+    <div
+      class="flex w-full items-center border-b border-gray-200 py-1 text-sm dark:border-gray-800"
+    >
+      <slot name="left-toolbar" />
+      <div class="ml-auto flex flex-row items-center space-x-4">
+        <slot name="right-toolbar" />
         {#if language.compilable}
           <!-- for use while this feature is in early development -->
           <Button size="xs" on:click={previewCompile}>Preview Compile</Button>
@@ -238,7 +242,7 @@
       </div>
     </div>
   {/if}
-  <div class="min-h-0 flex-1 flex flex-col" use:editor />
+  <div class="flex min-h-0 flex-1 flex-col" use:editor />
   <slot />
 </div>
 

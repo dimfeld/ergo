@@ -5,6 +5,7 @@
   import { scriptTypeDefinitions } from './types/task_script_definitions';
   import { logger } from '../logger';
   import Editor from './Editor.svelte';
+  import ScriptSimulator from '$lib/script_simulator/ScriptSimulator.svelte';
   import { Bundler } from '$lib/bundler';
   import { onMount, onDestroy } from 'svelte';
 
@@ -84,11 +85,17 @@
       },
     };
   }
+
+  let currentScript = source?.script ?? compiled?.script ?? '';
 </script>
 
-<Editor
-  format="ts"
-  bind:view
-  contents={source?.script ?? compiled?.script ?? ''}
-  tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}
-/>
+<div class="flex flex-col space-y-4">
+  <Editor
+    format="ts"
+    bind:view
+    on:change={({ detail: newScript }) => (currentScript = newScript)}
+    contents={source?.script ?? compiled?.script ?? ''}
+    tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}
+  />
+  <ScriptSimulator {getBundler} context={{}} script={currentScript} />
+</div>

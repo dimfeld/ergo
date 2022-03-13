@@ -291,7 +291,7 @@
 
   <Card class="mt-4 flex min-h-[64em] flex-grow flex-col">
     {#if taskSource}
-      <div class="grid flex-1 grid-cols-1 grid-rows-1 place-items-stretch">
+      <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 place-items-stretch">
         <svelte:component
           this={taskEditors[taskSource.type]}
           bind:getState={getEditorState}

@@ -3,6 +3,7 @@
   import { Bundler } from '$lib/bundler';
   import Button from '$lib/components/Button.svelte';
   import Checkbox from '$lib/components/Checkbox.svelte';
+  import Labelled from '$lib/components/Labelled.svelte';
   import Editor from '$lib/editors/Editor.svelte';
   import { formatJson } from '$lib/editors/format';
   import { onDestroy } from 'svelte';
@@ -14,7 +15,15 @@
   export let autosaveContext = true;
   export let getBundler: () => Bundler;
 
-  let runOutputs: RunOutput[] = [];
+  interface RunRecord {
+    output: RunOutput;
+    input: {
+      context: object;
+      payload: object;
+    };
+  }
+
+  let runOutputs: RunRecord[] = [];
 
   let sandbox: SandboxWorker | null = null;
   onDestroy(() => {
@@ -48,39 +57,85 @@
       });
     }
 
-    sandbox.runScript({
+    // TODO configuration of payload based on the available task triggers.
+    let payload = {
+      trigger: '',
+    };
+
+    let output = await sandbox.runScript({
       script: bundled.code,
       context,
-      // TODO configuration of payload based on the available task triggers.
-      payload: {
-        trigger: '',
-      },
+      payload,
     });
+
+    runOutputs = [
+      {
+        output,
+        input: {
+          payload,
+          context,
+        },
+      },
+      ...runOutputs,
+    ];
   }
 </script>
 
-<Button on:click={run}>Run</Button>
-<Checkbox bind:value={autosaveContext} label="Automatically use output context on next run" />
+<div class="flex flex-col space-y-2">
+  <div class="flex">
+    <header class="label big-label mr-auto">Simulator</header>
+  </div>
 
-<Editor
-  format="json"
-  contents={formatJson(context || {}, 'json')}
-  bind:getContents={getContextContents}
-/>
+  <div class="h-56">
+    <Editor
+      format="json"
+      contents={formatJson(context || {}, 'json')}
+      bind:getContents={getContextContents}
+    >
+      <div slot="left-toolbar" class="flex space-x-4">
+        <Button size="xs" on:click={run}>Run</Button>
+        <Checkbox
+          bind:value={autosaveContext}
+          label="Automatically use output context on next run"
+        />
+      </div>
+    </Editor>
+  </div>
 
-<ol>
-  {#each runOutputs as runOutput}
-    <li>
-      Actions:
-      <ul>
-        {#each runOutput.actions as action}
-          <li>{JSON.stringify(action)}</li>
-        {:else}
-          <li>None</li>
-        {/each}
-      </ul>
-      Context After Run:
-      <pre>{JSON.stringify(runOutput.context, null, 2)}</pre>
-    </li>
-  {/each}
-</ol>
+  <ol>
+    {#each runOutputs as runOutput}
+      <li>
+        <div class="flex w-full space-x-2">
+          <div class="flex-1">
+            <Labelled label="Input">
+              <pre class="max-h-64 overflow-auto">{JSON.stringify(runOutput.input.payload)}</pre>
+            </Labelled>
+          </div>
+
+          <div class="flex-1">
+            <Labelled label="Actions">
+              <ul>
+                {#each runOutput.output.actions as action}
+                  <li>{JSON.stringify(action)}</li>
+                {:else}
+                  <li>None</li>
+                {/each}
+              </ul>
+            </Labelled>
+          </div>
+        </div>
+
+        <div class="flex w-full space-x-2">
+          <div class="flex-1">
+            Context Before Run:
+            <pre>{JSON.stringify(runOutput.input.context, null, 2)}</pre>
+          </div>
+          <div class="flex-1">
+            Context After Run:
+            <pre>{JSON.stringify(runOutput.output.context, null, 2)}</pre>
+          </div>
+        </div>
+      </li>
+    {/each}
+  </ol>
+</div>
