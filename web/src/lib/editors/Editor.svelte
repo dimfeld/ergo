@@ -49,6 +49,9 @@
   export let wrapCode: WrapCodeFn | undefined = undefined;
   export let toolbar = true;
 
+  let classNames = '';
+  export { classNames as class };
+
   export let linter: LintSource | undefined = undefined;
 
   const dispatch = createEventDispatcher<{ change: string }>();
@@ -225,7 +228,7 @@
   }
 </script>
 
-<div class="editor flex h-full min-h-0 flex-col">
+<div class="editor flex h-full min-h-0 flex-col {classNames}">
   {#if toolbar}
     <div
       class="flex w-full items-center border-b border-gray-200 py-1 text-sm dark:border-gray-800"

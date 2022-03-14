@@ -15,6 +15,8 @@
   export let autosaveContext = true;
   export let getBundler: () => Bundler;
 
+  let payload = { trigger: '' };
+
   interface RunRecord {
     output: RunOutput;
     input: {
@@ -32,9 +34,12 @@
   });
 
   let getContextContents: () => string;
+  let getPayloadContents: () => string;
 
+  let consoleMessages: ConsoleMessage[] = [];
   function handleConsole(message: ConsoleMessage) {
-    // TODO Add console messages to a list
+    consoleMessages.push(message);
+    consoleMessages = consoleMessages;
   }
 
   async function run() {
@@ -50,17 +55,13 @@
     }
 
     let context = JSON.parse(getContextContents());
+    let payload = JSON.parse(getPayloadContents());
 
     if (!sandbox) {
       sandbox = sandboxWorker({
         console: handleConsole,
       });
     }
-
-    // TODO configuration of payload based on the available task triggers.
-    let payload = {
-      trigger: '',
-    };
 
     let output = await sandbox.runScript({
       script: bundled.code,
@@ -86,56 +87,83 @@
     <header class="label big-label mr-auto">Simulator</header>
   </div>
 
-  <div class="h-56">
+  <div class="flex h-56 divide-x">
     <Editor
+      class="flex-1 pr-4"
+      format="json"
+      contents={formatJson(payload || {}, 'json')}
+      bind:getContents={getPayloadContents}
+    >
+      <div slot="left-toolbar" class="flex space-x-4">
+        <Button size="xs" on:click={run}>Run</Button>
+      </div>
+    </Editor>
+    <Editor
+      class="flex-1 pl-4"
       format="json"
       contents={formatJson(context || {}, 'json')}
       bind:getContents={getContextContents}
     >
-      <div slot="left-toolbar" class="flex space-x-4">
-        <Button size="xs" on:click={run}>Run</Button>
+      <div slot="left-toolbar">
         <Checkbox
           bind:value={autosaveContext}
-          label="Automatically use output context on next run"
+          label="Automatically replace context with run output"
         />
       </div>
     </Editor>
   </div>
 
-  <ol>
-    {#each runOutputs as runOutput}
-      <li>
-        <div class="flex w-full space-x-2">
-          <div class="flex-1">
-            <Labelled label="Input">
-              <pre class="max-h-64 overflow-auto">{JSON.stringify(runOutput.input.payload)}</pre>
-            </Labelled>
-          </div>
+  <div class="grid max-h-[64em] grid-cols-2 space-x-4">
+    <Labelled class="min-h-0 min-w-0" label="Console">
+      <ul class="min-h-0 min-w-0 overflow-auto">
+        {#each consoleMessages as message}
+          <li>{message.level}: {message.args}</li>
+        {:else}
+          <li>No console messages</li>
+        {/each}
+      </ul>
+    </Labelled>
+    <Labelled class="min-h-0 min-w-0" label="Results">
+      <ol class="min-h-0 min-w-0 overflow-auto">
+        {#each runOutputs as runOutput}
+          <li>
+            <div class="flex w-full space-x-2">
+              <div class="flex-1">
+                <Labelled label="Input">
+                  <pre class="max-h-64 overflow-auto">{JSON.stringify(
+                      runOutput.input.payload
+                    )}</pre>
+                </Labelled>
+              </div>
 
-          <div class="flex-1">
-            <Labelled label="Actions">
-              <ul>
-                {#each runOutput.output.actions as action}
-                  <li>{JSON.stringify(action)}</li>
-                {:else}
-                  <li>None</li>
-                {/each}
-              </ul>
-            </Labelled>
-          </div>
-        </div>
+              <div class="flex-1">
+                <Labelled label="Actions">
+                  <ul>
+                    {#each runOutput.output.actions as action}
+                      <li>{JSON.stringify(action)}</li>
+                    {:else}
+                      <li>None</li>
+                    {/each}
+                  </ul>
+                </Labelled>
+              </div>
+            </div>
 
-        <div class="flex w-full space-x-2">
-          <div class="flex-1">
-            Context Before Run:
-            <pre>{JSON.stringify(runOutput.input.context, null, 2)}</pre>
-          </div>
-          <div class="flex-1">
-            Context After Run:
-            <pre>{JSON.stringify(runOutput.output.context, null, 2)}</pre>
-          </div>
-        </div>
-      </li>
-    {/each}
-  </ol>
+            <div class="flex w-full space-x-2">
+              <div class="flex-1">
+                Context Before Run:
+                <pre>{JSON.stringify(runOutput.input.context, null, 2)}</pre>
+              </div>
+              <div class="flex-1">
+                Context After Run:
+                <pre>{JSON.stringify(runOutput.output.context, null, 2)}</pre>
+              </div>
+            </div>
+          </li>
+        {:else}
+          <li>No results yet</li>
+        {/each}
+      </ol>
+    </Labelled>
+  </div>
 </div>
