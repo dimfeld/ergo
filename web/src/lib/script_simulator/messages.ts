@@ -16,6 +16,11 @@ export interface RunOutput {
   actions: RunOutputAction[];
 }
 
+export interface RunError {
+  id: number;
+  error: Error;
+}
+
 export interface WorkerMessage {
   name: string;
   data: any;
@@ -107,7 +112,11 @@ export function sandboxWorker(handlers: Record<string, (data: any) => void>): Sa
       let promise = sendMessage<RunOutput>('run_script', data);
       if (timeout) {
         let result = await Promise.race([
-          promise,
+          promise.catch((e) => {
+            return {
+              error: e as Error,
+            };
+          }),
           new Promise<'TIMEOUT'>((res) => setTimeout(() => res('TIMEOUT'), timeout)),
         ]);
 

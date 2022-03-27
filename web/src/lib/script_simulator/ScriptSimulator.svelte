@@ -7,7 +7,9 @@
   import Editor from '$lib/editors/Editor.svelte';
   import { formatJson } from '$lib/editors/format';
   import { onDestroy } from 'svelte';
-  import { ConsoleMessage, RunOutput, SandboxWorker, sandboxWorker } from './messages';
+  import { ConsoleMessage, RunError, RunOutput, SandboxWorker, sandboxWorker } from './messages';
+  import debugMod from 'debug';
+  const debug = debugMod('script_simulator');
 
   export let script: string;
   export let context: object;
@@ -18,7 +20,7 @@
   let payload = { trigger: '' };
 
   interface RunRecord {
-    output: RunOutput;
+    output: RunOutput | RunError;
     input: {
       context: object;
       payload: object;
@@ -50,6 +52,8 @@
       },
     });
 
+    debug('bundled', bundled);
+
     if (bundled.error) {
       throw bundled.error;
     }
@@ -63,11 +67,15 @@
       });
     }
 
+    debug('running script', { context, payload });
+
     let output = await sandbox.runScript({
       script: bundled.code,
       context,
       payload,
     });
+
+    debug('result', output);
 
     runOutputs = [
       {
@@ -124,7 +132,7 @@
       </ul>
     </Labelled>
     <Labelled class="min-h-0 min-w-0" label="Results">
-      <ol class="min-h-0 min-w-0 overflow-auto">
+      <ol class="flex min-h-0 min-w-0 flex-col gap-y-4 overflow-auto">
         {#each runOutputs as runOutput}
           <li>
             <div class="flex w-full space-x-2">
@@ -137,15 +145,21 @@
               </div>
 
               <div class="flex-1">
-                <Labelled label="Actions">
-                  <ul>
-                    {#each runOutput.output.actions as action}
-                      <li>{JSON.stringify(action)}</li>
-                    {:else}
-                      <li>None</li>
-                    {/each}
-                  </ul>
-                </Labelled>
+                {#if !runOutput.error}
+                  <Labelled label="Actions">
+                    <ul>
+                      {#each runOutput.output.actions as action}
+                        <li>{JSON.stringify(action)}</li>
+                      {:else}
+                        <li>None</li>
+                      {/each}
+                    </ul>
+                  </Labelled>
+                {:else}
+                  <Labelled label="Error">
+                    {runOutput.error}
+                  </Labelled>
+                {/if}
               </div>
             </div>
 
@@ -154,10 +168,12 @@
                 Context Before Run:
                 <pre>{JSON.stringify(runOutput.input.context, null, 2)}</pre>
               </div>
-              <div class="flex-1">
-                Context After Run:
-                <pre>{JSON.stringify(runOutput.output.context, null, 2)}</pre>
-              </div>
+              {#if !runOutput.error}
+                <div class="flex-1">
+                  Context After Run:
+                  <pre>{JSON.stringify(runOutput.output.context, null, 2)}</pre>
+                </div>
+              {/if}
             </div>
           </li>
         {:else}

@@ -94,6 +94,7 @@
     format="ts"
     bind:view
     on:change={({ detail: newScript }) => (currentScript = newScript)}
+    notifyOnChange={true}
     contents={source?.script ?? compiled?.script ?? ''}
     tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}
   />
