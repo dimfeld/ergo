@@ -18,7 +18,7 @@ This project is in very early stages right now with no current plans for proper 
 - [ ] Inputs
   - [X] from POST to an endpoint
   - [ ] send events based on some periodic check that triggers when it sees a condition
-  - [ ] trigger events unconditionally on a schedule
+  - [X] trigger events unconditionally on a schedule
 - [ ] Actions
   - [ ] Spawn docker containers (and/or Nomad jobs?)
   - [X] Query HTTP endpoints
@@ -53,9 +53,9 @@ This project is in very early stages right now with no current plans for proper 
 
 ## 0.3
 
-- [ ] MVP of UI for editing tasks
-- [ ] MVP of UI for editing actions and inputs.
-- [ ] Periodic tasks 
+- [X] MVP of UI for editing tasks
+- [X] MVP of UI for editing actions and inputs.
+- [X] Periodic tasks 
 - [X] Task logic can be written in Javascript.
 - [X] Implement last missing pieces of queue behavior.
 - [ ] Barebones user management
