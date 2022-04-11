@@ -26,21 +26,21 @@
 
       return {
         source: {
-          type: 'StateMachine',
-          data: {
-            config: view.state.doc.toString(),
-          },
+          config: view.state.doc.toString(),
         },
-        compiled: {
-          type: 'StateMachine',
-          data: parsed?.obj ?? compiled[i],
-        },
+        compiled: parsed?.obj ?? compiled[i],
       };
     });
 
     return {
-      compiled: sources.map((s) => s.compiled),
-      source: sources.map((s) => s.source),
+      compiled: {
+        type: 'StateMachine',
+        data: sources.map((s) => s.compiled),
+      },
+      source: {
+        type: 'StateMachine',
+        data: sources.map((s) => s.source),
+      },
     };
   }
 
@@ -62,7 +62,7 @@
   };
 </script>
 
-<div class="flex flex-col space-y-4 h-full">
+<div class="flex h-full flex-col space-y-4">
   {#each data as [compiled, source], i}
     <div class="flex-1">
       <Editor
@@ -70,8 +70,7 @@
         contents={source?.config || formatJson(compiled)}
         linter={objectLinter(lint)}
         jsonSchema={stateMachineSchema}
-        bind:view={editors[i]}
-      />
+        bind:view={editors[i]} />
     </div>
   {/each}
 </div>

@@ -89,7 +89,7 @@
 
   let getEditorState: () => Promise<{ compiled: any; source: any }>;
   async function save() {
-    let taskType = task.source?.type;
+    let taskType = task.source?.type ?? task.compiled?.type;
     if (!taskType) {
       return;
     }
