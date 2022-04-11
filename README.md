@@ -58,6 +58,7 @@ This project is in very early stages right now with no current plans for proper 
 - [X] Periodic tasks 
 - [X] Task logic can be written in Javascript.
 - [X] Implement last missing pieces of queue behavior.
+- [ ] Task import/export
 - [ ] Barebones user management
 
 ## 0.2
