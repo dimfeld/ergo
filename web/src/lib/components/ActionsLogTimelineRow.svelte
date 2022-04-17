@@ -37,7 +37,7 @@
   <div class="relative flex items-center space-x-3">
     <div>
       <span
-        class="h-6 w-6 mt-1 rounded-full bg-accent-300 dark:bg-accent-500 flex items-center justify-center ring-4 ring-white dark:ring-gray-600"
+        class="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-accent-300 ring-4 ring-white dark:bg-accent-500 dark:ring-gray-600"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -51,7 +51,7 @@
         </svg>
       </span>
     </div>
-    <div class="min-w-0 flex-1 pt-1.5 flex flex-col sm:flex-row justify-between sm:space-x-4">
+    <div class="flex min-w-0 flex-1 flex-col justify-between pt-1.5 sm:flex-row sm:space-x-4">
       <div>
         <p class:failed class="title-row">
           {#if failed || !resultDescription}
@@ -66,7 +66,7 @@
           {/if}
         </p>
       </div>
-      <div class="text-left sm:text-right text-sm whitespace-nowrap text-gray-500">
+      <div class="whitespace-nowrap text-left text-sm text-gray-500 sm:text-right">
         <time datetime={entry.timestamp}>{relativeTime(entry.timestamp)}</time> ago
       </div>
     </div>
