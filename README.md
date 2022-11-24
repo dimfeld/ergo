@@ -1,6 +1,6 @@
 Ergo is a low-code IFTTT/Zapier style application, built with Rust and Svelte. Tasks are customizable with Javascript and can contain state machines for more advanced task handling.
 
-This project is in very early stages right now with no current plans for proper publishing, but that will probably come some day.
+This project is currently on hold, but development will be picked up again in the future [with a revised focus](https://imfeld.dev/journals/2022/09/2022-09-27).
 
 # Considered use cases
 
