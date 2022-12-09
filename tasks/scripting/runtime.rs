@@ -1,16 +1,15 @@
 use std::borrow::Cow;
 
 use ergo_js::{
-    BufferConsole, ConsoleMessage, Extension, Runtime, RuntimeOptions, RuntimePool,
-    SerializedState, Snapshot,
+    BufferConsole, ConsoleMessage, Extension, Runtime, RuntimeOptions, RuntimePool, Snapshot,
 };
 use itertools::Itertools;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::{event, Level};
 
-const NET_SNAPSHOT: &'static [u8] = include_bytes!("./snapshots/net");
-const CORE_SNAPSHOT: &'static [u8] = include_bytes!("./snapshots/core");
+const NET_SNAPSHOT: &[u8] = include_bytes!("./snapshots/net");
+const CORE_SNAPSHOT: &[u8] = include_bytes!("./snapshots/core");
 
 lazy_static::lazy_static! {
     pub static ref POOL : RuntimePool = RuntimePool::new(None);
@@ -18,7 +17,6 @@ lazy_static::lazy_static! {
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
 pub struct TaskSerializedJsState {
-    pub state: ergo_js::SerializedState,
     pub console: Vec<ConsoleMessage>,
 }
 
@@ -33,27 +31,8 @@ fn snapshot_and_extensions(
     }
 }
 
-/// Create a runtime suitable for running tasks, with serialized execution and optional network
-/// access. If `state` is `None`, a new [SerializedState] will be created.
-pub fn create_serialized_task_script_runtime(
-    state: Option<SerializedState>,
-    allow_net: bool,
-) -> Runtime {
-    let state = state.unwrap_or_else(Default::default);
-    let (snapshot, extensions) = snapshot_and_extensions(allow_net, Some(state.random_seed));
-
-    Runtime::new(RuntimeOptions {
-        console: Some(Box::new(BufferConsole::new(ergo_js::ConsoleLevel::Debug))),
-        extensions,
-        snapshot: Some(Snapshot::Static(snapshot)),
-        serialized_state: Some(state),
-        ..Default::default()
-    })
-}
-
-/// Create a runtime suitable for running tasks, with serialized execution and optional network
-/// access. If `state` is `None`, a new [SerializedState] will be created.
-pub fn create_nonserialized_task_script_runtime(allow_net: bool) -> Runtime {
+/// Create a runtime suitable for running tasks, with optional network access.
+pub fn create_task_script_runtime(allow_net: bool) -> Runtime {
     let (snapshot, extensions) = snapshot_and_extensions(allow_net, None);
 
     Runtime::new(RuntimeOptions {

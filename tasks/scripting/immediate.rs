@@ -6,7 +6,7 @@ use serde::Deserialize;
 use smallvec::SmallVec;
 
 use crate::{
-    scripting::{create_nonserialized_task_script_runtime, POOL},
+    scripting::{create_task_script_runtime, POOL},
     Error,
 };
 
@@ -35,46 +35,44 @@ pub async fn run_task(
     let main_url = url::Url::parse(&format!("https://ergo/tasks/{}.js", task_name))
         .map_err(|e| Error::TaskScriptSetup(e.into()))?;
 
-    let result = POOL
-        .run(move || async move {
-            // TODO ability to configure `allow_net`
-            let mut runtime = create_nonserialized_task_script_runtime(true);
+    POOL.run(move || async move {
+        // TODO ability to configure `allow_net`
+        let mut runtime = create_task_script_runtime(true);
 
-            set_up_task_env(&mut runtime, &state, &payload).map_err(Error::TaskScriptSetup)?;
+        set_up_task_env(&mut runtime, &state, &payload).map_err(Error::TaskScriptSetup)?;
 
-            let run_result = runtime.run_main_module(main_url, config.script).await;
-            let console = runtime.take_console_messages();
+        let run_result = runtime.run_main_module(main_url, config.script).await;
+        let console = runtime.take_console_messages();
 
-            match run_result {
-                Ok(_) => {
-                    let context_result: String = runtime
-                        .get_global_value("__ergo_context")
-                        .unwrap_or_else(|_| Some(String::new()))
-                        .unwrap_or_else(String::new);
+        match run_result {
+            Ok(_) => {
+                let context_result: String = runtime
+                    .get_global_value("__ergo_context")
+                    .ok()
+                    .unwrap_or_default()
+                    .unwrap_or_default();
 
-                    let state_changed = context_result != state.context;
-                    if state_changed {
-                        state.context = context_result;
-                    }
-
-                    let actions = runtime
-                        .get_global_value("__ergo_actionQueue")
-                        .unwrap_or_else(|_| Some(SmallVec::new()))
-                        .unwrap_or_else(SmallVec::new);
-
-                    Ok(RunTaskResult {
-                        state_changed,
-                        state,
-                        console,
-                        actions,
-                    })
+                let state_changed = context_result != state.context;
+                if state_changed {
+                    state.context = context_result;
                 }
-                Err(e) => Err(Error::TaskScript { error: e, console }),
-            }
-        })
-        .await;
 
-    result
+                let actions = runtime
+                    .get_global_value("__ergo_actionQueue")
+                    .unwrap_or_else(|_| Some(SmallVec::new()))
+                    .unwrap_or_else(SmallVec::new);
+
+                Ok(RunTaskResult {
+                    state_changed,
+                    state,
+                    console,
+                    actions,
+                })
+            }
+            Err(e) => Err(Error::TaskScript { error: e, console }),
+        }
+    })
+    .await
 }
 
 const TASK_HELPERS: &str = include_str!("./task_helpers.js");

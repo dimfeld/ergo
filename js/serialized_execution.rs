@@ -1,7 +1,6 @@
 use chrono::{DateTime, Utc};
 use deno_core::error::AnyError;
 use futures::future::{ready, TryFutureExt};
-use rusty_v8 as v8;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_v8::{from_v8, to_v8};
@@ -294,6 +293,9 @@ fn save_result(
     );
     // Save the the raw serialied result for proper reconstitution and the JSON version to
     // make it inspectable without having to fire up a V8 isolate.
+    // TODO This currently fails when wrapping fetch due to handling the bytes buffer of the
+    // response. I'm not fixing it for now since I'm leaning toward scrapping the serialized
+    // execution feature anyway.
     let result = v8_try!(scope, raw_serde::serialize(scope, args.get(2)));
     let result_json: serde_json::Value = v8_try!(scope, from_v8(scope, args.get(2)));
     let events = get_event_state!(scope);

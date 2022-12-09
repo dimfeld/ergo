@@ -88,23 +88,36 @@ impl deno_net::NetPermissions for Permissions {
     fn check_net<T: AsRef<str>>(
         &mut self,
         host: &(T, Option<u16>),
+        api_name: &str,
     ) -> Result<(), deno_core::error::AnyError> {
         // Check the host. CIDR matching takes place at a lower level.
         self.check_host(host.0.as_ref(), host.1)?;
         Ok(())
     }
 
-    fn check_read(&mut self, _p: &std::path::Path) -> Result<(), deno_core::error::AnyError> {
+    fn check_read(
+        &mut self,
+        _p: &std::path::Path,
+        api_name: &str,
+    ) -> Result<(), deno_core::error::AnyError> {
         Ok(())
     }
 
-    fn check_write(&mut self, _p: &std::path::Path) -> Result<(), deno_core::error::AnyError> {
+    fn check_write(
+        &mut self,
+        _p: &std::path::Path,
+        api_name: &str,
+    ) -> Result<(), deno_core::error::AnyError> {
         Ok(())
     }
 }
 
 impl deno_fetch::FetchPermissions for Permissions {
-    fn check_net_url(&mut self, url: &url::Url) -> Result<(), deno_core::error::AnyError> {
+    fn check_net_url(
+        &mut self,
+        url: &url::Url,
+        api_name: &str,
+    ) -> Result<(), deno_core::error::AnyError> {
         let host = match (url.host_str(), self.allow_relative_urls) {
             (Some(host), _) => host,
             (None, true) => return Ok(()),
@@ -116,9 +129,21 @@ impl deno_fetch::FetchPermissions for Permissions {
         Ok(())
     }
 
-    fn check_read(&mut self, _p: &std::path::Path) -> Result<(), deno_core::error::AnyError> {
+    fn check_read(
+        &mut self,
+        _p: &std::path::Path,
+        api_name: &str,
+    ) -> Result<(), deno_core::error::AnyError> {
         Ok(())
     }
+}
+
+impl deno_web::TimersPermission for Permissions {
+    fn allow_hrtime(&mut self) -> bool {
+        true
+    }
+
+    fn check_unstable(&self, state: &deno_core::OpState, api_name: &'static str) {}
 }
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
 //! This code is inspired by the serialize/deserialize functions in deno/core/bindings.rs.
-use rusty_v8 as v8;
 use thiserror::Error;
 use v8::{Local, Value, ValueDeserializerHelper, ValueSerializerHelper};
 

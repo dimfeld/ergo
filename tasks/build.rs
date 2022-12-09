@@ -5,7 +5,7 @@ use std::{
 };
 
 fn build_snapshot(dir: &Path, name: &str, extensions: Vec<ergo_js::Extension>) {
-    let mut runtime = ergo_js::Runtime::new(ergo_js::RuntimeOptions {
+    let runtime = ergo_js::Runtime::new(ergo_js::RuntimeOptions {
         will_snapshot: true,
         extensions,
         ..Default::default()
