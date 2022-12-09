@@ -45,6 +45,9 @@ pub fn new_uuid() -> uuid::Uuid {
     ulid::Ulid::new().into()
 }
 
+pub const JSON_OID: sqlx::postgres::types::Oid = sqlx::postgres::types::Oid(114);
+pub const JSONB_OID: sqlx::postgres::types::Oid = sqlx::postgres::types::Oid(3802);
+
 #[macro_export]
 macro_rules! sqlx_json_decode {
     ($type:ty) => {
@@ -53,7 +56,8 @@ macro_rules! sqlx_json_decode {
                 value: sqlx::postgres::PgValueRef<'r>,
             ) -> Result<Self, Box<dyn std::error::Error + 'static + Send + Sync>> {
                 use sqlx::ValueRef;
-                let is_jsonb = value.type_info().as_ref() == &sqlx::postgres::PgTypeInfo::with_oid(3802);
+                let is_jsonb = value.type_info().as_ref()
+                    == &sqlx::postgres::PgTypeInfo::with_oid($crate::JSONB_OID);
                 let mut buf = <&[u8] as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
 
                 if is_jsonb {
@@ -71,12 +75,12 @@ macro_rules! sqlx_json_decode {
 
         impl sqlx::Type<sqlx::Postgres> for $type {
             fn type_info() -> sqlx::postgres::PgTypeInfo {
-                sqlx::postgres::PgTypeInfo::with_oid(3802) // jsonb
+                sqlx::postgres::PgTypeInfo::with_oid($crate::JSONB_OID)
             }
 
             fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
-                *ty == sqlx::postgres::PgTypeInfo::with_oid(3802) // jsonb
-                    || *ty == sqlx::postgres::PgTypeInfo::with_oid(114) // json
+                *ty == sqlx::postgres::PgTypeInfo::with_oid($crate::JSONB_OID)
+                    || *ty == sqlx::postgres::PgTypeInfo::with_oid($crate::JSON_OID)
             }
         }
     };

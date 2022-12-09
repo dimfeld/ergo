@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-use actix_identity::RequestIdentity;
+use actix_identity::IdentityExt;
 use actix_web::{
     dev::{Service, ServiceRequest, ServiceResponse, Transform},
     Error, HttpMessage,
@@ -70,7 +70,7 @@ where
         let auth_data = self.auth_data.clone();
 
         async move {
-            let id = req.get_identity();
+            let id = req.get_identity().ok();
             let auth = auth_data.authenticate(id, &req).await?;
             if let Some(auth) = auth {
                 req.extensions_mut()

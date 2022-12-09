@@ -22,7 +22,7 @@ async fn pg_pool(
     PgPoolOptions::new()
         .max_connections(16)
         .max_lifetime(Some(std::time::Duration::from_secs(3600 * 12)))
-        .connect_timeout(std::time::Duration::from_secs(30))
+        .acquire_timeout(std::time::Duration::from_secs(30))
         .connect_with(connect_options)
         .await
         .map_err(|e| e.into())

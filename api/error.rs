@@ -133,7 +133,7 @@ impl ergo_database::transaction::TryIntoSqlxError for Error {
 }
 
 impl actix_web::error::ResponseError for Error {
-    fn error_response(&self) -> HttpResponse<actix_web::dev::Body> {
+    fn error_response(&self) -> HttpResponse<actix_web::body::BoxBody> {
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
 

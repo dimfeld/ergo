@@ -5,10 +5,12 @@ pub mod module_loader;
 pub mod permissions;
 mod pool;
 mod raw_serde;
+#[cfg(feature = "serialized_execution")]
 pub mod serialized_execution;
 
 pub use console::*;
 pub use pool::RuntimePool;
+#[cfg(feature = "serialized_execution")]
 pub use serialized_execution::SerializedState;
 
 pub use deno_core::{Extension, Snapshot};
@@ -20,9 +22,8 @@ use std::{
     rc::Rc,
 };
 
-use deno_core::{error::AnyError, op_sync, JsRuntime, OpState};
+use deno_core::{error::AnyError, op, JsRuntime, OpState};
 use deno_web::BlobStore;
-use rusty_v8 as v8;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_v8::{from_v8, to_v8};
 
@@ -31,13 +32,17 @@ use crate::permissions::Permissions;
 /// Core extensions and extensions to allow network access.
 pub fn net_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
     vec![
-        deno_console::init(),
         deno_webidl::init(),
+        deno_console::init(),
         deno_url::init(),
-        deno_web::init(BlobStore::default(), None),
+        deno_tls::init(),
+        deno_web::init::<Permissions>(BlobStore::default(), None),
         deno_crypto::init(crypto_seed),
+        deno_fetch::init::<Permissions>(deno_fetch::Options {
+            user_agent: "ergo".to_string(),
+            ..Default::default()
+        }),
         deno_net::init::<Permissions>(None, false, None),
-        deno_fetch::init::<Permissions>("ergo".to_string(), None, None, None, None, None),
     ]
 }
 
@@ -47,7 +52,8 @@ pub fn core_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
         deno_console::init(),
         deno_webidl::init(),
         deno_url::init(),
-        deno_web::init(BlobStore::default(), None),
+        deno_tls::init(),
+        deno_web::init::<Permissions>(BlobStore::default(), None),
         deno_crypto::init(crypto_seed),
     ]
 }
@@ -60,6 +66,7 @@ pub struct RuntimeOptions {
     pub extensions: Vec<Extension>,
     pub snapshot: Option<Snapshot>,
 
+    #[cfg(feature = "serialized_execution")]
     /// Serialized event state for this isolate. If None, serialized execution (including saving
     /// results) is entirely disabled. To use serial execution without some existing
     /// state, set this to Some(SerializedState::default()).
@@ -77,6 +84,7 @@ impl Default for RuntimeOptions {
             will_snapshot: false,
             extensions: net_extensions(None),
             snapshot: None,
+            #[cfg(feature = "serialized_execution")]
             serialized_state: None,
             console: None,
             permissions: None,
@@ -112,7 +120,8 @@ impl Runtime {
         let has_snapshot = options.snapshot.is_some();
         let deno_runtime = JsRuntime::new(deno_core::RuntimeOptions {
             will_snapshot: options.will_snapshot,
-            extensions: options.extensions,
+            extensions: Vec::new(),
+            extensions_with_js: options.extensions,
             startup_snapshot: options.snapshot,
             module_loader: Some(Rc::new(module_loader::TrivialModuleLoader {})),
             ..deno_core::RuntimeOptions::default()
@@ -134,6 +143,16 @@ impl Runtime {
                 .expect("Running startup code");
         }
 
+        if !options.will_snapshot {
+            runtime
+                .execute_script(
+                    "<startup_postsnapshot>",
+                    include_str!("startup_postsnapshot.js"),
+                )
+                .expect("Running startup code");
+        }
+
+        #[cfg(feature = "serialized_execution")]
         if let Some(state) = options.serialized_state {
             if options.will_snapshot {
                 // This requires setting external references in the V8 runtime and that API is
@@ -164,7 +183,7 @@ impl Runtime {
         }
     }
 
-    pub fn make_snapshot(&mut self) -> Vec<u8> {
+    pub fn make_snapshot(self) -> Vec<u8> {
         let snapshot = self.runtime.snapshot();
         snapshot.as_ref().to_vec()
     }
@@ -193,7 +212,7 @@ impl Runtime {
 
         let result = self.runtime.execute_script(name, script)?;
         let mut scope = self.runtime.handle_scope();
-        let local = result.get(&mut scope);
+        let local = result.open(&mut scope);
         Ok(local.boolean_value(&mut scope))
     }
 
@@ -248,7 +267,8 @@ impl Runtime {
     }
 }
 
-fn op_console(state: &mut OpState, message: String, level: usize) -> Result<(), AnyError> {
+#[op]
+fn ergo_js_console(state: &mut OpState, message: String, level: usize) -> Result<(), AnyError> {
     if let Some(console) = state.try_borrow_mut::<ConsoleWrapper>() {
         let message = console::ConsoleMessage {
             message,
@@ -257,6 +277,8 @@ fn op_console(state: &mut OpState, message: String, level: usize) -> Result<(), 
         };
 
         console.console.add(message);
+    } else {
+        panic!("No console wrapper")
     }
 
     Ok(())
@@ -268,16 +290,13 @@ struct ConsoleWrapper {
 
 const CONSOLE_EXTENSION_JS: &str = r##"
     globalThis.console = new globalThis.__bootstrap.console.Console(
-        (level, message) => Deno.core.opSync("ergo_js_console", level, message)
+        (message, level) => Deno.core.ops.ergo_js_console(message, level)
     );"##;
 
 fn console_extension(console: Box<dyn Console>) -> deno_core::Extension {
     deno_core::Extension::builder()
-        .js(vec![(
-            "ergo_js_console",
-            Box::new(|| Ok(String::from(CONSOLE_EXTENSION_JS))),
-        )])
-        .ops(vec![("ergo_js_console", op_sync(op_console))])
+        .js(vec![("ergo_js_console", CONSOLE_EXTENSION_JS)])
+        .ops(vec![ergo_js_console::decl()])
         .state(move |state| {
             state.put(ConsoleWrapper {
                 console: console.clone_settings(),
@@ -489,11 +508,11 @@ mod tests {
             server.uri()
         );
 
-        runtime
+        let script_result = runtime
             .run_main_module(Url::parse("https://ergo/script").unwrap(), script)
-            .await
-            .expect("running script");
-        println!("{:?}", runtime.take_console_messages());
+            .await;
+        println!("Console: {:?}", runtime.take_console_messages());
+        script_result.expect("running script");
         let result: serde_json::Value = runtime
             .get_global_value("result")
             .expect("getting result")

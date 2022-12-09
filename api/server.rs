@@ -3,7 +3,8 @@ use crate::{error::Result, routes};
 use std::{env, net::TcpListener, path::PathBuf};
 
 use actix_files::NamedFile;
-use actix_identity::{CookieIdentityPolicy, IdentityService};
+use actix_identity::IdentityMiddleware;
+use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{
     web::{self, PathConfig},
     App, HttpServer,
@@ -137,7 +138,7 @@ pub async fn start(config: Config) -> Result<Server> {
         .unwrap_or_else(|| {
             event!(
                 Level::WARN,
-                "Using default cookie signing key. Set COOKIE_SIGNING_KEY environment variable to a 32-byte string to set it"
+                "Using default cookie signing key. Set COOKIE_SIGNING_KEY environment variable to a 64-byte string to set it"
             );
 
             "wpvuwm4pvoane;bwn40s;wmvlscvG@sV".to_string()
@@ -147,11 +148,9 @@ pub async fn start(config: Config) -> Result<Server> {
     let serve_dir = env::var("SERVE_DIR").ok().unwrap_or_else(String::new);
 
     let server = HttpServer::new(move || {
-        let identity = IdentityService::new(
-            CookieIdentityPolicy::new(&cookie_signing_key)
-                .http_only(true)
-                .secure(true)
-                .same_site(actix_web::cookie::SameSite::Strict),
+        let sessions = SessionMiddleware::new(
+            CookieSessionStore::default(),
+            actix_web::cookie::Key::from(&cookie_signing_key),
         );
 
         let mut app = App::new().service(
@@ -166,7 +165,8 @@ pub async fn start(config: Config) -> Result<Server> {
                 .wrap(AuthenticateMiddlewareFactory::new(
                     backend_app_data.auth.clone(),
                 ))
-                .wrap(identity)
+                .wrap(IdentityMiddleware::default())
+                .wrap(sessions)
                 .wrap(TracingLogger::default())
                 .configure(routes::accounts::config)
                 .configure(routes::actions::config)
