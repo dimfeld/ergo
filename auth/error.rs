@@ -1,4 +1,4 @@
-use actix_web::{http::StatusCode, HttpResponse};
+use actix_web::{body::BoxBody, http::StatusCode, HttpResponse};
 use envoption::EnvOptionError;
 use thiserror::Error;
 
@@ -30,7 +30,7 @@ impl<T: std::error::Error> From<EnvOptionError<T>> for Error {
 }
 
 impl actix_web::error::ResponseError for Error {
-    fn error_response(&self) -> HttpResponse<actix_web::dev::Body> {
+    fn error_response(&self) -> HttpResponse<BoxBody> {
         HttpResponse::build(self.status_code()).body(self.to_string())
     }
 

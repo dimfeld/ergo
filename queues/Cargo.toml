@@ -21,7 +21,7 @@ deadpool = "0.8.2"
 deadpool-redis = "0.9.0"
 ergo-database = { version = "0.1.0", path="../database" }
 ergo-graceful-shutdown = { version = "0.1.0", path="../graceful_shutdown" }
-futures = "0.3.17"
+futures = "0.3.25"
 fxhash = "0.2.1"
 itertools = "0.10.1"
 lazy_static = "1.4.0"
@@ -36,7 +36,7 @@ sqlx = { version = "0.6.2", features = ["postgres", "json", "uuid", "chrono", "t
 thiserror = "1.0.29"
 tokio = { version = "1.11.0", features = ["full", "test-util"] }
 tracing = "0.1.26"
-uuid = { version = "1.2.2", features = ["serde", "v4"] }
+uuid = { version = "1.1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 assert_matches = "1.5.0"

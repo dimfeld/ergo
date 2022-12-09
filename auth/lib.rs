@@ -13,7 +13,7 @@ use std::{
 
 pub use api_key::ApiKey;
 
-use actix_web::{dev::ServiceRequest, FromRequest, HttpRequest};
+use actix_web::{dev::ServiceRequest, FromRequest, HttpMessage, HttpRequest};
 use chrono::{DateTime, Utc};
 use ergo_database::{
     object_id::{OrgId, RoleId, UserId},
@@ -79,7 +79,6 @@ impl MaybeAuthenticated {
 }
 
 impl FromRequest for MaybeAuthenticated {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
@@ -109,7 +108,6 @@ impl Authenticated {
 }
 
 impl FromRequest for Authenticated {
-    type Config = ();
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
@@ -207,7 +205,7 @@ impl AuthData {
     // Authenticate via cookie or API key, depending on what's provided.
     pub async fn authenticate(
         &self,
-        identity: Option<String>,
+        identity: Option<actix_identity::Identity>,
         req: &ServiceRequest,
     ) -> Result<Option<AuthenticationInfo>, Error> {
         if let Some(auth) = api_key::get_api_key(self, req).await? {
@@ -218,7 +216,8 @@ impl AuthData {
             Some(identity) => {
                 // TODO This should be a session ID, not a user ID.
                 let user_id =
-                    UserId::from_str(&identity).map_err(|_| Error::AuthenticationError)?;
+                    UserId::from_str(&identity.id().map_err(|_| Error::AuthenticationError)?)
+                        .map_err(|_| Error::AuthenticationError)?;
 
                 let req_user = self.get_user_info(&user_id).await?;
                 Ok(Some(AuthenticationInfo::User(req_user)))
