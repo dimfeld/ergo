@@ -17,5 +17,3 @@ resolver = "2"
 # [profile.release]
 # lto = true
 
-[patch.crates-io]
-sqlx = { git="https://github.com/dimfeld/sqlx" }

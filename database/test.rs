@@ -69,7 +69,7 @@ pub async fn create_database() -> Result<(TestDatabase, OrgId, DatabaseUser)> {
     let password = std::env::var("TEST_DATABASE_PASSWORD").unwrap_or_else(|_| "".to_string());
 
     let config = DatabaseConfiguration {
-        database: format!("ergo_test_{}", crate::new_uuid().to_simple()),
+        database: format!("ergo_test_{}", crate::new_uuid().simple()),
         host,
         port,
     };

@@ -37,7 +37,7 @@ rand = "0.8.4"
 redis = { version = "0.21.2", features = ["tokio-comp"] }
 reqwest = { version = "0.11.5", features = ["rustls-tls"] }
 rusty_v8 = "0.30.0"
-schemars = { git="https://github.com/dimfeld/schemars", features=["smallvec", "uuid", "chrono", "preserve_order"] }
+schemars = { git="https://github.com/dimfeld/schemars", features=["smallvec", "uuid1", "chrono", "preserve_order"] }
 serde = { version = "1.0.130", features = ["derive"] }
 serde_json = "1.0.67"
 serde_millis = "0.1.1"
@@ -47,7 +47,7 @@ thiserror = "1.0.29"
 tokio = { version = "1.11.0", features = ["full", "test-util"] }
 tracing = { version = "0.1.26", optional = true }
 url = "2.2.2"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
+uuid = { version = "1.2.2", features = ["serde", "v4"] }
 
 [dev-dependencies]
 assert_matches = "1.5.0"
