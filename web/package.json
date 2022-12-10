@@ -5,7 +5,7 @@
     "dev": "run-p dev:svelte dev:server",
     "dev:svelte": "vite dev --port ${PORT:-3000} --host ${HOST:-127.0.0.1}",
     "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && cargo run --release server | bunyan'",
-    "build": "run-s generate-api-types sync-types build:svelte",
+    "build": "run-s generate-api-types generate-ts-defs sync-types build:svelte",
     "build:svelte": "vite build",
     "preview": "run-s clean build && SERVE_DIR=build cargo run --release server | bunyan",
     "preview:svelte": "vite preview",
