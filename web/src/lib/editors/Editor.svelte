@@ -1,44 +1,50 @@
 <script lang="ts">
-  import { createEventDispatcher, setContext } from 'svelte';
   import {
-    EditorView,
-    keymap,
-    highlightSpecialChars,
+    autocompletion,
+    closeBrackets,
+    closeBracketsKeymap,
+    completionKeymap,
+  } from '@codemirror/autocomplete';
+  import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+  import { json, jsonParseLinter } from '@codemirror/lang-json';
+  import {
+    bracketMatching,
+    defaultHighlightStyle,
+    indentOnInput,
+    syntaxHighlighting,
+  } from '@codemirror/language';
+  import { linter as makeLinter, lintKeymap } from '@codemirror/lint';
+  import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
+  import { Compartment, EditorSelection, EditorState, type Extension } from '@codemirror/state';
+  import { oneDark } from '@codemirror/theme-one-dark';
+  import {
     drawSelection,
+    EditorView,
     highlightActiveLine,
+    highlightActiveLineGutter,
+    highlightSpecialChars,
+    keymap,
+    lineNumbers,
+    showPanel,
     type ViewUpdate,
   } from '@codemirror/view';
-  import { Compartment, EditorSelection, EditorState, type Extension } from '@codemirror/state';
-  import { history, historyKeymap } from '@codemirror/history';
-  import { indentOnInput } from '@codemirror/language';
-  import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';
-  import { defaultKeymap, indentWithTab } from '@codemirror/commands';
-  import { bracketMatching } from '@codemirror/matchbrackets';
-  import { closeBrackets, closeBracketsKeymap } from '@codemirror/closebrackets';
-  import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-  import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
-  import { commentKeymap } from '@codemirror/comment';
-  import { defaultHighlightStyle } from '@codemirror/highlight';
-  import { linter as makeLinter, lintKeymap } from '@codemirror/lint';
-  import { json, jsonParseLinter } from '@codemirror/lang-json';
-  import { json5, json5ParseLinter } from './codemirror-json5';
-  import { oneDark } from '@codemirror/theme-one-dark';
-  import prettier from 'prettier/standalone';
   import prettierBabel from 'prettier/parser-babel';
+  import prettier from 'prettier/standalone';
+  import { autocompleter, type AutocompleteSpec } from './autocomplete';
+  import { json5, json5ParseLinter } from './codemirror-json5';
+  import { injectTsTypes, type LintSource } from './editor';
 
-  import { darkModeStore, cssDarkModePreference } from '$lib/styles';
+  import { cssDarkModePreference, darkModeStore } from '$lib/styles';
   import { throttle } from 'lodash-es';
+  import { createEventDispatcher, setContext } from 'svelte';
 
   import Button from '$lib/components/Button.svelte';
 
-  import { autocompleter, type AutocompleteSpec } from './autocomplete';
-  import { injectTsTypes, type LintSource } from './editor';
-  import { showPanel } from '@codemirror/panel';
-  import { jsonSchemaSupport } from './json_schema';
-  import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
-  import { type FileMap, type WrapCodeFn, typescript } from './typescript';
   import * as bundler from '$lib/bundler/index';
   import Card from '$lib/components/Card.svelte';
+  import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
+  import { jsonSchemaSupport } from './json_schema';
+  import { typescript, type FileMap, type WrapCodeFn } from './typescript';
 
   export let contents: string;
   export let format: 'js' | 'ts' | 'json' | 'json5';
@@ -129,7 +135,7 @@
         drawSelection(),
         EditorState.allowMultipleSelections.of(true),
         indentOnInput(),
-        defaultHighlightStyle.fallback,
+        syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
         bracketMatching(),
         closeBrackets(),
         highlightActiveLine(),
@@ -139,7 +145,6 @@
           ...defaultKeymap,
           ...searchKeymap,
           ...historyKeymap,
-          ...commentKeymap,
           ...completionKeymap,
           ...lintKeymap,
           // indentWithTab,
@@ -231,8 +236,7 @@
 <div class="editor flex h-full min-h-0 flex-col {classNames}">
   {#if toolbar}
     <div
-      class="flex w-full items-center border-b border-gray-200 py-1 text-sm dark:border-gray-800"
-    >
+      class="flex w-full items-center border-b border-gray-200 py-1 text-sm dark:border-gray-800">
       <slot name="left-toolbar" />
       <div class="ml-auto flex flex-row items-center space-x-4">
         <slot name="right-toolbar" />

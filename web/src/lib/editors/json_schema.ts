@@ -1,5 +1,5 @@
 import type { AutocompleteSpec } from './autocomplete';
-import type { PanelConstructor } from '@codemirror/panel';
+import type { PanelConstructor } from '@codemirror/view';
 import { jsonCursorPath } from './codemirror-json5';
 import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
 

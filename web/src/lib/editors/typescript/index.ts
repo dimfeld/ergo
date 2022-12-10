@@ -7,21 +7,20 @@ import {
   type CompletionResult,
 } from '@codemirror/autocomplete';
 import { javascript } from '@codemirror/lang-javascript';
-import { type Diagnostic, linter, setDiagnostics as cmSetDiagnostics } from '@codemirror/lint';
+import { linter, setDiagnostics as cmSetDiagnostics, type Diagnostic } from '@codemirror/lint';
 import {
   EditorState,
-  type Extension,
   StateEffect,
   StateField,
+  type Extension,
   type TransactionSpec,
 } from '@codemirror/state';
-import { hoverTooltip, type Tooltip } from '@codemirror/tooltip';
-import { EditorView } from '@codemirror/view';
+import { EditorView, hoverTooltip, type Tooltip } from '@codemirror/view';
 import { throttle } from 'lodash-es';
 import { DiagnosticCategory, displayPartsToString, flattenDiagnosticMessageText } from 'typescript';
 import { onChangeCallback } from '../change-callback';
 import { log } from './log';
-import { type FileMap, TypescriptProject } from './project';
+import { TypescriptProject, type FileMap } from './project';
 
 export { TypescriptProject };
 export type { FileMap };

@@ -41,7 +41,7 @@ function propertyValueNode(node: SyntaxNode | null) {
 }
 
 function getParentProperty(node: SyntaxNode) {
-  let cursor = node.parent?.cursor;
+  let cursor = node.parent?.cursor();
   if (!cursor) {
     return null;
   }
@@ -111,7 +111,7 @@ function findObjectProperty(state: EditorState, node: SyntaxNode | null, name: s
     return null;
   }
 
-  let cursor = node.firstChild?.cursor;
+  let cursor = node.firstChild?.cursor();
   if (!cursor) {
     return null;
   }
@@ -134,7 +134,7 @@ function findArrayIndex(node: SyntaxNode | null, index: number) {
     return null;
   }
 
-  let cursor = node.firstChild?.cursor;
+  let cursor = node.firstChild?.cursor();
   if (!cursor) {
     return null;
   }

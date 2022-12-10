@@ -1,19 +1,19 @@
-import { parser as lezerParser } from 'lezer-json5';
-import JSON5 from 'json5';
 import {
   continuedIndent,
-  indentNodeProp,
-  foldNodeProp,
   foldInside,
-  LRLanguage,
+  foldNodeProp,
+  indentNodeProp,
   LanguageSupport,
+  LRLanguage,
 } from '@codemirror/language';
-import { styleTags, tags as t } from '@codemirror/highlight';
-import type { EditorView } from '@codemirror/view';
 import type { Diagnostic } from '@codemirror/lint';
 import { StateField, type Text, type Transaction } from '@codemirror/state';
-import { getPathAtNode, nodeAtCursor } from './editor';
+import type { EditorView } from '@codemirror/view';
 import type { SyntaxNode } from '@lezer/common';
+import { styleTags, tags as t } from '@lezer/highlight';
+import JSON5 from 'json5';
+import { parser as lezerParser } from 'lezer-json5';
+import { getPathAtNode, nodeAtCursor } from './editor';
 
 /// A language provider that provides JSON5 parsing.
 export const json5Language = LRLanguage.define({
