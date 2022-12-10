@@ -7,7 +7,7 @@
   import { formatJson } from './format';
   import stateMachineSchema from '$lib/../../../schemas/state_machine.json';
   import type { EditorView } from '@codemirror/view';
-  import { json5ParseCache } from './codemirror-json5';
+  import { json5ParseCache } from 'codemirror-json5';
 
   interface Source {
     config: string;

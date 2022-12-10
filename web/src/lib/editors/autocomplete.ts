@@ -1,6 +1,6 @@
 import type { Completion, CompletionContext } from '@codemirror/autocomplete';
 import { syntaxTree } from '@codemirror/language';
-import { json5ParseCache, jsonCursorPath } from './codemirror-json5';
+import { json5ParseCache, jsonCursorPath } from 'codemirror-json5';
 import { nodeFromPath } from './editor';
 
 export interface AutocompleteSpec<T = unknown> {

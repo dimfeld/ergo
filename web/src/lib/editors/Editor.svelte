@@ -31,7 +31,7 @@
   import prettierBabel from 'prettier/parser-babel';
   import prettier from 'prettier/standalone';
   import { autocompleter, type AutocompleteSpec } from './autocomplete';
-  import { json5, json5ParseLinter } from './codemirror-json5';
+  import { json5, json5ParseLinter } from 'codemirror-json5';
   import { injectTsTypes, type LintSource } from './editor';
 
   import { cssDarkModePreference, darkModeStore } from '$lib/styles';
