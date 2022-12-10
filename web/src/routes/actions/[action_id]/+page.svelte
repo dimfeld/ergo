@@ -1,42 +1,46 @@
 <script context="module" lang="ts">
-  import { Action, ActionCategory, TemplateFieldFormat } from '$lib/api_types';
-  import clone from 'just-clone';
-  import type { Load } from '@sveltejs/kit';
-  import * as help from './_helpText';
-  import { new_action_id } from 'ergo-wasm';
+  throw new Error("@migration task: Check code was safely removed (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292722)");
 
-  function newAction(actionCategories: Map<string, ActionCategory>): Action {
-    return {
-      name: '',
-      executor_id: '',
-      template_fields: [],
-      executor_template: { t: 'Template', c: [] },
-      account_required: false,
-      action_category_id: actionCategories.keys().next().value,
-    };
-  }
+  // import { Action, ActionCategory, TemplateFieldFormat } from '$lib/api_types';
+  // import clone from 'just-clone';
+  // import type { Load } from '@sveltejs/kit';
+  // import * as help from '../_helpText';
+  // import { new_action_id } from 'ergo-wasm';
 
-  export const load: Load = async function load({ stuff, params }) {
-    let { action_id } = params;
+  // function newAction(actionCategories: Map<string, ActionCategory>): Action {
+  //   return {
+  //     name: '',
+  //     executor_id: '',
+  //     template_fields: [],
+  //     executor_template: { t: 'Template', c: [] },
+  //     account_required: false,
+  //     action_category_id: actionCategories.keys().next().value,
+  //   };
+  // }
 
-    let action =
-      action_id !== 'new' ? stuff.actions.get(action_id) : newAction(stuff.actionCategories);
-    if (!action) {
-      return {
-        status: 404,
-        error: 'Action not found',
-      };
-    }
+  // export const load: Load = async function load({ stuff, params }) {
+  //   let { action_id } = params;
 
-    return {
-      props: {
-        action: clone(action),
-      },
-    };
-  };
+  //   let action =
+  //     action_id !== 'new' ? stuff.actions.get(action_id) : newAction(stuff.actionCategories);
+  //   if (!action) {
+  //     return {
+  //       status: 404,
+  //       error: 'Action not found',
+  //     };
+  //   }
+
+  //   return {
+  //     props: {
+  //       action: clone(action),
+  //     },
+  //   };
+  // };
 </script>
 
 <script lang="ts">
+  throw new Error("@migration task: Add data prop (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292707)");
+
   import Button from '$lib/components/Button.svelte';
   import Checkbox from '$lib/components/Checkbox.svelte';
   import Labelled from '$lib/components/Labelled.svelte';

@@ -9,7 +9,7 @@
   import { baseData } from '$lib/data';
   import { getHeaderTextStore } from '$lib/header';
   import clone from 'just-clone';
-  import InputEditor from './_InputEditor.svelte';
+  import InputEditor from '../_InputEditor.svelte';
   const { inputs } = baseData();
   getHeaderTextStore().set(['Inputs']);
 

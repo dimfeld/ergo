@@ -1,27 +1,31 @@
 <script context="module" lang="ts">
-  import { loadFetch } from '$lib/api';
-  import type { Load } from '@sveltejs/kit';
+  throw new Error("@migration task: Check code was safely removed (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292722)");
 
-  export const load: Load = async function load({ fetch, params }) {
-    fetch = loadFetch(fetch);
+  // import { loadFetch } from '$lib/api';
+  // import type { Load } from '@sveltejs/kit';
 
-    if (params.task_id === 'new') {
-      return {
-        props: {},
-      };
-    }
+  // export const load: Load = async function load({ fetch, params }) {
+  //   fetch = loadFetch(fetch);
 
-    let task: TaskResult = await fetch(`/api/tasks/${params.task_id}`).then((r) => r.json());
+  //   if (params.task_id === 'new') {
+  //     return {
+  //       props: {},
+  //     };
+  //   }
 
-    return {
-      props: {
-        task,
-      },
-    };
-  };
+  //   let task: TaskResult = await fetch(`/api/tasks/${params.task_id}`).then((r) => r.json());
+
+  //   return {
+  //     props: {
+  //       task,
+  //     },
+  //   };
+  // };
 </script>
 
 <script lang="ts">
+  throw new Error("@migration task: Add data prop (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292707)");
+
   import { goto, invalidate } from '$app/navigation';
   import { getStores, page } from '$app/stores';
   import Button from '$lib/components/Button.svelte';
@@ -40,8 +44,8 @@
   import initWasm from '$lib/wasm';
   import Labelled from '$lib/components/Labelled.svelte';
   import Pencil from '$lib/components/icons/Pencil.svelte';
-  import TaskTriggerEditor, { TaskTriggerEditorData } from './_TaskTriggerEditor.svelte';
-  import TaskActionEditor, { TaskActionEditorData } from './_TaskActionEditor.svelte';
+  import TaskTriggerEditor, { TaskTriggerEditorData } from '../_TaskTriggerEditor.svelte';
+  import TaskActionEditor, { TaskActionEditorData } from '../_TaskActionEditor.svelte';
 
   export let task: TaskResult = defaultTask();
 
