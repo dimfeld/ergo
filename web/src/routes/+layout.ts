@@ -1,7 +1,17 @@
-import { createApiClient, loadFetch } from '$lib/api';
-import type { LayoutLoad } from '@sveltejs/kit';
+import { loadFetch } from '$lib/api';
+import type { LayoutLoad } from './$types';
 import initWasm from '$lib/wasm';
-import { browser } from '$app/env';
+import type {
+  Input,
+  Action,
+  ActionCategory,
+  ExecutorInfo,
+  AccountType,
+  AccountPublicInfo,
+} from '$lib/api_types';
+import { browser } from '$app/environment';
+
+export const ssr = false;
 
 export const load: LayoutLoad = async function load({ fetch }) {
   if (browser) {
@@ -31,21 +41,12 @@ export const load: LayoutLoad = async function load({ fetch }) {
   let accountTypes = new Map(accountTypeList.map((a) => [a.account_type_id, a]));
   let accounts = new Map(accountList.map((a) => [a.account_id, a]));
 
-  throw new Error("@migration task: Migrate this return statement (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292693)");
   return {
-    props: {
-      inputs,
-      actions,
-      actionCategories,
-      accountTypes,
-      accounts,
-      executors,
-    },
-    stuff: {
-      inputs,
-      actions,
-      actionCategories,
-      executors,
-    },
+    inputs,
+    actions,
+    actionCategories,
+    accountTypes,
+    accounts,
+    executors,
   };
 };

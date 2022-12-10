@@ -1,4 +1,4 @@
-import { JSONSchema4 } from 'json-schema';
+import type { JSONSchema4 } from 'json-schema';
 
 export function defaultFromJsonSchema(schema: JSONSchema4) {
   let output: Record<string, any> = {};

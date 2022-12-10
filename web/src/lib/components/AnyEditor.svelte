@@ -4,7 +4,7 @@
   import ObjectEditor from './ObjectEditor.svelte';
   import isEmpty from 'just-is-empty';
   import ObjectOrJsonTextEditor from './ObjectOrJsonTextEditor.svelte';
-  import { TemplateFieldFormat } from '$lib/api_types';
+  import type { TemplateFieldFormat } from '$lib/api_types';
 
   const dispatch = createEventDispatcher();
 

@@ -1,10 +1,10 @@
 <script lang="ts">
   import { invalidate } from '$app/navigation';
   import apiClient from '$lib/api';
-  import { Input } from '$lib/api_types';
+  import type { Input } from '$lib/api_types';
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
-  import Modal, { ModalCloser, ModalOpener } from '$lib/components/Modal.svelte';
+  import Modal, { type ModalOpener } from '$lib/components/Modal.svelte';
   import { new_input_id } from 'ergo-wasm';
   import { baseData } from '$lib/data';
   import { getHeaderTextStore } from '$lib/header';

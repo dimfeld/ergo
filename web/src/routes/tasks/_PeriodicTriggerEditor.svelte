@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { PeriodicTaskTrigger, TaskTrigger } from '$lib/api_types';
+  import type { PeriodicTaskTrigger, TaskTrigger } from '$lib/api_types';
   import Button from '$lib/components/Button.svelte';
   import DangerButton from '$lib/components/DangerButton.svelte';
   import Dropdown from '$lib/components/Dropdown.svelte';

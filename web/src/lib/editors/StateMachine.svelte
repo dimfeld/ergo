@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { StateMachine } from '$lib/api_types';
+  import type { StateMachine } from '$lib/api_types';
   import Editor from './Editor.svelte';
   import zip from 'just-zip-it';
-  import { objectLinter, ObjectLintResult } from './lint';
-  import { TaskConfigValidator } from 'ergo-wasm';
+  import { objectLinter, type ObjectLintResult } from './lint';
+  import type { TaskConfigValidator } from 'ergo-wasm';
   import { formatJson } from './format';
   import stateMachineSchema from '$lib/../../../schemas/state_machine.json';
-  import { EditorView } from '@codemirror/view';
+  import type { EditorView } from '@codemirror/view';
   import { json5ParseCache } from './codemirror-json5';
 
   interface Source {

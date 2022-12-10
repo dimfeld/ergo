@@ -3,9 +3,9 @@
   import { readable, writable, derived } from 'svelte/store';
   import {
     autoregisterLoadGroup,
-    LoadGroupStore,
-    LoadGroupManager,
-    LoadGroupStoreData,
+    type LoadGroupStore,
+    type LoadGroupManager,
+    type LoadGroupStoreData,
   } from './loadGroup';
 
   /** The name to send to the parent load group, if any. This doesn't have to be unique but could be useful for debugging. */

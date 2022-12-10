@@ -8,7 +8,7 @@
     highlightActiveLine,
     ViewUpdate,
   } from '@codemirror/view';
-  import { Compartment, EditorSelection, EditorState, Extension } from '@codemirror/state';
+  import { Compartment, EditorSelection, EditorState, type Extension } from '@codemirror/state';
   import { history, historyKeymap } from '@codemirror/history';
   import { indentOnInput } from '@codemirror/language';
   import { lineNumbers, highlightActiveLineGutter } from '@codemirror/gutter';
@@ -19,7 +19,7 @@
   import { autocompletion, completionKeymap } from '@codemirror/autocomplete';
   import { commentKeymap } from '@codemirror/comment';
   import { defaultHighlightStyle } from '@codemirror/highlight';
-  import { Diagnostic, linter as makeLinter, lintKeymap } from '@codemirror/lint';
+  import { linter as makeLinter, lintKeymap } from '@codemirror/lint';
   import { json, jsonParseLinter } from '@codemirror/lang-json';
   import { json5, json5ParseLinter } from './codemirror-json5';
   import { oneDark } from '@codemirror/theme-one-dark';
@@ -31,12 +31,12 @@
 
   import Button from '$lib/components/Button.svelte';
 
-  import { autocompleter, AutocompleteSpec } from './autocomplete';
-  import { injectTsTypes, LintSource } from './editor';
-  import { PanelConstructor, showPanel } from '@codemirror/panel';
+  import { autocompleter, type AutocompleteSpec } from './autocomplete';
+  import { injectTsTypes, type LintSource } from './editor';
+  import { showPanel } from '@codemirror/panel';
   import { jsonSchemaSupport } from './json_schema';
   import type { JSONSchema4, JSONSchema6, JSONSchema7 } from 'json-schema';
-  import { FileMap, WrapCodeFn, typescript } from './typescript';
+  import { type FileMap, type WrapCodeFn, typescript } from './typescript';
   import * as bundler from '$lib/bundler/index';
   import Card from '$lib/components/Card.svelte';
 

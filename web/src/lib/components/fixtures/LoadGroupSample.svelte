@@ -6,9 +6,9 @@
   export let parentGroupProps = {};
   export let childGroupProps = {};
 
-  export let a;
-  export let b;
-  export let c;
+  export let a: any;
+  export let b: any;
+  export let c: any;
 
   setContext('a', a);
   setContext('b', b);

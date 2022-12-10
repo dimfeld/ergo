@@ -4,24 +4,24 @@ import {
   autocompletion,
   completeFromList,
   CompletionContext,
-  CompletionResult,
+  type CompletionResult,
 } from '@codemirror/autocomplete';
 import { javascript } from '@codemirror/lang-javascript';
 import { Diagnostic, linter, setDiagnostics as cmSetDiagnostics } from '@codemirror/lint';
 import {
   EditorState,
-  Extension,
+  type Extension,
   StateEffect,
   StateField,
-  TransactionSpec,
+  type TransactionSpec,
 } from '@codemirror/state';
-import { hoverTooltip, Tooltip } from '@codemirror/tooltip';
+import { hoverTooltip, type Tooltip } from '@codemirror/tooltip';
 import { EditorView } from '@codemirror/view';
 import { throttle } from 'lodash-es';
 import { DiagnosticCategory, displayPartsToString, flattenDiagnosticMessageText } from 'typescript';
 import { onChangeCallback } from '../change-callback';
 import { log } from './log';
-import { FileMap, TypescriptProject } from './project';
+import { type FileMap, TypescriptProject } from './project';
 
 export { TypescriptProject };
 export type { FileMap };

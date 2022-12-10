@@ -6,10 +6,10 @@
 </script>
 
 <script lang="ts">
-  import { TaskTrigger } from '$lib/api_types';
+  import type { TaskTrigger } from '$lib/api_types';
   import Button from '$lib/components/Button.svelte';
   import Labelled from '$lib/components/Labelled.svelte';
-  import { ModalCloser } from '$lib/components/Modal.svelte';
+  import type { ModalCloser } from '$lib/components/Modal.svelte';
   import { baseData } from '$lib/data';
   import sorter from 'sorters';
   import PeriodicTriggerEditor from './_PeriodicTriggerEditor.svelte';

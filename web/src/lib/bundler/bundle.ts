@@ -5,7 +5,7 @@ import ts from 'typescript';
 // @ts-ignore
 import path from 'path-browserify';
 import resolvePackages from './packages';
-import { BundleJob, Result } from './types';
+import type { BundleJob, Result } from './types';
 
 interface VirtualOptions {
   checkActive: () => void;

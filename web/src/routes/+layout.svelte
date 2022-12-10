@@ -1,84 +1,16 @@
-<script context="module" lang="ts">
-  throw new Error("@migration task: Check code was safely removed (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292722)");
-
-  // import { createApiClient, loadFetch } from '$lib/api';
-  // import type { Load } from '@sveltejs/kit';
-  // import initWasm from '$lib/wasm';
-  // import { browser } from '$app/env';
-
-  // export const load: Load = async function load({ fetch }) {
-  //   if (browser) {
-  //     await initWasm();
-  //   }
-  //   fetch = loadFetch(fetch);
-  //   let [inputList, actionList, actionCategoryList, executorList, accountTypeList, accountList]: [
-  //     Input[],
-  //     Action[],
-  //     ActionCategory[],
-  //     ExecutorInfo[],
-  //     AccountType[],
-  //     AccountPublicInfo[]
-  //   ] = await Promise.all([
-  //     fetch('/api/inputs').then((r) => r.json()),
-  //     fetch('/api/actions').then((r) => r.json()),
-  //     fetch('/api/action_categories').then((r) => r.json()),
-  //     fetch('/api/executors').then((r) => r.json()),
-  //     fetch('/api/account_types').then((r) => r.json()),
-  //     fetch('/api/accounts').then((r) => r.json()),
-  //   ]);
-
-  //   let inputs = new Map(inputList.map((i) => [i.input_id, i]));
-  //   let actions = new Map(actionList.map((a) => [a.action_id, a]));
-  //   let actionCategories = new Map(actionCategoryList.map((a) => [a.action_category_id, a]));
-  //   let executors = new Map(executorList.map((e) => [e.name, e]));
-  //   let accountTypes = new Map(accountTypeList.map((a) => [a.account_type_id, a]));
-  //   let accounts = new Map(accountList.map((a) => [a.account_id, a]));
-
-  //   return {
-  //     props: {
-  //       inputs,
-  //       actions,
-  //       actionCategories,
-  //       accountTypes,
-  //       accounts,
-  //       executors,
-  //     },
-  //     stuff: {
-  //       inputs,
-  //       actions,
-  //       actionCategories,
-  //       executors,
-  //     },
-  //   };
-  // };
-</script>
-
 <script lang="ts">
-  throw new Error("@migration task: Add data prop (https://github.com/sveltejs/kit/discussions/5774#discussioncomment-3292707)");
-
   import '../app.css';
+  import type { LayoutData } from './$types';
   import { page } from '$app/stores';
+  import { createApiClient, loadFetch } from '$lib/api';
   import { createDarkStore, cssDarkModePreference } from '$lib/styles';
   import { createHeaderTextStore } from '$lib/header';
   import { setApiClientContext } from '$lib/api';
   import Nav from './_Nav.svelte';
   import { QueryClient, QueryClientProvider } from '@sveltestack/svelte-query';
-  import {
-    Input,
-    Action,
-    ActionCategory,
-    ExecutorInfo,
-    AccountType,
-    AccountPublicInfo,
-  } from '$lib/api_types';
   import { initBaseData } from '$lib/data';
 
-  export let inputs: Map<string, Input>;
-  export let actions: Map<string, Action>;
-  export let actionCategories: Map<string, ActionCategory>;
-  export let executors: Map<string, ExecutorInfo>;
-  export let accountTypes: Map<string, AccountType>;
-  export let accounts: Map<string, AccountPublicInfo>;
+  export let data: LayoutData;
 
   const {
     inputs: inputStore,
@@ -89,12 +21,12 @@
     accounts: accountStore,
   } = initBaseData();
 
-  $: $inputStore = inputs;
-  $: $actionStore = actions;
-  $: $actionCategoryStore = actionCategories;
-  $: $executorStore = executors;
-  $: $accountTypesStore = accountTypes;
-  $: $accountStore = accounts;
+  $: $inputStore = data.inputs;
+  $: $actionStore = data.actions;
+  $: $actionCategoryStore = data.actionCategories;
+  $: $executorStore = data.executors;
+  $: $accountTypesStore = data.accountTypes;
+  $: $accountStore = data.accounts;
 
   const apiClient = createApiClient();
   setApiClientContext(apiClient);

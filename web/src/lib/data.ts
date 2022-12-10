@@ -1,4 +1,4 @@
-import {
+import type {
   Input,
   Action,
   ExecutorInfo,
@@ -7,7 +7,7 @@ import {
   AccountPublicInfo,
 } from './api_types';
 import { getContext, setContext } from 'svelte';
-import { writable, Writable } from 'svelte/store';
+import { writable, type Writable } from 'svelte/store';
 
 const KEY = 'ergo_base_data';
 

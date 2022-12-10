@@ -1,9 +1,9 @@
 import { syntaxTree } from '@codemirror/language';
-import { Diagnostic } from '@codemirror/lint';
-import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
-import { SyntaxNode, Tree } from '@lezer/common';
-import { FileMap, injectTypes, setDiagnostics } from './typescript';
+import type { Diagnostic } from '@codemirror/lint';
+import type { EditorState } from '@codemirror/state';
+import type { EditorView } from '@codemirror/view';
+import type { SyntaxNode, Tree } from '@lezer/common';
+import { type FileMap, injectTypes, setDiagnostics } from './typescript';
 
 // This is the same as CodeMirror's LintSource type but it's not currently exported.
 export type LintSource = (

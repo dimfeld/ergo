@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { InputsLogEntry } from '../api_types';
+  import type { InputsLogEntry } from '../api_types';
   import ActionsLogTimelineRow from './ActionsLogTimelineRow.svelte';
   import { relativeTime } from '../time';
 

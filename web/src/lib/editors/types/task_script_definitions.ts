@@ -1,5 +1,5 @@
 import camelCase from 'just-camel-case';
-import { Action, Input, TaskAction, TaskTrigger } from '../../api_types';
+import type { Action, Input, TaskAction, TaskTrigger } from '../../api_types';
 
 export interface ScriptDefinitionOptions {
   taskTriggers: Record<string, TaskTrigger>;

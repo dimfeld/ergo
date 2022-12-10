@@ -3,7 +3,7 @@
 import {
   createSystem,
   createVirtualTypeScriptEnvironment,
-  VirtualTypeScriptEnvironment,
+  type VirtualTypeScriptEnvironment,
 } from '@typescript/vfs';
 import typescript from 'typescript';
 import { log } from './log';

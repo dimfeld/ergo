@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { browser } from '$app/env';
-  import { Bundler } from '$lib/bundler';
+  import { browser } from '$app/environment';
+  import type { Bundler } from '$lib/bundler';
   import Button from '$lib/components/Button.svelte';
   import Checkbox from '$lib/components/Checkbox.svelte';
   import Labelled from '$lib/components/Labelled.svelte';
   import Editor from '$lib/editors/Editor.svelte';
   import { formatJson } from '$lib/editors/format';
   import { onDestroy } from 'svelte';
-  import { ConsoleMessage, RunError, RunOutput, SandboxWorker, sandboxWorker } from './messages';
+  import { type ConsoleMessage, type RunError, type RunOutput, type SandboxWorker, sandboxWorker } from './messages';
   import debugMod from 'debug';
   const debug = debugMod('script_simulator');
 

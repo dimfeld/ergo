@@ -3,7 +3,7 @@
   Edit the fields in a TemplateFields object
 -->
 <script lang="ts">
-  import { TemplateField, TemplateFieldFormat, TemplateFields } from '$lib/api_types';
+  import type { TemplateField, TemplateFieldFormat, TemplateFields } from '$lib/api_types';
   import Button from './Button.svelte';
   import Checkbox from './Checkbox.svelte';
   import Labelled from './Labelled.svelte';
