@@ -6,7 +6,7 @@
     highlightSpecialChars,
     drawSelection,
     highlightActiveLine,
-    ViewUpdate,
+    type ViewUpdate,
   } from '@codemirror/view';
   import { Compartment, EditorSelection, EditorState, type Extension } from '@codemirror/state';
   import { history, historyKeymap } from '@codemirror/history';

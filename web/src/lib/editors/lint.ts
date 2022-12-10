@@ -1,4 +1,4 @@
-import { LintSource, nodeFromPath } from './editor';
+import { type LintSource, nodeFromPath } from './editor';
 import { json5ParseLinter } from './codemirror-json5';
 import { syntaxTree } from '@codemirror/language';
 

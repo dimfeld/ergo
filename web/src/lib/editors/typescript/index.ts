@@ -7,7 +7,7 @@ import {
   type CompletionResult,
 } from '@codemirror/autocomplete';
 import { javascript } from '@codemirror/lang-javascript';
-import { Diagnostic, linter, setDiagnostics as cmSetDiagnostics } from '@codemirror/lint';
+import { type Diagnostic, linter, setDiagnostics as cmSetDiagnostics } from '@codemirror/lint';
 import {
   EditorState,
   type Extension,

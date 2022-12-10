@@ -4,10 +4,10 @@
   "scripts": {
     "dev": "run-p dev:svelte dev:server",
     "dev:svelte": "vite dev --port ${PORT:-3000} --host ${HOST:-127.0.0.1}",
-    "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && ../car run --release server | bunyan'",
+    "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && cargo run --release server | bunyan'",
     "build": "run-s generate-api-types sync-types build:svelte",
     "build:svelte": "vite build",
-    "preview": "run-s clean build && SERVE_DIR=build ../car run --release server | bunyan",
+    "preview": "run-s clean build && SERVE_DIR=build cargo run --release server | bunyan",
     "preview:svelte": "vite preview",
     "sync-types": "svelte-kit sync",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
@@ -18,7 +18,7 @@
     "check:watch": "svelte-check --tsconfig ./tsconfig.json --watch",
     "lint": "prettier --check --plugin-search-dir=. . && eslint --ignore-path .gitignore .",
     "format": "prettier --write --plugin-search-dir=. .",
-    "generate-api-types": "rimraf ../schemas/*.json && ../car run --release dev make-json-schema && node generate_api_types.js",
+    "generate-api-types": "rimraf ../schemas/*.json && cargo run --release dev make-json-schema && node generate_api_types.js",
     "generate-ts-defs": "node scripts/build-types.mjs"
   },
   "devDependencies": {

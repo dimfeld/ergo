@@ -1,7 +1,7 @@
 // Taken from https://github.com/prisma/text-editors/blob/main/src/extensions/change-callback.ts,
 // which is licensed under Apache 2.0. This file has been modified from the original.
 
-import { Extension, Facet } from '@codemirror/state';
+import { type Extension, Facet } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import debounce from 'just-debounce-it';
 

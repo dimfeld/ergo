@@ -14,7 +14,7 @@ import path from 'path';
 const dependencies = {
   // Core TS libs
   typescript: {
-    version: '4.4.4',
+    version: '4.9.4',
     src: ['lib/*.d.ts'],
   },
 };

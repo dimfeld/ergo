@@ -9,11 +9,11 @@ import {
   LanguageSupport,
 } from '@codemirror/language';
 import { styleTags, tags as t } from '@codemirror/highlight';
-import { EditorView } from '@codemirror/view';
-import { Diagnostic } from '@codemirror/lint';
-import { StateField, Text, Transaction } from '@codemirror/state';
+import type { EditorView } from '@codemirror/view';
+import type { Diagnostic } from '@codemirror/lint';
+import { StateField, type Text, type Transaction } from '@codemirror/state';
 import { getPathAtNode, nodeAtCursor } from './editor';
-import { SyntaxNode } from '@lezer/common';
+import type { SyntaxNode } from '@lezer/common';
 
 /// A language provider that provides JSON5 parsing.
 export const json5Language = LRLanguage.define({

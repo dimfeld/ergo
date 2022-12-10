@@ -1,4 +1,5 @@
 const tailwindcss = require('tailwindcss');
+const nesting = require('tailwindcss/nesting');
 const autoprefixer = require('autoprefixer');
 const nested = require('postcss-nested');
 const cssnano = require('cssnano');
@@ -9,10 +10,8 @@ const dev = mode === 'development';
 
 const config = {
   plugins: [
-    //Some plugins, like postcss-nested, need to run before Tailwind,
-    nested(),
+    nesting(),
     tailwindcss(tailwindConfig),
-    //But others, like autoprefixer, need to run after,
     autoprefixer(),
     !dev &&
       cssnano({
