@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { Input } from '$lib/api_types';
-  import { ModalCloser } from '$lib/components/Modal.svelte';
+  import type { Input } from '$lib/api_types';
+  import type { ModalCloser } from '$lib/components/Modal.svelte';
   import Button from '$lib/components/Button.svelte';
   import { stringFormats } from '$lib/json_schema';
 

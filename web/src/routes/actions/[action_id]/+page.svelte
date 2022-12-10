@@ -1,41 +1,3 @@
-<script context="module" lang="ts">
-  import { Action, ActionCategory, TemplateFieldFormat } from '$lib/api_types';
-  import clone from 'just-clone';
-  import type { Load } from '@sveltejs/kit';
-  import * as help from './_helpText';
-  import { new_action_id } from 'ergo-wasm';
-
-  function newAction(actionCategories: Map<string, ActionCategory>): Action {
-    return {
-      name: '',
-      executor_id: '',
-      template_fields: [],
-      executor_template: { t: 'Template', c: [] },
-      account_required: false,
-      action_category_id: actionCategories.keys().next().value,
-    };
-  }
-
-  export const load: Load = async function load({ stuff, params }) {
-    let { action_id } = params;
-
-    let action =
-      action_id !== 'new' ? stuff.actions.get(action_id) : newAction(stuff.actionCategories);
-    if (!action) {
-      return {
-        status: 404,
-        error: 'Action not found',
-      };
-    }
-
-    return {
-      props: {
-        action: clone(action),
-      },
-    };
-  };
-</script>
-
 <script lang="ts">
   import Button from '$lib/components/Button.svelte';
   import Checkbox from '$lib/components/Checkbox.svelte';
@@ -43,6 +5,7 @@
   import { baseData } from '$lib/data';
   import { page } from '$app/stores';
   import apiClient from '$lib/api';
+  import type { Action } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { goto, invalidate } from '$app/navigation';
   import Card from '$lib/components/Card.svelte';
@@ -50,8 +13,11 @@
   import TemplateFieldsEditor from '$lib/components/TemplateFieldsEditor.svelte';
   import TemplateValuesEditor from '$lib/components/TemplateValuesEditor.svelte';
   import StringListEditor from '$lib/components/StringListEditor.svelte';
+  import * as help from '../_helpText';
+  import type { PageData } from './$types';
 
-  export let action: Action;
+  export let data: PageData;
+  $: action = data.action;
 
   const api = apiClient();
   const { accountTypes, actionCategories, executors } = baseData();
@@ -92,7 +58,7 @@
           json: action,
         })
         .json<Action>();
-      goto(`/actions/${result.action_id}`, { replaceState: true, noscroll: true, keepfocus: true });
+      goto(`/actions/${result.action_id}`, { replaceState: true, noScroll: true, keepFocus: true });
     }
 
     invalidate(`/api/actions`);

@@ -18,8 +18,8 @@ export function queryStringStore() {
 
         let newQuery = new URLSearchParams(entries);
         goto('?' + newQuery.toString(), {
-          keepfocus: true,
-          noscroll: true,
+          keepFocus: true,
+          noScroll: true,
           replaceState,
           state: historyState,
         });
@@ -39,8 +39,8 @@ export function queryStringStore() {
         }
 
         goto('?' + newQuery.toString(), {
-          keepfocus: true,
-          noscroll: true,
+          keepFocus: true,
+          noScroll: true,
           replaceState,
           state: historyState,
         });

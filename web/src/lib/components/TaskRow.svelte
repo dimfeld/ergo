@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { TaskDescription } from '../api_types';
+  import type { TaskDescription } from '../api_types';
   import { formatISO9075, formatDistanceToNowStrict } from 'date-fns';
   import Badge from './Badge.svelte';
 

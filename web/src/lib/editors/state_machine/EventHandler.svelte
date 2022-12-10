@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { EventHandler } from '$lib/api_types';
+  import type { EventHandler } from '$lib/api_types';
   export let handler: EventHandler;
 </script>
 

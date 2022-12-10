@@ -1,4 +1,4 @@
-import { AbortError, BundlerWorkerMessage, Result } from './types';
+import type { AbortError, BundlerWorkerMessage, Result } from './types';
 import bundle from './bundle';
 import { clearCache } from './packages';
 

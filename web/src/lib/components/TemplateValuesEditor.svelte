@@ -1,6 +1,6 @@
 <!-- @component Provide values to be filled into a template -->
 <script lang="ts">
-  import { ScriptOrTemplate, TemplateFields } from '$lib/api_types';
+  import type { ScriptOrTemplate, TemplateFields } from '$lib/api_types';
   import Labelled from './Labelled.svelte';
   import Editor from '$lib/editors/Editor.svelte';
   import AnyEditor from './AnyEditor.svelte';

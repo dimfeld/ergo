@@ -3,12 +3,13 @@
   "version": "0.0.1",
   "scripts": {
     "dev": "run-p dev:svelte dev:server",
-    "dev:svelte": "svelte-kit dev --port ${PORT:-3000}",
+    "dev:svelte": "vite dev --port ${PORT:-3000} --host ${HOST:-127.0.0.1}",
     "dev:server": "cargo watch --ignore web -s 'cd web && pnpm generate-api-types && ../car run --release server | bunyan'",
-    "build": "run-s generate-api-types build:svelte",
-    "build:svelte": "svelte-kit build",
+    "build": "run-s generate-api-types sync-types build:svelte",
+    "build:svelte": "vite build",
     "preview": "run-s clean build && SERVE_DIR=build ../car run --release server | bunyan",
-    "preview:svelte": "svelte-kit preview",
+    "preview:svelte": "vite preview",
+    "sync-types": "svelte-kit sync",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "run-s test -- --watch",
     "svench": "svench",
@@ -22,10 +23,9 @@
   },
   "devDependencies": {
     "@babel/core": "^7.16.12",
-    "@sveltejs/adapter-static": "~1.0.0-next.29",
-    "@sveltejs/adapter-vercel": "~1.0.0-next.47",
-    "@sveltejs/kit": "~1.0.0-next.310",
-    "@sveltejs/vite-plugin-svelte": "^1.0.0-next.41",
+    "@sveltejs/adapter-static": "1.0.0-next.49",
+    "@sveltejs/adapter-vercel": "1.0.0-next.85",
+    "@sveltejs/kit": "1.0.0-next.581",
     "@tailwindcss/forms": "~0.5.0",
     "@testing-library/jest-dom": "^5.16.1",
     "@testing-library/svelte": "^3.0.3",
@@ -55,18 +55,18 @@
     "rimraf": "~3.0.2",
     "source-map-support": "^0.5.21",
     "svelte": "~3.47.0",
-    "svelte-check": "^2.6.0",
+    "svelte-check": "^2.10.2",
     "svelte-jester": "^2.1.5",
     "svelte-loader": "^3.1.2",
     "svelte-portal": "~2.1.2",
-    "svelte-preprocess": "~4.10.6",
+    "svelte-preprocess": "~4.10.7",
     "svench": "~0.3.0-1",
     "tailwindcss": "~3.0.24",
     "tippy.js": "^6.3.7",
     "ts-jest": "^27.1.3",
-    "ts-node": "^10.7.0",
-    "tslib": "^2.3.1",
-    "vite": "~2.9.1"
+    "ts-node": "^10.9.1",
+    "tslib": "^2.4.1",
+    "vite": "~4.0.0"
   },
   "type": "module",
   "dependencies": {
@@ -119,7 +119,7 @@
     "resolve.exports": "~1.1.0",
     "rollup": "~2.70.2",
     "sorters": "~1.0.0",
-    "typescript": "^4.6.3"
+    "typescript": "^4.9.4"
   },
   "jest": {
     "setupFilesAfterEnv": [

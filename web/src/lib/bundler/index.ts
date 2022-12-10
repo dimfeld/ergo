@@ -1,5 +1,5 @@
 import BundleWorker from './worker?worker';
-import { BundleJob, BundlerWorkerMessage, JobData, Result } from './types';
+import type { BundleJob, BundlerWorkerMessage, JobData, Result } from './types';
 
 export type { BundleJob, Result };
 

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { EditorView } from '@codemirror/view';
-  import { TaskAction, TaskTrigger } from '../api_types';
+  import type { EditorView } from '@codemirror/view';
+  import type { TaskAction, TaskTrigger } from '../api_types';
   import { baseData } from '../data';
   import { scriptTypeDefinitions } from './types/task_script_definitions';
   import { logger } from '../logger';

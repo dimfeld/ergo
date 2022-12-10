@@ -1,32 +1,9 @@
-<script context="module" lang="ts">
-  import { loadFetch } from '$lib/api';
-  import type { Load } from '@sveltejs/kit';
-
-  export const load: Load = async function load({ fetch, params }) {
-    fetch = loadFetch(fetch);
-
-    if (params.task_id === 'new') {
-      return {
-        props: {},
-      };
-    }
-
-    let task: TaskResult = await fetch(`/api/tasks/${params.task_id}`).then((r) => r.json());
-
-    return {
-      props: {
-        task,
-      },
-    };
-  };
-</script>
-
 <script lang="ts">
   import { goto, invalidate } from '$app/navigation';
-  import { getStores, page } from '$app/stores';
+  import { page } from '$app/stores';
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
-  import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
+  import Modal, { type ModalOpener } from '$lib/components/Modal.svelte';
   import type { TaskAction, TaskResult, TaskTrigger } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
@@ -40,17 +17,18 @@
   import initWasm from '$lib/wasm';
   import Labelled from '$lib/components/Labelled.svelte';
   import Pencil from '$lib/components/icons/Pencil.svelte';
-  import TaskTriggerEditor, { TaskTriggerEditorData } from './_TaskTriggerEditor.svelte';
-  import TaskActionEditor, { TaskActionEditorData } from './_TaskActionEditor.svelte';
+  import TaskTriggerEditor, { type TaskTriggerEditorData } from '../_TaskTriggerEditor.svelte';
+  import TaskActionEditor, { type TaskActionEditorData } from '../_TaskActionEditor.svelte';
+  import type {PageData} from './$types';
 
-  export let task: TaskResult = defaultTask();
+  export let data : PageData;
+  $: task = data.task ?? defaultTask();
 
   const taskEditors = {
     Js: ScriptEditor,
     StateMachine: StateMachineEditor,
   };
 
-  const { page } = getStores();
   const { inputs, actions } = baseData();
   const client = apiClient();
 
@@ -111,7 +89,7 @@
         action.task_id = result.task_id;
       }
 
-      goto(result.task_id, { replaceState: true, noscroll: true, keepfocus: true });
+      goto(result.task_id, { replaceState: true, noScroll: true, keepFocus: true });
     } else {
       await client.put(`/api/tasks/${$page.params.task_id}`, { json: task });
     }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { slide } from 'svelte/transition';
-  import { InputsLogEntry } from '../api_types';
+  import type { InputsLogEntry } from '../api_types';
   import InputsLogTimelineRow from './InputsLogTimelineRow.svelte';
 
   export let entries: InputsLogEntry[];

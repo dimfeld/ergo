@@ -1,4 +1,4 @@
-import { Handle } from '@sveltejs/kit';
+import type { Handle } from '@sveltejs/kit';
 
 const apiServer = new URL(
   `http://${process.env.API_HOST || 'localhost'}:${process.env.API_PORT || 6543}`
@@ -18,5 +18,5 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   // TODO Reenable SSR in everything except the editor, which will show a placeholder
-  return resolve(event, { ssr: false });
+  return resolve(event);
 };

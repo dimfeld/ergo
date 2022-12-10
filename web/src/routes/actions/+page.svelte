@@ -3,9 +3,9 @@
   import { getHeaderTextStore } from '$lib/header';
   import Card from '$lib/components/Card.svelte';
   import Labelled from '$lib/components/Labelled.svelte';
-  import ActionEditor from './_ActionEditor.svelte';
-  import Modal, { ModalOpener } from '$lib/components/Modal.svelte';
-  import { Action } from '$lib/api_types';
+  import ActionEditor from '../_ActionEditor.svelte';
+  import Modal, { type ModalOpener } from '$lib/components/Modal.svelte';
+  import type { Action } from '$lib/api_types';
   import clone from 'just-clone';
   import apiClient from '$lib/api';
   import { goto, invalidate } from '$app/navigation';
