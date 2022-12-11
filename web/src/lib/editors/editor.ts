@@ -1,4 +1,3 @@
-import { syntaxTree } from '@codemirror/language';
 import type { Diagnostic } from '@codemirror/lint';
 import type { EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
@@ -40,64 +39,10 @@ function propertyValueNode(node: SyntaxNode | null) {
   return validNodeLookLeft(node.lastChild);
 }
 
-function getParentProperty(node: SyntaxNode) {
-  let cursor = node.parent?.cursor();
-  if (!cursor) {
-    return null;
-  }
-
-  while (cursor.node.name !== 'Property' && cursor.node.name !== 'Array') {
-    if (!cursor.parent()) {
-      return null;
-    }
-  }
-
-  return cursor.node;
-}
-
-export function getPathAtNode(state: EditorState, node: SyntaxNode) {
-  let keys: (string | number)[] = [];
-
-  while (true) {
-    let parent = getParentProperty(node);
-    if (!parent) {
-      break;
-    }
-
-    if (parent.name === 'Array') {
-      let thisPos = node.from;
-      let findNode = parent.firstChild;
-      let index = 0;
-      while (findNode && findNode.to < thisPos) {
-        findNode = validNodeLookRight(findNode.nextSibling);
-        index += 1;
-      }
-
-      keys.unshift(index);
-    } else {
-      let key = propertyKey(state, parent);
-      if (key) {
-        keys.unshift(key);
-      }
-    }
-    node = parent;
-  }
-
-  return keys;
-}
-
 /** If the passed node is a comment, go left until a non-comment node is found */
 function validNodeLookLeft(node: SyntaxNode | null) {
   while (node && /Comment/.test(node.name)) {
     node = node.prevSibling;
-  }
-  return node;
-}
-
-/** If the passed node is a comment, go right until a non-comment node is found */
-function validNodeLookRight(node: SyntaxNode | null) {
-  while (node && /Comment/.test(node.name)) {
-    node = node.nextSibling;
   }
   return node;
 }
@@ -190,24 +135,6 @@ export function nodeFromPath(state: EditorState, tree: Tree, path: (string | num
         }
       : null,
   };
-}
-
-export function nodeAtCursor(state: EditorState, cursorPos: number): SyntaxNode {
-  let tree = syntaxTree(state);
-  let node = tree.resolveInner(cursorPos, -1);
-
-  // If we're in whitespace between nodes, `resolveInner` will match on the parent node of the children
-  // the cursor is between, so find the actual closest node.
-  while (node) {
-    let child = node.childBefore(cursorPos);
-    if (!child) {
-      break;
-    }
-
-    node = child;
-  }
-
-  return node;
 }
 
 export async function injectTsTypes(view: EditorView, types: FileMap) {
