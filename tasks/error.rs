@@ -7,6 +7,8 @@ use thiserror::Error;
 
 use crate::actions::template::TemplateError;
 
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[cfg(not(target_family = "wasm"))]

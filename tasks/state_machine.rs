@@ -25,8 +25,8 @@ pub enum StateMachineError {
     ScriptError(anyhow::Error),
 }
 
-pub type StateMachineConfig = SmallVec<[StateMachine; 2]>;
-pub type StateMachineStates = SmallVec<[StateMachineData; 2]>;
+pub type StateMachineConfig = SmallVec<[StateMachine; 1]>;
+pub type StateMachineStates = SmallVec<[StateMachineData; 1]>;
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateMachineData {
@@ -40,14 +40,14 @@ pub struct StateMachine {
     pub description: Option<String>,
     pub initial: String,
     #[serde(default)]
-    pub on: SmallVec<[EventHandler; 4]>,
+    pub on: SmallVec<[EventHandler; 1]>,
     pub states: FxHashMap<String, StateDefinition>,
 }
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]
 pub struct StateDefinition {
     pub description: Option<String>,
-    pub on: SmallVec<[EventHandler; 4]>,
+    pub on: SmallVec<[EventHandler; 2]>,
 }
 
 #[derive(Clone, Debug, JsonSchema, Serialize, Deserialize, PartialEq, Eq)]

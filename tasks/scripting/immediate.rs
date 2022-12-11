@@ -6,24 +6,19 @@ use serde::Deserialize;
 use smallvec::SmallVec;
 
 use crate::{
+    actions::TaskActionInvocations,
     scripting::{create_task_script_runtime, POOL},
     Error,
 };
 
 use super::{TaskJsConfig, TaskJsState};
 
-#[derive(Debug, Deserialize)]
-pub struct TaskActionInvocation {
-    pub name: String,
-    pub payload: serde_json::Value,
-}
-
 #[derive(Debug)]
 pub struct RunTaskResult {
     pub state_changed: bool,
     pub state: TaskJsState,
     pub console: Vec<ConsoleMessage>,
-    pub actions: SmallVec<[TaskActionInvocation; 4]>,
+    pub actions: TaskActionInvocations,
 }
 
 pub async fn run_task(

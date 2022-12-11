@@ -1,6 +1,7 @@
 #![allow(clippy::bool_assert_comparison)]
 
 pub mod actions;
+pub mod dataflow;
 mod error;
 pub mod inputs;
 pub mod periodic;
@@ -26,7 +27,7 @@ use serde::{Deserialize, Serialize};
 pub enum TaskConfig {
     StateMachine(state_machine::StateMachineConfig),
     Js(scripting::TaskJsConfig),
-    // SerializedJs(scripting::TaskSerializedState),
+    DataFlow(dataflow::DataFlowConfig),
 }
 
 impl TaskConfig {
@@ -51,6 +52,8 @@ impl TaskConfig {
             // TODO Some sort of validation for scripts.
             // At least do a syntax check.
             Self::Js(_) => Vec::new(),
+            // TODO
+            Self::DataFlow(_) => Vec::new(),
         };
 
         if errors.is_empty() {
@@ -67,6 +70,7 @@ impl TaskConfig {
                 TaskState::StateMachine(config.iter().map(|s| s.default_state()).collect())
             }
             Self::Js(config) => TaskState::Js(config.default_state()),
+            Self::DataFlow(config) => TaskState::DataFlow(config.default_state()),
         }
     }
 }
@@ -96,6 +100,7 @@ mod native {
             template::TemplateFields,
             ActionInvocation, ActionInvocations, ActionStatus, TaskActionTemplate,
         },
+        dataflow::DataFlowState,
         inputs::{enqueue_input, EnqueueInputOptions, InputInvocation, InputStatus},
         scripting::TaskJsState,
         state_machine::{StateMachineStates, StateMachineWithData},
@@ -124,7 +129,7 @@ mod native {
     pub enum TaskState {
         StateMachine(StateMachineStates),
         Js(TaskJsState),
-        // SerializedJs(TaskSerializedState),
+        DataFlow(DataFlowState),
     }
 
     #[derive(Serialize, Deserialize, FromRow)]
@@ -305,6 +310,24 @@ mod native {
                         (TaskConfig::Js(_), _) =>  {
                             return Err(Error::ConfigStateMismatch("Js"))
                         },
+                        (TaskConfig::DataFlow(config), TaskState::DataFlow(state)) => {
+                            let (state, actions, changed) = config.evaluate_trigger(&state, &task_trigger_local_id, &payload).await?;
+                            let actions = actions.into_iter().map(|action| {
+                                ActionInvocation{
+                                    task_id: task_id.clone(),
+                                    payload: action.payload,
+                                    input_arrival_id: Some(input_arrival_id),
+                                    user_id: user_id.clone(),
+                                    task_action_local_id: action.name,
+                                    actions_log_id: new_uuid(),
+                                }
+                            }).collect::<ActionInvocations>();
+
+                            (TaskState::DataFlow(state), actions, changed)
+                        }
+                        (TaskConfig::DataFlow(_), _) => {
+                            return Err(Error::ConfigStateMismatch("DataFlow"))
+                        }
                     };
 
                     if changed {
