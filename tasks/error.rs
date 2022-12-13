@@ -68,6 +68,18 @@ pub enum Error {
 
     #[error("Parsing cron schedule: {0}")]
     CronParseError(#[from] cron::error::Error),
+
+    #[error("Tried to run empty task")]
+    TaskIsEmpty,
+
+    #[error("Node {0} does not exist")]
+    MissingDataFlowNode(u32),
+
+    #[error("Node {0} depends on {1}, which does not exist")]
+    MissingDataFlowDependency(u32, u32),
+
+    #[error("Node {0} has a cyclic dependency")]
+    DataflowCycle(u32),
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {

@@ -539,9 +539,9 @@ checksum = "b645a089122eccb6111b4f81cbc1a49f5900ac4666bb93ac027feaecf15607bf"
 
 [[package]]
 name = "bit-set"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e11e16035ea35e4e5997b393eacbf6f63983188f7a2ad25bfb13465f5ad59de"
+checksum = "0700ddab506f33b20a03b13996eccd309a48e5ff77d0d95926aa0210fb4e95f1"
 dependencies = [
  "bit-vec",
 ]
@@ -1732,6 +1732,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "backoff",
+ "bit-set",
  "chrono",
  "cron",
  "ergo-auth",
@@ -1749,6 +1750,7 @@ dependencies = [
  "jsonschema",
  "lazy_static",
  "once_cell",
+ "petgraph",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "reqwest",
@@ -1840,6 +1842,12 @@ dependencies = [
  "rand_core 0.6.4",
  "subtle",
 ]
+
+[[package]]
+name = "fixedbitset"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
@@ -3117,6 +3125,16 @@ dependencies = [
  "maplit",
  "pest",
  "sha-1 0.8.2",
+]
+
+[[package]]
+name = "petgraph"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6d5014253a1331579ce62aa67443b4a658c5e7dd03d4bc6d302b94474888143"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
 ]
 
 [[package]]

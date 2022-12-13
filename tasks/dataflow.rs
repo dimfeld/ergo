@@ -4,9 +4,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
 
+mod dag;
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {
     nodes: Vec<DataFlowNode>,
+    toposorted: Vec<u32>,
     trigger_nodes: FxHashMap<String, DataFlowTrigger>,
 }
 
@@ -28,10 +31,11 @@ pub struct DataFlowState {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowNode {
-    id: usize,
+    id: u32,
     /// Mapping of node depended on to the local name its data is imported as.
-    depends_on: FxHashMap<usize, String>,
-    dependents: Vec<usize>,
+    depends_on: Vec<(u32, String)>,
+    /// Nodes that depend on this node
+    dependents: Vec<u32>,
 
     function: DataFlowFunction,
     display_format: DataFlowOutputFormat,
