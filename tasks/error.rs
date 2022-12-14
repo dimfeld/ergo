@@ -76,7 +76,7 @@ pub enum Error {
     MissingDataFlowNode(u32),
 
     #[error("Node {0} depends on {1}, which does not exist")]
-    MissingDataFlowDependency(u32, u32),
+    BadEdgeIndex(u32, u32),
 
     #[error("Node {0} has a cyclic dependency")]
     DataflowCycle(u32),

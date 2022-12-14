@@ -1,7 +1,7 @@
 use bit_set::BitSet;
 use fxhash::FxHashMap;
 
-use super::{DataFlowConfig, DataFlowNode};
+use super::{DataFlowConfig, DataFlowEdge, DataFlowNode};
 use crate::{Error, Result};
 
 pub struct NodeWalker<'a> {
@@ -13,20 +13,15 @@ pub struct NodeWalker<'a> {
 impl<'a> NodeWalker<'a> {
     pub fn starting_from(config: &DataFlowConfig, node_id: u32) -> Result<NodeWalker> {
         let start_idx = config
-            .nodes
+            .toposorted
             .iter()
-            .position(|n| n.id == node_id)
+            .position(|&n| n == node_id)
             .ok_or(Error::MissingDataFlowNode(node_id))?;
 
-        let max_node = config
-            .nodes
-            .iter()
-            .map(|n| n.id)
-            .max()
-            .ok_or(Error::TaskIsEmpty)?;
+        let max_node = config.nodes.len();
 
         let mut active = BitSet::with_capacity(max_node as usize + 1);
-        Self::find_active_nodes(config, start_idx, &mut active)?;
+        Self::find_active_nodes(config, node_id, &mut active)?;
 
         Ok(NodeWalker {
             config,
@@ -37,22 +32,27 @@ impl<'a> NodeWalker<'a> {
 
     fn find_active_nodes(
         config: &DataFlowConfig,
-        start_idx: usize,
+        start_idx: u32,
         active: &mut BitSet,
     ) -> Result<()> {
-        let node = &config.nodes[start_idx];
-        for &child in &node.dependents {
-            if !active.contains(child as usize) {
-                let pos = config
-                    .nodes
-                    .iter()
-                    .position(|n| n.id == child)
-                    .ok_or(Error::MissingDataFlowDependency(node.id, child))?;
-                Self::find_active_nodes(config, pos, active)?;
+        let edges = config
+            .edges
+            .iter()
+            .skip_while(|e| e.from != start_idx)
+            .take_while(|e| e.from == start_idx);
+
+        for edge in edges {
+            if edge.to >= config.nodes.len() as u32 {
+                return Err(Error::BadEdgeIndex(start_idx, edge.to));
+            }
+
+            if !active.contains(edge.to as usize) {
+                Self::find_active_nodes(config, edge.to, active)?;
             }
         }
 
-        active.insert(node.id as usize);
+        active.insert(start_idx as usize);
+
         Ok(())
     }
 }
@@ -61,13 +61,17 @@ impl<'a> Iterator for NodeWalker<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.current_index >= self.config.toposorted.len() {
+            return None;
+        }
+
         let index = loop {
             let lookup_index = self.current_index;
             self.current_index += 1;
 
-            match self.config.nodes.get(lookup_index) {
-                Some(node) => {
-                    if self.active.contains(node.id as usize) {
+            match self.config.toposorted.get(lookup_index) {
+                Some(&node) => {
+                    if self.active.contains(node as usize) {
                         break lookup_index;
                     }
                 }
@@ -79,24 +83,29 @@ impl<'a> Iterator for NodeWalker<'a> {
     }
 }
 
-pub fn toposort_nodes(nodes: &[DataFlowNode]) -> Result<Vec<u32>> {
-    let mut graph =
-        petgraph::graph::DiGraph::<u32, ()>::with_capacity(nodes.len(), nodes.len() * 3 / 2);
-    let mut node_graph_index = FxHashMap::default();
-    for node in nodes {
-        let graph_idx = graph.add_node(node.id);
-        node_graph_index.insert(node.id, graph_idx);
+pub fn toposort_nodes(num_nodes: usize, edges: &[DataFlowEdge]) -> Result<Vec<u32>> {
+    let mut graph = petgraph::graph::DiGraph::<u32, ()>::with_capacity(num_nodes, edges.len());
+
+    let mut node_graph_index = Vec::with_capacity(num_nodes);
+    for i in 0..num_nodes {
+        let graph_idx = graph.add_node(i as u32);
+        node_graph_index.push(graph_idx);
     }
 
-    for node in nodes {
-        let graph_parent_idx = node_graph_index[&node.id];
-        for child in &node.dependents {
-            let graph_child_idx = node_graph_index
-                .get(child)
-                .ok_or(Error::MissingDataFlowDependency(node.id, *child))?;
-
-            graph.add_edge(graph_parent_idx, *graph_child_idx, ());
+    for &DataFlowEdge { from, to, .. } in edges {
+        if from >= num_nodes as u32 {
+            return Err(Error::BadEdgeIndex(from, to));
         }
+
+        if to >= num_nodes as u32 {
+            return Err(Error::BadEdgeIndex(from, to));
+        }
+
+        graph.add_edge(
+            node_graph_index[from as usize],
+            node_graph_index[to as usize],
+            (),
+        );
     }
 
     let sorted = petgraph::algo::toposort(&graph, None).map_err(|e| {
@@ -109,4 +118,136 @@ pub fn toposort_nodes(nodes: &[DataFlowNode]) -> Result<Vec<u32>> {
         .map(|node_idx| graph.node_weight(node_idx).copied().unwrap())
         .collect::<Vec<_>>();
     Ok(node_ids)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::dataflow::{DataFlowFunction, DataFlowOutputFormat};
+
+    use super::*;
+    use smallvec::{smallvec, SmallVec};
+
+    mod toposort {
+        use crate::{
+            dataflow::{dag::toposort_nodes, DataFlowEdge},
+            Error,
+        };
+
+        fn test_edge(from: u32, to: u32) -> DataFlowEdge {
+            DataFlowEdge {
+                from,
+                to,
+                name: String::new(),
+            }
+        }
+
+        #[test]
+        fn working() {
+            let edges = vec![
+                test_edge(0, 1),
+                test_edge(0, 2),
+                test_edge(0, 3),
+                test_edge(2, 1),
+                test_edge(2, 4),
+                test_edge(3, 1),
+                test_edge(3, 2),
+                test_edge(3, 4),
+                test_edge(6, 2),
+            ];
+
+            let sorted = toposort_nodes(7, &edges).unwrap();
+
+            let positions = (0..7)
+                .map(|i| {
+                    sorted
+                        .iter()
+                        .position(|&n| n == i)
+                        .expect("Finding position for node {i}")
+                })
+                .collect::<Vec<_>>();
+
+            for edge in &edges {
+                assert!(
+                    positions[edge.from as usize] < positions[edge.to as usize],
+                    "Edge {} comes before its child {}",
+                    edge.from,
+                    edge.to
+                );
+            }
+        }
+
+        #[test]
+        fn errors_on_cycle() {
+            let edges = vec![
+                test_edge(0, 1),
+                test_edge(1, 2),
+                test_edge(1, 4),
+                test_edge(2, 3),
+                test_edge(2, 4),
+                test_edge(3, 1),
+                test_edge(3, 4),
+                test_edge(4, 5),
+            ];
+
+            let sort_result = toposort_nodes(6, &edges);
+            assert!(matches!(sort_result, Err(Error::DataflowCycle(_))));
+        }
+
+        #[test]
+        fn errors_on_self_cycle() {
+            let edges = vec![
+                test_edge(0, 1),
+                test_edge(1, 2),
+                test_edge(1, 4),
+                test_edge(2, 3),
+                test_edge(3, 3),
+                test_edge(3, 4),
+            ];
+
+            let sort_result = toposort_nodes(5, &edges);
+            assert!(matches!(sort_result, Err(Error::DataflowCycle(3))));
+        }
+
+        #[test]
+        fn to_edge_bounds_error() {
+            let edges = vec![test_edge(0, 1), test_edge(1, 2), test_edge(1, 3)];
+
+            let sort_result = toposort_nodes(3, &edges);
+            assert!(matches!(sort_result, Err(Error::BadEdgeIndex(1, 3))));
+        }
+
+        #[test]
+        fn from_edge_bounds_error() {
+            let edges = vec![test_edge(0, 1), test_edge(1, 2), test_edge(3, 2)];
+
+            let sort_result = toposort_nodes(3, &edges);
+            assert!(matches!(sort_result, Err(Error::BadEdgeIndex(3, 2))));
+        }
+    }
+
+    mod dag_iterator {
+        #[test]
+        #[ignore]
+        fn from_root() {
+            todo!();
+        }
+
+        #[test]
+        #[ignore]
+        fn from_middle() {
+            todo!();
+        }
+
+        #[test]
+        #[ignore]
+        fn from_leaf() {
+            todo!();
+        }
+
+        #[test]
+        #[ignore]
+        fn from_past_end() {
+            todo!()
+        }
+    }
 }

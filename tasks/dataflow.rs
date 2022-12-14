@@ -9,6 +9,8 @@ mod dag;
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {
     nodes: Vec<DataFlowNode>,
+    /// The connection between nodes. This must be sorted.
+    edges: Vec<DataFlowEdge>,
     toposorted: Vec<u32>,
     trigger_nodes: FxHashMap<String, DataFlowTrigger>,
 }
@@ -31,14 +33,30 @@ pub struct DataFlowState {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowNode {
-    id: u32,
-    /// Mapping of node depended on to the local name its data is imported as.
-    depends_on: Vec<(u32, String)>,
-    /// Nodes that depend on this node
-    dependents: Vec<u32>,
-
     function: DataFlowFunction,
     display_format: DataFlowOutputFormat,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct DataFlowEdge {
+    from: u32,
+    to: u32,
+    name: String,
+}
+
+impl PartialOrd for DataFlowEdge {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DataFlowEdge {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.from.cmp(&other.from) {
+            std::cmp::Ordering::Equal => self.to.cmp(&other.to),
+            x => x,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
