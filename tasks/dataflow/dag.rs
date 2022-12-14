@@ -4,6 +4,7 @@ use fxhash::FxHashMap;
 use super::{DataFlowConfig, DataFlowEdge, DataFlowNode};
 use crate::{Error, Result};
 
+#[derive(Debug)]
 pub struct NodeWalker<'a> {
     config: &'a DataFlowConfig,
     current_index: usize,
@@ -72,7 +73,7 @@ impl<'a> Iterator for NodeWalker<'a> {
             match self.config.toposorted.get(lookup_index) {
                 Some(&node) => {
                     if self.active.contains(node as usize) {
-                        break lookup_index;
+                        break node as usize;
                     }
                 }
                 None => return None,
@@ -122,24 +123,30 @@ pub fn toposort_nodes(num_nodes: usize, edges: &[DataFlowEdge]) -> Result<Vec<u3
 
 #[cfg(test)]
 mod tests {
-    use crate::dataflow::{DataFlowFunction, DataFlowOutputFormat};
+    use crate::{
+        dataflow::{
+            dag::toposort_nodes, DataFlowEdge, DataFlowFunction, DataFlowNode, DataFlowOutputFormat,
+        },
+        Error,
+    };
 
-    use super::*;
-    use smallvec::{smallvec, SmallVec};
+    fn blank_node() -> DataFlowNode {
+        DataFlowNode {
+            function: DataFlowFunction::Identity,
+            display_format: DataFlowOutputFormat::Js,
+        }
+    }
+
+    fn test_edge(from: u32, to: u32) -> DataFlowEdge {
+        DataFlowEdge {
+            from,
+            to,
+            name: String::new(),
+        }
+    }
 
     mod toposort {
-        use crate::{
-            dataflow::{dag::toposort_nodes, DataFlowEdge},
-            Error,
-        };
-
-        fn test_edge(from: u32, to: u32) -> DataFlowEdge {
-            DataFlowEdge {
-                from,
-                to,
-                name: String::new(),
-            }
-        }
+        use super::*;
 
         #[test]
         fn working() {
@@ -226,28 +233,146 @@ mod tests {
     }
 
     mod dag_iterator {
+        use fxhash::{FxHashMap, FxHashSet};
+
+        use crate::dataflow::{dag::NodeWalker, DataFlowConfig};
+
+        use super::*;
+
+        fn make_config() -> DataFlowConfig {
+            let edges = vec![
+                test_edge(0, 1),
+                test_edge(0, 2),
+                test_edge(0, 3),
+                test_edge(2, 1),
+                test_edge(2, 4),
+                test_edge(3, 1),
+                test_edge(3, 2),
+                test_edge(3, 4),
+                test_edge(6, 2),
+            ];
+
+            let toposorted = toposort_nodes(7, &edges).unwrap();
+
+            DataFlowConfig {
+                nodes: (0..7).map(|_| blank_node()).collect(),
+                edges,
+                toposorted,
+                trigger_nodes: FxHashMap::default(),
+            }
+        }
+
         #[test]
-        #[ignore]
         fn from_root() {
-            todo!();
+            let config = make_config();
+            let iter = NodeWalker::starting_from(&config, 0).expect("Creating walker");
+
+            let full_chain = iter.collect::<Vec<_>>();
+            println!("Full chain: {:?}", full_chain);
+
+            let mut seen = FxHashSet::default();
+            for node in full_chain {
+                let after = config.toposorted.iter().skip_while(|&&n| n != node as u32);
+
+                for &n in after {
+                    assert!(
+                        !seen.contains(&n),
+                        "Node {} was seen before node {}",
+                        n,
+                        node
+                    );
+                }
+
+                seen.insert(node as u32);
+            }
+
+            for i in 0..5 {
+                assert!(seen.contains(&i), "should see {i}");
+            }
+            assert!(!seen.contains(&6), "should not see 6");
         }
 
         #[test]
-        #[ignore]
+        fn from_alternate_root() {
+            let config = make_config();
+            let iter = NodeWalker::starting_from(&config, 6).expect("Creating walker");
+
+            let full_chain = iter.collect::<Vec<_>>();
+            println!("Full chain: {:?}", full_chain);
+
+            let mut seen = FxHashSet::default();
+            for node in full_chain {
+                let after = config.toposorted.iter().skip_while(|&&n| n != node as u32);
+
+                for &n in after {
+                    assert!(
+                        !seen.contains(&n),
+                        "Node {} was seen before node {}",
+                        n,
+                        node
+                    );
+                }
+
+                seen.insert(node as u32);
+            }
+
+            assert!(seen.contains(&6), "should see 6");
+            assert!(seen.contains(&2), "should see 2");
+            assert!(seen.contains(&4), "should see 4");
+            assert!(seen.contains(&1), "should see 1");
+
+            assert!(!seen.contains(&0), "should not see 0");
+            assert!(!seen.contains(&3), "should not see 3");
+        }
+
+        #[test]
         fn from_middle() {
-            todo!();
+            let config = make_config();
+            let iter = NodeWalker::starting_from(&config, 2).expect("Creating walker");
+
+            let full_chain = iter.collect::<Vec<_>>();
+            println!("Full chain: {:?}", full_chain);
+
+            let mut seen = FxHashSet::default();
+            for node in full_chain {
+                let after = config.toposorted.iter().skip_while(|&&n| n != node as u32);
+
+                for &n in after {
+                    assert!(
+                        !seen.contains(&n),
+                        "Node {} was seen before node {}",
+                        n,
+                        node
+                    );
+                }
+
+                seen.insert(node as u32);
+            }
+
+            assert!(seen.contains(&2), "should see 2");
+            assert!(seen.contains(&4), "should see 4");
+            assert!(seen.contains(&1), "should see 1");
+
+            assert!(!seen.contains(&0), "should not see 0");
+            assert!(!seen.contains(&3), "should not see 3");
+            assert!(!seen.contains(&6), "should not see 6");
         }
 
         #[test]
-        #[ignore]
         fn from_leaf() {
-            todo!();
+            let config = make_config();
+            let iter = NodeWalker::starting_from(&config, 4).expect("Creating walker");
+
+            let full_chain = iter.collect::<Vec<_>>();
+            println!("Full chain: {:?}", full_chain);
+
+            assert_eq!(full_chain, vec![4]);
         }
 
         #[test]
-        #[ignore]
         fn from_past_end() {
-            todo!()
+            let config = make_config();
+            NodeWalker::starting_from(&config, 7).expect_err("Should see error");
         }
     }
 }
