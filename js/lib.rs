@@ -26,8 +26,52 @@ use deno_core::{error::AnyError, op, JsRuntime, OpState};
 use deno_web::BlobStore;
 use serde::{de::DeserializeOwned, Serialize};
 use serde_v8::{from_v8, to_v8};
+use thiserror::Error;
 
 use crate::permissions::Permissions;
+
+pub enum RetrievedV8Value<'s> {
+    Value(v8::Local<'s, v8::Value>),
+    Error(v8::Local<'s, v8::Value>),
+    Promise(v8::Local<'s, v8::Promise>),
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("The value is a promise that failed to resolve")]
+    UnresolvedPromise,
+    #[error("The promise was rejected")]
+    RejectedPromise(deno_core::error::JsError),
+    #[error("Failed to deserialize value")]
+    Deserialize(#[from] serde_v8::Error),
+    #[error("JS error: {0}")]
+    Runtime(#[from] deno_core::error::AnyError),
+}
+
+impl Error {
+    fn rejected_promise(scope: &mut v8::HandleScope, v: v8::Local<v8::Value>) -> Self {
+        let js_error = deno_core::error::JsError::from_v8_exception(scope, v);
+        Error::RejectedPromise(js_error)
+    }
+}
+
+// This is done as a macro so that Rust can reuse the borrow on the scope,
+// instead of treating the returned value's reference to the scope as a new mutable borrow.
+macro_rules! extract_promise {
+    ($scope: expr, $v: expr) => {
+        // If it's a promise, try to get the value out.
+        if $v.is_promise() {
+            let promise = v8::Local::<v8::Promise>::try_from($v).unwrap();
+            match promise.state() {
+                v8::PromiseState::Pending => RetrievedV8Value::Promise(promise),
+                v8::PromiseState::Fulfilled => RetrievedV8Value::Value(promise.result(&mut $scope)),
+                v8::PromiseState::Rejected => RetrievedV8Value::Error(promise.result(&mut $scope)),
+            }
+        } else {
+            RetrievedV8Value::Value($v)
+        }
+    };
+}
 
 /// Core extensions and extensions to allow network access.
 pub fn net_extensions(crypto_seed: Option<u64>) -> Vec<Extension> {
@@ -64,6 +108,8 @@ pub struct RuntimeOptions {
     /// the deno_crypto extension should be initialized with the random_seed
     /// value from the SerializedState.
     pub extensions: Vec<Extension>,
+    pub allow_timers: bool,
+    pub ignore_unhandled_promise_rejections: bool,
     pub snapshot: Option<Snapshot>,
 
     #[cfg(feature = "serialized_execution")]
@@ -83,6 +129,8 @@ impl Default for RuntimeOptions {
         RuntimeOptions {
             will_snapshot: false,
             extensions: net_extensions(None),
+            allow_timers: true,
+            ignore_unhandled_promise_rejections: false,
             snapshot: None,
             #[cfg(feature = "serialized_execution")]
             serialized_state: None,
@@ -136,6 +184,18 @@ impl Runtime {
             .borrow_mut()
             .put(options.permissions.unwrap_or_default());
 
+        if !options.allow_timers {
+            runtime
+                .set_global_value("__allowTimers", &false)
+                .expect("Failed to set __allowTimers");
+        }
+
+        if options.ignore_unhandled_promise_rejections {
+            runtime
+                .set_global_value("__handleUncaughtPromiseRejections", &false)
+                .expect("Failed to set __handleUncaughtPromiseRejections");
+        }
+
         if !has_snapshot {
             // If we have a snapshot, then this will already have run. If not, then run it now.
             runtime
@@ -188,7 +248,7 @@ impl Runtime {
         snapshot.as_ref().to_vec()
     }
 
-    /** Run an expression and return the value */
+    /// Run an expression and return the value
     pub fn run_expression<T: DeserializeOwned>(
         &mut self,
         name: &str,
@@ -200,6 +260,39 @@ impl Runtime {
         let local = v8::Local::new(&mut scope, result);
         let value = from_v8(&mut scope, local)?;
         Ok(value)
+    }
+
+    /// Run an expression. If it returns a promise, wait for that promise to resolve, then return the value.
+    pub async fn await_expression<T: DeserializeOwned>(
+        &mut self,
+        name: &str,
+        script: &str,
+    ) -> Result<T, Error> {
+        let result = self.runtime.execute_script(name, script)?;
+
+        {
+            let mut scope = self.runtime.handle_scope();
+            let local = v8::Local::new(&mut scope, &result);
+            let result = extract_promise!(&mut scope, local);
+            match result {
+                RetrievedV8Value::Value(v) => return from_v8(&mut scope, v).map_err(Error::from),
+                RetrievedV8Value::Error(e) => return Err(Error::rejected_promise(&mut scope, e)),
+                // Try to await it below
+                RetrievedV8Value::Promise(_) => {}
+            }
+        }
+
+        // Wait for the promise to resolve.
+        self.run_event_loop(false).await?;
+
+        let mut scope = self.runtime.handle_scope();
+        let local = v8::Local::new(&mut scope, result);
+        let promise_result = extract_promise!(&mut scope, local);
+        match promise_result {
+            RetrievedV8Value::Value(v) => from_v8(&mut scope, v).map_err(Error::from),
+            RetrievedV8Value::Error(e) => Err(Error::rejected_promise(&mut scope, e)),
+            RetrievedV8Value::Promise(_) => Err(Error::UnresolvedPromise),
+        }
     }
 
     pub fn run_boolean_expression<T: Serialize>(
@@ -226,15 +319,74 @@ impl Runtime {
         Ok(())
     }
 
-    pub fn get_global_value<T: DeserializeOwned>(
-        &mut self,
-        key: &str,
-    ) -> Result<Option<T>, serde_v8::Error> {
+    /// Get a value without trying to deserialize it. If it's a resolved promise, extract the
+    /// promise's value.
+    fn get_global_raw_value(&mut self, key: &str) -> Option<(v8::HandleScope, RetrievedV8Value)> {
         let mut scope = self.runtime.handle_scope();
         let global = scope.get_current_context().global(&mut scope);
         let jskey = v8::String::new(&mut scope, key).unwrap();
-        let v8_value = global.get(&mut scope, jskey.into());
-        v8_value.map(|v| from_v8(&mut scope, v)).transpose()
+        let value = global.get(&mut scope, jskey.into());
+
+        value
+            .map(|v| extract_promise!(&mut scope, v))
+            .map(|v| (scope, v))
+    }
+
+    /// Retrieve a global value from the runtime. If it's a resolved promise, extract the value.
+    /// Returns an error if the promise is unresolved or rejected.
+    /// that they will succeed only if the Promise can deserialize into the target type.
+    pub fn get_global_value<T: DeserializeOwned>(&mut self, key: &str) -> Result<Option<T>, Error> {
+        let (mut scope, v8_value) = match self.get_global_raw_value(key) {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+
+        match v8_value {
+            RetrievedV8Value::Value(v) => from_v8(&mut scope, v).map_err(|e| e.into()),
+            RetrievedV8Value::Error(e) => Err(Error::rejected_promise(&mut scope, e)),
+            RetrievedV8Value::Promise(_) => Err(Error::UnresolvedPromise),
+        }
+    }
+
+    /// Retrieve a global value from the runtime. If it's a resolved promise, extract the value.
+    /// If it's an unresolved promise, wait for it to resolve. Returns an error for rejected
+    /// promises.
+    pub async fn await_global_value<T: DeserializeOwned>(
+        &mut self,
+        key: &str,
+    ) -> Result<Option<T>, Error> {
+        {
+            let value = self.get_global_raw_value(key);
+            match value {
+                Some((mut scope, RetrievedV8Value::Value(v))) => {
+                    return from_v8(&mut scope, v).map(Some).map_err(Error::from)
+                }
+                Some((mut scope, RetrievedV8Value::Error(e))) => {
+                    return Err(Error::rejected_promise(&mut scope, e));
+                }
+                Some((_, RetrievedV8Value::Promise(_))) => {
+                    // Try again below. We have to drop `value` first so that's why we do it this way.
+                }
+                None => return Ok(None),
+            }
+        }
+
+        // Run the event loop and try one more time.
+        // This can be a bit more efficient by usinlg `resolve_value`.
+        dbg!("running event loop");
+        self.run_event_loop(false).await?;
+        dbg!("ran event loop");
+
+        match self.get_global_raw_value(key) {
+            Some((mut scope, RetrievedV8Value::Value(v))) => {
+                from_v8(&mut scope, v).map(Some).map_err(Error::from)
+            }
+            Some((mut scope, RetrievedV8Value::Error(e))) => {
+                Err(Error::rejected_promise(&mut scope, e))
+            }
+            Some((_, RetrievedV8Value::Promise(_))) => Err(Error::UnresolvedPromise),
+            None => Ok(None),
+        }
     }
 
     pub fn get_value_at_path<'a, S: AsRef<str>>(
@@ -428,6 +580,226 @@ mod tests {
 
             let result: i64 = runtime.run_expression("script", script).unwrap();
             assert_eq!(result, 5);
+        }
+    }
+
+    mod await_expression {
+        use super::*;
+
+        #[tokio::test]
+        async fn resolved_promise() {
+            let code = r##"Promise.resolve(5);"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            let value: u32 = runtime
+                .await_expression("test", code)
+                .await
+                .expect("running code");
+
+            assert_eq!(value, 5);
+        }
+
+        #[tokio::test]
+        async fn unresolveable() {
+            let code = r##"new Promise(() => {})"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            let value = runtime
+                .await_expression::<serde_json::Value>("test", code)
+                .await;
+
+            assert!(matches!(value, Err(Error::UnresolvedPromise)));
+        }
+
+        #[tokio::test]
+        async fn rejected() {
+            let code = r##"Promise.reject(new Error("test error"));"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            let value = runtime.await_expression::<u32>("test", code).await;
+
+            dbg!(&value);
+            assert!(matches!(
+                value,
+                Err(Error::RejectedPromise(x)) if x.message.as_deref().unwrap_or_default() == "test error"));
+        }
+
+        #[tokio::test]
+        async fn awaits_pending_promise() {
+            let code = r##"new Promise((resolve) => {
+                setTimeout(() => resolve(5));
+             });"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            let value: u32 = runtime
+                .await_expression("test", code)
+                .await
+                .expect("running code");
+
+            dbg!(&value);
+            assert_eq!(value, 5);
+        }
+
+        #[tokio::test]
+        async fn rejected_after_await() {
+            let code = r##"new Promise((resolve, reject) => {
+                setTimeout(() => reject(new Error('test error')));
+             });"##;
+            let mut runtime = Runtime::new(RuntimeOptions {
+                ignore_unhandled_promise_rejections: true,
+                ..Default::default()
+            });
+            let value = runtime
+                .await_expression::<serde_json::Value>("test", code)
+                .await;
+
+            dbg!(&value);
+            assert!(matches!(
+                value,
+                Err(Error::RejectedPromise(x)) if x.message.as_deref().unwrap_or_default() == "test error"));
+        }
+    }
+
+    mod get_global_value {
+        use super::*;
+        use serde_json::json;
+
+        #[test]
+        fn resolved_promise() {
+            let code = r##"globalThis.x = Promise.resolve(5);"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value: u32 = runtime
+                .get_global_value("x")
+                .expect("retrieving value")
+                .expect("value exists");
+
+            assert_eq!(value, 5);
+        }
+
+        #[test]
+        fn unresolveable() {
+            let code = r##"globalThis.x = new Promise(() => {})"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime.get_global_value::<u32>("x");
+
+            assert!(matches!(value, Err(Error::UnresolvedPromise)));
+        }
+
+        #[tokio::test]
+        async fn needs_resolving() {
+            let code = r##"globalThis.x = new Promise((resolve) => {
+                setTimeout(() => resolve(5));
+             });"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime.get_global_value::<u32>("x");
+
+            // `get_global_value` doesn't try to resolve this promise, it just returns an error.
+            dbg!(&value);
+            assert!(matches!(value, Err(Error::UnresolvedPromise)));
+        }
+
+        #[test]
+        fn rejected() {
+            let code = r##"globalThis.x = Promise.reject(new Error("test error"));"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime.get_global_value::<u32>("x");
+            dbg!(&value);
+            assert!(matches!(
+                value,
+                Err(Error::RejectedPromise(x)) if x.message.as_deref().unwrap_or_default() == "test error"));
+        }
+    }
+
+    mod await_global_value {
+        use super::*;
+
+        #[tokio::test]
+        async fn resolved_promise() {
+            let code = r##"globalThis.x = Promise.resolve(5);"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value: u32 = runtime
+                .await_global_value("x")
+                .await
+                .expect("retrieving value")
+                .expect("value exists");
+
+            assert_eq!(value, 5);
+        }
+
+        #[tokio::test]
+        async fn unresolveable() {
+            let code = r##"globalThis.x = new Promise(() => {})"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime.await_global_value::<u32>("x").await;
+
+            assert!(matches!(value, Err(Error::UnresolvedPromise)));
+        }
+
+        #[tokio::test]
+        async fn rejected() {
+            let code = r##"globalThis.x = Promise.reject(new Error("test error"));"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime.await_global_value::<u32>("x").await;
+            dbg!(&value);
+            assert!(matches!(
+                value,
+                Err(Error::RejectedPromise(x)) if x.message.as_deref().unwrap_or_default() == "test error"));
+        }
+
+        #[tokio::test]
+        async fn awaits_pending_promise() {
+            let code = r##"globalThis.x = new Promise((resolve) => {
+                setTimeout(() => resolve(5));
+             });"##;
+            let mut runtime = Runtime::new(RuntimeOptions::default());
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime
+                .await_global_value::<u32>("x")
+                .await
+                .expect("retrieving value")
+                .expect("value is present");
+
+            dbg!(&value);
+            assert_eq!(value, 5);
+        }
+
+        #[tokio::test]
+        async fn rejected_after_await() {
+            let code = r##"globalThis.x = new Promise((resolve, reject) => {
+                setTimeout(() => reject(new Error('test error')));
+             });"##;
+            let mut runtime = Runtime::new(RuntimeOptions {
+                ignore_unhandled_promise_rejections: true,
+                ..Default::default()
+            });
+            runtime
+                .run_expression::<serde_json::Value>("test", code)
+                .expect("running code");
+            let value = runtime.await_global_value::<u32>("x").await;
+
+            dbg!(&value);
+            assert!(matches!(
+                value,
+                Err(Error::RejectedPromise(x)) if x.message.as_deref().unwrap_or_default() == "test error"));
         }
     }
 

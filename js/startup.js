@@ -10,4 +10,5 @@ Object.assign(globalThis,
   globalThis.__bootstrap.streams,
   globalThis.__bootstrap.url,
 );
+
 globalThis.colors = globalThis.__bootstrap.colors;
