@@ -52,6 +52,9 @@ pub enum Error {
     #[error("No task action found with name {0}")]
     TaskActionNotFound(String),
 
+    #[error("No task trigger found with name {0}")]
+    TaskTriggerNotFound(String),
+
     #[error("Config is for task type {0} and state is of a different type")]
     ConfigStateMismatch(&'static str),
 

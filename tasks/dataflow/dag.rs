@@ -1,7 +1,6 @@
 use bit_set::BitSet;
-use fxhash::FxHashMap;
 
-use super::{DataFlowConfig, DataFlowEdge, DataFlowNode};
+use super::{DataFlowConfig, DataFlowEdge};
 use crate::{Error, Result};
 
 #[derive(Debug)]
@@ -124,17 +123,15 @@ pub fn toposort_nodes(num_nodes: usize, edges: &[DataFlowEdge]) -> Result<Vec<u3
 #[cfg(test)]
 mod tests {
     use crate::{
-        dataflow::{
-            dag::toposort_nodes, DataFlowEdge, DataFlowFunction, DataFlowNode, DataFlowOutputFormat,
-        },
+        dataflow::{dag::toposort_nodes, node::DataFlowText, DataFlowEdge, DataFlowNode},
         Error,
     };
 
     fn blank_node() -> DataFlowNode {
-        DataFlowNode {
-            function: DataFlowFunction::Identity,
-            display_format: DataFlowOutputFormat::Js,
-        }
+        DataFlowNode::Text(DataFlowText {
+            body: String::new(),
+            render_as: crate::dataflow::node::TextRenderAs::PlainText,
+        })
     }
 
     fn test_edge(from: u32, to: u32) -> DataFlowEdge {
@@ -233,7 +230,7 @@ mod tests {
     }
 
     mod dag_iterator {
-        use fxhash::{FxHashMap, FxHashSet};
+        use fxhash::FxHashSet;
 
         use crate::dataflow::{dag::NodeWalker, DataFlowConfig};
 
@@ -258,7 +255,6 @@ mod tests {
                 nodes: (0..7).map(|_| blank_node()).collect(),
                 edges,
                 toposorted,
-                trigger_nodes: FxHashMap::default(),
             }
         }
 

@@ -311,7 +311,7 @@ mod native {
                             return Err(Error::ConfigStateMismatch("Js"))
                         },
                         (TaskConfig::DataFlow(config), TaskState::DataFlow(state)) => {
-                            let (state, actions, changed) = config.evaluate_trigger(&state, &task_trigger_local_id, &payload).await?;
+                            let (state, actions, changed) = config.evaluate_trigger(&task_name, state, &task_trigger_local_id, payload.clone()).await?;
                             let actions = actions.into_iter().map(|action| {
                                 ActionInvocation{
                                     task_id: task_id.clone(),

@@ -1,10 +1,14 @@
-use crate::{actions::TaskActionInvocations, Result};
+use crate::{actions::TaskActionInvocations, dataflow::node::NodeInput, Error, Result};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
 
 mod dag;
+mod node;
+
+pub use node::DataFlowNode;
+
+use self::dag::NodeWalker;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {
@@ -12,29 +16,85 @@ pub struct DataFlowConfig {
     /// The connection between nodes. This must be sorted.
     edges: Vec<DataFlowEdge>,
     toposorted: Vec<u32>,
-    trigger_nodes: FxHashMap<String, DataFlowTrigger>,
 }
 
 impl DataFlowConfig {
     pub async fn evaluate_trigger(
         &self,
-        state: &DataFlowState,
+        task_name: &str,
+        mut state: DataFlowState,
         trigger_id: &str,
-        payload: &serde_json::Value,
+        payload: serde_json::Value,
     ) -> Result<(DataFlowState, TaskActionInvocations, bool)> {
-        todo!()
+        let trigger_node = self
+            .nodes
+            .iter()
+            .position(|node| match &node {
+                DataFlowNode::Trigger(trigger) => trigger.local_id == trigger_id,
+                _ => false,
+            })
+            .ok_or_else(|| Error::TaskTriggerNotFound(trigger_id.to_string()))?;
+
+        let mut walker = NodeWalker::starting_from(self, trigger_node as u32)?;
+
+        // Directly send the payload into the first node. The rest of the nodes have their state built the
+        // normal way.
+        let first_node_idx = walker.next().unwrap();
+        let first_node = &self.nodes[first_node_idx as usize];
+        let new_state = first_node
+            .execute(
+                task_name,
+                &serde_json::Value::Null,
+                NodeInput::Single(payload),
+            )
+            .await?;
+
+        if first_node.persist_output() {
+            state.nodes[first_node_idx] = new_state.state;
+        }
+
+        let mut actions = TaskActionInvocations::new();
+
+        for node_idx in walker {
+            let node = &self.nodes[node_idx as usize];
+
+            // Gather the inputs for the node
+            let input = self
+                .edges
+                .iter()
+                .filter(|edge| edge.to as usize == node_idx)
+                .map(|edge| {
+                    let from_node = &self.nodes[edge.from as usize];
+                    let node_state = from_node.output(&state.nodes[edge.from as usize]);
+
+                    (edge.name.clone(), node_state)
+                })
+                .collect::<FxHashMap<_, _>>();
+
+            let result = node
+                .execute(
+                    task_name,
+                    &state.nodes[node_idx],
+                    NodeInput::Multiple(input),
+                )
+                .await?;
+
+            if node.persist_output() {
+                state.nodes[node_idx] = result.state;
+            }
+
+            if let Some(action) = result.action {
+                actions.push(action);
+            }
+        }
+
+        todo!();
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowState {
     nodes: Vec<serde_json::Value>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DataFlowNode {
-    function: DataFlowFunction,
-    display_format: DataFlowOutputFormat,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -57,58 +117,6 @@ impl Ord for DataFlowEdge {
             x => x,
         }
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(tag = "type")]
-pub enum DataFlowFunction {
-    /// Don't alter the input data at all. Useful for graph and table nodes that aren't part of the
-    /// main flow and just exist for display purposes.
-    Identity,
-    /// This node functions to take a task trigger and pass its data to other nodes.
-    Trigger(DataFlowTrigger),
-    /// Plain Text
-    Text(DataFlowText),
-    /// A single JavaScript expression
-    JsExpression(DataFlowJsExpression),
-    /// A JavaScript function body. This can be asynchronous
-    JsFunction(DataFlowJsFunction),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DataFlowText {
-    body: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DataFlowTrigger {
-    local_id: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DataFlowJsExpression {
-    body: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DataFlowJsFunction {
-    body: String,
-    is_async: bool,
-}
-
-/// The output format for this node
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(tag = "type")]
-pub enum DataFlowOutputFormat {
-    /// A javascript object
-    Js,
-    /// Plain text
-    Text,
-    /// Render plain text as Markdown
-    Markdown,
-    /// Render plain text as Html
-    Html,
-    // To add: Table, Graph
 }
 
 impl DataFlowConfig {
