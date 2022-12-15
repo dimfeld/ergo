@@ -1,6 +1,4 @@
-Ergo is a low-code IFTTT/Zapier style application, built with Rust and Svelte. Tasks are customizable with Javascript and can contain state machines for more advanced task handling.
-
-This project is currently on hold, but development will be picked up again in the future [with a revised focus](https://imfeld.dev/journals/2022/09/2022-09-27).
+Ergo is a low-code IFTTT/Zapier style application, built with Rust and Svelte. Tasks are customizable with Javascript and can consist of state machines or DAG-like workflows.
 
 # Considered use cases
 
@@ -14,6 +12,8 @@ This project is currently on hold, but development will be picked up again in th
 - Multi-stage ETL pipelines
 
 # Anticipated Features
+
+This is somewhat out of date.
 
 - [ ] Inputs
   - [X] from POST to an endpoint
@@ -40,7 +40,6 @@ This project is currently on hold, but development will be picked up again in th
   - [X] Run state machines in response to events
   - [ ] Sequences - Tasks can be chained together and optionally pass information between them (file locations, etc.)
   - [ ] Tasks can clone themselves, and further inputs for that clone are routed to them. This will probably involve interaction with another process set up to be aware of how this works.
-  - [ ] Long-running JavaScript tasks that can trigger actions and go dormant as they wait, similar to Temporal workflows.
 - [X] Templates for events, actions, and state machines
 - [X] Extensive logging of events, actions, etc.
 
@@ -48,8 +47,7 @@ This project is currently on hold, but development will be picked up again in th
 
 ## 0.4
 
-- [ ] Long-running Javascript tasks
-- [ ] Ability to run Nomad jobs as actions
+- [ ] Tasks made up of linked blocks that run as a DAG
 
 ## 0.3
 
@@ -58,8 +56,6 @@ This project is currently on hold, but development will be picked up again in th
 - [X] Periodic tasks 
 - [X] Task logic can be written in Javascript.
 - [X] Implement last missing pieces of queue behavior.
-- [ ] Task import/export
-- [ ] Barebones user management
 
 ## 0.2
 
