@@ -175,7 +175,7 @@ export interface InputsLogEntry {
   task_name: string;
   task_id: String;
   input_status: InputStatus;
-  input_error: any;
+  info: any;
   task_trigger_name: string;
   task_trigger_local_id: string;
   timestamp: string;
@@ -233,7 +233,56 @@ export type TaskConfig =
   | {
       type: "Js";
       data: TaskJsConfig;
+    }
+  | {
+      type: "DataFlow";
+      data: DataFlowConfig;
     };
+
+export type DataFlowNodeFunction =
+  | {
+      type: "trigger";
+      local_id: string;
+    }
+  | {
+      type: "action";
+      action_id: string;
+      payload_code: DataFlowJs;
+    }
+  | {
+      type: "text";
+      body: string;
+      render_as: TextRenderAs;
+    }
+  | {
+      type: "js";
+      code: string;
+      format: JsCodeFormat;
+    }
+  | (
+      | {
+          source: "inline";
+          body: string;
+          [k: string]: unknown;
+        }
+      | {
+          source: "npm";
+          package: string;
+          resolved: string;
+          code: string;
+          [k: string]: unknown;
+        }
+    )
+  | {
+      type: "table";
+    }
+  | {
+      type: "graph";
+    };
+
+export type JsCodeFormat = "Expression" | "Function" | "AsyncFunction";
+
+export type TextRenderAs = "plainText" | "markdown" | "html";
 
 export type TaskState =
   | {
@@ -243,6 +292,10 @@ export type TaskState =
   | {
       type: "Js";
       data: TaskJsState;
+    }
+  | {
+      type: "DataFlow";
+      data: DataFlowState;
     };
 
 export type PeriodicSchedule = {
@@ -275,8 +328,37 @@ export interface TaskJsConfig {
   map?: string;
 }
 
+export interface DataFlowConfig {
+  nodes: DataFlowNode[];
+  /**
+   * The connection between nodes. This must be sorted.
+   */
+  edges: DataFlowEdge[];
+  toposorted: number[];
+}
+
+export interface DataFlowNode {
+  name: string;
+  func: DataFlowNodeFunction;
+}
+
+export interface DataFlowJs {
+  code: string;
+  format: JsCodeFormat;
+}
+
+export interface DataFlowEdge {
+  from: number;
+  to: number;
+  name: string;
+}
+
 export interface TaskJsState {
   context: string;
+}
+
+export interface DataFlowState {
+  nodes: any[];
 }
 
 export interface TaskActionInput {

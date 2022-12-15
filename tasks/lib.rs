@@ -258,10 +258,10 @@ mod native {
                     if periodic_trigger_id.is_some() && found_periodic_trigger.is_none() {
                         // If this run is for a periodic trigger that doesn't exist anymore or was
                         // disabled, then don't do anything.
-                        return Ok(());
+                        return Err(Error::PeriodicTaskDeleted);
                     }
 
-                    let (new_data, actions, changed) = match (config.0, state.0) {
+                    let (new_data, log_info, actions, changed) = match (config.0, state.0) {
                         (TaskConfig::StateMachine(machine), TaskState::StateMachine(state)) => {
                             let num_machines = machine.len();
                             let mut new_data = StateMachineStates::with_capacity(num_machines);
@@ -287,7 +287,7 @@ mod native {
                                   changed = changed || this_changed;
                             }
 
-                            (TaskState::StateMachine(new_data), actions, changed)
+                            (TaskState::StateMachine(new_data), serde_json::Value::Null, actions, changed)
                         },
                         (TaskConfig::StateMachine(_), _) =>  {
                             return Err(Error::ConfigStateMismatch("StateMachine"))
@@ -305,13 +305,14 @@ mod native {
                                 }
                             }).collect::<ActionInvocations>();
 
-                            (TaskState::Js(run_result.state), actions, run_result.state_changed)
+                            // TODO Return console messages here
+                            (TaskState::Js(run_result.state), serde_json::Value::Null ,actions, run_result.state_changed)
                         },
                         (TaskConfig::Js(_), _) =>  {
                             return Err(Error::ConfigStateMismatch("Js"))
                         },
                         (TaskConfig::DataFlow(config), TaskState::DataFlow(state)) => {
-                            let (state, actions, changed) = config.evaluate_trigger(&task_name, state, &task_trigger_local_id, payload.clone()).await?;
+                            let (state, log, actions) = config.evaluate_trigger(&task_name, state, &task_trigger_local_id, payload.clone()).await?;
                             let actions = actions.into_iter().map(|action| {
                                 ActionInvocation{
                                     task_id: task_id.clone(),
@@ -323,7 +324,9 @@ mod native {
                                 }
                             }).collect::<ActionInvocations>();
 
-                            (TaskState::DataFlow(state), actions, changed)
+                            let log_out = serde_json::to_value(&log)?;
+
+                            (TaskState::DataFlow(state), log_out, actions, true)
                         }
                         (TaskConfig::DataFlow(_), _) => {
                             return Err(Error::ConfigStateMismatch("DataFlow"))
@@ -413,31 +416,43 @@ mod native {
                         };
                         notifications.notify(tx, &org_id, input_notification).await?;
                     }
-                    Ok::<_, Error>(())
+
+                    Ok::<serde_json::Value, Error>(log_info)
                 })
             })
             .await;
 
-            let (log_error, status, retval) = match result {
-                Ok(_) => (None, InputStatus::Success, Ok(())),
+            let (log_info, status, retval) = match result {
+                Ok(log_info) => (log_info, InputStatus::Success, Ok(())),
+                Err(Error::PeriodicTaskDeleted) => {
+                    // This isn't an error, it just means that the task started to run when it
+                    // shouldn't have. Just remove the log entry and pretend it didn't run.
+                    event!(Level::INFO, "Periodic task no longer exists");
+                    sqlx::query!(
+                        "DELETE FROM inputs_log WHERE inputs_log_id=$1",
+                        invocation.inputs_log_id
+                    )
+                    .execute(pool)
+                    .await?;
+
+                    return Ok(());
+                }
                 Err(e) => {
                     event!(Level::ERROR, err=?e, "Error applying input");
                     (
-                        Some(
-                            serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) }),
-                        ),
+                        serde_json::json!({ "msg": e.to_string(), "info": format!("{:?}", e) }),
                         InputStatus::Error,
                         Err(e),
                     )
                 }
             };
 
-            event!(Level::INFO, input_arrival_id=%invocation.inputs_log_id, ?status, ?log_error, "Updating input status");
+            event!(Level::INFO, input_arrival_id=%invocation.inputs_log_id, ?status, ?log_info, "Updating input status");
             sqlx::query!(
-                "UPDATE inputs_log SET status=$2, error=$3, updated=now() WHERE inputs_log_id=$1",
+                "UPDATE inputs_log SET status=$2, info=$3, updated=now() WHERE inputs_log_id=$1",
                 invocation.inputs_log_id,
                 status as _,
-                log_error
+                log_info
             )
             .execute(pool)
             .await?;

@@ -23,9 +23,15 @@ pub struct DataFlowConfig {
     toposorted: Vec<u32>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DataFlowLog {
-    node: String,
-    console: Vec<ConsoleMessage>,
+    pub run: Vec<DataFlowNodeLog>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DataFlowNodeLog {
+    pub node: String,
+    pub console: Vec<ConsoleMessage>,
 }
 
 impl DataFlowConfig {
@@ -35,7 +41,7 @@ impl DataFlowConfig {
         mut state: DataFlowState,
         trigger_id: &str,
         payload: serde_json::Value,
-    ) -> Result<(DataFlowState, TaskActionInvocations, bool)> {
+    ) -> Result<(DataFlowState, Option<DataFlowLog>, TaskActionInvocations)> {
         let trigger_node = self
             .nodes
             .iter()
@@ -93,7 +99,7 @@ impl DataFlowConfig {
                 .await?;
 
             if !result.console.is_empty() {
-                logs.push(DataFlowLog {
+                logs.push(DataFlowNodeLog {
                     node: node.name.clone(),
                     console: result.console,
                 });
@@ -108,7 +114,13 @@ impl DataFlowConfig {
             }
         }
 
-        todo!();
+        let log_output = if logs.is_empty() {
+            None
+        } else {
+            Some(DataFlowLog { run: logs })
+        };
+
+        Ok((state, log_output, actions))
     }
 }
 

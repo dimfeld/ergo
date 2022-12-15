@@ -83,6 +83,9 @@ pub enum Error {
 
     #[error("Node {0} has a cyclic dependency")]
     DataflowCycle(u32),
+
+    #[error("Periodic task was deleted")]
+    PeriodicTaskDeleted,
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
