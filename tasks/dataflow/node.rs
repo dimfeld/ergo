@@ -3,15 +3,21 @@ use crate::{
     scripting::{create_task_script_runtime, POOL},
     Error, Result,
 };
-use ergo_js::Runtime;
+use ergo_js::{ConsoleMessage, Runtime};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct DataFlowNode {
+    pub name: String,
+    pub func: DataFlowNodeFunction,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "camelCase")]
-pub enum DataFlowNode {
+pub enum DataFlowNodeFunction {
     /// This node functions to take a task trigger and pass its data to other nodes.
     Trigger(DataFlowTrigger),
     /// This node can trigger an action, controlled by the accompanying JavaScript code.
@@ -97,6 +103,7 @@ pub(super) enum NodeInput {
 pub(super) struct NodeResult {
     pub state: serde_json::Value,
     pub action: Option<TaskActionInvocation>,
+    pub console: Vec<ConsoleMessage>,
 }
 
 impl NodeResult {
@@ -104,18 +111,22 @@ impl NodeResult {
         Self {
             state: serde_json::Value::Null,
             action: None,
-        }
-    }
-
-    fn state_only(state: serde_json::Value) -> Self {
-        Self {
-            state,
-            action: None,
+            console: Vec::new(),
         }
     }
 }
 
-impl DataFlowNode {
+impl From<(serde_json::Value, Vec<ConsoleMessage>)> for NodeResult {
+    fn from((state, console): (serde_json::Value, Vec<ConsoleMessage>)) -> Self {
+        Self {
+            state,
+            action: None,
+            console,
+        }
+    }
+}
+
+impl DataFlowNodeFunction {
     pub(super) async fn execute(
         &self,
         task_name: &str,
@@ -125,7 +136,7 @@ impl DataFlowNode {
         match self {
             Self::Js(expr) => run_js(task_name, expr, current_state.clone(), input)
                 .await
-                .map(NodeResult::state_only),
+                .map(NodeResult::from),
             Self::Action(expr) => {
                 evaluate_action_node(task_name, expr, current_state.clone(), input).await
             }
@@ -158,7 +169,7 @@ async fn evaluate_action_node(
     current_state: serde_json::Value,
     input: NodeInput,
 ) -> Result<NodeResult> {
-    let result = run_js(name, &action.payload_code, current_state, input).await?;
+    let (result, console) = run_js(name, &action.payload_code, current_state, input).await?;
 
     let action = match &result {
         serde_json::Value::Null => None,
@@ -173,6 +184,7 @@ async fn evaluate_action_node(
     Ok(NodeResult {
         state: result,
         action,
+        console,
     })
 }
 
@@ -185,7 +197,7 @@ async fn run_js(
     expr: &DataFlowJs,
     current_state: serde_json::Value,
     input: NodeInput,
-) -> Result<serde_json::Value> {
+) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
     let main_url = url::Url::parse(&format!("https://ergo/tasks/{}.js", name))
         .map_err(|e| Error::TaskScriptSetup(e.into()))?;
 
@@ -217,7 +229,7 @@ async fn run_js(
                     .unwrap_or_default()
                     .unwrap_or_default();
 
-                Ok(result_value)
+                Ok((result_value, console))
             }
             // TODO Generate a source map and use it to translate the code locations in the error.
             Err(error) => Err(Error::TaskScript { error, console }),

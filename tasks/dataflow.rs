@@ -1,4 +1,9 @@
-use crate::{actions::TaskActionInvocations, dataflow::node::NodeInput, Error, Result};
+use crate::{
+    actions::TaskActionInvocations,
+    dataflow::node::{DataFlowNodeFunction, NodeInput},
+    Error, Result,
+};
+use ergo_js::ConsoleMessage;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,6 +23,11 @@ pub struct DataFlowConfig {
     toposorted: Vec<u32>,
 }
 
+pub struct DataFlowLog {
+    node: String,
+    console: Vec<ConsoleMessage>,
+}
+
 impl DataFlowConfig {
     pub async fn evaluate_trigger(
         &self,
@@ -29,8 +39,8 @@ impl DataFlowConfig {
         let trigger_node = self
             .nodes
             .iter()
-            .position(|node| match &node {
-                DataFlowNode::Trigger(trigger) => trigger.local_id == trigger_id,
+            .position(|node| match &node.func {
+                DataFlowNodeFunction::Trigger(trigger) => trigger.local_id == trigger_id,
                 _ => false,
             })
             .ok_or_else(|| Error::TaskTriggerNotFound(trigger_id.to_string()))?;
@@ -42,6 +52,7 @@ impl DataFlowConfig {
         let first_node_idx = walker.next().unwrap();
         let first_node = &self.nodes[first_node_idx as usize];
         let new_state = first_node
+            .func
             .execute(
                 task_name,
                 &serde_json::Value::Null,
@@ -49,10 +60,11 @@ impl DataFlowConfig {
             )
             .await?;
 
-        if first_node.persist_output() {
+        if first_node.func.persist_output() {
             state.nodes[first_node_idx] = new_state.state;
         }
 
+        let mut logs = Vec::new();
         let mut actions = TaskActionInvocations::new();
 
         for node_idx in walker {
@@ -65,13 +77,14 @@ impl DataFlowConfig {
                 .filter(|edge| edge.to as usize == node_idx)
                 .map(|edge| {
                     let from_node = &self.nodes[edge.from as usize];
-                    let node_state = from_node.output(&state.nodes[edge.from as usize]);
+                    let node_state = from_node.func.output(&state.nodes[edge.from as usize]);
 
                     (edge.name.clone(), node_state)
                 })
                 .collect::<FxHashMap<_, _>>();
 
             let result = node
+                .func
                 .execute(
                     task_name,
                     &state.nodes[node_idx],
@@ -79,7 +92,14 @@ impl DataFlowConfig {
                 )
                 .await?;
 
-            if node.persist_output() {
+            if !result.console.is_empty() {
+                logs.push(DataFlowLog {
+                    node: node.name.clone(),
+                    console: result.console,
+                });
+            }
+
+            if node.func.persist_output() {
                 state.nodes[node_idx] = result.state;
             }
 
