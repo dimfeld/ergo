@@ -13,7 +13,7 @@ mod node;
 
 pub use node::DataFlowNode;
 
-use self::dag::NodeWalker;
+use self::dag::{toposort_nodes, NodeWalker};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {
@@ -35,6 +35,20 @@ pub struct DataFlowNodeLog {
 }
 
 impl DataFlowConfig {
+    pub fn new(nodes: Vec<DataFlowNode>, edges: Vec<DataFlowEdge>) -> Result<Self> {
+        let config = Self {
+            toposorted: toposort_nodes(nodes.len(), &edges)?,
+            nodes,
+            edges,
+        };
+
+        Ok(config)
+    }
+
+    pub fn default_state(&self) -> DataFlowState {
+        DataFlowState { nodes: Vec::new() }
+    }
+
     pub async fn evaluate_trigger(
         &self,
         task_name: &str,
@@ -151,8 +165,152 @@ impl Ord for DataFlowEdge {
     }
 }
 
-impl DataFlowConfig {
-    pub fn default_state(&self) -> DataFlowState {
-        DataFlowState { nodes: Vec::new() }
+#[cfg(test)]
+mod tests {
+    use fxhash::FxHashMap;
+    use serde_json::json;
+    use wiremock::{
+        matchers::{method, path, path_regex},
+        Mock, MockServer, ResponseTemplate,
+    };
+
+    use super::{node::*, *};
+
+    fn test_node(name: impl Into<String>, func: DataFlowNodeFunction) -> DataFlowNode {
+        DataFlowNode {
+            name: name.into(),
+            func,
+        }
+    }
+
+    async fn test_config() -> (MockServer, DataFlowConfig) {
+        let mock_server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(r"/doc/1"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "code": 5 })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path(r"/doc/2"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "code": 6 })))
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path_regex(r"/doc/\d+"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "code": 0 })))
+            .mount(&mock_server)
+            .await;
+
+        let nodes = vec![
+            test_node(
+                "trigger_a",
+                DataFlowNodeFunction::Trigger(DataFlowTrigger {
+                    local_id: "trigger1".to_string(),
+                }),
+            ),
+            test_node(
+                "trigger_b",
+                DataFlowNodeFunction::Trigger(DataFlowTrigger {
+                    local_id: "trigger2".to_string(),
+                }),
+            ),
+            test_node(
+                "add_one",
+                DataFlowNodeFunction::Js(DataFlowJs {
+                    code: "payload.value + 1".into(),
+                    format: JsCodeFormat::Expression,
+                }),
+            ),
+            test_node(
+                "add_together",
+                DataFlowNodeFunction::Js(DataFlowJs {
+                    code: r##"let result = x.value + y.value;
+                          return result;"##
+                        .into(),
+                    format: JsCodeFormat::Expression,
+                }),
+            ),
+            test_node(
+                "fetch_given_value",
+                DataFlowNodeFunction::Js(DataFlowJs {
+                    format: JsCodeFormat::AsyncFunction,
+                    code: format!(
+                        r##"const response = await fetch({base_url}/doc/${{doc_id}});
+                        const json = await response.json();
+                        return {{ result: json.code }};"##,
+                        base_url = mock_server.uri()
+                    ),
+                }),
+            ),
+            test_node(
+                "email_label",
+                DataFlowNodeFunction::Text(DataFlowText {
+                    body: "The value:".into(),
+                    render_as: TextRenderAs::PlainText,
+                }),
+            ),
+            test_node(
+                "send_email",
+                DataFlowNodeFunction::Action(DataFlowAction {
+                    action_id: "send_email".to_string(),
+                    payload_code: DataFlowJs {
+                        format: JsCodeFormat::Function,
+                        code: r##"
+                        if(code > 0) {
+                            let contents = [label, code].join(' ');
+                            return { contents };
+                        }
+                        "##
+                        .into(),
+                    },
+                }),
+            ),
+        ];
+
+        let name_indexes = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (node.name.clone(), i))
+            .collect::<FxHashMap<_, _>>();
+
+        let edges_by_name = [
+            ("trigger_a", "add_one", "value"),
+            ("trigger_a", "add_together", "x"),
+            ("trigger_b", "add_together", "y"),
+            ("add_together", "fetch_given_value", "doc_id"),
+            ("email_label", "send_email", "label"),
+            ("fetch_given_value", "send_email", "code"),
+        ];
+
+        let edges = edges_by_name
+            .into_iter()
+            .map(|(from, to, name)| {
+                let from = name_indexes[from] as u32;
+                let to = name_indexes[to] as u32;
+
+                DataFlowEdge {
+                    from,
+                    to,
+                    name: name.to_string(),
+                }
+            })
+            .collect::<Vec<_>>();
+
+        (mock_server, DataFlowConfig::new(nodes, edges).unwrap())
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn test_run_nodes() {
+        let (_server, config) = test_config().await;
+        let state = config.default_state();
+
+        let (state, log, actions) = config
+            .evaluate_trigger("task", state, "trigger1", json!({ "value": 5 }))
+            .await
+            .unwrap();
+        assert!(actions.is_empty());
     }
 }

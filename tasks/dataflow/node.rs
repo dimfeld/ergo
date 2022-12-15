@@ -26,8 +26,8 @@ pub enum DataFlowNodeFunction {
     Text(DataFlowText),
     /// A JavaScript expression or function body
     Js(DataFlowJs),
-    /// JavaScript code to be fed into another node
-    JsCode(DataFlowJsLibrary),
+    // /// JavaScript code to be fed into another node
+    //JsCode(DataFlowJsLibrary),
     Table,
     Graph,
 }
@@ -140,16 +140,14 @@ impl DataFlowNodeFunction {
             Self::Action(expr) => {
                 evaluate_action_node(task_name, expr, current_state.clone(), input).await
             }
-            Self::Text(_) | Self::Table | Self::Graph | Self::JsCode(_) | Self::Trigger(_) => {
-                Ok(NodeResult::empty())
-            }
+            Self::Text(_) | Self::Table | Self::Graph | Self::Trigger(_) => Ok(NodeResult::empty()),
         }
     }
 
     pub(super) fn persist_output(&self) -> bool {
         match self {
             Self::Js(_) | Self::Action(_) | Self::Text(_) => true,
-            Self::Table | Self::Graph | Self::JsCode(_) | Self::Trigger(_) => false,
+            Self::Table | Self::Graph | Self::Trigger(_) => false,
         }
     }
 
@@ -157,7 +155,7 @@ impl DataFlowNodeFunction {
         match self {
             Self::Js(_) | Self::Action(_) | Self::Trigger(_) => state.clone(),
             Self::Text(node) => json!(node.body),
-            Self::JsCode(node) => json!(node.code()),
+            // Self::JsCode(node) => json!(node.code()),
             Self::Table | Self::Graph => serde_json::Value::Null,
         }
     }

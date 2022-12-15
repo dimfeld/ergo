@@ -123,15 +123,22 @@ pub fn toposort_nodes(num_nodes: usize, edges: &[DataFlowEdge]) -> Result<Vec<u3
 #[cfg(test)]
 mod tests {
     use crate::{
-        dataflow::{dag::toposort_nodes, node::DataFlowText, DataFlowEdge, DataFlowNode},
+        dataflow::{
+            dag::toposort_nodes,
+            node::{DataFlowNodeFunction, DataFlowText},
+            DataFlowEdge, DataFlowNode,
+        },
         Error,
     };
 
     fn blank_node() -> DataFlowNode {
-        DataFlowNode::Text(DataFlowText {
-            body: String::new(),
-            render_as: crate::dataflow::node::TextRenderAs::PlainText,
-        })
+        DataFlowNode {
+            name: "test_node".into(),
+            func: DataFlowNodeFunction::Text(DataFlowText {
+                body: String::new(),
+                render_as: crate::dataflow::node::TextRenderAs::PlainText,
+            }),
+        }
     }
 
     fn test_edge(from: u32, to: u32) -> DataFlowEdge {
