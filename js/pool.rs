@@ -60,7 +60,7 @@ impl std::fmt::Debug for RuntimePoolInner {
 // TODO This needs a lot of unwrap cleanup.
 impl RuntimePool {
     pub fn new(num_threads: Option<usize>) -> Self {
-        let num_threads = num_threads.unwrap_or_else(|| *NUM_CPUS);
+        let num_threads = num_threads.unwrap_or(*NUM_CPUS);
         let (s, r) = async_channel::unbounded();
 
         let threads = itertools::repeat_n(r, num_threads)

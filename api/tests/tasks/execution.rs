@@ -196,7 +196,7 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
             description: None,
             initial: "initial".to_string(),
             on: smallvec![],
-            states: std::array::IntoIter::new([(
+            states: [(
                 "initial".to_string(),
                 StateDefinition {
                     on: smallvec![EventHandler {
@@ -211,7 +211,8 @@ async fn bootstrap(app: &TestApp) -> Result<BootstrappedData> {
                     }],
                     description: None,
                 }
-            )])
+            )]
+            .into_iter()
             .collect::<FxHashMap<_, _>>()
         }]),
 
@@ -343,7 +344,7 @@ async fn wait_for_task_to_finish(
     {
         tokio::time::sleep(Duration::from_secs(1)).await;
         logs = user.client.get_recent_logs().await?;
-        num_checks = num_checks + 1;
+        num_checks += 1;
         if num_checks > 30 {
             panic!("Timed out waiting for logs, last saw {:?}", logs)
         }

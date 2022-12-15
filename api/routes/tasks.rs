@@ -665,7 +665,7 @@ async fn post_task_trigger(
         task_query_field, task_query_field_cast
     ))
     .bind(ids.as_slice())
-    .bind(&org_id.0)
+    .bind(org_id.0)
     .bind(&trigger_id)
     .bind(task_query_value)
     .fetch_optional(&data.pg)

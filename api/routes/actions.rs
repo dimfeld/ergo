@@ -145,7 +145,7 @@ pub async fn new_action(
 
         let mut query = sqlx::query(&q);
         for account_type in &payload.account_types {
-            query = query.bind(account_type).bind(&payload.action_id.0);
+            query = query.bind(account_type).bind(payload.action_id.0);
         }
 
         query.execute(&mut tx).await?;
@@ -220,7 +220,7 @@ pub async fn write_action(
 
         let mut query = sqlx::query(&q);
         for account_type in &payload.account_types {
-            query = query.bind(account_type).bind(&payload.action_id.0);
+            query = query.bind(account_type).bind(payload.action_id.0);
         }
 
         query.execute(&mut tx).await?;

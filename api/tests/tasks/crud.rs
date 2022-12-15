@@ -16,8 +16,6 @@ use ergo_api::routes::tasks::{
 use ergo_database::object_id::{OrgId, TaskId};
 use futures::future::join_all;
 use fxhash::FxHashMap;
-use serde_json::json;
-use smallvec::smallvec;
 
 use super::{BootstrappedActions, BootstrappedInputs};
 
@@ -138,8 +136,8 @@ async fn list_tasks() {
                         name: task.name.clone(),
                         description: task.description.clone(),
                         enabled: task.enabled,
-                        created: reference_time.clone(),
-                        modified: reference_time.clone(),
+                        created: reference_time,
+                        modified: reference_time,
                         last_triggered: None,
                         successes: 0,
                         failures: 0,
@@ -669,7 +667,8 @@ async fn list_inputs() {
             .into_iter()
             .map(|i| (i.input_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
-        let expected_inputs = std::array::IntoIter::new([inputs.url.clone()])
+        let expected_inputs = [inputs.url.clone()]
+            .into_iter()
             .map(|i| (i.input_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
         assert_eq!(input_list, expected_inputs, "Inputs match expected list");
@@ -706,7 +705,8 @@ async fn list_actions() {
             .map(|i| (i.action_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
 
-        let expected_actions = std::array::IntoIter::new([actions.echo.clone()])
+        let expected_actions = [actions.echo.clone()]
+            .into_iter()
             .map(|i| (i.action_id.clone(), i))
             .collect::<FxHashMap<_, _>>();
 

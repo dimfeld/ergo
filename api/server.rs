@@ -145,7 +145,7 @@ pub async fn start(config: Config) -> Result<Server> {
         })
         .into_bytes();
 
-    let serve_dir = env::var("SERVE_DIR").ok().unwrap_or_else(String::new);
+    let serve_dir = env::var("SERVE_DIR").ok().unwrap_or_default();
 
     let server = HttpServer::new(move || {
         let sessions = SessionMiddleware::new(
