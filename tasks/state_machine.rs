@@ -22,7 +22,7 @@ pub enum StateMachineError {
     #[error("Payload is missing required field {0}")]
     InputPayloadMissingField(String),
     #[error(transparent)]
-    ScriptError(anyhow::Error),
+    ScriptError(ergo_js::Error),
 }
 
 pub type StateMachineConfig = SmallVec<[StateMachine; 1]>;

@@ -98,7 +98,7 @@ pub async fn run_simple_with_context_and_payload<
     script: &str,
     context: Option<&serde_json::Value>,
     payload: Option<&serde_json::Value>,
-) -> Result<RESULT, anyhow::Error> {
+) -> Result<RESULT, ergo_js::Error> {
     let payload_arg = payload
         .map(Cow::Borrowed)
         .unwrap_or(Cow::Owned(serde_json::Value::Null));
@@ -119,7 +119,7 @@ pub async fn run_simple_with_context_and_payload<
 pub async fn run_simple_with_args<RESULT: DeserializeOwned + std::fmt::Debug + Send + 'static>(
     script: &str,
     args: &[(&str, &serde_json::Value)],
-) -> Result<RESULT, anyhow::Error> {
+) -> Result<RESULT, ergo_js::Error> {
     let wrapped = format!(
         r##"(function({arg_names}) {{
             {script}

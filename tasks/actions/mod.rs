@@ -94,7 +94,7 @@ impl Action {
 }
 
 #[cfg(not(target_family = "wasm"))]
-async fn run_script(s: &str) -> Result<FxHashMap<String, serde_json::Value>, anyhow::Error> {
+async fn run_script(s: &str) -> Result<FxHashMap<String, serde_json::Value>, ergo_js::Error> {
     let s = s.to_string();
     scripting::POOL
         .run(move || {

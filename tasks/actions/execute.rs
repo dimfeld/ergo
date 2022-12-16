@@ -635,7 +635,7 @@ mod native {
         TemplateError(#[from] TemplateError),
 
         #[error("Script error: {0}")]
-        ScriptError(anyhow::Error),
+        ScriptError(ergo_js::Error),
 
         #[error(transparent)]
         ExecutorError(#[from] ExecutorError),

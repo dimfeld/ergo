@@ -130,15 +130,16 @@ impl DataFlowNodeFunction {
     pub(super) async fn execute(
         &self,
         task_name: &str,
+        node_name: &str,
         current_state: &serde_json::Value,
         input: NodeInput,
     ) -> Result<NodeResult> {
         match self {
-            Self::Js(expr) => run_js(task_name, expr, current_state.clone(), input)
+            Self::Js(expr) => run_js(task_name, node_name, expr, current_state.clone(), input)
                 .await
                 .map(NodeResult::from),
             Self::Action(expr) => {
-                evaluate_action_node(task_name, expr, current_state.clone(), input).await
+                evaluate_action_node(task_name, node_name, expr, current_state.clone(), input).await
             }
             Self::Text(_) | Self::Table | Self::Graph | Self::Trigger(_) => Ok(NodeResult::empty()),
         }
@@ -162,12 +163,20 @@ impl DataFlowNodeFunction {
 }
 
 async fn evaluate_action_node(
-    name: &str,
+    task_name: &str,
+    node_name: &str,
     action: &DataFlowAction,
     current_state: serde_json::Value,
     input: NodeInput,
 ) -> Result<NodeResult> {
-    let (result, console) = run_js(name, &action.payload_code, current_state, input).await?;
+    let (result, console) = run_js(
+        task_name,
+        node_name,
+        &action.payload_code,
+        current_state,
+        input,
+    )
+    .await?;
 
     let action = match &result {
         serde_json::Value::Null => None,
@@ -191,14 +200,13 @@ const FUNCTION_END: &str = r##" }"##;
 const SYNC_FUNCTION_START: &str = r##"(function() { "##;
 
 async fn run_js(
-    name: &str,
+    task_name: &str,
+    node_name: &str,
     expr: &DataFlowJs,
     current_state: serde_json::Value,
     input: NodeInput,
 ) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
-    let main_url = url::Url::parse(&format!("https://ergo/tasks/{}.js", name))
-        .map_err(|e| Error::TaskScriptSetup(e.into()))?;
-
+    let name = format!("https://ergo/tasks/{task_name}/{node_name}.js");
     let wrapped = match expr.format {
         JsCodeFormat::Expression => expr.code.clone(),
         JsCodeFormat::Function => format!(
@@ -215,20 +223,12 @@ async fn run_js(
         let mut runtime = create_task_script_runtime(true);
         set_up_env(&mut runtime, current_state, input).map_err(Error::TaskScriptSetup)?;
 
-        let run_result = runtime.run_main_module(main_url, wrapped).await;
+        let run_result = runtime
+            .await_expression::<serde_json::Value>(&name, &wrapped)
+            .await;
         let console = runtime.take_console_messages();
         match run_result {
-            Ok(()) => {
-                let result_value: serde_json::Value = runtime
-                    .await_global_value("__ergo_result")
-                    .await
-                    // TODO Probably need to handle the unresolved promise error here.
-                    .ok()
-                    .unwrap_or_default()
-                    .unwrap_or_default();
-
-                Ok((result_value, console))
-            }
+            Ok(value) => Ok((value, console)),
             // TODO Generate a source map and use it to translate the code locations in the error.
             Err(error) => Err(Error::TaskScript { error, console }),
         }

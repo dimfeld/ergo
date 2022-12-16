@@ -65,7 +65,7 @@ pub enum Error {
     #[cfg(not(target_family = "wasm"))]
     TaskScript {
         #[source]
-        error: anyhow::Error,
+        error: ergo_js::Error,
         console: Vec<ConsoleMessage>,
     },
 
@@ -267,7 +267,7 @@ pub enum ActionValidateError {
     UnknownExecutor(String),
 
     #[error("Script error: {0}")]
-    ScriptError(anyhow::Error),
+    ScriptError(ergo_js::Error),
 
     #[error("Template error: {0}")]
     TemplateError(#[from] TemplateError),

@@ -64,7 +64,10 @@ pub async fn run_task(
                     actions,
                 })
             }
-            Err(e) => Err(Error::TaskScript { error: e, console }),
+            Err(e) => Err(Error::TaskScript {
+                error: e.into(),
+                console,
+            }),
         }
     })
     .await

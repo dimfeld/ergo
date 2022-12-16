@@ -100,7 +100,7 @@ impl Executor for JsExecutor {
                     .unwrap_or_else(|_| serde_json::Value::Array(Vec::new()));
 
                 run_result.map_err(|e| ExecutorError::CommandError {
-                    source: e,
+                    source: e.into(),
                     result: std::mem::take(&mut console),
                 })?;
 

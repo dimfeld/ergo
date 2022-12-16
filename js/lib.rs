@@ -253,7 +253,7 @@ impl Runtime {
         &mut self,
         name: &str,
         script: &str,
-    ) -> Result<T, AnyError> {
+    ) -> Result<T, Error> {
         let result = self.runtime.execute_script(name, script)?;
         let mut scope = self.runtime.handle_scope();
         // Convert to a Local handle to work with from_v8.
@@ -300,7 +300,7 @@ impl Runtime {
         name: &str,
         value: &T,
         script: &str,
-    ) -> Result<bool, AnyError> {
+    ) -> Result<bool, Error> {
         self.set_global_value("value", value)?;
 
         let result = self.runtime.execute_script(name, script)?;
@@ -309,7 +309,7 @@ impl Runtime {
         Ok(local.boolean_value(&mut scope))
     }
 
-    pub fn set_global_value<T: Serialize>(&mut self, key: &str, value: &T) -> Result<(), AnyError> {
+    pub fn set_global_value<T: Serialize>(&mut self, key: &str, value: &T) -> Result<(), Error> {
         let mut scope = self.runtime.handle_scope();
         let jskey = v8::String::new(&mut scope, key).unwrap();
         let value = to_v8(&mut scope, value)?;
@@ -372,10 +372,8 @@ impl Runtime {
         }
 
         // Run the event loop and try one more time.
-        // This can be a bit more efficient by usinlg `resolve_value`.
-        dbg!("running event loop");
+        // This can be a bit more efficient by using `resolve_value`.
         self.run_event_loop(false).await?;
-        dbg!("ran event loop");
 
         match self.get_global_raw_value(key) {
             Some((mut scope, RetrievedV8Value::Value(v))) => {
@@ -411,11 +409,14 @@ impl Runtime {
         Some(scope.escape(object))
     }
 
-    pub async fn run_main_module(&mut self, url: Url, source: String) -> Result<(), AnyError> {
+    pub async fn run_main_module(&mut self, url: Url, source: String) -> Result<(), Error> {
         let mod_id = self.load_main_module(&url, Some(source)).await?;
         let mod_done = self.mod_evaluate(mod_id);
         self.run_event_loop(false).await?;
-        mod_done.await?
+        mod_done
+            .await
+            .map_err(|e| Error::Runtime(e.into()))?
+            .map_err(Error::from)
     }
 }
 

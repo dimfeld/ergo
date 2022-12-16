@@ -12,6 +12,7 @@ mod dag;
 mod node;
 
 pub use node::DataFlowNode;
+use tracing::{event, Level};
 
 use self::dag::{toposort_nodes, NodeWalker};
 
@@ -75,6 +76,7 @@ impl DataFlowConfig {
             .func
             .execute(
                 task_name,
+                &first_node.name,
                 &serde_json::Value::Null,
                 NodeInput::Single(payload),
             )
@@ -97,17 +99,28 @@ impl DataFlowConfig {
                 .filter(|edge| edge.to as usize == node_idx)
                 .map(|edge| {
                     let from_node = &self.nodes[edge.from as usize];
-                    let node_state = from_node.func.output(&state.nodes[edge.from as usize]);
+                    let node_state = from_node.func.output(
+                        state
+                            .nodes
+                            .get(edge.from as usize)
+                            .unwrap_or(&serde_json::Value::Null),
+                    );
 
                     (edge.name.clone(), node_state)
                 })
                 .collect::<FxHashMap<_, _>>();
 
+            let node_state = state
+                .nodes
+                .get(node_idx)
+                .unwrap_or(&serde_json::Value::Null);
+            event!(Level::DEBUG, node=%node.name, state=?node_state, ?input, "Evaluating node");
             let result = node
                 .func
                 .execute(
                     task_name,
-                    &state.nodes[node_idx],
+                    &node.name,
+                    node_state,
                     NodeInput::Multiple(input),
                 )
                 .await?;
@@ -229,7 +242,7 @@ mod tests {
                     code: r##"let result = x.value + y.value;
                           return result;"##
                         .into(),
-                    format: JsCodeFormat::Expression,
+                    format: JsCodeFormat::Function,
                 }),
             ),
             test_node(
@@ -302,7 +315,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore]
     async fn test_run_nodes() {
         let (_server, config) = test_config().await;
         let state = config.default_state();
@@ -312,5 +324,8 @@ mod tests {
             .await
             .unwrap();
         assert!(actions.is_empty());
+
+        dbg!(log);
+        dbg!(state);
     }
 }
