@@ -57,6 +57,12 @@ impl DataFlowConfig {
         trigger_id: &str,
         payload: serde_json::Value,
     ) -> Result<(DataFlowState, Option<DataFlowLog>, TaskActionInvocations)> {
+        if state.nodes.len() != self.nodes.len() {
+            state
+                .nodes
+                .resize(self.nodes.len(), serde_json::Value::Null);
+        }
+
         let trigger_node = self
             .nodes
             .iter()
@@ -115,6 +121,9 @@ impl DataFlowConfig {
                 .get(node_idx)
                 .unwrap_or(&serde_json::Value::Null);
             event!(Level::DEBUG, node=%node.name, state=?node_state, ?input, "Evaluating node");
+            dbg!(&node);
+            dbg!(&node_state);
+            dbg!(&input);
             let result = node
                 .func
                 .execute(
@@ -124,6 +133,7 @@ impl DataFlowConfig {
                     NodeInput::Multiple(input),
                 )
                 .await?;
+            dbg!(&result);
 
             if !result.console.is_empty() {
                 logs.push(DataFlowNodeLog {
@@ -187,6 +197,8 @@ mod tests {
         Mock, MockServer, ResponseTemplate,
     };
 
+    use crate::actions::TaskActionInvocation;
+
     use super::{node::*, *};
 
     fn test_node(name: impl Into<String>, func: DataFlowNodeFunction) -> DataFlowNode {
@@ -205,8 +217,8 @@ mod tests {
             .await;
 
         Mock::given(method("GET"))
-            .and(path(r"/doc/2"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "code": 6 })))
+            .and(path(r"/doc/3"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "code": 7 })))
             .mount(&mock_server)
             .await;
 
@@ -232,14 +244,14 @@ mod tests {
             test_node(
                 "add_one",
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: "payload.value + 1".into(),
+                    code: "value.value + 1".into(),
                     format: JsCodeFormat::Expression,
                 }),
             ),
             test_node(
                 "add_together",
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: r##"let result = x.value + y.value;
+                    code: r##"let result = (x?.value ?? 0) + (y?.value ?? 0);
                           return result;"##
                         .into(),
                     format: JsCodeFormat::Function,
@@ -250,7 +262,7 @@ mod tests {
                 DataFlowNodeFunction::Js(DataFlowJs {
                     format: JsCodeFormat::AsyncFunction,
                     code: format!(
-                        r##"const response = await fetch({base_url}/doc/${{doc_id}});
+                        r##"const response = await fetch(`{base_url}/doc/${{doc_id}}`);
                         const json = await response.json();
                         return {{ result: json.code }};"##,
                         base_url = mock_server.uri()
@@ -271,8 +283,9 @@ mod tests {
                     payload_code: DataFlowJs {
                         format: JsCodeFormat::Function,
                         code: r##"
-                        if(code > 0) {
-                            let contents = [label, code].join(' ');
+                        if(code?.result > 0) {
+                            let contents = [label, code.result].join(' ');
+                            console.log('Sending the email:', contents);
                             return { contents };
                         }
                         "##
@@ -319,13 +332,104 @@ mod tests {
         let (_server, config) = test_config().await;
         let state = config.default_state();
 
+        println!("Sending 1 to trigger1");
         let (state, log, actions) = config
-            .evaluate_trigger("task", state, "trigger1", json!({ "value": 5 }))
+            .evaluate_trigger("task", state, "trigger1", json!({ "value": 1 }))
             .await
             .unwrap();
-        assert!(actions.is_empty());
 
-        dbg!(log);
-        dbg!(state);
+        dbg!(&log);
+        dbg!(&actions);
+        dbg!(&state);
+
+        assert_eq!(
+            state.nodes,
+            vec![
+                json!({ "value": 1 }),
+                json!(null),
+                json!(2),
+                json!(1),
+                json!({ "result": 5 }),
+                json!(null),
+                json!({ "contents": "The value: 5" }),
+            ]
+        );
+        assert_eq!(
+            actions.as_slice(),
+            vec![TaskActionInvocation {
+                name: "send_email".to_string(),
+                payload: json!({ "contents": "The value: 5" }),
+            }]
+            .as_slice()
+        );
+
+        let log = &log.expect("log").run[0];
+        assert_eq!(log.node, "send_email");
+        assert_eq!(log.console.len(), 1);
+        assert_eq!(log.console[0].message, "Sending the email: The value: 5\n");
+
+        println!("Sending -1 to trigger2");
+        let (state, log, actions) = config
+            .evaluate_trigger("task", state, "trigger2", json!({ "value": -1 }))
+            .await
+            .unwrap();
+
+        dbg!(&log);
+        dbg!(&actions);
+        dbg!(&state);
+
+        // This should end up with the value sent to the email action being 0, so the code there won't
+        // send it.
+        assert!(actions.is_empty());
+        // No console messages in this case.
+        assert!(log.is_none());
+        assert_eq!(
+            state.nodes,
+            vec![
+                json!({ "value": 1 }),
+                json!({ "value": -1 }),
+                json!(2),
+                json!(0),
+                json!({ "result": 0 }),
+                json!(null),
+                json!(null),
+            ]
+        );
+
+        println!("Sending 2 to trigger2");
+        let (state, log, actions) = config
+            .evaluate_trigger("task", state, "trigger2", json!({ "value": 2 }))
+            .await
+            .unwrap();
+
+        dbg!(&log);
+        dbg!(&actions);
+        dbg!(&state);
+
+        assert_eq!(
+            state.nodes,
+            vec![
+                json!({ "value": 1 }),
+                json!({ "value": 2 }),
+                json!(2),
+                json!(3),
+                json!({ "result": 7 }),
+                json!(null),
+                json!({ "contents": "The value: 7" }),
+            ]
+        );
+        assert_eq!(
+            actions.as_slice(),
+            vec![TaskActionInvocation {
+                name: "send_email".to_string(),
+                payload: json!({ "contents": "The value: 7" }),
+            }]
+            .as_slice()
+        );
+
+        let log = &log.expect("log").run[0];
+        assert_eq!(log.node, "send_email");
+        assert_eq!(log.console.len(), 1);
+        assert_eq!(log.console[0].message, "Sending the email: The value: 7\n");
     }
 }

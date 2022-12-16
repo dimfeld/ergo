@@ -99,6 +99,15 @@ pub(super) enum NodeInput {
     Multiple(FxHashMap<String, serde_json::Value>),
 }
 
+impl From<NodeInput> for serde_json::Value {
+    fn from(input: NodeInput) -> Self {
+        match input {
+            NodeInput::Single(value) => value,
+            NodeInput::Multiple(map) => json!(map),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct NodeResult {
     pub state: serde_json::Value,
@@ -141,14 +150,19 @@ impl DataFlowNodeFunction {
             Self::Action(expr) => {
                 evaluate_action_node(task_name, node_name, expr, current_state.clone(), input).await
             }
-            Self::Text(_) | Self::Table | Self::Graph | Self::Trigger(_) => Ok(NodeResult::empty()),
+            Self::Trigger(_) => Ok(NodeResult {
+                state: input.into(),
+                action: None,
+                console: Vec::new(),
+            }),
+            Self::Text(_) | Self::Table | Self::Graph => Ok(NodeResult::empty()),
         }
     }
 
     pub(super) fn persist_output(&self) -> bool {
         match self {
-            Self::Js(_) | Self::Action(_) | Self::Text(_) => true,
-            Self::Table | Self::Graph | Self::Trigger(_) => false,
+            Self::Js(_) | Self::Action(_) | Self::Trigger(_) => true,
+            Self::Table | Self::Graph | Self::Text(_) => false,
         }
     }
 
@@ -184,7 +198,7 @@ async fn evaluate_action_node(
             name: action.action_id.clone(),
             payload: result.clone(),
         }),
-        // TODO Return an error here?
+        // TODO Log an error here?
         _ => None,
     };
 
@@ -196,8 +210,8 @@ async fn evaluate_action_node(
 }
 
 const ASYNC_FUNCTION_START: &str = r##"(async function() { "##;
-const FUNCTION_END: &str = r##" }"##;
 const SYNC_FUNCTION_START: &str = r##"(function() { "##;
+const FUNCTION_END: &str = r##" })()"##;
 
 async fn run_js(
     task_name: &str,

@@ -150,7 +150,7 @@ pub struct ActionInvocation {
 
 pub type ActionInvocations = SmallVec<[ActionInvocation; 1]>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq, Eq)]
 pub struct TaskActionInvocation {
     pub name: String,
     pub payload: serde_json::Value,
