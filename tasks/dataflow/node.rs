@@ -48,6 +48,7 @@ pub enum TextRenderAs {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowTrigger {
+    /// The `task_trigger_local_id` of the trigger that this node should listen for.
     pub local_id: String,
 }
 

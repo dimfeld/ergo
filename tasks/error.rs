@@ -78,6 +78,9 @@ pub enum Error {
     #[error("Node {0} does not exist")]
     MissingDataFlowNode(u32),
 
+    #[error("Node {0} does not exist")]
+    MissingDataFlowNodeName(String),
+
     #[error("Node {0} depends on {1}, which does not exist")]
     BadEdgeIndex(u32, u32),
 

@@ -1,8 +1,4 @@
-use crate::{
-    actions::TaskActionInvocations,
-    dataflow::node::{DataFlowNodeFunction, NodeInput},
-    Error, Result,
-};
+use crate::{actions::TaskActionInvocations, Error, Result};
 use ergo_js::ConsoleMessage;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -11,7 +7,7 @@ use serde::{Deserialize, Serialize};
 mod dag;
 mod node;
 
-pub use node::DataFlowNode;
+pub use node::*;
 use tracing::{event, Level};
 
 use self::dag::{toposort_nodes, NodeWalker};
@@ -77,7 +73,7 @@ impl DataFlowConfig {
         // Directly send the payload into the first node. The rest of the nodes have their state built the
         // normal way.
         let first_node_idx = walker.next().unwrap();
-        let first_node = &self.nodes[first_node_idx as usize];
+        let first_node = &self.nodes[first_node_idx];
         let new_state = first_node
             .func
             .execute(
@@ -96,7 +92,7 @@ impl DataFlowConfig {
         let mut actions = TaskActionInvocations::new();
 
         for node_idx in walker {
-            let node = &self.nodes[node_idx as usize];
+            let node = &self.nodes[node_idx];
 
             // Gather the inputs for the node
             let input = self
@@ -188,9 +184,41 @@ impl Ord for DataFlowEdge {
     }
 }
 
+pub fn edge_indexes_from_names(
+    nodes: &[DataFlowNode],
+    edges_by_name: &[(impl AsRef<str>, impl AsRef<str>, impl ToString)],
+) -> Result<Vec<DataFlowEdge>> {
+    let name_indexes = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, node)| (node.name.as_str(), i))
+        .collect::<FxHashMap<_, _>>();
+
+    edges_by_name
+        .iter()
+        .map(|(from, to, name)| {
+            let from = name_indexes
+                .get(from.as_ref())
+                .copied()
+                .ok_or_else(|| Error::MissingDataFlowNodeName(from.as_ref().to_string()))?
+                as u32;
+            let to = name_indexes
+                .get(to.as_ref())
+                .copied()
+                .ok_or_else(|| Error::MissingDataFlowNodeName(to.as_ref().to_string()))?
+                as u32;
+
+            Ok(DataFlowEdge {
+                from,
+                to,
+                name: name.to_string(),
+            })
+        })
+        .collect::<Result<Vec<_>>>()
+}
+
 #[cfg(test)]
 mod tests {
-    use fxhash::FxHashMap;
     use serde_json::json;
     use wiremock::{
         matchers::{method, path, path_regex},
@@ -199,7 +227,7 @@ mod tests {
 
     use crate::actions::TaskActionInvocation;
 
-    use super::{node::*, *};
+    use super::*;
 
     fn test_node(name: impl Into<String>, func: DataFlowNodeFunction) -> DataFlowNode {
         DataFlowNode {
@@ -295,12 +323,6 @@ mod tests {
             ),
         ];
 
-        let name_indexes = nodes
-            .iter()
-            .enumerate()
-            .map(|(i, node)| (node.name.clone(), i))
-            .collect::<FxHashMap<_, _>>();
-
         let edges_by_name = [
             ("trigger_a", "add_one", "value"),
             ("trigger_a", "add_together", "x"),
@@ -310,19 +332,7 @@ mod tests {
             ("fetch_given_value", "send_email", "code"),
         ];
 
-        let edges = edges_by_name
-            .into_iter()
-            .map(|(from, to, name)| {
-                let from = name_indexes[from] as u32;
-                let to = name_indexes[to] as u32;
-
-                DataFlowEdge {
-                    from,
-                    to,
-                    name: name.to_string(),
-                }
-            })
-            .collect::<Vec<_>>();
+        let edges = edge_indexes_from_names(&nodes, &edges_by_name).expect("building edges");
 
         (mock_server, DataFlowConfig::new(nodes, edges).unwrap())
     }
