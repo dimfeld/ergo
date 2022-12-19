@@ -736,18 +736,21 @@ async fn get_logs(data: BackendAppStateData, auth: Authenticated) -> Result<impl
                 MAX(tt.name) AS "task_trigger_name!",
                 il.task_trigger_local_id,
                 il.updated AS "timestamp",
-                jsonb_agg(jsonb_build_object(
-                    'actions_log_id', al.actions_log_id,
-                    'task_action_local_id', ta.task_action_local_id,
-                    'task_action_name', ta.name,
-                    'result', COALESCE(al.result, 'null'::jsonb),
-                    'status', al.status,
-                    'timestamp', al.updated
-                )) AS "actions!: sqlx::types::Json<Vec<InputLogEntryAction>>"
+                COALESCE(
+                    jsonb_agg(jsonb_build_object(
+                        'actions_log_id', al.actions_log_id,
+                        'task_action_local_id', ta.task_action_local_id,
+                        'task_action_name', ta.name,
+                        'result', COALESCE(al.result, 'null'::jsonb),
+                        'status', al.status,
+                        'timestamp', al.updated
+                    ))
+                    FILTER (WHERE al.actions_log_id IS NOT NULL)
+                , '[]'::jsonb) AS "actions!: sqlx::types::Json<Vec<InputLogEntryAction>>"
             FROM tasks
             JOIN inputs_log il USING (task_id)
-            JOIN actions_log al USING(inputs_log_id)
-            JOIN task_actions ta USING(task_action_local_id)
+            LEFT JOIN actions_log al USING(inputs_log_id)
+            LEFT JOIN task_actions ta USING(task_action_local_id)
             JOIN task_triggers tt USING(task_trigger_id)
             WHERE tasks.org_id = $2 AND
                 EXISTS(SELECT 1 FROM user_entity_permissions
