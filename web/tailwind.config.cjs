@@ -4,7 +4,6 @@ const formsPlugin = require('@tailwindcss/forms');
 const { autoDarkPlugin, autoDarkColors } = require('./tailwind-autodark.cjs');
 
 const config = {
-  mode: 'jit',
   content: ['./src/**/*.{html,js,svelte,ts}'],
   theme: {
     extend: {

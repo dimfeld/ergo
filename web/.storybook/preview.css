@@ -1,5 +1,5 @@
 #root {
-  @apply bg-gray-50 text-gray-900 p-4 min-h-screen;
+  @apply min-h-screen bg-gray-50 p-4 text-gray-900;
 }
 
 #root.dark {
