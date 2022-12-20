@@ -40,7 +40,7 @@ pub enum RetrievedV8Value<'s> {
 pub enum Error {
     #[error("The value is a promise that failed to resolve")]
     UnresolvedPromise,
-    #[error("The promise was rejected")]
+    #[error("Rejected Promise: {0}")]
     RejectedPromise(deno_core::error::JsError),
     #[error("Failed to deserialize value")]
     Deserialize(#[from] serde_v8::Error),

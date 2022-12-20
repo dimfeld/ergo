@@ -69,6 +69,15 @@ pub enum Error {
         console: Vec<ConsoleMessage>,
     },
 
+    #[error("Dataflow node {node} script error: {error}")]
+    #[cfg(not(target_family = "wasm"))]
+    DataflowScript {
+        node: String,
+        #[source]
+        error: ergo_js::Error,
+        console: Vec<ConsoleMessage>,
+    },
+
     #[error("Parsing cron schedule: {0}")]
     CronParseError(#[from] cron::error::Error),
 

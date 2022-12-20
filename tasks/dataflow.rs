@@ -236,7 +236,7 @@ mod tests {
         }
     }
 
-    async fn test_config() -> (MockServer, DataFlowConfig) {
+    async fn test_config(script_error: bool) -> (MockServer, DataFlowConfig) {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path(r"/doc/1"))
@@ -290,10 +290,11 @@ mod tests {
                 DataFlowNodeFunction::Js(DataFlowJs {
                     format: JsCodeFormat::AsyncFunction,
                     code: format!(
-                        r##"const response = await fetch(`{base_url}/doc/${{doc_id}}`);
+                        r##"const response = await {fn_name}(`{base_url}/doc/${{doc_id}}`);
                         const json = await response.json();
                         return {{ result: json.code }};"##,
-                        base_url = mock_server.uri()
+                        base_url = mock_server.uri(),
+                        fn_name = if script_error { "bad_func" } else { "fetch" }
                     ),
                 }),
             ),
@@ -339,7 +340,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_nodes() {
-        let (_server, config) = test_config().await;
+        let (_server, config) = test_config(false).await;
         let state = config.default_state();
 
         println!("Sending 1 to trigger1");
@@ -441,5 +442,26 @@ mod tests {
         assert_eq!(log.node, "send_email");
         assert_eq!(log.console.len(), 1);
         assert_eq!(log.console[0].message, "Sending the email: The value: 7\n");
+    }
+
+    #[tokio::test]
+    async fn bad_script() {
+        let (_server, config) = test_config(true).await;
+        let state = config.default_state();
+
+        println!("Sending 1 to trigger1");
+        let err = config
+            .evaluate_trigger("task", state, "trigger1", json!({ "value": 1 }))
+            .await
+            .expect_err("should have failed");
+
+        if let Error::DataflowScript { node, error, .. } = err {
+            assert_eq!(node, "fetch_given_value");
+            assert!(error
+                .to_string()
+                .contains("ReferenceError: bad_func is not defined"));
+        } else {
+            panic!("Unexpected error: {:?}", err);
+        }
     }
 }

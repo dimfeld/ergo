@@ -249,6 +249,14 @@ async fn run_js(
         }
     })
     .await
+    .map_err(|e| match e {
+        Error::TaskScript { error, console } => Error::DataflowScript {
+            node: node_name.to_string(),
+            error,
+            console,
+        },
+        _ => e,
+    })
 }
 
 fn set_up_env(
