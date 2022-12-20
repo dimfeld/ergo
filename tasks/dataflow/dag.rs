@@ -20,7 +20,7 @@ impl<'a> NodeWalker<'a> {
 
         let max_node = config.nodes.len();
 
-        let mut active = BitSet::with_capacity(max_node as usize + 1);
+        let mut active = BitSet::with_capacity(max_node + 1);
         Self::find_active_nodes(config, node_id, &mut active)?;
 
         Ok(NodeWalker {
@@ -134,6 +134,7 @@ mod tests {
     fn blank_node() -> DataFlowNode {
         DataFlowNode {
             name: "test_node".into(),
+            allow_null_inputs: true,
             func: DataFlowNodeFunction::Text(DataFlowText {
                 body: String::new(),
                 render_as: crate::dataflow::node::TextRenderAs::PlainText,

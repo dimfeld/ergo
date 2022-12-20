@@ -380,35 +380,35 @@ async fn bootstrap_dataflow_task(base: &BootstrappedData) -> (TaskId, TaskInput)
     let dataflow_nodes = vec![
         DataFlowNode {
             name: "input_url".to_string(),
+            allow_null_inputs: true,
             func: DataFlowNodeFunction::Trigger(DataFlowTrigger {
                 local_id: "request_url".to_string(),
             }),
         },
         DataFlowNode {
             name: "input_doc".to_string(),
+            allow_null_inputs: true,
             func: DataFlowNodeFunction::Trigger(DataFlowTrigger {
                 local_id: "doc_id".to_string(),
             }),
         },
         DataFlowNode {
             name: "fetch_value".to_string(),
+            allow_null_inputs: false,
             func: DataFlowNodeFunction::Js(DataFlowJs {
-                code:
-                    r##"if(!base_url || !doc_id) {
-                        return;
-                    }
-
-                    let res = await fetch(base_url.url + doc_id.value);
-                    return res.json();"##.into(),
+                code: r##"let res = await fetch(base_url.url + doc_id.value);
+                    return res.json();"##
+                    .into(),
                 format: JsCodeFormat::AsyncFunction,
             }),
         },
         DataFlowNode {
             name: "action".to_string(),
+            allow_null_inputs: false,
             func: DataFlowNodeFunction::Action(DataFlowAction {
                 action_id: "send".into(),
                 payload_code: DataFlowJs {
-                    code: r##"fetch_result ? { url: fetch_result.url, payload: { value: "abc" } } : null"##.to_string(),
+                    code: r##"{ url: fetch_result.url, payload: { value: "abc" } }"##.to_string(),
                     format: JsCodeFormat::Expression,
                 },
             }),
@@ -426,7 +426,6 @@ async fn bootstrap_dataflow_task(base: &BootstrappedData) -> (TaskId, TaskInput)
     let dataflow_config = TaskConfig::DataFlow(
         DataFlowConfig::new(dataflow_nodes, edges).expect("building dataflow config"),
     );
-    let dataflow_state = dataflow_config.default_state();
 
     let dataflow_task = TaskInput {
         name: "dataflow task".to_string(),

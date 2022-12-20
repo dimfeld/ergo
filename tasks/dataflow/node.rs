@@ -12,6 +12,7 @@ use serde_json::json;
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowNode {
     pub name: String,
+    pub allow_null_inputs: bool,
     pub func: DataFlowNodeFunction,
 }
 
@@ -223,7 +224,10 @@ async fn run_js(
 ) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
     let name = format!("https://ergo/tasks/{task_name}/{node_name}.js");
     let wrapped = match expr.format {
-        JsCodeFormat::Expression => expr.code.clone(),
+        JsCodeFormat::Expression => format!(
+            "{SYNC_FUNCTION_START}return {body}{FUNCTION_END}",
+            body = expr.code
+        ),
         JsCodeFormat::Function => format!(
             "{SYNC_FUNCTION_START}{body}{FUNCTION_END}",
             body = expr.code

@@ -108,9 +108,22 @@ impl DataFlowConfig {
                             .unwrap_or(&serde_json::Value::Null),
                     );
 
-                    (edge.name.clone(), node_state)
+                    if !node.allow_null_inputs && node_state == serde_json::Value::Null {
+                        // Return an Err just because it's a convenient way to short-circuit the
+                        // iteration.
+                        Err(())
+                    } else {
+                        Ok((edge.name.clone(), node_state))
+                    }
                 })
-                .collect::<FxHashMap<_, _>>();
+                .collect::<Result<FxHashMap<_, _>, ()>>();
+
+            let input = match input {
+                Ok(input) => input,
+                // This just means that the node is not running because one of its inputs is null.
+                // Not a real error, so just continue to the next node.
+                Err(()) => continue,
+            };
 
             let node_state = state
                 .nodes
@@ -229,14 +242,22 @@ mod tests {
 
     use super::*;
 
-    fn test_node(name: impl Into<String>, func: DataFlowNodeFunction) -> DataFlowNode {
+    fn test_node(
+        name: impl Into<String>,
+        allow_null_inputs: bool,
+        func: DataFlowNodeFunction,
+    ) -> DataFlowNode {
         DataFlowNode {
             name: name.into(),
+            allow_null_inputs,
             func,
         }
     }
 
-    async fn test_config(script_error: bool) -> (MockServer, DataFlowConfig) {
+    async fn test_config(
+        allow_null_inputs: bool,
+        script_error: bool,
+    ) -> (MockServer, DataFlowConfig) {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path(r"/doc/1"))
@@ -259,18 +280,21 @@ mod tests {
         let nodes = vec![
             test_node(
                 "trigger_a",
+                false,
                 DataFlowNodeFunction::Trigger(DataFlowTrigger {
                     local_id: "trigger1".to_string(),
                 }),
             ),
             test_node(
                 "trigger_b",
+                false,
                 DataFlowNodeFunction::Trigger(DataFlowTrigger {
                     local_id: "trigger2".to_string(),
                 }),
             ),
             test_node(
                 "add_one",
+                false,
                 DataFlowNodeFunction::Js(DataFlowJs {
                     code: "value.value + 1".into(),
                     format: JsCodeFormat::Expression,
@@ -278,15 +302,25 @@ mod tests {
             ),
             test_node(
                 "add_together",
+                allow_null_inputs,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: r##"let result = (x?.value ?? 0) + (y?.value ?? 0);
-                          return result;"##
-                        .into(),
+                    code: format!(
+                        r##"
+                        let result = {result_add};
+                        console.log(`added together ${{result}}`);
+                        return result;"##,
+                        result_add = if allow_null_inputs {
+                            "(x?.value ?? 0) + (y?.value ?? 0)"
+                        } else {
+                            "x.value + y.value"
+                        }
+                    ),
                     format: JsCodeFormat::Function,
                 }),
             ),
             test_node(
                 "fetch_given_value",
+                allow_null_inputs,
                 DataFlowNodeFunction::Js(DataFlowJs {
                     format: JsCodeFormat::AsyncFunction,
                     code: format!(
@@ -300,6 +334,7 @@ mod tests {
             ),
             test_node(
                 "email_label",
+                false,
                 DataFlowNodeFunction::Text(DataFlowText {
                     body: "The value:".into(),
                     render_as: TextRenderAs::PlainText,
@@ -307,12 +342,13 @@ mod tests {
             ),
             test_node(
                 "send_email",
+                allow_null_inputs,
                 DataFlowNodeFunction::Action(DataFlowAction {
                     action_id: "send_email".to_string(),
                     payload_code: DataFlowJs {
                         format: JsCodeFormat::Function,
                         code: r##"
-                        if(code?.result > 0) {
+                        if(code.result) {
                             let contents = [label, code.result].join(' ');
                             console.log('Sending the email:', contents);
                             return { contents };
@@ -340,7 +376,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_run_nodes() {
-        let (_server, config) = test_config(false).await;
+        let (_server, config) = test_config(true, false).await;
         let state = config.default_state();
 
         println!("Sending 1 to trigger1");
@@ -374,10 +410,18 @@ mod tests {
             .as_slice()
         );
 
-        let log = &log.expect("log").run[0];
-        assert_eq!(log.node, "send_email");
-        assert_eq!(log.console.len(), 1);
-        assert_eq!(log.console[0].message, "Sending the email: The value: 5\n");
+        let log = log.expect("log exists");
+
+        assert_eq!(log.run[0].node, "add_together");
+        assert_eq!(log.run[0].console.len(), 1);
+        assert_eq!(log.run[0].console[0].message, "added together 1\n");
+
+        assert_eq!(log.run[1].node, "send_email");
+        assert_eq!(log.run[1].console.len(), 1);
+        assert_eq!(
+            log.run[1].console[0].message,
+            "Sending the email: The value: 5\n"
+        );
 
         println!("Sending -1 to trigger2");
         let (state, log, actions) = config
@@ -392,8 +436,12 @@ mod tests {
         // This should end up with the value sent to the email action being 0, so the code there won't
         // send it.
         assert!(actions.is_empty());
-        // No console messages in this case.
-        assert!(log.is_none());
+
+        let log = log.expect("log exists");
+        assert_eq!(log.run[0].node, "add_together");
+        assert_eq!(log.run[0].console.len(), 1);
+        assert_eq!(log.run[0].console[0].message, "added together 0\n");
+
         assert_eq!(
             state.nodes,
             vec![
@@ -438,15 +486,91 @@ mod tests {
             .as_slice()
         );
 
-        let log = &log.expect("log").run[0];
-        assert_eq!(log.node, "send_email");
-        assert_eq!(log.console.len(), 1);
-        assert_eq!(log.console[0].message, "Sending the email: The value: 7\n");
+        let log = log.expect("log exists");
+
+        assert_eq!(log.run[0].node, "add_together");
+        assert_eq!(log.run[0].console.len(), 1);
+        assert_eq!(log.run[0].console[0].message, "added together 3\n");
+
+        assert_eq!(log.run[1].node, "send_email");
+        assert_eq!(log.run[1].console.len(), 1);
+        assert_eq!(
+            log.run[1].console[0].message,
+            "Sending the email: The value: 7\n"
+        );
+    }
+
+    #[tokio::test]
+    async fn allow_null_inputs_false() {
+        let (_server, config) = test_config(false, false).await;
+        let state = config.default_state();
+
+        println!("Sending 1 to trigger1");
+        let (state, log, actions) = config
+            .evaluate_trigger("task", state, "trigger1", json!({ "value": 1 }))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            state.nodes,
+            vec![
+                json!({ "value": 1 }),
+                json!(null),
+                json!(2),
+                json!(null),
+                json!(null),
+                json!(null),
+                json!(null),
+            ]
+        );
+
+        assert!(actions.is_empty());
+        assert!(log.is_none());
+
+        println!("Sending 2 to trigger2");
+        let (state, log, actions) = config
+            .evaluate_trigger("task", state, "trigger2", json!({ "value": 2 }))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            state.nodes,
+            vec![
+                json!({ "value": 1 }),
+                json!({ "value": 2 }),
+                json!(2),
+                json!(3),
+                json!({ "result": 7 }),
+                json!(null),
+                json!({ "contents": "The value: 7" }),
+            ]
+        );
+        assert_eq!(
+            actions.as_slice(),
+            vec![TaskActionInvocation {
+                name: "send_email".to_string(),
+                payload: json!({ "contents": "The value: 7" }),
+            }]
+            .as_slice()
+        );
+
+        let log = log.expect("log exists");
+
+        assert_eq!(log.run[0].node, "add_together");
+        assert_eq!(log.run[0].console.len(), 1);
+        assert_eq!(log.run[0].console[0].message, "added together 3\n");
+
+        assert_eq!(log.run[1].node, "send_email");
+        assert_eq!(log.run[1].console.len(), 1);
+        assert_eq!(
+            log.run[1].console[0].message,
+            "Sending the email: The value: 7\n"
+        );
     }
 
     #[tokio::test]
     async fn bad_script() {
-        let (_server, config) = test_config(true).await;
+        let (_server, config) = test_config(true, true).await;
         let state = config.default_state();
 
         println!("Sending 1 to trigger1");
