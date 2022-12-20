@@ -394,9 +394,13 @@ async fn bootstrap_dataflow_task(base: &BootstrappedData) -> (TaskId, TaskInput)
             name: "fetch_value".to_string(),
             func: DataFlowNodeFunction::Js(DataFlowJs {
                 code:
-                    r##"(base_url && doc_id) ? fetch(base_url.url + doc_id.value).then((r) => r.json()) : null"##
-                        .into(),
-                format: JsCodeFormat::Expression,
+                    r##"if(!base_url || !doc_id) {
+                        return;
+                    }
+
+                    let res = await fetch(base_url.url + doc_id.value);
+                    return res.json();"##.into(),
+                format: JsCodeFormat::AsyncFunction,
             }),
         },
         DataFlowNode {
@@ -416,6 +420,7 @@ async fn bootstrap_dataflow_task(base: &BootstrappedData) -> (TaskId, TaskInput)
         ("input_doc", "fetch_value", "doc_id"),
         ("fetch_value", "action", "fetch_result"),
     ];
+
     let edges = edge_indexes_from_names(&dataflow_nodes, &edges).expect("building edges");
 
     let dataflow_config = TaskConfig::DataFlow(
