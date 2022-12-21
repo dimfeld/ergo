@@ -1,0 +1,246 @@
+import { derived, writable } from 'svelte/store';
+import { spring } from 'svelte/motion';
+import equal from 'fast-deep-equal';
+
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface DragPosition {
+  current: Point;
+  target: Point;
+}
+
+export function positionStore(initial: Point) {
+  const sp = spring(initial, { stiffness: 0.3, damping: 0.5 });
+  const immediate = writable(initial);
+  const output = derived([sp, immediate], ([$sp, $immediate]) => {
+    return {
+      current: { x: Math.round($sp.x), y: Math.round($sp.y) },
+      target: $immediate,
+    };
+  });
+
+  return {
+    set(point: Point, opts?) {
+      immediate.set(point);
+      return sp.set(point, opts);
+    },
+    subscribe: output.subscribe,
+  };
+}
+
+export interface DragUpdate {
+  position: DragPosition;
+  dragging: boolean;
+  transform: string;
+}
+
+export interface DragActionConfig {
+  /** Called whenever the state updates */
+  onChange(change: DragUpdate): void;
+
+  position: Point;
+  /** Set to false to disable dragging, as a convenience since Svelte doesn't make it easy to
+   * conditionally apply an action. Node that this value can not currently be updated without
+   * recreating the element.
+   * @default true
+   */
+  enableDrag?: boolean;
+  /** Set to true to enable capturing mouse wheel events.
+   * @default false */
+  enableWheel?: boolean;
+
+  deadZone?: number;
+
+  allowGpuAcceleration?: boolean;
+}
+
+export function drag(node: HTMLElement, config: DragActionConfig) {
+  const { enableDrag = true, enableWheel } = config;
+  if (enableDrag === false && !enableWheel) {
+    return {};
+  }
+
+  let onChange = config.onChange;
+  let deadZone = config.deadZone ?? 0;
+  let allowGpuAcceleration = config.allowGpuAcceleration ?? true;
+
+  let ps = positionStore(config.position);
+
+  let position = {
+    current: config.position,
+    target: config.position,
+  };
+
+  let dragging = false;
+  let dragStartPos = { x: 0, y: 0 };
+  let dragMouseStartPos = { x: 0, y: 0 };
+  let oldBodyUserSelect: string | null = null;
+
+  let lastCb: DragUpdate | undefined = undefined;
+  const callCb = () => {
+    const transform =
+      dragging && allowGpuAcceleration
+        ? `translate3d(${position.current.x}px, ${position.current.y}px, 0) scale(1)`
+        : `translate(${position.current.x}px, ${position.current.y}px) scale(1)`;
+
+    const thisUpdate = { position, dragging, transform };
+    if (lastCb && equal(lastCb, thisUpdate)) {
+      return;
+    }
+    lastCb = thisUpdate;
+    onChange(thisUpdate);
+  };
+
+  const updateDomPosition = (pos: DragPosition) => {
+    position = pos;
+    callCb();
+  };
+
+  const handleDragStart = (event: MouseEvent | TouchEvent) => {
+    let clientX: number;
+    let clientY: number;
+    if (event instanceof TouchEvent) {
+      if (event.touches.length > 1) {
+        // Skip if more than one finger is used, to avoid interfernce with phone gestures.
+        return;
+      }
+
+      ({ clientX, clientY } = event.touches[0]);
+      document.addEventListener('touchmove', handleDragMove, { passive: false });
+      document.addEventListener('touchend', handleDragEnd, { passive: true });
+    } else {
+      ({ clientX, clientY } = event);
+      document.addEventListener('mousemove', handleDragMove, { passive: false });
+      document.addEventListener('mouseup', handleDragEnd, { passive: true });
+    }
+
+    // Prevent text selection while dragging since it's annoying.
+    oldBodyUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = 'none';
+
+    dragging = true;
+    dragStartPos = position.target;
+    dragMouseStartPos = { x: clientX, y: clientY };
+    callCb();
+  };
+
+  const handleDragMove = (event: MouseEvent | TouchEvent) => {
+    if (!dragging) {
+      return;
+    }
+
+    event.preventDefault();
+
+    let { clientX, clientY } = event instanceof TouchEvent ? event.touches[0] : event;
+
+    let newPosition = {
+      x: Math.round(dragStartPos.x + (clientX - dragMouseStartPos.x)),
+      y: Math.round(dragStartPos.y + (clientY - dragMouseStartPos.y)),
+    };
+
+    // If we haven't yet exceeded the dead zone, then do nothing. After the initial move
+    // we stop checking the dead zone.
+    if (deadZone && position.target.x === dragStartPos.x && position.target.y === dragStartPos.y) {
+      let delta = Math.sqrt(
+        (newPosition.x - dragStartPos.x) ** 2 + (newPosition.y - dragStartPos.y) ** 2
+      );
+
+      if (delta < deadZone) {
+        return;
+      }
+    }
+
+    ps.set(newPosition);
+  };
+
+  const handleDragEnd = () => {
+    dragging = false;
+
+    if (oldBodyUserSelect != null) {
+      document.body.style.userSelect = oldBodyUserSelect;
+      oldBodyUserSelect = null;
+    }
+
+    document.removeEventListener('mousemove', handleDragMove);
+    document.removeEventListener('mouseup', handleDragEnd);
+    document.removeEventListener('touchmove', handleDragMove);
+    document.removeEventListener('touchend', handleDragEnd);
+
+    callCb();
+  };
+
+  function handleWheel(event: WheelEvent) {
+    event.preventDefault();
+
+    let multiplier = 1;
+    switch (event.deltaMode) {
+      case WheelEvent.DOM_DELTA_PIXEL:
+        multiplier = 0.2;
+        break;
+      case WheelEvent.DOM_DELTA_LINE:
+        multiplier = 2;
+        break;
+      case WheelEvent.DOM_DELTA_PAGE:
+        multiplier = 4;
+        break;
+    }
+
+    ps.set({
+      x: position.current.x + event.deltaX * multiplier,
+      y: position.current.y + event.deltaY * multiplier,
+    });
+  }
+
+  const dragHandler = (event: MouseEvent) => {
+    if (node === event.target) {
+      handleDragStart(event);
+    }
+  };
+
+  const wheelHandler = (event: WheelEvent) => {
+    if (node === event.target) {
+      handleWheel(event);
+    }
+  };
+
+  if (enableDrag) {
+    node.addEventListener('mousedown', dragHandler, { passive: true });
+    node.addEventListener('touchstart', dragHandler, { passive: true });
+  }
+
+  if (enableWheel) {
+    node.addEventListener('wheel', wheelHandler, { passive: false });
+  }
+
+  let unsub = ps.subscribe((pos) => {
+    updateDomPosition(pos);
+  });
+
+  return {
+    update(config: DragActionConfig) {
+      allowGpuAcceleration = config.allowGpuAcceleration ?? true;
+      onChange = config.onChange;
+      deadZone = config.deadZone ?? 0;
+
+      if (config.position.x != position.current.x || config.position.y != position.current.y) {
+        ps.set(config.position, { hard: true });
+      }
+    },
+    destroy() {
+      unsub();
+
+      node.removeEventListener('wheel', wheelHandler);
+      node.removeEventListener('mousedown', dragHandler);
+      node.removeEventListener('touchstart', dragHandler);
+
+      // Make sure the body style gets reset if the component is destroyed whlie dragging.
+      if (oldBodyUserSelect) {
+        document.body.style.userSelect = oldBodyUserSelect;
+        oldBodyUserSelect = null;
+      }
+    },
+  };
+}
