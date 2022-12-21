@@ -37,7 +37,7 @@ export interface DragUpdate {
   /** True if dragging is currently occurring. This does not enable for mouse wheel scrolling. */
   dragging: boolean;
   /** A transform style string that translates the element to the appropriate place. Apply this to
-   * your element. */
+   * your element if you have set `manageTransform` to false. */
   transform: string;
 }
 
@@ -50,6 +50,11 @@ export interface DragActionConfig {
    * @default the entire node. */
   dragHandle?: string | HTMLElement | HTMLElement[];
 
+  /** If false, the action will not set the transform style on the element, and you should apply it manually
+   * using the value in the change callback. Use this when you want to apply additional transform styles
+   * or apply it to a different node. */
+  manageStyle?: boolean;
+
   /** If true, the drag handle node, and not any of its children, must be the target of the initial mousedown event. Otherwise the target
    * can be any node contained by the drag handle. Defaults to false.
    * @default false
@@ -58,6 +63,9 @@ export interface DragActionConfig {
 
   /** The position of the node. When this is changed, the transform will be updated accordingly. */
   position: Point;
+
+  /** A function to alter the point that will be set. Usually this is used to enforce bounds. */
+  transformPosition?(position: Point): Point;
 
   /** Set to false to disable dragging, as a convenience since Svelte doesn't make it easy to
    * conditionally apply an action. Node that this value can not currently be updated without
@@ -80,25 +88,39 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
     return {};
   }
 
-  const findDragHandles = (handle: string | HTMLElement | HTMLElement[] | undefined) => {
+  let dragHandleSelectors: typeof config['dragHandle'];
+  let dragHandles: HTMLElement[];
+  const setDragHandles = (handle: string | HTMLElement | HTMLElement[] | undefined) => {
+    handle = handle ?? node;
+    if (equal(dragHandleSelectors, handle)) {
+      return;
+    }
+
+    dragHandleSelectors = handle;
+
     if (typeof handle === 'string') {
-      return Array.from(node.querySelectorAll(handle));
+      dragHandles = Array.from(node.querySelectorAll(handle));
     } else if (Array.isArray(handle)) {
-      return handle;
+      dragHandles = handle;
     } else if (handle) {
-      return [handle];
-    } else {
-      return [node];
+      dragHandles = [handle];
     }
   };
 
-  let dragHandles = findDragHandles(config.dragHandle);
+  setDragHandles(config.dragHandle);
 
   let onChange = config.onChange;
+  let manageTransform = config.manageStyle ?? true;
   let deadZone = config.deadZone ?? 0;
   let allowGpuAcceleration = config.allowGpuAcceleration ?? true;
+  let transformPosition = config.transformPosition;
 
   let ps = positionStore(config.position);
+
+  const setPosition = (point: Point, opts?) => {
+    let newPosition = transformPosition?.(point) ?? point;
+    ps.set(newPosition, opts);
+  };
 
   let position = {
     current: config.position,
@@ -121,6 +143,11 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
     if (lastCb && equal(lastCb, thisUpdate)) {
       return;
     }
+
+    if (manageTransform && transform !== lastCb?.transform) {
+      node.style.transform = transform;
+    }
+
     lastCb = thisUpdate;
     onChange(thisUpdate);
   };
@@ -184,7 +211,7 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       }
     }
 
-    ps.set(newPosition);
+    setPosition(newPosition);
   };
 
   const handleDragEnd = () => {
@@ -219,7 +246,7 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
         break;
     }
 
-    ps.set({
+    setPosition({
       x: position.current.x + event.deltaX * multiplier,
       y: position.current.y + event.deltaY * multiplier,
     });
@@ -263,9 +290,12 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       allowGpuAcceleration = config.allowGpuAcceleration ?? true;
       onChange = config.onChange;
       deadZone = config.deadZone ?? 0;
+      transformPosition = config.transformPosition;
+
+      setDragHandles(config.dragHandle);
 
       if (config.position.x != position.current.x || config.position.y != position.current.y) {
-        ps.set(config.position, { hard: true });
+        setPosition(config.position, { hard: true });
       }
     },
     destroy() {

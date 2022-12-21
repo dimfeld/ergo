@@ -26,6 +26,7 @@
     use:drag={{
       onChange: handleDrag,
       enableDrag: draggable,
+      manageStyle: false,
       dragHandleStrict: true,
       enableWheel: true,
       deadZone: dragDeadZone,
