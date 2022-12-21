@@ -32,8 +32,12 @@ export function positionStore(initial: Point) {
 }
 
 export interface DragUpdate {
+  /** The current and target positions of element. */
   position: DragPosition;
+  /** True if dragging is currently occurring. This does not enable for mouse wheel scrolling. */
   dragging: boolean;
+  /** A transform style string that translates the element to the appropriate place. Apply this to
+   * your element. */
   transform: string;
 }
 
@@ -41,7 +45,20 @@ export interface DragActionConfig {
   /** Called whenever the state updates */
   onChange(change: DragUpdate): void;
 
+  /** If set, only drag if the initial mouse event comes from this element. If this value is a string,
+   * it will be used as a selector to find the element inside the primary node.
+   * @default the entire node. */
+  dragHandle?: string | HTMLElement | HTMLElement[];
+
+  /** If true, the drag handle node, and not any of its children, must be the target of the initial mousedown event. Otherwise the target
+   * can be any node contained by the drag handle. Defaults to false.
+   * @default false
+   */
+  dragHandleStrict?: boolean;
+
+  /** The position of the node. When this is changed, the transform will be updated accordingly. */
   position: Point;
+
   /** Set to false to disable dragging, as a convenience since Svelte doesn't make it easy to
    * conditionally apply an action. Node that this value can not currently be updated without
    * recreating the element.
@@ -63,6 +80,20 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
     return {};
   }
 
+  const findDragHandles = (handle: string | HTMLElement | HTMLElement[] | undefined) => {
+    if (typeof handle === 'string') {
+      return Array.from(node.querySelectorAll(handle));
+    } else if (Array.isArray(handle)) {
+      return handle;
+    } else if (handle) {
+      return [handle];
+    } else {
+      return [node];
+    }
+  };
+
+  let dragHandles = findDragHandles(config.dragHandle);
+
   let onChange = config.onChange;
   let deadZone = config.deadZone ?? 0;
   let allowGpuAcceleration = config.allowGpuAcceleration ?? true;
@@ -83,8 +114,8 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
   const callCb = () => {
     const transform =
       dragging && allowGpuAcceleration
-        ? `translate3d(${position.current.x}px, ${position.current.y}px, 0) scale(1)`
-        : `translate(${position.current.x}px, ${position.current.y}px) scale(1)`;
+        ? `translate3d(${position.current.x}px, ${position.current.y}px, 0)`
+        : `translate(${position.current.x}px, ${position.current.y}px)`;
 
     const thisUpdate = { position, dragging, transform };
     if (lastCb && equal(lastCb, thisUpdate)) {
@@ -194,14 +225,22 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
     });
   }
 
+  const testDragHandles = (node: HTMLElement) => {
+    if (config.dragHandleStrict) {
+      return dragHandles.includes(node);
+    } else {
+      return dragHandles.some((handle) => handle.contains(node));
+    }
+  };
+
   const dragHandler = (event: MouseEvent) => {
-    if (node === event.target) {
+    if (testDragHandles(event.target)) {
       handleDragStart(event);
     }
   };
 
   const wheelHandler = (event: WheelEvent) => {
-    if (node === event.target) {
+    if (testDragHandles(event.target)) {
       handleWheel(event);
     }
   };
