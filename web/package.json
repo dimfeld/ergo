@@ -67,6 +67,7 @@
     "rimraf": "~3.0.2",
     "source-map-support": "^0.5.21",
     "storybook": "^7.0.0-beta.13",
+    "storybook-dark-mode": "~2.0.4",
     "svelte": "~3.54.0",
     "svelte-check": "^2.10.2",
     "svelte-jester": "^2.1.5",

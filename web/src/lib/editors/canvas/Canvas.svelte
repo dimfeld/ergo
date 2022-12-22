@@ -20,7 +20,7 @@
   }
 </script>
 
-<div class="absolute inset-0 grid overflow-hidden bg-gray-50" class:cursor-move={dragging}>
+<div class="absolute inset-0 grid overflow-hidden bg-dgray-50" class:cursor-move={dragging}>
   <div
     class="h-full w-full"
     use:drag={{

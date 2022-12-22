@@ -16,7 +16,7 @@
     </CanvasNode>
     <div slot="controls">
       <div
-        class="absolute top-4 left-4 flex h-16 w-24 flex-col items-start justify-center gap-2 rounded-lg border border-black bg-gray-100 px-4 py-2 shadow-lg">
+        class="absolute top-4 left-4 flex h-16 w-24 flex-col items-start justify-center gap-2 rounded-lg border border-black bg-dgray-100 px-4 py-2 shadow-lg">
         <span>
           X: {x}
         </span>

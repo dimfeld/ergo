@@ -16,7 +16,7 @@
 </script>
 
 <div
-  class="absolute grid gap-2 rounded-xl border-black bg-red-400 px-2 py-2 shadow-xl"
+  class="absolute grid gap-2 rounded-xl border-black bg-daccent-400 px-2 py-2 shadow-xl"
   use:drag={{
     onChange: (c) => (position = c.position.current),
     position,
