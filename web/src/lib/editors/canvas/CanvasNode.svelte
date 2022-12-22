@@ -17,7 +17,7 @@
 </script>
 
 <div
-  class="absolute grid gap-2 overflow-hidden rounded-xl border-black bg-dgray-100 shadow-xl"
+  class="absolute grid overflow-hidden rounded-lg border-black bg-gray-100 shadow-xl dark:bg-gray-800"
   use:drag={{
     onChange: (c) => {
       position = c.position.current;
@@ -31,14 +31,16 @@
   style:height={size.y + 'px'}>
   <div
     bind:this={dragHandleElement}
-    class="drag-handle h-1 w-full bg-dgray-300 drop-shadow"
+    class="h-2 w-full bg-accent-300"
     class:cursor-grab={!dragging}
     class:cursor-grabbing={dragging} />
 
-  <slot />
+  <div class="p-1">
+    <slot />
+  </div>
 
   <div
-    class="resize-handle h-4 w-4 cursor-nwse-resize place-self-end"
+    class="absolute right-0 bottom-0 h-2 w-2 cursor-nwse-resize place-self-end pt-px"
     use:drag={{
       onChange: (c) => (size = c.position.current),
       position: size,
@@ -51,6 +53,6 @@
 <style>
   .grid {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: auto 1fr;
   }
 </style>

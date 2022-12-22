@@ -73,6 +73,7 @@ specifiers:
   lodash-es: ~4.17.21
   npm-run-all: ^4.1.5
   path-browserify: ~1.0.1
+  perfect-arrows: ~0.3.7
   postcss: ^8.4.19
   postcss-nested: ~6.0.0
   prettier: ~2.8.1
@@ -140,6 +141,7 @@ dependencies:
   localforage: 1.10.0
   lodash-es: 4.17.21
   path-browserify: 1.0.1
+  perfect-arrows: 0.3.7
   resolve.exports: 1.1.0
   rollup: 2.70.2
   sorters: 1.1.0
@@ -9356,6 +9358,11 @@ packages:
   /pend/1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
     dev: true
+
+  /perfect-arrows/0.3.7:
+    resolution: {integrity: sha512-wEN2gerTPVWl3yqoFEF8OeGbg3aRe2sxNUi9rnyYrCsL4JcI6K2tBDezRtqVrYG0BNtsWLdYiiTrYm+X//8yLQ==}
+    engines: {node: '>=10'}
+    dev: false
 
   /picocolors/0.2.1:
     resolution: {integrity: sha512-cMlDqaLEqfSaW8Z7N5Jw+lyIW869EzT73/F5lhtY9cLGoVxSXznfgfXMO0Z5K0o0Q2TkTXq+0KFsdnSe3jDViA==}

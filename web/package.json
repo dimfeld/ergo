@@ -121,6 +121,7 @@
     "localforage": "~1.10.0",
     "lodash-es": "~4.17.21",
     "path-browserify": "~1.0.1",
+    "perfect-arrows": "~0.3.7",
     "resolve.exports": "~1.1.0",
     "rollup": "~2.70.2",
     "sorters": "~1.1.0",
