@@ -163,6 +163,10 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
   };
 
   const handleDragStart = (event: MouseEvent | TouchEvent) => {
+    if (dragging) {
+      return;
+    }
+
     let clientX: number;
     let clientY: number;
     if (event instanceof TouchEvent) {
@@ -227,12 +231,12 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
   const handleDragEnd = () => {
     dragging = false;
 
-    if (oldBodyUserSelect != null) {
+    if (oldBodyUserSelect !== null) {
       document.body.style.userSelect = oldBodyUserSelect;
       oldBodyUserSelect = null;
     }
 
-    if (oldBodyCursor != null) {
+    if (oldBodyCursor !== null) {
       document.body.style.cursor = oldBodyCursor;
       oldBodyCursor = null;
     }
@@ -322,12 +326,12 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       node.removeEventListener('touchstart', dragHandler);
 
       // Make sure the body style gets reset if the component is destroyed whlie dragging.
-      if (oldBodyCursor) {
+      if (oldBodyCursor !== null) {
         document.body.style.cursor = oldBodyCursor;
         oldBodyCursor = null;
       }
 
-      if (oldBodyUserSelect) {
+      if (oldBodyUserSelect !== null) {
         document.body.style.userSelect = oldBodyUserSelect;
         oldBodyUserSelect = null;
       }
