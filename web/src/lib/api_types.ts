@@ -242,6 +242,9 @@ export type TaskConfig =
 export type DataFlowNodeFunction =
   | {
       type: "trigger";
+      /**
+       * The `task_trigger_local_id` of the trigger that this node should listen for.
+       */
       local_id: string;
     }
   | {
@@ -259,20 +262,6 @@ export type DataFlowNodeFunction =
       code: string;
       format: JsCodeFormat;
     }
-  | (
-      | {
-          source: "inline";
-          body: string;
-          [k: string]: unknown;
-        }
-      | {
-          source: "npm";
-          package: string;
-          resolved: string;
-          code: string;
-          [k: string]: unknown;
-        }
-    )
   | {
       type: "table";
     }
@@ -339,6 +328,7 @@ export interface DataFlowConfig {
 
 export interface DataFlowNode {
   name: string;
+  allow_null_inputs: boolean;
   func: DataFlowNodeFunction;
 }
 
