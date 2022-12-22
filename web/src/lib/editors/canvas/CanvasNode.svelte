@@ -12,28 +12,39 @@
     };
   }
 
+  let dragging = false;
   let dragHandleElement: HTMLElement;
 </script>
 
 <div
-  class="absolute grid gap-2 rounded-xl border-black bg-daccent-400 px-2 py-2 shadow-xl"
+  class="absolute grid gap-2 overflow-hidden rounded-xl border-black bg-dgray-100 shadow-xl"
   use:drag={{
-    onChange: (c) => (position = c.position.current),
+    onChange: (c) => {
+      position = c.position.current;
+      dragging = c.dragging;
+    },
     position,
+    dragCursor: 'grabbing',
     dragHandle: dragHandleElement,
   }}
   style:width={size.x + 'px'}
   style:height={size.y + 'px'}>
-  <div bind:this={dragHandleElement} class="drag-handle h-4 w-4 cursor-move bg-green-500" />
+  <div
+    bind:this={dragHandleElement}
+    class="drag-handle h-1 w-full bg-dgray-300 drop-shadow"
+    class:cursor-grab={!dragging}
+    class:cursor-grabbing={dragging} />
+
   <slot />
 
   <div
-    class="resize-handle h-4 w-4 cursor-se-resize place-self-end bg-yellow-500"
+    class="resize-handle h-4 w-4 cursor-nwse-resize place-self-end"
     use:drag={{
       onChange: (c) => (size = c.position.current),
       position: size,
       manageStyle: false,
       transformPosition: enforceMinSize,
+      dragCursor: 'nwse-resize',
     }} />
 </div>
 

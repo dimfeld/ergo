@@ -79,6 +79,9 @@ export interface DragActionConfig {
 
   deadZone?: number;
 
+  /** A cursor style to set while dragging. */
+  dragCursor?: string;
+
   allowGpuAcceleration?: boolean;
 }
 
@@ -128,9 +131,11 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
   };
 
   let dragging = false;
+  let dragCursor = config.dragCursor;
   let dragStartPos = { x: 0, y: 0 };
   let dragMouseStartPos = { x: 0, y: 0 };
   let oldBodyUserSelect: string | null = null;
+  let oldBodyCursor: string | null = null;
 
   let lastCb: DragUpdate | undefined = undefined;
   const callCb = () => {
@@ -179,6 +184,11 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
     oldBodyUserSelect = document.body.style.userSelect;
     document.body.style.userSelect = 'none';
 
+    if (dragCursor) {
+      oldBodyCursor = document.body.style.cursor;
+      document.body.style.cursor = dragCursor;
+    }
+
     dragging = true;
     dragStartPos = position.target;
     dragMouseStartPos = { x: clientX, y: clientY };
@@ -220,6 +230,11 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
     if (oldBodyUserSelect != null) {
       document.body.style.userSelect = oldBodyUserSelect;
       oldBodyUserSelect = null;
+    }
+
+    if (oldBodyCursor != null) {
+      document.body.style.cursor = oldBodyCursor;
+      oldBodyCursor = null;
     }
 
     document.removeEventListener('mousemove', handleDragMove);
@@ -290,6 +305,7 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       allowGpuAcceleration = config.allowGpuAcceleration ?? true;
       onChange = config.onChange;
       deadZone = config.deadZone ?? 0;
+      dragCursor = config.dragCursor;
       transformPosition = config.transformPosition;
 
       setDragHandles(config.dragHandle);
@@ -306,6 +322,11 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       node.removeEventListener('touchstart', dragHandler);
 
       // Make sure the body style gets reset if the component is destroyed whlie dragging.
+      if (oldBodyCursor) {
+        document.body.style.cursor = oldBodyCursor;
+        oldBodyCursor = null;
+      }
+
       if (oldBodyUserSelect) {
         document.body.style.userSelect = oldBodyUserSelect;
         oldBodyUserSelect = null;
