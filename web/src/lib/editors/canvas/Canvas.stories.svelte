@@ -4,26 +4,55 @@
   import CanvasNode from './CanvasNode.svelte';
   import BoxToBoxArrow from './BoxToBoxArrow.svelte';
 
-  let pos1 = { x: 30, y: 100 };
-  let size1 = { x: 150, y: 150 };
-  let pos2 = { x: 400, y: 250 };
-  let size2 = { x: 250, y: 200 };
+  import { schemeOranges } from 'd3';
+
+  let box1 = { x: 30, y: 100, w: 150, h: 150 };
+  let box2 = { x: 400, y: 250, w: 250, h: 200 };
+  let box3 = { x: 400, y: 550, w: 250, h: 300 };
+  let box4 = { x: 30, y: 500, w: 200, h: 200 };
+
+  const headerHeight = 20;
+  const rowSize = 16;
+
+  $: box12LineStart = { x: box1.x + box1.w, y: box1.y + headerHeight };
+  $: box12LineEnd = { x: box2.x, y: box2.y + headerHeight };
+
+  $: box13LineStart = { x: box1.x + box1.w, y: box1.y + headerHeight + rowSize };
+  $: box13LineEnd = { x: box3.x, y: box3.y + headerHeight };
+
+  $: box42LineStart = { x: box4.x + box4.w, y: box4.y + headerHeight + rowSize };
+  $: box42LineEnd = { x: box2.x, y: box2.y + headerHeight + rowSize };
 </script>
 
 <Meta title="Editors/Canvas" component={Canvas} />
 
 <Template let:args>
   <Canvas {...args} let:position={{ x, y }}>
-    <CanvasNode bind:position={pos1} bind:size={size1}>
+    <BoxToBoxArrow
+      start={{ box: box1, point: box12LineStart, offset: 0 }}
+      end={{ box: box2, point: box12LineEnd, offset: 0 }}
+      color={schemeOranges[9][3]} />
+    <BoxToBoxArrow
+      start={{ box: box1, point: box13LineStart, offset: 1 }}
+      end={{ box: box3, point: box13LineEnd, offset: 0 }}
+      color={schemeOranges[9][5]} />
+    <BoxToBoxArrow
+      start={{ box: box4, point: box42LineStart, offset: 0 }}
+      end={{ box: box2, point: box42LineEnd, offset: 1 }}
+      color={schemeOranges[9][7]} />
+
+    <CanvasNode bind:position={box1}>
       <div class="text-center">Move me!</div>
     </CanvasNode>
-    <CanvasNode bind:position={pos2} bind:size={size2}>
+    <CanvasNode bind:position={box2}>
       <textarea class="h-full w-full resize-none">Move me too!</textarea>
     </CanvasNode>
-
-    <BoxToBoxArrow
-      from={{ x: pos1.x, y: pos1.y, w: size1.x, h: size1.y }}
-      to={{ x: pos2.x, y: pos2.y, w: size2.x, h: size2.y }} />
+    <CanvasNode bind:position={box3}>
+      <div class="text-center">Another box</div>
+    </CanvasNode>
+    <CanvasNode bind:position={box4}>
+      <div class="text-center">Other Settings</div>
+    </CanvasNode>
 
     <div slot="controls">
       <div

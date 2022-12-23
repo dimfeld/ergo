@@ -7,6 +7,27 @@ export interface Point {
   y: number;
 }
 
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface LineEnd {
+  /** Where the line starts or ends. */
+  point: Point;
+  /** The box related to this end of the line. */
+  box: Box;
+  /** An offset used to keep this line from intersecting with other lines around the box.  This is a multiplier,
+   * not just a pixel value.
+   * @default 0 */
+  offset?: number;
+  /** How much horizontal space from the point the line should actually start or end.
+   * @default 4 */
+  margin?: number;
+}
+
 export interface DragPosition {
   current: Point;
   target: Point;
