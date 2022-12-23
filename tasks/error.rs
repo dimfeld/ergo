@@ -98,6 +98,21 @@ pub enum Error {
 
     #[error("Periodic task was deleted")]
     PeriodicTaskDeleted,
+
+    #[cfg(target_family = "wasm")]
+    #[error(transparent)]
+    JsSerdeError(#[from] serde_wasm_bindgen::Error),
+
+    #[cfg(target_family = "wasm")]
+    #[error("JS Error")]
+    JsError(wasm_bindgen::JsValue),
+}
+
+#[cfg(target_family = "wasm")]
+impl From<wasm_bindgen::JsValue> for Error {
+    fn from(value: wasm_bindgen::JsValue) -> Self {
+        Self::JsError(value)
+    }
 }
 
 impl<'a> From<jsonschema::ErrorIterator<'a>> for Error {
@@ -278,8 +293,12 @@ pub enum ActionValidateError {
     #[error("Unknown executor {0}")]
     UnknownExecutor(String),
 
+    #[cfg(not(target_family = "wasm"))]
     #[error("Script error: {0}")]
     ScriptError(ergo_js::Error),
+    #[cfg(target_family = "wasm")]
+    #[error(transparent)]
+    ScriptError(anyhow::Error),
 
     #[error("Template error: {0}")]
     TemplateError(#[from] TemplateError),
@@ -293,7 +312,7 @@ impl ActionValidateError {
                 "executor_template".into(),
                 "c".into(),
             ])),
-            Self::TemplateError(TemplateError::Validation(err)) => {
+            Self::TemplateError(TemplateError::Validation(_)) => {
                 // TODO Take data from the template error
                 Some(ValidatePath(smallvec![
                     "executor_template".into(),

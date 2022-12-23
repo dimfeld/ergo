@@ -1,5 +1,4 @@
 use crate::{actions::TaskActionInvocations, Error, Result};
-use ergo_js::ConsoleMessage;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,6 +27,7 @@ pub struct DataFlowLog {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DataFlowNodeLog {
     pub node: String,
+    #[cfg(not(target_family = "wasm"))]
     pub console: Vec<ConsoleMessage>,
 }
 
@@ -46,6 +46,7 @@ impl DataFlowConfig {
         DataFlowState { nodes: Vec::new() }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub async fn evaluate_trigger(
         &self,
         task_name: &str,
@@ -170,7 +171,8 @@ impl DataFlowConfig {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
+#[cfg_attr(not(target_family = "wasm"), derive(JsonSchema))]
 pub struct DataFlowState {
     nodes: Vec<serde_json::Value>,
 }

@@ -1,17 +1,45 @@
-use crate::{
-    actions::TaskActionInvocation,
-    scripting::{create_task_script_runtime, POOL},
-    Error, Result,
-};
-use ergo_js::{ConsoleMessage, Runtime};
+#[cfg(not(target_family = "wasm"))]
+use crate::scripting::{create_task_script_runtime, POOL};
+use crate::{actions::TaskActionInvocation, Error, Result};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+pub use js::ConsoleMessage;
+
+#[derive(Debug)]
+pub(crate) struct NodeResult {
+    pub state: serde_json::Value,
+    pub action: Option<TaskActionInvocation>,
+    pub console: Vec<ConsoleMessage>,
+}
+
+impl NodeResult {
+    pub fn empty() -> Self {
+        Self {
+            state: serde_json::Value::Null,
+            action: None,
+            console: Vec::new(),
+        }
+    }
+}
+
+impl From<(serde_json::Value, Vec<ConsoleMessage>)> for NodeResult {
+    fn from((state, console): (serde_json::Value, Vec<ConsoleMessage>)) -> Self {
+        Self {
+            state,
+            action: None,
+            console,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowNode {
     pub name: String,
+    /// If true, run the node even if some of its inputs are null.
+    /// If false, do not run the node if any of its inputs are null.
     pub allow_null_inputs: bool,
     pub func: DataFlowNodeFunction,
 }
@@ -110,33 +138,6 @@ impl From<NodeInput> for serde_json::Value {
     }
 }
 
-#[derive(Debug)]
-pub(super) struct NodeResult {
-    pub state: serde_json::Value,
-    pub action: Option<TaskActionInvocation>,
-    pub console: Vec<ConsoleMessage>,
-}
-
-impl NodeResult {
-    fn empty() -> Self {
-        Self {
-            state: serde_json::Value::Null,
-            action: None,
-            console: Vec::new(),
-        }
-    }
-}
-
-impl From<(serde_json::Value, Vec<ConsoleMessage>)> for NodeResult {
-    fn from((state, console): (serde_json::Value, Vec<ConsoleMessage>)) -> Self {
-        Self {
-            state,
-            action: None,
-            console,
-        }
-    }
-}
-
 impl DataFlowNodeFunction {
     pub(super) async fn execute(
         &self,
@@ -146,7 +147,7 @@ impl DataFlowNodeFunction {
         input: NodeInput,
     ) -> Result<NodeResult> {
         match self {
-            Self::Js(expr) => run_js(task_name, node_name, expr, current_state.clone(), input)
+            Self::Js(expr) => js::run_js(task_name, node_name, expr, current_state.clone(), input)
                 .await
                 .map(NodeResult::from),
             Self::Action(expr) => {
@@ -185,7 +186,7 @@ async fn evaluate_action_node(
     current_state: serde_json::Value,
     input: NodeInput,
 ) -> Result<NodeResult> {
-    let (result, console) = run_js(
+    let (result, console) = js::run_js(
         task_name,
         node_name,
         &action.payload_code,
@@ -194,15 +195,17 @@ async fn evaluate_action_node(
     )
     .await?;
 
-    let action = match &result {
+    let action_payload = match &result {
         serde_json::Value::Null => None,
-        serde_json::Value::Object(_) => Some(TaskActionInvocation {
-            name: action.action_id.clone(),
-            payload: result.clone(),
-        }),
+        serde_json::Value::Object(_) => Some(result.clone()),
         // TODO Log an error here?
         _ => None,
     };
+
+    let action = action_payload.map(|payload| TaskActionInvocation {
+        name: action.action_id.clone(),
+        payload,
+    });
 
     Ok(NodeResult {
         state: result,
@@ -215,15 +218,8 @@ const ASYNC_FUNCTION_START: &str = r##"(async function() { "##;
 const SYNC_FUNCTION_START: &str = r##"(function() { "##;
 const FUNCTION_END: &str = r##" })()"##;
 
-async fn run_js(
-    task_name: &str,
-    node_name: &str,
-    expr: &DataFlowJs,
-    current_state: serde_json::Value,
-    input: NodeInput,
-) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
-    let name = format!("https://ergo/tasks/{task_name}/{node_name}.js");
-    let wrapped = match expr.format {
+fn wrap_code(expr: &DataFlowJs) -> String {
+    match expr.format {
         JsCodeFormat::Expression => format!(
             "{SYNC_FUNCTION_START}return {body}{FUNCTION_END}",
             body = expr.code
@@ -236,48 +232,90 @@ async fn run_js(
             "{ASYNC_FUNCTION_START}{body}{FUNCTION_END}",
             body = expr.code
         ),
-    };
-
-    POOL.run(move || async move {
-        let mut runtime = create_task_script_runtime(true);
-        set_up_env(&mut runtime, current_state, input).map_err(Error::TaskScriptSetup)?;
-
-        let run_result = runtime
-            .await_expression::<serde_json::Value>(&name, &wrapped)
-            .await;
-        let console = runtime.take_console_messages();
-        match run_result {
-            Ok(value) => Ok((value, console)),
-            // TODO Generate a source map and use it to translate the code locations in the error.
-            Err(error) => Err(Error::TaskScript { error, console }),
-        }
-    })
-    .await
-    .map_err(|e| match e {
-        Error::TaskScript { error, console } => Error::DataflowScript {
-            node: node_name.to_string(),
-            error,
-            console,
-        },
-        _ => e,
-    })
+    }
 }
 
-fn set_up_env(
-    runtime: &mut Runtime,
-    current_state: serde_json::Value,
-    input: NodeInput,
-) -> Result<(), anyhow::Error> {
-    runtime.set_global_value("last_value", &current_state)?;
+#[cfg(target_family = "wasm")]
+mod js {
+    use super::*;
 
-    match input {
-        NodeInput::Single(value) => runtime.set_global_value("value", &value)?,
-        NodeInput::Multiple(values) => {
-            for (key, value) in values {
-                runtime.set_global_value(&key, &value)?;
-            }
-        }
+    #[derive(Debug, Serialize)]
+    pub struct ConsoleMessage {
+        level: i32,
+        message: String,
     }
 
-    Ok(())
+    pub(super) async fn run_js(
+        task_name: &str,
+        node_name: &str,
+        expr: &DataFlowJs,
+        current_state: serde_json::Value,
+        input: NodeInput,
+    ) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
+        let code = wrap_code(expr);
+        let result = js_sys::eval(&code)?;
+
+        Ok((serde_wasm_bindgen::from_value(result)?, Vec::new()))
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+mod js {
+    use super::*;
+    pub use ergo_js::ConsoleMessage;
+    use ergo_js::Runtime;
+
+    pub(super) async fn run_js(
+        task_name: &str,
+        node_name: &str,
+        expr: &DataFlowJs,
+        current_state: serde_json::Value,
+        input: NodeInput,
+    ) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
+        let name = format!("https://ergo/tasks/{task_name}/{node_name}.js");
+        let wrapped = wrap_code(expr);
+
+        POOL.run(move || async move {
+            let mut runtime = create_task_script_runtime(true);
+            set_up_env(&mut runtime, current_state, input).map_err(Error::TaskScriptSetup)?;
+
+            let run_result = runtime
+                .await_expression::<serde_json::Value>(&name, &wrapped)
+                .await;
+            let console = runtime.take_console_messages();
+            match run_result {
+                Ok(value) => Ok((value, console)),
+                // TODO Generate a source map and use it to translate the code locations in the error.
+                Err(error) => Err(Error::TaskScript { error, console }),
+            }
+        })
+        .await
+        .map_err(|e| match e {
+            Error::TaskScript { error, console } => Error::DataflowScript {
+                node: node_name.to_string(),
+                error,
+                console,
+            },
+            _ => e,
+        })
+    }
+
+    fn set_up_env(
+        runtime: &mut Runtime,
+        current_state: serde_json::Value,
+        input: NodeInput,
+    ) -> Result<(), anyhow::Error> {
+        runtime.set_global_value("last_value", &current_state)?;
+
+        match input {
+            NodeInput::Single(value) => runtime.set_global_value("value", &value)?,
+            NodeInput::Multiple(values) => {
+                for (key, value) in values {
+                    runtime.set_global_value(&key, &value)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
 }

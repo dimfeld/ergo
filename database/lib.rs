@@ -45,7 +45,9 @@ pub fn new_uuid() -> uuid::Uuid {
     ulid::Ulid::new().into()
 }
 
+#[cfg(not(target_family = "wasm"))]
 pub const JSON_OID: sqlx::postgres::types::Oid = sqlx::postgres::types::Oid(114);
+#[cfg(not(target_family = "wasm"))]
 pub const JSONB_OID: sqlx::postgres::types::Oid = sqlx::postgres::types::Oid(3802);
 
 #[macro_export]

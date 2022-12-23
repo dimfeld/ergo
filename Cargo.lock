@@ -1793,6 +1793,7 @@ dependencies = [
  "ergo-database",
  "ergo-tasks",
  "fxhash",
+ "getrandom 0.2.8",
  "itertools",
  "js-sys",
  "serde 1.0.144",
@@ -2086,8 +2087,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c05aeb6a22b8f62540c194aac980f2115af067bfe15a0734d7277a768d396b31"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -4884,8 +4887,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eaf9f5aceeec8be17c128b2e93e031fb8a4d469bb9c4ae2d7dc1888b26887268"
 dependencies = [
  "cfg-if",
- "serde 1.0.144",
- "serde_json",
  "wasm-bindgen-macro",
 ]
 

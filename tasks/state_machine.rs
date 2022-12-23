@@ -21,8 +21,13 @@ pub enum StateMachineError {
     ContextMissingField(String),
     #[error("Payload is missing required field {0}")]
     InputPayloadMissingField(String),
+
+    #[cfg(not(target_family = "wasm"))]
     #[error(transparent)]
     ScriptError(ergo_js::Error),
+    #[cfg(target_family = "wasm")]
+    #[error(transparent)]
+    ScriptError(anyhow::Error),
 }
 
 pub type StateMachineConfig = SmallVec<[StateMachine; 1]>;
