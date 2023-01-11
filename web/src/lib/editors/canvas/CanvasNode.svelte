@@ -3,6 +3,7 @@
 
   export let position: Box = { x: 0, y: 0, h: 150, w: 150 };
   export let minSize = { x: 150, y: 150 };
+  export let dragDeadZone = 0;
 
   function enforceMinSize(point: Point) {
     return {
@@ -26,6 +27,7 @@
     position: { x: position.x, y: position.y },
     dragCursor: 'grabbing',
     dragHandle: dragHandleElement,
+    deadZone: dragDeadZone,
   }}
   style:width={position.w + 'px'}
   style:height={position.h + 'px'}>

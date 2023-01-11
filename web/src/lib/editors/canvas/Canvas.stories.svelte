@@ -41,16 +41,16 @@
       end={{ box: box2, point: box42LineEnd, offset: 1 }}
       color={schemeOranges[9][7]} />
 
-    <CanvasNode bind:position={box1}>
+    <CanvasNode bind:position={box1} dragDeadZone={args.dragDeadZone}>
       <div class="text-center">Move me!</div>
     </CanvasNode>
-    <CanvasNode bind:position={box2}>
+    <CanvasNode bind:position={box2} dragDeadZone={args.dragDeadZone}>
       <textarea class="h-full w-full resize-none">Move me too!</textarea>
     </CanvasNode>
-    <CanvasNode bind:position={box3}>
+    <CanvasNode bind:position={box3} dragDeadZone={args.dragDeadZone}>
       <div class="text-center">Another box</div>
     </CanvasNode>
-    <CanvasNode bind:position={box4}>
+    <CanvasNode bind:position={box4} dragDeadZone={args.dragDeadZone}>
       <div class="text-center">Other Settings</div>
     </CanvasNode>
 
