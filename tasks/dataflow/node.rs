@@ -1,5 +1,3 @@
-#[cfg(not(target_family = "wasm"))]
-use crate::scripting::{create_task_script_runtime, POOL};
 use crate::{actions::TaskActionInvocation, Error, Result};
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
@@ -239,7 +237,7 @@ fn wrap_code(expr: &DataFlowJs) -> String {
 mod js {
     use super::*;
 
-    #[derive(Debug, Serialize)]
+    #[derive(Debug, Deserialize, Serialize)]
     pub struct ConsoleMessage {
         level: i32,
         message: String,
@@ -262,6 +260,7 @@ mod js {
 #[cfg(not(target_family = "wasm"))]
 mod js {
     use super::*;
+    use crate::scripting::{create_task_script_runtime, POOL};
     pub use ergo_js::ConsoleMessage;
     use ergo_js::Runtime;
 

@@ -27,7 +27,6 @@ pub struct DataFlowLog {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DataFlowNodeLog {
     pub node: String,
-    #[cfg(not(target_family = "wasm"))]
     pub console: Vec<ConsoleMessage>,
 }
 
@@ -46,7 +45,6 @@ impl DataFlowConfig {
         DataFlowState { nodes: Vec::new() }
     }
 
-    #[cfg(not(target_family = "wasm"))]
     pub async fn evaluate_trigger(
         &self,
         task_name: &str,

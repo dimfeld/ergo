@@ -328,6 +328,9 @@ export interface DataFlowConfig {
 
 export interface DataFlowNode {
   name: string;
+  /**
+   * If true, run the node even if some of its inputs are null. If false, do not run the node if any of its inputs are null.
+   */
   allow_null_inputs: boolean;
   func: DataFlowNodeFunction;
 }
