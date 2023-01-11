@@ -75,6 +75,7 @@
     autocomplete?: () => Extension;
     prettierParser: string;
     compilable?: boolean;
+    injectTsTypes?: boolean;
   }
 
   $: jsonSchemaComponents = jsonSchema ? jsonSchemaSupport(jsonSchema) : null;
@@ -93,11 +94,13 @@
       extension: () => typescript(wrapCode),
       prettierParser: 'babel',
       compilable: true,
+      injectTsTypes: true,
     },
     ts: {
       extension: () => typescript(wrapCode),
       prettierParser: 'babel-ts',
       compilable: true,
+      injectTsTypes: true,
     },
     json: {
       extension: json,
@@ -223,7 +226,9 @@
   $: updateCompartment(lineWrapping, enableWrapping ? [EditorView.lineWrapping] : []);
   $: updateCompartment(theme, $darkMode ?? cssDarkModePreference() ? [oneDark] : []);
 
-  $: injectTsTypes(view, tsDefs ?? {});
+  $: if (language?.injectTsTypes || tsDefs) {
+    injectTsTypes(view, tsDefs ?? {});
+  }
 
   function editor(node: HTMLDivElement) {
     node.appendChild(view.dom);
