@@ -11,6 +11,7 @@
 
   import ScriptEditor from '$lib/editors/Script.svelte';
   import StateMachineEditor from '$lib/editors/StateMachine.svelte';
+  import DataFlowEditor from '$lib/editors/DataFlow.svelte';
   import { baseData } from '$lib/data';
   import apiClient from '$lib/api';
   import { new_task_id, new_task_trigger_id, TaskConfigValidator } from 'ergo-wasm';
@@ -19,14 +20,15 @@
   import Pencil from '$lib/components/icons/Pencil.svelte';
   import TaskTriggerEditor, { type TaskTriggerEditorData } from '../_TaskTriggerEditor.svelte';
   import TaskActionEditor, { type TaskActionEditorData } from '../_TaskActionEditor.svelte';
-  import type {PageData} from './$types';
+  import type { PageData } from './$types';
 
-  export let data : PageData;
+  export let data: PageData;
   $: task = data.task ?? defaultTask();
 
   const taskEditors = {
-    Js: ScriptEditor,
-    StateMachine: StateMachineEditor,
+    Js: { component: ScriptEditor, padding: true },
+    StateMachine: { component: StateMachineEditor, padding: true },
+    DataFlow: { component: DataFlowEditor, padding: false, focusBorder: true },
   };
 
   const { inputs, actions } = baseData();
@@ -189,15 +191,13 @@
   <Card class="mt-2 flex flex-col space-y-4">
     <div class="flex w-full justify-between space-x-4">
       <Labelled label="Name" class="w-full"
-        ><input class="w-full" type="text" bind:value={task.name} /></Labelled
-      >
+        ><input class="w-full" type="text" bind:value={task.name} /></Labelled>
       <Labelled label="Alias">
         <input type="text" bind:value={task.alias} placeholder="None" />
       </Labelled>
     </div>
     <Labelled label="Description"
-      ><input type="text" class="w-full" bind:value={task.description} /></Labelled
-    >
+      ><input type="text" class="w-full" bind:value={task.description} /></Labelled>
     <div class="flex justify-between space-x-4">
       <p class="whitespace-nowrap text-sm">
         ID: <span class:text-gray-500={!task.task_id}>{task.task_id || 'New Task'}</span>
@@ -231,8 +231,7 @@
         allActions={task.actions}
         taskActionId={data.taskActionId}
         action={data.action}
-        {close}
-      />
+        {close} />
     </Modal>
   </Card>
 
@@ -262,26 +261,27 @@
         allTriggers={task.triggers}
         triggerId={data.triggerId}
         trigger={data.trigger}
-        {close}
-      />
+        {close} />
     </Modal>
   </Card>
 
-  <Card class="mt-4 flex min-h-[64em] flex-grow flex-col">
-    {#if taskSource}
+  {#if taskSource}
+    {@const editor = taskEditors[taskSource.type]}
+    <Card
+      class="mt-4 flex min-h-[64em] flex-grow flex-col overflow-hidden"
+      padding={editor.padding ?? true}>
       <div class="grid min-h-0 flex-1 grid-cols-1 grid-rows-1 place-items-stretch">
         <svelte:component
-          this={taskEditors[taskSource.type]}
+          this={editor.component}
           bind:getState={getEditorState}
           source={task.source?.data}
           compiled={task.compiled?.data}
           taskTriggers={task.triggers}
           taskActions={task.actions}
-          {validator}
-        />
+          {validator} />
       </div>
-    {/if}
-  </Card>
+    </Card>
+  {/if}
 </div>
 
 {#if newTask}
@@ -289,7 +289,7 @@
     <p class="flex space-x-2">
       <Button on:click={() => close('StateMachine')}>State Machine</Button>
       <Button on:click={() => close('Js')}>Script</Button>
-      <Button on:click={() => close('Flowchart')}>FlowChart</Button>
+      <Button on:click={() => close('DataFlow')}>Data Flow</Button>
     </p>
   </Modal>
 {/if}

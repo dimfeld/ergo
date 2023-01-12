@@ -2,8 +2,10 @@
   import { onDestroy } from 'svelte';
   import { positionStore, drag, type DragUpdate } from './drag';
 
-  /** If true, allow mouse dragging of the canvas. Otherwise it is only moveable via the scrollbars. */
+  /** If true, allow mouse dragging of the canvas. */
   export let draggable = true;
+  /** If true, allow mouse wheel scrolling of the canvas. */
+  export let scrollable = true;
   export let position = { x: 0, y: 0 };
   /** Dead zone for mouse dragging, in px */
   export let dragDeadZone = 0;
@@ -28,7 +30,7 @@
       enableDrag: draggable,
       manageStyle: false,
       dragHandleStrict: true,
-      enableWheel: true,
+      enableWheel: scrollable,
       deadZone: dragDeadZone,
       position,
     }}>

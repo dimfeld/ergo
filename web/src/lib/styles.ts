@@ -1,5 +1,11 @@
+import { twMerge } from 'tailwind-merge';
+import clsx from 'clsx';
 import { getContext, setContext } from 'svelte';
 import { writable, type Writable } from 'svelte/store';
+
+export function cls(...classes: (string | boolean | null | undefined)[]) {
+  return twMerge(clsx(classes));
+}
 
 export function createDarkStore() {
   let initialDarkMode: boolean | null = null;
