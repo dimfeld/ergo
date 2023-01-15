@@ -9,7 +9,8 @@ mod node;
 pub use node::*;
 use tracing::{event, Level};
 
-use self::dag::{toposort_nodes, NodeWalker};
+pub use self::dag::toposort_nodes;
+use self::dag::NodeWalker;
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {

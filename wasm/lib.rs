@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use ergo_database::object_id::{ActionId, InputId, PeriodicTriggerId, TaskId, TaskTriggerId};
 use ergo_tasks::{
     actions::{Action, TaskAction},
+    dataflow::DataFlowEdge,
     inputs::Input,
     PeriodicSchedule, TaskConfig, TaskTrigger, ValidatePathSegment,
 };
@@ -181,5 +182,19 @@ pub fn parse_schedule(schedule: JsValue) -> Result<JsValue, JsValue> {
         .map(|d| d.timestamp_millis());
 
     let output = serde_wasm_bindgen::to_value(&next)?;
+    Ok(output)
+}
+
+#[wasm_bindgen]
+pub fn toposort_nodes(num_nodes: JsValue, edges: JsValue) -> Result<JsValue, JsValue> {
+    let num_nodes: usize = serde_wasm_bindgen::from_value(num_nodes)?;
+    let edges_de = serde_wasm_bindgen::Deserializer::from(edges);
+    let edges: Vec<DataFlowEdge> = serde_path_to_error::deserialize(edges_de)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let sorted = ergo_tasks::dataflow::toposort_nodes(num_nodes, &edges)
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+    let output = serde_wasm_bindgen::to_value(&sorted)?;
     Ok(output)
 }
