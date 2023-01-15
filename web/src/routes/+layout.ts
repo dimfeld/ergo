@@ -9,14 +9,11 @@ import type {
   AccountType,
   AccountPublicInfo,
 } from '$lib/api_types';
-import { browser } from '$app/environment';
 
 export const ssr = false;
 
 export const load: LayoutLoad = async function load({ fetch }) {
-  if (browser) {
-    await initWasm();
-  }
+  await initWasm();
   fetch = loadFetch(fetch);
   let [inputList, actionList, actionCategoryList, executorList, accountTypeList, accountList]: [
     Input[],
