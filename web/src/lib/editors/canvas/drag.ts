@@ -55,6 +55,8 @@ export function positionStore(initial: Point) {
 export interface DragUpdate {
   /** The current and target positions of element. */
   position: DragPosition;
+  /** The point where the mouse started dragging. */
+  mouseStart: Point;
   /** True if dragging is currently occurring. This does not enable for mouse wheel scrolling. */
   dragging: boolean;
   /** A transform style string that translates the element to the appropriate place. Apply this to
@@ -165,7 +167,7 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
         ? `translate3d(${position.current.x}px, ${position.current.y}px, 0)`
         : `translate(${position.current.x}px, ${position.current.y}px)`;
 
-    const thisUpdate = { position, dragging, transform };
+    const thisUpdate = { position, dragging, transform, mouseStart: dragMouseStartPos };
     if (lastCb && equal(lastCb, thisUpdate)) {
       return;
     }
