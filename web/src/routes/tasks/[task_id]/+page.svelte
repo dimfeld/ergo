@@ -23,7 +23,8 @@
   import type { PageData } from './$types';
 
   export let data: PageData;
-  $: task = data.task ?? defaultTask();
+  let task: TaskResult;
+  $: task = task ?? data.task ?? defaultTask();
 
   const taskEditors = {
     Js: { component: ScriptEditor, padding: true },
