@@ -154,6 +154,12 @@ mod tests {
         use super::*;
 
         #[test]
+        fn empty() {
+            let sorted = toposort_nodes(0, &[]).unwrap();
+            assert_eq!(sorted, Vec::<u32>::new());
+        }
+
+        #[test]
         fn working() {
             let edges = vec![
                 test_edge(0, 1),
