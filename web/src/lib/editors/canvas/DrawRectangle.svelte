@@ -49,7 +49,7 @@
 </script>
 
 <div
-  class="absolute inset-0 z-40 cursor-crosshair"
+  class="absolute inset-0 z-40 cursor-cell"
   use:drag={{
     onChange: handleDrag,
     enableDrag: true,
