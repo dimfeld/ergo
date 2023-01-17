@@ -1,13 +1,15 @@
 <script lang="ts">
-  import { setContext } from 'svelte';
+  import { createEventDispatcher, setContext } from 'svelte';
   import { cls } from '$lib/styles';
   import { drag, type Box, type Point } from './drag';
 
   export let position: Box = { x: 0, y: 0, h: 150, w: 150 };
   let className: string | undefined;
   export { className as class };
-  export let minSize = { x: 150, y: 150 };
+  export let minSize = { x: 0, y: 0 };
   export let dragDeadZone = 0;
+
+  const dispatch = createEventDispatcher();
 
   function enforceMinSize(point: Point) {
     return {
@@ -31,6 +33,7 @@
       position.x = c.position.current.x;
       position.y = c.position.current.y;
       dragging = c.dragging;
+      dispatch('move', position);
     },
     position: { x: position.x, y: position.y },
     dragCursor: 'grabbing',
@@ -47,6 +50,7 @@
       onChange: (c) => {
         position.w = c.position.current.x;
         position.h = c.position.current.y;
+        dispatch('move', position);
       },
       position: { x: position.w, y: position.h },
       manageStyle: false,

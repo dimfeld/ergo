@@ -1,6 +1,7 @@
-import { derived, writable } from 'svelte/store';
+import { derived, writable, type Readable } from 'svelte/store';
 import { spring } from 'svelte/motion';
 import equal from 'fast-deep-equal';
+import { getContext } from 'svelte';
 
 export interface Point {
   x: number;
@@ -28,13 +29,25 @@ export interface LineEnd {
   margin?: number;
 }
 
+export type SetDragHandle = (el: HTMLElement) => void;
+export function dragHandleSetter(): SetDragHandle {
+  return getContext('setDragHandle');
+}
+
+export interface CanvasContext {
+  position: Readable<Point>;
+}
+export function canvasContext(): CanvasContext {
+  return getContext('canvasContext');
+}
+
 export interface DragPosition {
   current: Point;
   target: Point;
 }
 
 export function positionStore(initial: Point) {
-  const sp = spring(initial, { stiffness: 0.3, damping: 0.5 });
+  const sp = spring(initial, { stiffness: 0.3, damping: 0.4 });
   const immediate = writable(initial);
   const output = derived([sp, immediate], ([$sp, $immediate]) => {
     return {
@@ -55,8 +68,10 @@ export function positionStore(initial: Point) {
 export interface DragUpdate {
   /** The current and target positions of element. */
   position: DragPosition;
-  /** The point where the mouse started dragging. */
+  /** The point where the mouse started dragging, relative to the viewport. */
   mouseStart: Point;
+  /** The point where the mouse started dragging, relative to the target element. */
+  targetRelativeStart: Point;
   /** True if dragging is currently occurring. This does not enable for mouse wheel scrolling. */
   dragging: boolean;
   /** A transform style string that translates the element to the appropriate place. Apply this to
@@ -156,6 +171,7 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
   let dragging = false;
   let dragCursor = config.dragCursor;
   let dragStartPos = { x: 0, y: 0 };
+  let targetRelativeStart = { x: 0, y: 0 };
   let dragMouseStartPos = { x: 0, y: 0 };
   let oldBodyUserSelect: string | null = null;
   let oldBodyCursor: string | null = null;
@@ -167,10 +183,18 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
         ? `translate3d(${position.current.x}px, ${position.current.y}px, 0)`
         : `translate(${position.current.x}px, ${position.current.y}px)`;
 
-    const thisUpdate = { position, dragging, transform, mouseStart: dragMouseStartPos };
+    const thisUpdate = {
+      position,
+      dragging,
+      transform,
+      targetRelativeStart,
+      mouseStart: dragMouseStartPos,
+    };
     if (lastCb && equal(lastCb, thisUpdate)) {
       return;
     }
+
+    console.dir({ thisUpdate });
 
     if (manageTransform && transform !== lastCb?.transform) {
       node.style.transform = transform;
@@ -216,9 +240,13 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       document.body.style.cursor = dragCursor;
     }
 
+    let rect = (event.target as HTMLElement).getBoundingClientRect();
+
     dragging = true;
     dragStartPos = position.target;
     dragMouseStartPos = { x: clientX, y: clientY };
+    targetRelativeStart = { x: clientX - rect.x, y: clientY - rect.y };
+
     callCb();
   };
 

@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onDestroy } from 'svelte';
-  import { positionStore, drag, type DragUpdate } from './drag';
+  import { setContext } from 'svelte';
+  import { writable } from 'svelte/store';
+  import { drag, type DragUpdate } from './drag';
 
   /** If true, allow mouse dragging of the canvas. */
   export let draggable = true;
@@ -10,9 +11,6 @@
   /** Dead zone for mouse dragging, in px */
   export let dragDeadZone = 0;
 
-  const displayPosition = positionStore(position);
-  $: displayPosition.set(position);
-
   export let dragging = false;
   export let transform: string | undefined = undefined;
   function handleDrag(change: DragUpdate) {
@@ -20,6 +18,11 @@
     position = change.position.current;
     transform = change.transform;
   }
+
+  let canvasContext = { position: writable(position) };
+  $: canvasContext.position.set(position);
+
+  setContext('canvasContext', canvasContext);
 </script>
 
 <div class="absolute inset-0 grid overflow-hidden bg-dgray-50" class:cursor-move={dragging}>

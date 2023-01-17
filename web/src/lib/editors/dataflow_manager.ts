@@ -3,10 +3,7 @@ import zip from 'just-zip-it';
 import { get as getStore, writable } from 'svelte/store';
 import type { Box } from './canvas/drag';
 import { toposort_nodes } from 'ergo-wasm';
-import { produce, enableAllPlugins } from 'immer';
 import camelCase from 'just-camel-case';
-
-enableAllPlugins();
 
 export interface DataFlowNodeMeta {
   position: Box;
@@ -40,9 +37,9 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
     toposorted: toposort_nodes(nodes.length, edges),
   });
 
-  function update(updateFn: (data: DataFlowManagerData) => void) {
+  function update(updateFn: (data: DataFlowManagerData) => DataFlowManagerData) {
     store.update((data) => {
-      let result = produce(data, updateFn);
+      let result = updateFn(data);
       toposort_nodes(result.nodes.length, result.edges);
       return result;
     });
@@ -50,6 +47,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
 
   return {
     subscribe: store.subscribe,
+    set: store.set,
     update,
     compile(): { compiled: DataFlowConfig; source: DataFlowSource } {
       let data = getStore(store);
@@ -72,7 +70,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
       update((data) => {
         let existingEdge = data.edges.find((e) => e.from === from && e.to === to);
         if (existingEdge) {
-          return;
+          return data;
         }
 
         if (from >= data.nodes.length) {
@@ -96,11 +94,13 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
           to,
           name,
         });
+        return data;
       });
     },
     deleteEdge(from: number, to: number) {
       update((data) => {
         data.edges = data.edges.filter((e) => e.from !== from || e.to !== to);
+        return data;
       });
     },
     addNode(box: Box) {
@@ -128,23 +128,26 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
             lastOutput: '',
           },
         });
+
+        return data;
       });
     },
     deleteNodeByIndex(index: number) {
       update((data) => {
         data.nodes.splice(index, 1);
         data.edges = data.edges.filter((e) => e.from !== index && e.to !== index);
+        return data;
       });
     },
     deleteNode(name: string) {
       update((data) => {
         let index = data.nodes.findIndex((n) => n.config.name === name);
-        if (index === -1) {
-          return;
+        if (index >= 0) {
+          data.nodes.splice(index, 1);
+          data.edges = data.edges.filter((e) => e.from !== index && e.to !== index);
         }
 
-        data.nodes.splice(index, 1);
-        data.edges = data.edges.filter((e) => e.from !== index && e.to !== index);
+        return data;
       });
     },
   };

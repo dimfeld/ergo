@@ -1,5 +1,12 @@
 <script lang="ts">
-  import { drag, type Box, type DragPosition, type DragUpdate, type Point } from './drag';
+  import {
+    canvasContext,
+    drag,
+    type Box,
+    type DragPosition,
+    type DragUpdate,
+    type Point,
+  } from './drag';
   import { createEventDispatcher } from 'svelte';
   import { cls } from '$lib/styles';
 
@@ -7,6 +14,8 @@
   export { className as class };
 
   const dispatch = createEventDispatcher<{ done: Box }>();
+
+  const { position: canvasPosition } = canvasContext();
 
   interface Pos {
     start: Point;
@@ -20,12 +29,15 @@
         pos.end = change.position;
       } else {
         pos = {
-          start: change.mouseStart,
+          start: change.targetRelativeStart,
           end: change.position,
         };
       }
     } else if (pos) {
-      dispatch('done', toBox(pos, 'target'));
+      let output = toBox(pos, 'target');
+      output.x -= $canvasPosition.x;
+      output.y -= $canvasPosition.y;
+      dispatch('done', output);
       pos = null;
     }
   }

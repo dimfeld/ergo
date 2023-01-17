@@ -37,8 +37,8 @@
       ...boxes,
       {
         box: {
-          x: box.x - position.x,
-          y: box.y - position.y,
+          x: box.x,
+          y: box.y,
           w: Math.max(box.w, 150),
           h: Math.max(box.h, 150),
         },

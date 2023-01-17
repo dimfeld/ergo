@@ -6,7 +6,7 @@
 
   export let name: string;
   export let position: Box;
-  export let minSize: Point | undefined;
+  export let minSize: Point = { x: 150, y: 150 };
   export let dragDeadZone = 0;
 </script>
 

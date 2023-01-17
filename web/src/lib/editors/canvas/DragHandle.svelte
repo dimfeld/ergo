@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { getContext } from 'svelte';
+  import { dragHandleSetter } from './drag';
 
   let className: string | undefined;
   export { className as class };
 
-  const setDragHandle = getContext('setDragHandle');
+  const setDragHandle = dragHandleSetter();
 
   let dragHandle: HTMLElement;
 
