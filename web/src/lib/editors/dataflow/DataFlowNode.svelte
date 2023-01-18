@@ -3,6 +3,7 @@
   import Dropdown from '$lib/components/Dropdown.svelte';
   import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
   import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
+  import Editor from '../Editor.svelte';
   import type { DataFlowManagerNode } from './dataflow_manager';
 
   export let node: DataFlowManagerNode;
@@ -33,4 +34,19 @@
         class="no-drag flex-1 border-transparent !bg-transparent px-2 py-0 text-xs font-medium text-accent-800 hover:border-gray-500 " />
     </div>
   </div>
+
+  {#if node.config.func.type === 'js'}
+    <div class="flex h-full flex-col">
+      <Editor
+        class="h-1/3"
+        contents={node.config.func.code}
+        format="js"
+        notifyOnChange={true}
+        on:change={(e) => (node.config.func.code = e.detail)}
+        toolbar={false} />
+      <div class="flex-1 border-t border-gray-500 text-sm">Results</div>
+    </div>
+  {:else}
+    Type {node.config.func.type} not implemented yet
+  {/if}
 </CanvasTitledBox>
