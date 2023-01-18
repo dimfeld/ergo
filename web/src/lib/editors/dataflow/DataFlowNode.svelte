@@ -3,13 +3,13 @@
   import Editor from '../Editor.svelte';
   import { createEventDispatcher } from 'svelte';
   import type { DataFlowManagerNode } from './dataflow_manager';
-  import { cls } from '$lib/styles';
+  import type { SelectionState } from '../canvas/drag';
 
   const dispatch = createEventDispatcher();
 
   export let node: DataFlowManagerNode;
   export let selectMode = false;
-  export let selected = false;
+  export let selected: SelectionState = null;
 </script>
 
 <CanvasTitledBox

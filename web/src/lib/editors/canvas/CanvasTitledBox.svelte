@@ -1,26 +1,27 @@
 <script lang="ts">
   import { cls } from '$lib/styles';
   import CanvasNode from './CanvasNode.svelte';
-  import type { Box, Point } from './drag';
+  import type { Box, Point, SelectionState } from './drag';
   import { createEventDispatcher } from 'svelte';
   import DragHandle from './DragHandle.svelte';
 
   const dispatch = createEventDispatcher();
 
   export let name: string;
-  let className: string | undefined;
+  let className: string | undefined = undefined;
   export { className as class };
   export let position: Box;
   export let minSize: Point = { x: 150, y: 150 };
   export let dragDeadZone = 0;
   export let dragHandleStrict = false;
   export let selectMode = false;
-  export let selected = false;
+  export let selected: SelectionState = null;
 
   $: nodeClass = cls(
     `grid grid-cols-1 grid-rows-[auto_1fr] overflow-hidden rounded-lg border bg-gray-100
       shadow-xl dark:border-accent-500/25 dark:bg-gray-800`,
-    selected && 'ring-4 ring-accent-500/75',
+    selected === 'valid' && 'ring-4 ring-accent-500/75',
+    selected === 'invalid' && 'ring-4 ring-red-500/75',
     className
   );
 </script>

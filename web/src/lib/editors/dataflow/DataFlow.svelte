@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DataFlowConfig, TaskConfig } from '$lib/api_types';
+  import type { DataFlowConfig, DataFlowEdge, TaskConfig } from '$lib/api_types';
   import {
     dataflowManager,
     type DataFlowManagerNode,
@@ -7,9 +7,10 @@
   } from './dataflow_manager';
   import Button from '$lib/components/Button.svelte';
   import Plus from '$lib/components/icons/Plus.svelte';
+  import XIcon from '$lib/components/icons/X.svelte';
   import Canvas from '../canvas/Canvas.svelte';
   import DrawRectangle from '../canvas/DrawRectangle.svelte';
-  import type { Box, LineEnd, Point } from '../canvas/drag';
+  import type { Box, LineEnd, Point, SelectionState } from '../canvas/drag';
   import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
   import DataFlowNode from './DataFlowNode.svelte';
   import BoxToBoxArrow from '../canvas/BoxToBoxArrow.svelte';
@@ -34,10 +35,14 @@
     };
   }
 
-  type EditorState = 'normal' | 'addingNode' | 'addingEdge';
+  type EditorState = 'normal' | 'addingNode' | 'addingEdge' | 'removing';
   let state: EditorState = 'normal';
   function toggleState(newState: EditorState) {
-    state = newState === state ? 'normal' : newState;
+    if (newState === state) {
+      enterNormalState();
+    } else {
+      state = newState;
+    }
   }
 
   function addNode(box: Box) {
@@ -79,63 +84,136 @@
     };
   }
 
-  function handleAddEdge(destNode: DataFlowManagerNode) {
-    if (edgeSourceNode) {
-      data.addEdge(edgeSourceNode.meta.id, destNode.meta.id);
+  function handleSelectModeClickNode(node: DataFlowManagerNode) {
+    if (state === 'addingEdge' && edgeSourceNode && canAddEdge === 'valid') {
+      data.addEdge(edgeSourceNode.meta.id, node.meta.id);
+    } else if (state === 'removing') {
+      data.deleteNode(node.meta.id);
     }
+
+    enterNormalState();
+  }
+
+  $: checkAddEdge =
+    edgeSourceNode && edgeDestNode
+      ? $data.checkAddEdge(edgeSourceNode.meta.id, edgeDestNode.meta.id)
+      : null;
+
+  let canAddEdge: SelectionState;
+  $: canAddEdge = checkAddEdge ? 'invalid' : 'valid';
+
+  $: selectMode = state === 'addingEdge' || state === 'removing';
+
+  let removeHighlightedNode: DataFlowManagerNode | null = null;
+  let removeHighlightedEdge: DataFlowEdge | null = null;
+
+  function handleMouseMoveNode(node: DataFlowManagerNode) {
+    if (state === 'addingEdge' && node !== edgeSourceNode) {
+      edgeDestNode = node;
+    }
+
+    if (state === 'removing') {
+      removeHighlightedNode = node;
+    }
+  }
+
+  function handleMouseLeaveNode(node: DataFlowManagerNode) {
+    if (state === 'addingEdge' && node === edgeDestNode) {
+      edgeDestNode = undefined;
+    }
+
+    if (state === 'removing' && removeHighlightedNode === node) {
+      removeHighlightedNode = undefined;
+    }
+  }
+
+  function handleMouseMoveEdge(edge: DataFlowEdge) {
+    if (state === 'removing') {
+      removeHighlightedEdge = edge;
+    }
+  }
+
+  function handleMouseLeaveEdge(edge: DataFlowEdge) {
+    if (state === 'removing' && removeHighlightedEdge === edge) {
+      removeHighlightedEdge = undefined;
+    }
+  }
+
+  function handleClickEdge(edge: DataFlowEdge) {
+    if (state === 'removing') {
+      data.deleteEdge(edge.from, edge.to);
+      enterNormalState();
+    }
+  }
+
+  function enterNormalState() {
     state = 'normal';
+    addButtonEl?.blur();
+    removeButtonEl?.blur();
     edgeSourceNode = null;
     edgeDestNode = null;
+    removeHighlightedEdge = null;
+    removeHighlightedNode = null;
   }
 
   let addButtonEl: HTMLButtonElement;
+  let removeButtonEl: HTMLButtonElement;
 
   let canvasPosition = { x: 0, y: 0 };
+
+  $: nodes = $data.nodes.map((node) => {
+    let selected: SelectionState = null;
+    if (state === 'addingEdge' && node === edgeDestNode) {
+      selected = canAddEdge;
+    } else if (state === 'removing' && node === removeHighlightedNode) {
+      selected = 'valid';
+    }
+
+    return {
+      node,
+      selected,
+    };
+  });
 </script>
 
 <svelte:window
   on:keydown={(e) => {
     if (e.key === 'Escape') {
-      state = 'normal';
-      addButtonEl?.blur();
-      edgeSourceNode = null;
-      edgeDestNode = null;
+      enterNormalState();
     }
   }} />
 
 <div class="relative">
   <Canvas bind:position={canvasPosition} scrollable={false}>
-    {#each $data.nodes as node (node.meta.id)}
+    {#each nodes as { node, selected } (node.meta.id)}
       <DataFlowNode
         bind:node
         on:startAddEdge={() => startAddEdge(node)}
-        selectMode={state === 'addingEdge'}
-        selected={node === edgeDestNode}
-        on:selectModeClick={() => handleAddEdge(node)}
-        on:mousemove={() => {
-          if (state === 'addingEdge' && node !== edgeSourceNode) {
-            edgeDestNode = node;
-          }
-        }}
-        on:mouseleave={() => {
-          if (state === 'addingEdge' && node === edgeDestNode) {
-            edgeDestNode = undefined;
-          }
-        }} />
+        {selectMode}
+        {selected}
+        on:selectModeClick={() => handleSelectModeClickNode(node)}
+        on:mousemove={() => handleMouseMoveNode(node)}
+        on:mouseleave={() => handleMouseLeaveNode(node)} />
     {/each}
 
     {#each $data.edges as edge (`${edge.from}-${edge.to}`)}
       <BoxToBoxArrow
         start={dataFlowEdgeSourcePos($data.nodes[$data.nodeIdToIndex.get(edge.from)])}
         end={dataFlowEdgeDestPos($data.nodes[$data.nodeIdToIndex.get(edge.to)])}
-        color="rgb(128, 128, 128)" />
+        color="rgb(128, 128, 128)"
+        {selectMode}
+        selected={state === 'removing' && edge === removeHighlightedEdge ? 'valid' : null}
+        on:mousemove={() => handleMouseMoveEdge(edge)}
+        on:mouseleave={() => handleMouseLeaveEdge(edge)}
+        on:click={() => handleClickEdge(edge)} />
     {/each}
 
     {#if state === 'addingEdge' && edgeSourceNode && edgeDestNode}
       <BoxToBoxArrow
         start={dataFlowEdgeSourcePos(edgeSourceNode)}
         end={dataFlowEdgeDestPos(edgeDestNode)}
-        color="rgb(128, 128, 128)" />
+        color={canAddEdge === 'valid' ? 'rgb(128, 128, 128)' : '#a03030'}
+        dash="4 4" />
     {/if}
 
     <div slot="controls">
@@ -143,6 +221,13 @@
         <Button bind:element={addButtonEl} iconButton on:click={() => toggleState('addingNode')}>
           <Plus />
         </Button>
+        <Button bind:element={removeButtonEl} iconButton on:click={() => toggleState('removing')}>
+          <XIcon />
+        </Button>
+
+        {#if checkAddEdge}
+          <span>{checkAddEdge}</span>
+        {/if}
       </div>
 
       {#if state === 'addingNode'}

@@ -1,9 +1,13 @@
 <script lang="ts">
-  import type { LineEnd } from './drag';
+  import type { LineEnd, SelectionState } from './drag';
+  import { cls } from '$lib/styles';
 
   export let start: LineEnd;
   export let end: LineEnd;
+  export let selectMode = false;
+  export let selected: SelectionState = null;
   export let color: string;
+  export let dash: string | undefined = undefined;
 
   $: startPadding = ((start.offset ?? 0) + 1) * 16;
   $: endPadding = ((end.offset ?? 0) + 1) * 16;
@@ -59,6 +63,12 @@
 
     path = segments.join('');
   }
+
+  $: pathClass = cls(
+    !selectMode && 'pointer-events-none',
+    selected === 'valid' && 'stroke-[4] stroke-accent-500',
+    selected === 'invalid' && 'stroke-[4] stroke-red-500'
+  );
 </script>
 
 <svg
@@ -67,6 +77,17 @@
   height="1"
   fill="none"
   stroke={color}
-  class="pointer-events-none absolute overflow-visible">
-  <path d={path} stroke-linejoin="bevel" />
+  stroke-dasharray={dash}
+  class="absolute -z-10 overflow-visible">
+  <path d={path} stroke-linejoin="bevel" class={pathClass} />
+  {#if selectMode}
+    <path
+      d={path}
+      stroke-linejoin="bevel"
+      stroke-width="4"
+      class="stroke-transparent"
+      on:mousemove
+      on:mouseleave
+      on:click />
+  {/if}
 </svg>

@@ -3,6 +3,8 @@ import { spring } from 'svelte/motion';
 import equal from 'fast-deep-equal';
 import { getContext } from 'svelte';
 
+export type SelectionState = null | 'valid' | 'invalid';
+
 export interface Point {
   x: number;
   y: number;

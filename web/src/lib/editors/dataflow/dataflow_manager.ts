@@ -28,6 +28,7 @@ export interface DataFlowManagerData {
   edges: DataFlowEdge[];
   toposorted: number[];
   nodeIdToIndex: Map<number, number>;
+  checkAddEdge: (from: number, to: number) => string | null;
 }
 
 export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) {
@@ -46,7 +47,47 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
       from: nodeIdToIndex.get(edge.from),
     }));
     let toposorted = toposort_nodes(nodes.length, edgesForSort);
-    return { nodeIdToIndex, toposorted };
+
+    const checkAddEdge = (from: number, to: number) => {
+      if (edges.find((e) => e.from === from && e.to === to)) {
+        return 'Edge already exists';
+      }
+
+      let seen = new Set([from]);
+
+      // Return true if there is a cycle, defined by arriving back at the original "from" node.
+      const findCycle = (node: number) => {
+        // This has bad O but the data size is small.
+        for (let edge of edges) {
+          if (edge.from !== node) {
+            continue;
+          }
+
+          if (edge.to === from) {
+            return true;
+          }
+
+          if (seen.has(edge.to)) {
+            return false;
+          }
+
+          seen.add(edge.to);
+
+          if (findCycle(edge.to) === true) {
+            return true;
+          }
+        }
+
+        return false;
+      };
+
+      // Starting from the "to" node, traverse the graph to see if we can reach the "from" node.
+      const hasCycle = findCycle(to);
+
+      return hasCycle ? 'Adding this edge causes a cycle' : null;
+    };
+
+    return { nodeIdToIndex, toposorted, checkAddEdge };
   }
 
   // We use the node IDs so it's easier to move things around, but the version on the backend uses indexes.
