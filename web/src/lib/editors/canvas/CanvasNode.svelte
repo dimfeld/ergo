@@ -8,6 +8,7 @@
   export { className as class };
   export let minSize = { x: 0, y: 0 };
   export let dragDeadZone = 0;
+  export let dragHandleStrict = false;
 
   const dispatch = createEventDispatcher();
 
@@ -38,6 +39,7 @@
     position: { x: position.x, y: position.y },
     dragCursor: 'grabbing',
     dragHandle: dragHandleElement,
+    dragHandleStrict,
     deadZone: dragDeadZone,
   }}
   style:width={position.w + 'px'}

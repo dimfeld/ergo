@@ -8,6 +8,7 @@
   export let position: Box;
   export let minSize: Point = { x: 150, y: 150 };
   export let dragDeadZone = 0;
+  export let dragHandleStrict = false;
 </script>
 
 <CanvasNode
@@ -15,13 +16,16 @@
   bind:position
   {minSize}
   {dragDeadZone}
+  {dragHandleStrict}
   let:dragging>
   <DragHandle
     class={cls(
       'flex h-6 w-full items-center bg-accent-300',
       dragging ? 'cursor-grabbing' : 'cursor-grab'
     )}>
-    <span class="truncate px-2 text-sm font-medium text-accent-800">{name || ''}</span>
+    <slot name="title">
+      <span class="truncate px-2 text-sm font-medium text-accent-800">{name || ''}</span>
+    </slot>
   </DragHandle>
   <div class="p-1">
     <slot />

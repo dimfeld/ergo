@@ -11,7 +11,7 @@
 
   import ScriptEditor from '$lib/editors/Script.svelte';
   import StateMachineEditor from '$lib/editors/StateMachine.svelte';
-  import DataFlowEditor from '$lib/editors/DataFlow.svelte';
+  import DataFlowEditor from '$lib/editors/dataflow/DataFlow.svelte';
   import { baseData } from '$lib/data';
   import apiClient from '$lib/api';
   import { new_task_id, new_task_trigger_id, TaskConfigValidator } from 'ergo-wasm';
@@ -101,7 +101,7 @@
   const headerText = getHeaderTextStore();
   $: headerText.set(['Tasks', task.name || 'New Task']);
 
-  let showNewTaskDialog: ModalOpener<void, string>;
+  let showNewTaskDialog: ModalOpener<void, TaskConfig['type']>;
   $: if (newTask && showNewTaskDialog && !task.source) {
     initializeSource();
   }

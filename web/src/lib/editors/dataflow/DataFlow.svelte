@@ -3,10 +3,11 @@
   import { dataflowManager, type DataFlowSource } from './dataflow_manager';
   import Button from '$lib/components/Button.svelte';
   import Plus from '$lib/components/icons/Plus.svelte';
-  import Canvas from './canvas/Canvas.svelte';
-  import DrawRectangle from './canvas/DrawRectangle.svelte';
-  import type { Box } from './canvas/drag';
-  import CanvasTitledBox from './canvas/CanvasTitledBox.svelte';
+  import Canvas from '../canvas/Canvas.svelte';
+  import DrawRectangle from '../canvas/DrawRectangle.svelte';
+  import type { Box } from '../canvas/drag';
+  import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
+  import DataFlowNode from './DataFlowNode.svelte';
 
   export let source: DataFlowSource;
   export let compiled: DataFlowConfig;
@@ -59,13 +60,12 @@
 
 <div class="relative">
   <Canvas bind:position={canvasPosition} scrollable={false}>
-    {#each $data.nodes as node, i (node.config.name)}
-      <CanvasTitledBox bind:position={node.meta.position} name={node.config.name} />
+    {#each $data.nodes as node (node.meta.id)}
+      <DataFlowNode bind:node />
     {/each}
 
     <div slot="controls">
       <div class="absolute top-4 left-4 z-50 flex gap-2 overflow-visible">
-        <span>{state}</span>
         <Button bind:element={addButtonEl} iconButton on:click={() => toggleState('addingNode')}>
           <Plus />
         </Button>

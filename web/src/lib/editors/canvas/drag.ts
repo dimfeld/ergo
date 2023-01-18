@@ -47,7 +47,7 @@ export interface DragPosition {
 }
 
 export function positionStore(initial: Point) {
-  const sp = spring(initial, { stiffness: 0.3, damping: 0.4 });
+  const sp = spring(initial, { stiffness: 0.3, damping: 0.45 });
   const immediate = writable(initial);
   const output = derived([sp, immediate], ([$sp, $immediate]) => {
     return {
@@ -194,8 +194,6 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       return;
     }
 
-    console.dir({ thisUpdate });
-
     if (manageTransform && transform !== lastCb?.transform) {
       node.style.transform = transform;
     }
@@ -325,9 +323,21 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
   const testDragHandles = (node: HTMLElement) => {
     if (config.dragHandleStrict) {
       return dragHandles.includes(node);
-    } else {
-      return dragHandles.some((handle) => handle.contains(node));
     }
+
+    if (!dragHandles.some((handle) => handle.contains(node))) {
+      return false;
+    }
+
+    let checkNode = node;
+    while (checkNode) {
+      if (checkNode.classList.contains('no-drag')) {
+        return false;
+      }
+      checkNode = checkNode.parentElement;
+    }
+
+    return true;
   };
 
   const dragHandler = (event: MouseEvent) => {

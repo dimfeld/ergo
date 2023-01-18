@@ -3,6 +3,7 @@
   import { createEventDispatcher, tick } from 'svelte';
   import XIcon from '$lib/components/icons/X.svelte';
   import CheckIcon from '$lib/components/icons/Check.svelte';
+  import { cls } from '$lib/styles';
 
   const dispatch = createEventDispatcher<{ change: string; input: string }>();
 
@@ -14,13 +15,17 @@
   export let validate:
     | ((value: string, existingValue: string) => string | null | undefined)
     | undefined = undefined;
+  export let buttonSizeClasses = 'w-4 h-4';
+
+  let classNames: string | undefined;
+  export { classNames as class };
 
   export let editingClasses =
     'border ring-accent-500 border-accent-500 focus:ring-accent-500 focus:border-accent-500';
   export let normalClasses =
     'border cursor-pointer border-transparent ring-accent-500 focus:ring-accent-500 focus:border-transparent hover:border-gray-400';
 
-  $: classNames = editing ? editingClasses : normalClasses;
+  $: inputClass = cls('w-full', classNames, editing ? editingClasses : normalClasses);
 
   let textField: HTMLInputElement;
   let currentInput = value ?? '';
@@ -103,7 +108,7 @@
     bind:this={textField}
     type="text"
     readonly={!editing}
-    class="w-full {classNames}"
+    class={inputClass}
     class:border-red-500={editing && Boolean(error)}
     bind:value={currentInput}
     {placeholder}
@@ -111,32 +116,27 @@
     on:focus={startEditing}
     on:click={startEditing}
     on:keyup={handleKeyUp}
-    title={editing ? '' : 'Click to edit'}
-  />
+    title={editing ? '' : 'Click to edit'} />
   {#if editing}
     <div
-      class="absolute inset-y-0 right-0 rounded-r-md m-px 
-       pr-2 z-10 flex flex-row items-center
-       bg-white dark:bg-gray-800"
-    >
+      class="absolute inset-y-0 right-0 z-10 m-px 
+       flex flex-row items-center rounded-r-md bg-white
+       pr-2 dark:bg-gray-800">
       <button
         on:click={save}
-        class="px-1 cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-        title="OK"><CheckIcon class="h-4 w-4 inline" /></button
-      >
+        class="cursor-pointer rounded px-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+        title="OK"><CheckIcon class="inline {buttonSizeClasses}" /></button>
       <button
         on:click={cancel}
-        class="px-1 cursor-pointer rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-        title="Cancel"><XIcon class="h-4 w-4 inline" /></button
-      >
+        class="cursor-pointer rounded px-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+        title="Cancel"><XIcon class="inline {buttonSizeClasses}" /></button>
     </div>
   {/if}
 
   {#if error}
     <div
-      class="bg-red-200 dark:bg-red-400 dark:text-black rounded-lg px-4 py-2"
-      use:showTippy={{ trigger: textField, position: 'bottom' }}
-    >
+      class="rounded-lg bg-red-200 px-4 py-2 dark:bg-red-400 dark:text-black"
+      use:showTippy={{ trigger: textField, position: 'bottom' }}>
       {error}
     </div>
   {/if}
