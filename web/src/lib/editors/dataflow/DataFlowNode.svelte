@@ -1,38 +1,49 @@
 <script lang="ts">
-  import Checkbox from '$lib/components/Checkbox.svelte';
-  import Dropdown from '$lib/components/Dropdown.svelte';
-  import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
   import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
   import Editor from '../Editor.svelte';
+  import { createEventDispatcher } from 'svelte';
   import type { DataFlowManagerNode } from './dataflow_manager';
+  import { cls } from '$lib/styles';
+
+  const dispatch = createEventDispatcher();
 
   export let node: DataFlowManagerNode;
-
-  export let menuOpen = false;
+  export let selectMode = false;
+  export let selected = false;
 </script>
 
-<CanvasTitledBox bind:name={node.config.name} bind:position={node.meta.position}>
-  <div slot="title" class="flex items-center">
-    <div class="no-drag">
-      <Dropdown closeOnClickInside={false}>
-        <button
-          slot="button"
-          type="button"
-          class="no-drag text-sm font-bold text-black"
-          on:click={() => (menuOpen = !menuOpen)}>
-          <ChevronDown />
-        </button>
-
-        <Checkbox bind:value={node.meta.autorun} class="w-full px-4" label="Autorun" />
-      </Dropdown>
-    </div>
-    <div class="px-1">
+<CanvasTitledBox
+  bind:name={node.config.name}
+  bind:position={node.meta.position}
+  {selectMode}
+  {selected}
+  on:mousemove
+  on:mouseleave
+  on:selectModeClick>
+  <div slot="title" class="flex w-full items-center gap-1">
+    <div class="no-drag relative h-full">
+      <!-- invisible element for sizing, so that the text box is no larger than needed -->
+      <span class="invisible px-2 py-0">{node.config.name}</span>
       <input
         type="text"
         autocomplete="off"
         bind:value={node.config.name}
-        class="no-drag flex-1 border-transparent !bg-transparent px-2 py-0 text-xs font-medium text-accent-800 hover:border-gray-500 " />
+        class="absolute inset-0 border-transparent !bg-transparent px-2 py-0 text-xs font-medium text-accent-800 hover:border-gray-500 " />
     </div>
+
+    <button
+      type="button"
+      class="no-drag whitespace-nowrap pt-px text-xs text-accent-800"
+      on:click={() => (node.meta.autorun = !node.meta.autorun)}>
+      Auto {node.meta.autorun ? 'ON' : 'OFF'}
+    </button>
+
+    <button
+      type="button"
+      class="ml-auto mr-1 text-accent-800"
+      on:click={() => dispatch('startAddEdge')}>
+      &gt;
+    </button>
   </div>
 
   {#if node.config.func.type === 'js'}

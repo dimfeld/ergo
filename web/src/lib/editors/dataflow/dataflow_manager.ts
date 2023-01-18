@@ -40,7 +40,12 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
 
   function generateLookups(nodes: DataFlowManagerNode[], edges: DataFlowEdge[]) {
     let nodeIdToIndex = new Map<number, number>(nodes.map((node, i) => [node.meta.id, i]));
-    let toposorted = toposort_nodes(nodes.length, edges);
+    let edgesForSort = edges.map((edge) => ({
+      ...edge,
+      to: nodeIdToIndex.get(edge.to),
+      from: nodeIdToIndex.get(edge.from),
+    }));
+    let toposorted = toposort_nodes(nodes.length, edgesForSort);
     return { nodeIdToIndex, toposorted };
   }
 

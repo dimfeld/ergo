@@ -325,12 +325,13 @@ export function drag(node: HTMLElement, config: DragActionConfig) {
       return dragHandles.includes(node);
     }
 
-    if (!dragHandles.some((handle) => handle.contains(node))) {
+    let dragHandleNode = dragHandles.find((handle) => handle.contains(node));
+    if (!dragHandleNode) {
       return false;
     }
 
     let checkNode = node;
-    while (checkNode) {
+    while (checkNode && checkNode !== dragHandleNode) {
       if (checkNode.classList.contains('no-drag')) {
         return false;
       }

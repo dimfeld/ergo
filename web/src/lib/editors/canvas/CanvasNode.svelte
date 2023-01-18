@@ -29,6 +29,8 @@
 
 <div
   class={cls('absolute', className)}
+  on:mousemove
+  on:mouseleave
   use:drag={{
     onChange: (c) => {
       position.x = c.position.current.x;
