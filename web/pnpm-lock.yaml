@@ -64,6 +64,7 @@ specifiers:
   just-capitalize: ~3.1.1
   just-clone: ~6.1.1
   just-debounce-it: ~3.1.1
+  just-group-by: ~2.2.0
   just-is-empty: ~3.2.1
   just-once: ~2.1.1
   just-pascal-case: ~3.1.1
@@ -137,6 +138,7 @@ dependencies:
   just-capitalize: 3.1.1
   just-clone: 6.1.1
   just-debounce-it: 3.1.1
+  just-group-by: 2.2.0
   just-is-empty: 3.2.1
   just-once: 2.1.1
   just-pascal-case: 3.1.1
@@ -8759,6 +8761,10 @@ packages:
 
   /just-debounce-it/3.1.1:
     resolution: {integrity: sha512-oPsuRyWp99LJaQ4KXC3A42tQNqkRTcPy0A8BCkRZ5cPCgsx81upB2KUrmHZvDUNhnCDKe7MshfTuWFQB9iXwDg==}
+    dev: false
+
+  /just-group-by/2.2.0:
+    resolution: {integrity: sha512-brZocDSmkvDYc+FOr07GiTar4cp7K6OB9huVOrj5LX+iXfCe3hTvn2KGM811LE/SBQkCzuYDDEcG8HA/dKDrnw==}
     dev: false
 
   /just-is-empty/3.2.1:

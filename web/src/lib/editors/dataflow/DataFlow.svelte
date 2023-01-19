@@ -73,14 +73,15 @@
     };
   }
 
-  function dataFlowEdgeDestPos(node: DataFlowManagerNode): LineEnd {
+  function dataFlowEdgeDestPos(node: DataFlowManagerNode, offset = 0): LineEnd {
     let { position } = node.meta;
     return {
       box: node.meta.position,
       point: {
         x: position.x,
-        y: position.y + 20,
+        y: position.y + (offset + 1) * 20,
       },
+      offset,
     };
   }
 
@@ -196,23 +197,27 @@
         on:mouseleave={() => handleMouseLeaveNode(node)} />
     {/each}
 
-    {#each $data.edges as edge (`${edge.from}-${edge.to}`)}
-      <BoxToBoxArrow
-        start={dataFlowEdgeSourcePos($data.nodes[$data.nodeIdToIndex.get(edge.from)])}
-        end={dataFlowEdgeDestPos($data.nodes[$data.nodeIdToIndex.get(edge.to)])}
-        color="rgb(128, 128, 128)"
-        {selectMode}
-        selected={state === 'removing' && edge === removeHighlightedEdge ? 'valid' : null}
-        on:mousemove={() => handleMouseMoveEdge(edge)}
-        on:mouseleave={() => handleMouseLeaveEdge(edge)}
-        on:click={() => handleClickEdge(edge)} />
+    {#each Object.entries($data.edgesByDestination) as [to, edges] (to)}
+      {#each edges as edge, i (`${edge.from}-${edge.to}`)}
+        {@const fromNode = $data.nodeById(edge.from)}
+        <BoxToBoxArrow
+          start={dataFlowEdgeSourcePos($data.nodeById(edge.from))}
+          end={dataFlowEdgeDestPos($data.nodeById(edge.to), i)}
+          color={fromNode.meta.edgeColor}
+          {selectMode}
+          selected={state === 'removing' && edge === removeHighlightedEdge ? 'valid' : null}
+          on:mousemove={() => handleMouseMoveEdge(edge)}
+          on:mouseleave={() => handleMouseLeaveEdge(edge)}
+          on:click={() => handleClickEdge(edge)} />
+      {/each}
     {/each}
 
     {#if state === 'addingEdge' && edgeSourceNode && edgeDestNode}
+      {@const numExistingEdges = $data.edgesByDestination[edgeDestNode.meta.id]?.length || 0}
       <BoxToBoxArrow
         start={dataFlowEdgeSourcePos(edgeSourceNode)}
-        end={dataFlowEdgeDestPos(edgeDestNode)}
-        color={canAddEdge === 'valid' ? 'rgb(128, 128, 128)' : '#a03030'}
+        end={dataFlowEdgeDestPos(edgeDestNode, numExistingEdges)}
+        color={canAddEdge === 'valid' ? edgeSourceNode.meta.edgeColor : '#a03030'}
         dash="4 4" />
     {/if}
 

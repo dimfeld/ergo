@@ -4,6 +4,8 @@ import { get as getStore, writable } from 'svelte/store';
 import type { Box } from '../canvas/drag';
 import { toposort_nodes } from 'ergo-wasm';
 import camelCase from 'just-camel-case';
+import groupBy from 'just-group-by';
+import { schemeOranges } from 'd3';
 
 /** Metadata used only for the front-end. */
 export interface DataFlowNodeMeta {
@@ -12,6 +14,7 @@ export interface DataFlowNodeMeta {
   splitPos: number;
   autorun: boolean;
   lastOutput: string;
+  edgeColor: string;
 }
 
 export interface DataFlowSource {
@@ -27,12 +30,38 @@ export interface DataFlowManagerData {
   nodes: DataFlowManagerNode[];
   edges: DataFlowEdge[];
   toposorted: number[];
+  edgesByDestination: Record<number, DataFlowEdge[]>;
+  nodeById: (id: number) => DataFlowManagerNode;
   nodeIdToIndex: Map<number, number>;
   checkAddEdge: (from: number, to: number) => string | null;
 }
 
+function findLeastUsedColor(colors: string[], nodes: DataFlowManagerNode[]) {
+  let colorCounts = new Map<string, number>(colors.map((c) => [c, 0]));
+  for (let node of nodes) {
+    if (node.meta.edgeColor) {
+      colorCounts.set(node.meta.edgeColor, colorCounts.get(node.meta.edgeColor) + 1);
+    }
+  }
+  let min = Number.MAX_SAFE_INTEGER;
+  let minColor = colors[0];
+  for (let [color, count] of colorCounts) {
+    if (count < min) {
+      min = count;
+      minColor = color;
+    }
+  }
+  return minColor;
+}
+
 export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) {
-  const nodes = zip(config?.nodes || [], source?.nodes || []).map(([config, meta]) => {
+  let colors = schemeOranges[9];
+
+  const nodes = zip(config?.nodes || [], source?.nodes || []).map(([config, meta], i) => {
+    if (!meta.edgeColor) {
+      meta.edgeColor = colors[i % colors.length];
+    }
+
     return {
       config,
       meta,
@@ -47,6 +76,8 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
       from: nodeIdToIndex.get(edge.from),
     }));
     let toposorted = toposort_nodes(nodes.length, edgesForSort);
+
+    const edgesByDestination = groupBy(edges, (edge) => edge.to);
 
     const checkAddEdge = (from: number, to: number) => {
       if (edges.find((e) => e.from === from && e.to === to)) {
@@ -87,7 +118,9 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
       return hasCycle ? 'Adding this edge causes a cycle' : null;
     };
 
-    return { nodeIdToIndex, toposorted, checkAddEdge };
+    const nodeById = (id: number) => nodes[nodeIdToIndex.get(id)];
+
+    return { nodeIdToIndex, nodeById, edgesByDestination, toposorted, checkAddEdge };
   }
 
   // We use the node IDs so it's easier to move things around, but the version on the backend uses indexes.
@@ -225,6 +258,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
               splitPos: 75,
               autorun: true,
               lastOutput: '',
+              edgeColor: findLeastUsedColor(colors, data.nodes),
             },
           },
         ];
