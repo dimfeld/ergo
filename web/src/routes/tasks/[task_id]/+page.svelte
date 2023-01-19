@@ -21,6 +21,8 @@
   import TaskTriggerEditor, { type TaskTriggerEditorData } from '../_TaskTriggerEditor.svelte';
   import TaskActionEditor, { type TaskActionEditorData } from '../_TaskActionEditor.svelte';
   import type { PageData } from './$types';
+  import Checkbox from '$lib/components/Checkbox.svelte';
+  import Switch from '$lib/components/Switch.svelte';
 
   export let data: PageData;
   let task: TaskResult;
@@ -197,8 +199,14 @@
         <input type="text" bind:value={task.alias} placeholder="None" />
       </Labelled>
     </div>
-    <Labelled label="Description"
-      ><input type="text" class="w-full" bind:value={task.description} /></Labelled>
+    <div class="flex w-full items-center justify-between space-x-4">
+      <Labelled label="Description" class="w-full">
+        <input type="text" class="w-full" bind:value={task.description} />
+      </Labelled>
+      <Labelled label="Enabled">
+        <Switch name="Enabled" bind:value={task.enabled} />
+      </Labelled>
+    </div>
     <div class="flex justify-between space-x-4">
       <p class="whitespace-nowrap text-sm">
         ID: <span class:text-gray-500={!task.task_id}>{task.task_id || 'New Task'}</span>
