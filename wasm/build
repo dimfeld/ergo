@@ -1,1 +1,2 @@
-wasm-pack build --target web
+#!/bin/bash
+wasm-pack build --target web "$@"

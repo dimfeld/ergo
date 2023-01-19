@@ -150,27 +150,32 @@ impl TaskConfigValidator {
 
 #[wasm_bindgen]
 pub fn new_task_id() -> String {
-    TaskId::new().to_string()
+    let now = js_sys::Date::now();
+    TaskId::from_timestamp(now as u64).to_string()
 }
 
 #[wasm_bindgen]
 pub fn new_input_id() -> String {
-    InputId::new().to_string()
+    let now = js_sys::Date::now();
+    InputId::from_timestamp(now as u64).to_string()
 }
 
 #[wasm_bindgen]
 pub fn new_action_id() -> String {
-    ActionId::new().to_string()
+    let now = js_sys::Date::now();
+    ActionId::from_timestamp(now as u64).to_string()
 }
 
 #[wasm_bindgen]
 pub fn new_task_trigger_id() -> String {
-    TaskTriggerId::new().to_string()
+    let now = js_sys::Date::now();
+    TaskTriggerId::from_timestamp(now as u64).to_string()
 }
 
 #[wasm_bindgen]
 pub fn new_periodic_trigger_id() -> String {
-    PeriodicTriggerId::new().to_string()
+    let now = js_sys::Date::now();
+    PeriodicTriggerId::from_timestamp(now as u64).to_string()
 }
 
 #[wasm_bindgen]

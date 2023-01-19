@@ -1,6 +1,6 @@
 #[cfg(not(target_family = "wasm"))]
 use sqlx::{postgres::PgTypeInfo, Database};
-use std::{ops::Deref, str::FromStr};
+use std::{ops::Deref, str::FromStr, time::SystemTime};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -59,8 +59,15 @@ impl<const PREFIX: usize> ObjectId<PREFIX> {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn new() -> Self {
         Self(new_uuid())
+    }
+
+    pub fn from_timestamp(timestamp_ms: u64) -> Self {
+        let timestamp = SystemTime::UNIX_EPOCH + std::time::Duration::from_millis(timestamp_ms);
+        let u = ulid::Ulid::from_datetime(timestamp);
+        Self(u.into())
     }
 
     pub fn from_uuid(u: Uuid) -> Self {
@@ -76,6 +83,7 @@ impl<const PREFIX: usize> ObjectId<PREFIX> {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 impl<const PREFIX: usize> Default for ObjectId<PREFIX> {
     fn default() -> Self {
         Self::new()
