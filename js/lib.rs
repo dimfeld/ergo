@@ -7,6 +7,7 @@ mod pool;
 mod raw_serde;
 #[cfg(feature = "serialized_execution")]
 pub mod serialized_execution;
+pub mod worker;
 
 pub use console::*;
 pub use pool::RuntimePool;
