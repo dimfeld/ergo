@@ -5,18 +5,23 @@ use serde::{Deserialize, Serialize};
 
 mod dag;
 mod node;
+mod run;
 
 pub use node::*;
 use tracing::{event, Level};
 
 pub use self::dag::toposort_nodes;
-use self::dag::NodeWalker;
+use self::{dag::NodeWalker, run::DataFlowRunner};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {
     nodes: Vec<DataFlowNode>,
     /// The connection between nodes. This must be sorted.
     edges: Vec<DataFlowEdge>,
+    /// The compiled JavaScript for all the nodes and their dependencies, bundled as an IIFE
+    compiled: String,
+    /// A source map for the compiled JavaScript
+    map: Option<String>,
     toposorted: Vec<u32>,
 }
 
@@ -32,9 +37,16 @@ pub struct DataFlowNodeLog {
 }
 
 impl DataFlowConfig {
-    pub fn new(nodes: Vec<DataFlowNode>, edges: Vec<DataFlowEdge>) -> Result<Self> {
+    pub fn new(
+        nodes: Vec<DataFlowNode>,
+        edges: Vec<DataFlowEdge>,
+        compiled: String,
+        map: Option<String>,
+    ) -> Result<Self> {
         let config = Self {
             toposorted: toposort_nodes(nodes.len(), &edges)?,
+            compiled,
+            map,
             nodes,
             edges,
         };
@@ -54,10 +66,10 @@ impl DataFlowConfig {
         payload: serde_json::Value,
     ) -> Result<(DataFlowState, Option<DataFlowLog>, TaskActionInvocations)> {
         if state.nodes.len() != self.nodes.len() {
-            state
-                .nodes
-                .resize(self.nodes.len(), serde_json::Value::Null);
+            state.nodes.resize_with(self.nodes.len(), String::new);
         }
+
+        let runner = DataFlowRunner::new(self, &state).await?;
 
         let trigger_node = self
             .nodes
@@ -76,12 +88,7 @@ impl DataFlowConfig {
         let first_node = &self.nodes[first_node_idx];
         let new_state = first_node
             .func
-            .execute(
-                task_name,
-                &first_node.name,
-                &serde_json::Value::Null,
-                NodeInput::Single(payload),
-            )
+            .execute(task_name, &first_node.name, &runner, Some(payload))
             .await?;
 
         if first_node.func.persist_output() {
@@ -94,53 +101,12 @@ impl DataFlowConfig {
         for node_idx in walker {
             let node = &self.nodes[node_idx];
 
-            // Gather the inputs for the node
-            let input = self
-                .edges
-                .iter()
-                .filter(|edge| edge.to as usize == node_idx)
-                .map(|edge| {
-                    let from_node = &self.nodes[edge.from as usize];
-                    let node_state = from_node.func.output(
-                        state
-                            .nodes
-                            .get(edge.from as usize)
-                            .unwrap_or(&serde_json::Value::Null),
-                    );
-
-                    if !node.allow_null_inputs && node_state == serde_json::Value::Null {
-                        // Return an Err just because it's a convenient way to short-circuit the
-                        // iteration.
-                        Err(())
-                    } else {
-                        Ok((edge.name.clone(), node_state))
-                    }
-                })
-                .collect::<Result<FxHashMap<_, _>, ()>>();
-
-            let input = match input {
-                Ok(input) => input,
-                // This just means that the node is not running because one of its inputs is null.
-                // Not a real error, so just continue to the next node.
-                Err(()) => continue,
-            };
-
-            let node_state = state
-                .nodes
-                .get(node_idx)
-                .unwrap_or(&serde_json::Value::Null);
-            event!(Level::DEBUG, node=%node.name, state=?node_state, ?input, "Evaluating node");
+            event!(Level::DEBUG, node=%node.name, state=?state, "Evaluating node");
             dbg!(&node);
-            dbg!(&node_state);
-            dbg!(&input);
+            dbg!(&state);
             let result = node
                 .func
-                .execute(
-                    task_name,
-                    &node.name,
-                    node_state,
-                    NodeInput::Multiple(input),
-                )
+                .execute(task_name, &node.name, &runner, None)
                 .await?;
             dbg!(&result);
 
@@ -173,7 +139,9 @@ impl DataFlowConfig {
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[cfg_attr(not(target_family = "wasm"), derive(JsonSchema))]
 pub struct DataFlowState {
-    nodes: Vec<serde_json::Value>,
+    /// The state is a set of JS values made safe for serialization by `devalue`. This allows objects such
+    /// as Maps, Sets, Dates, etc. to be stored in the state.
+    nodes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

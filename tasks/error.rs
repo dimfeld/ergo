@@ -69,6 +69,12 @@ pub enum Error {
         console: Vec<ConsoleMessage>,
     },
 
+    #[error("Failed to initialize dataflow environment: {error}")]
+    DataflowInitScriptError {
+        #[source]
+        error: ergo_js::Error,
+    },
+
     #[error("Dataflow node {node} script error: {error}")]
     #[cfg(not(target_family = "wasm"))]
     DataflowScript {
@@ -76,6 +82,22 @@ pub enum Error {
         #[source]
         error: ergo_js::Error,
         console: Vec<ConsoleMessage>,
+    },
+
+    #[error("Failed to read result from node {node}: {error}")]
+    #[cfg(not(target_family = "wasm"))]
+    DataflowGetStateError {
+        node: String,
+        #[source]
+        error: ergo_js::Error,
+    },
+
+    #[error("Failed to write state for node {node}: {error}")]
+    #[cfg(not(target_family = "wasm"))]
+    DataflowSetStateError {
+        node: String,
+        #[source]
+        error: ergo_js::Error,
     },
 
     #[error("Parsing cron schedule: {0}")]
