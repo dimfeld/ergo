@@ -51,10 +51,17 @@ impl DataFlowRunner {
         task_name: &str,
         node_name: &str,
         node_func: &str,
+        null_check_nodes: &[&str],
     ) -> Result<(String, Vec<ConsoleMessage>), Error> {
         let name = format!("https://ergo/tasks/{task_name}/{node_name}.js");
+        let null_checks = if null_check_nodes.is_empty() {
+            "null".to_string()
+        } else {
+            serde_json::to_string(null_check_nodes)?
+        };
+
         let func_call = format!(
-            r##"__ergo_dataflow.runNode("{node_name}", "__ergo_nodecode", "{node_func}")"##
+            r##"__ergo_dataflow.runNode("{node_name}", "__ergo_nodecode", "{node_func}", {null_checks})"##
         );
 
         self.worker

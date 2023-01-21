@@ -27,8 +27,16 @@ export function setNodeState(nodeName, state) {
   return s;
 }
 
-export async function runNode(nodeName, nodeNamespace, nodeFunc) {
+export async function runNode(nodeName, nodeNamespace, nodeFunc, nullCheckNodes) {
   let nodeFn = globalThis[nodeNamespace][nodeFunc];
+
+  if(Array.isArray(nullCheckNodes)) {
+    for(let node of nullCheckNodes) {
+      if(nodeState[node] == null) {
+        return '';
+      }
+    }
+  }
 
   let state_result = await nodeFn(nodeState);
   nodeState[nodeName] = state_result;

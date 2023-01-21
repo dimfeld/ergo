@@ -88,8 +88,12 @@ impl DataFlowConfig {
         let first_node = &self.nodes[first_node_idx];
         let new_state = first_node
             .func
-            .execute(task_name, &first_node.name, &runner, Some(payload))
+            .execute(task_name, &first_node.name, &runner, &[], Some(payload))
             .await?;
+
+        let Some(new_state) = new_state else {
+            return Ok((state, None, TaskActionInvocations::default()));
+        };
 
         if first_node.func.persist_output() {
             state.nodes[first_node_idx] = new_state.state;
@@ -101,14 +105,25 @@ impl DataFlowConfig {
         for node_idx in walker {
             let node = &self.nodes[node_idx];
 
+            let null_check_nodes = if node.allow_null_inputs {
+                vec![]
+            } else {
+                self.edges
+                    .iter()
+                    .map(|edge| self.nodes[edge.to as usize].name.as_str())
+                    .collect()
+            };
+
             event!(Level::DEBUG, node=%node.name, state=?state, "Evaluating node");
             dbg!(&node);
             dbg!(&state);
             let result = node
                 .func
-                .execute(task_name, &node.name, &runner, None)
+                .execute(task_name, &node.name, &runner, &null_check_nodes, None)
                 .await?;
             dbg!(&result);
+
+            let Some(result) = result else { continue; };
 
             if !result.console.is_empty() {
                 logs.push(DataFlowNodeLog {

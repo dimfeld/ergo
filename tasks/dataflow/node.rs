@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use crate::{actions::TaskActionInvocation, Error, Result};
 pub use ergo_js::ConsoleMessage;
 use fxhash::FxHashMap;
@@ -131,23 +129,26 @@ impl DataFlowNodeFunction {
         task_name: &str,
         node_name: &str,
         runner: &DataFlowRunner,
+        null_check_nodes: &[&str],
         input: Option<serde_json::Value>,
-    ) -> Result<NodeResult> {
+    ) -> Result<Option<NodeResult>> {
         match self {
-            Self::Js(expr) => run_js(task_name, node_name, runner, expr)
+            Self::Js(expr) => run_js(task_name, node_name, runner, null_check_nodes, expr)
                 .await
-                .map(NodeResult::from),
-            Self::Action(expr) => evaluate_action_node(task_name, node_name, runner, expr).await,
+                .map(|r| r.map(NodeResult::from)),
+            Self::Action(expr) => {
+                evaluate_action_node(task_name, node_name, runner, null_check_nodes, expr).await
+            }
             Self::Trigger(_) => {
                 let value = input.unwrap_or_default();
                 let store_state = runner.set_node_state(node_name, &value).await?;
-                Ok(NodeResult {
+                Ok(Some(NodeResult {
                     state: store_state,
                     action: None,
                     console: Vec::new(),
-                })
+                }))
             }
-            Self::Text(_) | Self::Table | Self::Graph => Ok(NodeResult::empty()),
+            Self::Text(_) | Self::Table | Self::Graph => Ok(None),
         }
     }
 
@@ -163,18 +164,29 @@ async fn evaluate_action_node(
     task_name: &str,
     node_name: &str,
     runner: &DataFlowRunner,
+    null_check_nodes: &[&str],
     action: &DataFlowAction,
-) -> Result<NodeResult> {
-    let (result, console) = run_js(task_name, node_name, runner, &action.payload_code)
-        .await
-        .map_err(|e| match e {
-            Error::TaskScript { error, console } => Error::DataflowScript {
-                node: node_name.to_string(),
-                error,
-                console,
-            },
-            _ => e,
-        })?;
+) -> Result<Option<NodeResult>> {
+    let result = run_js(
+        task_name,
+        node_name,
+        runner,
+        null_check_nodes,
+        &action.payload_code,
+    )
+    .await
+    .map_err(|e| match e {
+        Error::TaskScript { error, console } => Error::DataflowScript {
+            node: node_name.to_string(),
+            error,
+            console,
+        },
+        _ => e,
+    })?;
+
+    let Some((result, console)) = result else {
+        return Ok(None);
+    };
 
     let action_payload =
         runner
@@ -195,22 +207,30 @@ async fn evaluate_action_node(
         _ => None,
     };
 
-    Ok(NodeResult {
+    Ok(Some(NodeResult {
         state: result,
         action,
         console,
-    })
+    }))
 }
 
 async fn run_js(
     task_name: &str,
     node_name: &str,
     runner: &DataFlowRunner,
+    null_check_nodes: &[&str],
     expr: &DataFlowJs,
-) -> Result<(String, Vec<ConsoleMessage>)> {
+) -> Result<Option<(String, Vec<ConsoleMessage>)>> {
     runner
-        .run_node(task_name, node_name, &expr.func)
+        .run_node(task_name, node_name, &expr.func, null_check_nodes)
         .await
+        .map(|(result, console)| {
+            if result.is_empty() {
+                None
+            } else {
+                Some((result, console))
+            }
+        })
         .map_err(|e| match e {
             Error::TaskScript { error, console } => Error::DataflowScript {
                 node: node_name.to_string(),
