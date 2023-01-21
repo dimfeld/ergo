@@ -22,9 +22,8 @@ export function getState(nodeName) {
 }
 
 export function setNodeState(nodeName, state) {
-  let s = stringify(state);
-  nodeState[nodeName] = s;
-  return s;
+  nodeState[nodeName] = state;
+  return stringify(state);
 }
 
 export async function runNode(nodeName, nodeNamespace, nodeFunc, nullCheckNodes) {
@@ -32,6 +31,7 @@ export async function runNode(nodeName, nodeNamespace, nodeFunc, nullCheckNodes)
 
   if(Array.isArray(nullCheckNodes)) {
     for(let node of nullCheckNodes) {
+      // Skip on null or undefined. Empty string indicates that nothing happened.
       if(nodeState[node] == null) {
         return '';
       }

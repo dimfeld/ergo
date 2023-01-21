@@ -110,7 +110,8 @@ impl DataFlowConfig {
             } else {
                 self.edges
                     .iter()
-                    .map(|edge| self.nodes[edge.to as usize].name.as_str())
+                    .filter(|edge| edge.to as usize == node_idx)
+                    .map(|edge| self.nodes[edge.from as usize].name.as_str())
                     .collect()
             };
 
@@ -163,7 +164,6 @@ pub struct DataFlowState {
 pub struct DataFlowEdge {
     from: u32,
     to: u32,
-    name: String,
 }
 
 impl PartialOrd for DataFlowEdge {
@@ -183,7 +183,7 @@ impl Ord for DataFlowEdge {
 
 pub fn edge_indexes_from_names(
     nodes: &[DataFlowNode],
-    edges_by_name: &[(impl AsRef<str>, impl AsRef<str>, impl ToString)],
+    edges_by_name: &[(impl AsRef<str>, impl AsRef<str>)],
 ) -> Result<Vec<DataFlowEdge>> {
     let name_indexes = nodes
         .iter()
@@ -193,7 +193,7 @@ pub fn edge_indexes_from_names(
 
     edges_by_name
         .iter()
-        .map(|(from, to, name)| {
+        .map(|(from, to)| {
             let from = name_indexes
                 .get(from.as_ref())
                 .copied()
@@ -205,11 +205,7 @@ pub fn edge_indexes_from_names(
                 .ok_or_else(|| Error::MissingDataFlowNodeName(to.as_ref().to_string()))?
                 as u32;
 
-            Ok(DataFlowEdge {
-                from,
-                to,
-                name: name.to_string(),
-            })
+            Ok(DataFlowEdge { from, to })
         })
         .collect::<Result<Vec<_>>>()
 }
@@ -261,6 +257,53 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+        let code_bundle = format!(
+            r##"
+            (function() {{
+                function __add_one({{ trigger_a }}) {{
+                    return trigger_a.value + 1;
+                }}
+
+                function __add_together({{ trigger_a, trigger_b }}) {{
+                    let x = trigger_a;
+                    let y = trigger_b;
+                    let result = {result_add};
+                    console.log(`added together ${{result}}`);
+                    return result;
+                }}
+
+                async function __fetch_given_value({{ add_together }}) {{
+                    const response = await {fn_name}(`{base_url}/doc/${{add_together}}`);
+                    const json = await response.json();
+                    return {{ result: json.code }};
+                }}
+
+                function __send_email({{ fetch_given_value, email_label }}) {{
+                    let code = fetch_given_value;
+                    if(code.result) {{
+                        let contents = [email_label, code.result].join(' ');
+                        console.log('Sending the email:', contents);
+                        return {{ contents }};
+                    }}
+                }}
+
+                return {{
+                    __add_one,
+                    __add_together,
+                    __fetch_given_value,
+                    __send_email,
+                }};
+            }})()
+            "##,
+            result_add = if allow_null_inputs {
+                "(x?.value ?? 0) + (y?.value ?? 0)"
+            } else {
+                "x.value + y.value"
+            },
+            base_url = mock_server.uri(),
+            fn_name = if script_error { "bad_func" } else { "fetch" }
+        );
+
         let nodes = vec![
             test_node(
                 "trigger_a",
@@ -280,40 +323,21 @@ mod tests {
                 "add_one",
                 false,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: "value.value + 1".into(),
-                    format: JsCodeFormat::Expression,
+                    func: "__add_one".to_string(),
                 }),
             ),
             test_node(
                 "add_together",
                 allow_null_inputs,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: format!(
-                        r##"
-                        let result = {result_add};
-                        console.log(`added together ${{result}}`);
-                        return result;"##,
-                        result_add = if allow_null_inputs {
-                            "(x?.value ?? 0) + (y?.value ?? 0)"
-                        } else {
-                            "x.value + y.value"
-                        }
-                    ),
-                    format: JsCodeFormat::Function,
+                    func: "__add_together".to_string(),
                 }),
             ),
             test_node(
                 "fetch_given_value",
                 allow_null_inputs,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    format: JsCodeFormat::AsyncFunction,
-                    code: format!(
-                        r##"const response = await {fn_name}(`{base_url}/doc/${{doc_id}}`);
-                        const json = await response.json();
-                        return {{ result: json.code }};"##,
-                        base_url = mock_server.uri(),
-                        fn_name = if script_error { "bad_func" } else { "fetch" }
-                    ),
+                    func: "__fetch_given_value".to_string(),
                 }),
             ),
             test_node(
@@ -330,32 +354,27 @@ mod tests {
                 DataFlowNodeFunction::Action(DataFlowAction {
                     action_id: "send_email".to_string(),
                     payload_code: DataFlowJs {
-                        format: JsCodeFormat::Function,
-                        code: r##"
-                        if(code.result) {
-                            let contents = [label, code.result].join(' ');
-                            console.log('Sending the email:', contents);
-                            return { contents };
-                        }
-                        "##
-                        .into(),
+                        func: "__send_email".to_string(),
                     },
                 }),
             ),
         ];
 
         let edges_by_name = [
-            ("trigger_a", "add_one", "value"),
-            ("trigger_a", "add_together", "x"),
-            ("trigger_b", "add_together", "y"),
-            ("add_together", "fetch_given_value", "doc_id"),
-            ("email_label", "send_email", "label"),
-            ("fetch_given_value", "send_email", "code"),
+            ("trigger_a", "add_one"),
+            ("trigger_a", "add_together"),
+            ("trigger_b", "add_together"),
+            ("add_together", "fetch_given_value"),
+            ("email_label", "send_email"),
+            ("fetch_given_value", "send_email"),
         ];
 
         let edges = edge_indexes_from_names(&nodes, &edges_by_name).expect("building edges");
 
-        (mock_server, DataFlowConfig::new(nodes, edges).unwrap())
+        (
+            mock_server,
+            DataFlowConfig::new(nodes, edges, code_bundle, None).unwrap(),
+        )
     }
 
     #[tokio::test]
@@ -376,13 +395,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!(null),
-                json!(2),
-                json!(1),
-                json!({ "result": 5 }),
-                json!(null),
-                json!({ "contents": "The value: 5" }),
+                r##"[{"value":1},1]"##,
+                "",
+                "[2]",
+                "[1]",
+                r##"[{"result":1},5]"##,
+                "",
+                r##"[{"contents":1},"The value: 5"]"##,
             ]
         );
         assert_eq!(

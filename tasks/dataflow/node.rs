@@ -148,7 +148,15 @@ impl DataFlowNodeFunction {
                     console: Vec::new(),
                 }))
             }
-            Self::Text(_) | Self::Table | Self::Graph => Ok(None),
+            Self::Text(t) => {
+                let state = runner.set_node_state(node_name, &json!(t.body)).await?;
+                Ok(Some(NodeResult {
+                    state,
+                    action: None,
+                    console: Vec::new(),
+                }))
+            }
+            Self::Table | Self::Graph => Ok(None),
         }
     }
 

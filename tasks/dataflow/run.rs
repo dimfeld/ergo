@@ -1,9 +1,8 @@
 use ergo_js::{worker::JsWorker, ConsoleMessage};
 use futures::FutureExt;
 use fxhash::FxHashMap;
-use serde::de::DeserializeOwned;
 
-use super::{DataFlowConfig, DataFlowState};
+use super::{DataFlowConfig, DataFlowNodeFunction, DataFlowState};
 use crate::{Error, Result};
 
 pub const DATAFLOW_ENV_CODE: &str = include_str!("../js_helpers/dist/dataflow.js");
@@ -42,7 +41,18 @@ impl DataFlowRunner {
             .await
             .map_err(|e| Error::DataflowInitScriptError { error: e })?;
 
-        Ok(DataFlowRunner { worker })
+        let runner = DataFlowRunner { worker };
+
+        // Initialize state for nodes that don't actually run but just supply data.
+        for node in config.nodes.iter() {
+            if let DataFlowNodeFunction::Text(t) = &node.func {
+                runner
+                    .set_node_state(node.name.as_str(), &serde_json::json!(t.body.as_str()))
+                    .await?;
+            }
+        }
+
+        Ok(runner)
     }
 
     /// Run a node and return the result, serialized for storage.

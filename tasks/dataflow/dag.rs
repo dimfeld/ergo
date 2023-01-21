@@ -143,11 +143,7 @@ mod tests {
     }
 
     fn test_edge(from: u32, to: u32) -> DataFlowEdge {
-        DataFlowEdge {
-            from,
-            to,
-            name: String::new(),
-        }
+        DataFlowEdge { from, to }
     }
 
     mod toposort {
@@ -268,6 +264,8 @@ mod tests {
             DataFlowConfig {
                 nodes: (0..7).map(|_| blank_node()).collect(),
                 edges,
+                compiled: String::new(),
+                map: None,
                 toposorted,
             }
         }
