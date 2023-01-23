@@ -40,5 +40,5 @@ export async function runNode(nodeName, nodeNamespace, nodeFunc, nullCheckNodes)
 
   let state_result = await nodeFn(nodeState);
   nodeState[nodeName] = state_result;
-  return stringify(state_result);
+  return stringify(state_result ?? null);
 }

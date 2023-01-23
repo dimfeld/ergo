@@ -1,5 +1,5 @@
 use crate::{actions::TaskActionInvocations, Error, Result};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -69,6 +69,8 @@ impl DataFlowConfig {
             state.nodes.resize_with(self.nodes.len(), String::new);
         }
 
+        let mut to_run = FxHashSet::default();
+
         let runner = DataFlowRunner::new(self, &state).await?;
 
         let trigger_node = self
@@ -80,6 +82,7 @@ impl DataFlowConfig {
             })
             .ok_or_else(|| Error::TaskTriggerNotFound(trigger_id.to_string()))?;
 
+        to_run.insert(trigger_node);
         let mut walker = NodeWalker::starting_from(self, trigger_node as u32)?;
 
         // Directly send the payload into the first node. The rest of the nodes have their state built the
@@ -99,10 +102,23 @@ impl DataFlowConfig {
             state.nodes[first_node_idx] = new_state.state;
         }
 
+        // Add all directly connected nodes to the list of nodes to run.
+        self.edges
+            .iter()
+            .filter(|edge| edge.from as usize == trigger_node)
+            .for_each(|edge| {
+                to_run.insert(edge.to as usize);
+            });
+
         let mut logs = Vec::new();
         let mut actions = TaskActionInvocations::new();
 
         for node_idx in walker {
+            if !to_run.contains(&node_idx) {
+                // This node doesn't depend on anything that actually ran, so skip it.
+                continue;
+            }
+
             let node = &self.nodes[node_idx];
 
             let null_check_nodes = if node.allow_null_inputs {
@@ -125,6 +141,14 @@ impl DataFlowConfig {
             dbg!(&result);
 
             let Some(result) = result else { continue; };
+
+            // Add all directly connected nodes to the list of nodes to run.
+            self.edges
+                .iter()
+                .filter(|edge| edge.from as usize == node_idx)
+                .for_each(|edge| {
+                    to_run.insert(edge.to as usize);
+                });
 
             if !result.console.is_empty() {
                 logs.push(DataFlowNodeLog {
@@ -448,13 +472,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!({ "value": -1 }),
-                json!(2),
-                json!(0),
-                json!({ "result": 0 }),
-                json!(null),
-                json!(null),
+                r##"[{"value":1},1]"##,
+                r##"[{"value":1},-1]"##,
+                "[2]",
+                "[0]",
+                r##"[{"result":1},0]"##,
+                "",
+                "[null]",
             ]
         );
 
@@ -471,13 +495,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!({ "value": 2 }),
-                json!(2),
-                json!(3),
-                json!({ "result": 7 }),
-                json!(null),
-                json!({ "contents": "The value: 7" }),
+                r##"[{"value":1},1]"##,
+                r##"[{"value":1},2]"##,
+                "[2]",
+                "[3]",
+                r##"[{"result":1},7]"##,
+                "",
+                r##"[{"contents":1},"The value: 7"]"##,
             ]
         );
         assert_eq!(
@@ -516,15 +540,7 @@ mod tests {
 
         assert_eq!(
             state.nodes,
-            vec![
-                json!({ "value": 1 }),
-                json!(null),
-                json!(2),
-                json!(null),
-                json!(null),
-                json!(null),
-                json!(null),
-            ]
+            vec![r##"[{"value":1},1]"##, "", "[2]", "", "", "", "",]
         );
 
         assert!(actions.is_empty());
@@ -539,13 +555,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!({ "value": 2 }),
-                json!(2),
-                json!(3),
-                json!({ "result": 7 }),
-                json!(null),
-                json!({ "contents": "The value: 7" }),
+                r##"[{"value":1},1]"##,
+                r##"[{"value":1},2]"##,
+                "[2]",
+                "[3]",
+                r##"[{"result":1},7]"##,
+                "",
+                r##"[{"contents":1},"The value: 7"]"##,
             ]
         );
         assert_eq!(

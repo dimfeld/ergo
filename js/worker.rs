@@ -3,7 +3,7 @@ use std::{fmt::Debug, future::ready, pin::Pin};
 use futures::{future::FutureExt, Future};
 use tokio::{sync::oneshot, task::JoinError};
 
-use crate::{Runtime, RuntimeOptions};
+use crate::{BufferConsole, Runtime, RuntimeOptions};
 
 trait WorkerJob: Send {
     fn run<'run>(&mut self, runtime: &'run mut Runtime) -> JobFuture<'run, ()>;
@@ -97,7 +97,10 @@ fn worker(r: async_channel::Receiver<Box<dyn WorkerJob>>) {
     runtime.block_on(async move {
         let local_set = tokio::task::LocalSet::new();
         local_set.spawn_local(async move {
-            let mut runtime = Runtime::new(RuntimeOptions::default());
+            let mut runtime = Runtime::new(RuntimeOptions {
+                console: Some(Box::new(BufferConsole::new(crate::ConsoleLevel::Info))),
+                ..Default::default()
+            });
             while let Ok(mut job) = r.recv().await {
                 job.run(&mut runtime).await;
             }
