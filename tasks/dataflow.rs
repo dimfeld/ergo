@@ -1,22 +1,27 @@
 use crate::{actions::TaskActionInvocations, Error, Result};
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap, FxHashSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 mod dag;
 mod node;
+mod run;
 
 pub use node::*;
 use tracing::{event, Level};
 
 pub use self::dag::toposort_nodes;
-use self::dag::NodeWalker;
+use self::{dag::NodeWalker, run::DataFlowRunner};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowConfig {
     nodes: Vec<DataFlowNode>,
     /// The connection between nodes. This must be sorted.
     edges: Vec<DataFlowEdge>,
+    /// The compiled JavaScript for all the nodes and their dependencies, bundled as an IIFE
+    compiled: String,
+    /// A source map for the compiled JavaScript
+    map: Option<String>,
     toposorted: Vec<u32>,
 }
 
@@ -32,9 +37,16 @@ pub struct DataFlowNodeLog {
 }
 
 impl DataFlowConfig {
-    pub fn new(nodes: Vec<DataFlowNode>, edges: Vec<DataFlowEdge>) -> Result<Self> {
+    pub fn new(
+        nodes: Vec<DataFlowNode>,
+        edges: Vec<DataFlowEdge>,
+        compiled: String,
+        map: Option<String>,
+    ) -> Result<Self> {
         let config = Self {
             toposorted: toposort_nodes(nodes.len(), &edges)?,
+            compiled,
+            map,
             nodes,
             edges,
         };
@@ -54,10 +66,12 @@ impl DataFlowConfig {
         payload: serde_json::Value,
     ) -> Result<(DataFlowState, Option<DataFlowLog>, TaskActionInvocations)> {
         if state.nodes.len() != self.nodes.len() {
-            state
-                .nodes
-                .resize(self.nodes.len(), serde_json::Value::Null);
+            state.nodes.resize_with(self.nodes.len(), String::new);
         }
+
+        let mut to_run = FxHashSet::default();
+
+        let runner = DataFlowRunner::new(self, &state).await?;
 
         let trigger_node = self
             .nodes
@@ -68,6 +82,7 @@ impl DataFlowConfig {
             })
             .ok_or_else(|| Error::TaskTriggerNotFound(trigger_id.to_string()))?;
 
+        to_run.insert(trigger_node);
         let mut walker = NodeWalker::starting_from(self, trigger_node as u32)?;
 
         // Directly send the payload into the first node. The rest of the nodes have their state built the
@@ -76,73 +91,64 @@ impl DataFlowConfig {
         let first_node = &self.nodes[first_node_idx];
         let new_state = first_node
             .func
-            .execute(
-                task_name,
-                &first_node.name,
-                &serde_json::Value::Null,
-                NodeInput::Single(payload),
-            )
+            .execute(task_name, &first_node.name, &runner, &[], Some(payload))
             .await?;
+
+        let Some(new_state) = new_state else {
+            return Ok((state, None, TaskActionInvocations::default()));
+        };
 
         if first_node.func.persist_output() {
             state.nodes[first_node_idx] = new_state.state;
         }
 
+        // Add all directly connected nodes to the list of nodes to run.
+        self.edges
+            .iter()
+            .filter(|edge| edge.from as usize == trigger_node)
+            .for_each(|edge| {
+                to_run.insert(edge.to as usize);
+            });
+
         let mut logs = Vec::new();
         let mut actions = TaskActionInvocations::new();
 
         for node_idx in walker {
+            if !to_run.contains(&node_idx) {
+                // This node doesn't depend on anything that actually ran, so skip it.
+                continue;
+            }
+
             let node = &self.nodes[node_idx];
 
-            // Gather the inputs for the node
-            let input = self
-                .edges
-                .iter()
-                .filter(|edge| edge.to as usize == node_idx)
-                .map(|edge| {
-                    let from_node = &self.nodes[edge.from as usize];
-                    let node_state = from_node.func.output(
-                        state
-                            .nodes
-                            .get(edge.from as usize)
-                            .unwrap_or(&serde_json::Value::Null),
-                    );
-
-                    if !node.allow_null_inputs && node_state == serde_json::Value::Null {
-                        // Return an Err just because it's a convenient way to short-circuit the
-                        // iteration.
-                        Err(())
-                    } else {
-                        Ok((edge.name.clone(), node_state))
-                    }
-                })
-                .collect::<Result<FxHashMap<_, _>, ()>>();
-
-            let input = match input {
-                Ok(input) => input,
-                // This just means that the node is not running because one of its inputs is null.
-                // Not a real error, so just continue to the next node.
-                Err(()) => continue,
+            let null_check_nodes = if node.allow_null_inputs {
+                vec![]
+            } else {
+                self.edges
+                    .iter()
+                    .filter(|edge| edge.to as usize == node_idx)
+                    .map(|edge| self.nodes[edge.from as usize].name.as_str())
+                    .collect()
             };
 
-            let node_state = state
-                .nodes
-                .get(node_idx)
-                .unwrap_or(&serde_json::Value::Null);
-            event!(Level::DEBUG, node=%node.name, state=?node_state, ?input, "Evaluating node");
+            event!(Level::DEBUG, node=%node.name, state=?state, "Evaluating node");
             dbg!(&node);
-            dbg!(&node_state);
-            dbg!(&input);
+            dbg!(&state);
             let result = node
                 .func
-                .execute(
-                    task_name,
-                    &node.name,
-                    node_state,
-                    NodeInput::Multiple(input),
-                )
+                .execute(task_name, &node.name, &runner, &null_check_nodes, None)
                 .await?;
             dbg!(&result);
+
+            let Some(result) = result else { continue; };
+
+            // Add all directly connected nodes to the list of nodes to run.
+            self.edges
+                .iter()
+                .filter(|edge| edge.from as usize == node_idx)
+                .for_each(|edge| {
+                    to_run.insert(edge.to as usize);
+                });
 
             if !result.console.is_empty() {
                 logs.push(DataFlowNodeLog {
@@ -173,14 +179,15 @@ impl DataFlowConfig {
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[cfg_attr(not(target_family = "wasm"), derive(JsonSchema))]
 pub struct DataFlowState {
-    nodes: Vec<serde_json::Value>,
+    /// The state is a set of JS values made safe for serialization by `devalue`. This allows objects such
+    /// as Maps, Sets, Dates, etc. to be stored in the state.
+    nodes: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowEdge {
     from: u32,
     to: u32,
-    name: String,
 }
 
 impl PartialOrd for DataFlowEdge {
@@ -200,7 +207,7 @@ impl Ord for DataFlowEdge {
 
 pub fn edge_indexes_from_names(
     nodes: &[DataFlowNode],
-    edges_by_name: &[(impl AsRef<str>, impl AsRef<str>, impl ToString)],
+    edges_by_name: &[(impl AsRef<str>, impl AsRef<str>)],
 ) -> Result<Vec<DataFlowEdge>> {
     let name_indexes = nodes
         .iter()
@@ -210,7 +217,7 @@ pub fn edge_indexes_from_names(
 
     edges_by_name
         .iter()
-        .map(|(from, to, name)| {
+        .map(|(from, to)| {
             let from = name_indexes
                 .get(from.as_ref())
                 .copied()
@@ -222,11 +229,7 @@ pub fn edge_indexes_from_names(
                 .ok_or_else(|| Error::MissingDataFlowNodeName(to.as_ref().to_string()))?
                 as u32;
 
-            Ok(DataFlowEdge {
-                from,
-                to,
-                name: name.to_string(),
-            })
+            Ok(DataFlowEdge { from, to })
         })
         .collect::<Result<Vec<_>>>()
 }
@@ -278,6 +281,53 @@ mod tests {
             .mount(&mock_server)
             .await;
 
+        let code_bundle = format!(
+            r##"
+            (function() {{
+                function __add_one({{ trigger_a }}) {{
+                    return trigger_a.value + 1;
+                }}
+
+                function __add_together({{ trigger_a, trigger_b }}) {{
+                    let x = trigger_a;
+                    let y = trigger_b;
+                    let result = {result_add};
+                    console.log(`added together ${{result}}`);
+                    return result;
+                }}
+
+                async function __fetch_given_value({{ add_together }}) {{
+                    const response = await {fn_name}(`{base_url}/doc/${{add_together}}`);
+                    const json = await response.json();
+                    return {{ result: json.code }};
+                }}
+
+                function __send_email({{ fetch_given_value, email_label }}) {{
+                    let code = fetch_given_value;
+                    if(code.result) {{
+                        let contents = [email_label, code.result].join(' ');
+                        console.log('Sending the email:', contents);
+                        return {{ contents }};
+                    }}
+                }}
+
+                return {{
+                    __add_one,
+                    __add_together,
+                    __fetch_given_value,
+                    __send_email,
+                }};
+            }})()
+            "##,
+            result_add = if allow_null_inputs {
+                "(x?.value ?? 0) + (y?.value ?? 0)"
+            } else {
+                "x.value + y.value"
+            },
+            base_url = mock_server.uri(),
+            fn_name = if script_error { "bad_func" } else { "fetch" }
+        );
+
         let nodes = vec![
             test_node(
                 "trigger_a",
@@ -297,40 +347,21 @@ mod tests {
                 "add_one",
                 false,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: "value.value + 1".into(),
-                    format: JsCodeFormat::Expression,
+                    func: "__add_one".to_string(),
                 }),
             ),
             test_node(
                 "add_together",
                 allow_null_inputs,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    code: format!(
-                        r##"
-                        let result = {result_add};
-                        console.log(`added together ${{result}}`);
-                        return result;"##,
-                        result_add = if allow_null_inputs {
-                            "(x?.value ?? 0) + (y?.value ?? 0)"
-                        } else {
-                            "x.value + y.value"
-                        }
-                    ),
-                    format: JsCodeFormat::Function,
+                    func: "__add_together".to_string(),
                 }),
             ),
             test_node(
                 "fetch_given_value",
                 allow_null_inputs,
                 DataFlowNodeFunction::Js(DataFlowJs {
-                    format: JsCodeFormat::AsyncFunction,
-                    code: format!(
-                        r##"const response = await {fn_name}(`{base_url}/doc/${{doc_id}}`);
-                        const json = await response.json();
-                        return {{ result: json.code }};"##,
-                        base_url = mock_server.uri(),
-                        fn_name = if script_error { "bad_func" } else { "fetch" }
-                    ),
+                    func: "__fetch_given_value".to_string(),
                 }),
             ),
             test_node(
@@ -347,32 +378,27 @@ mod tests {
                 DataFlowNodeFunction::Action(DataFlowAction {
                     action_id: "send_email".to_string(),
                     payload_code: DataFlowJs {
-                        format: JsCodeFormat::Function,
-                        code: r##"
-                        if(code.result) {
-                            let contents = [label, code.result].join(' ');
-                            console.log('Sending the email:', contents);
-                            return { contents };
-                        }
-                        "##
-                        .into(),
+                        func: "__send_email".to_string(),
                     },
                 }),
             ),
         ];
 
         let edges_by_name = [
-            ("trigger_a", "add_one", "value"),
-            ("trigger_a", "add_together", "x"),
-            ("trigger_b", "add_together", "y"),
-            ("add_together", "fetch_given_value", "doc_id"),
-            ("email_label", "send_email", "label"),
-            ("fetch_given_value", "send_email", "code"),
+            ("trigger_a", "add_one"),
+            ("trigger_a", "add_together"),
+            ("trigger_b", "add_together"),
+            ("add_together", "fetch_given_value"),
+            ("email_label", "send_email"),
+            ("fetch_given_value", "send_email"),
         ];
 
         let edges = edge_indexes_from_names(&nodes, &edges_by_name).expect("building edges");
 
-        (mock_server, DataFlowConfig::new(nodes, edges).unwrap())
+        (
+            mock_server,
+            DataFlowConfig::new(nodes, edges, code_bundle, None).unwrap(),
+        )
     }
 
     #[tokio::test]
@@ -393,13 +419,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!(null),
-                json!(2),
-                json!(1),
-                json!({ "result": 5 }),
-                json!(null),
-                json!({ "contents": "The value: 5" }),
+                r##"[{"value":1},1]"##,
+                "",
+                "[2]",
+                "[1]",
+                r##"[{"result":1},5]"##,
+                "",
+                r##"[{"contents":1},"The value: 5"]"##,
             ]
         );
         assert_eq!(
@@ -446,13 +472,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!({ "value": -1 }),
-                json!(2),
-                json!(0),
-                json!({ "result": 0 }),
-                json!(null),
-                json!(null),
+                r##"[{"value":1},1]"##,
+                r##"[{"value":1},-1]"##,
+                "[2]",
+                "[0]",
+                r##"[{"result":1},0]"##,
+                "",
+                "[null]",
             ]
         );
 
@@ -469,13 +495,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!({ "value": 2 }),
-                json!(2),
-                json!(3),
-                json!({ "result": 7 }),
-                json!(null),
-                json!({ "contents": "The value: 7" }),
+                r##"[{"value":1},1]"##,
+                r##"[{"value":1},2]"##,
+                "[2]",
+                "[3]",
+                r##"[{"result":1},7]"##,
+                "",
+                r##"[{"contents":1},"The value: 7"]"##,
             ]
         );
         assert_eq!(
@@ -514,15 +540,7 @@ mod tests {
 
         assert_eq!(
             state.nodes,
-            vec![
-                json!({ "value": 1 }),
-                json!(null),
-                json!(2),
-                json!(null),
-                json!(null),
-                json!(null),
-                json!(null),
-            ]
+            vec![r##"[{"value":1},1]"##, "", "[2]", "", "", "", "",]
         );
 
         assert!(actions.is_empty());
@@ -537,13 +555,13 @@ mod tests {
         assert_eq!(
             state.nodes,
             vec![
-                json!({ "value": 1 }),
-                json!({ "value": 2 }),
-                json!(2),
-                json!(3),
-                json!({ "result": 7 }),
-                json!(null),
-                json!({ "contents": "The value: 7" }),
+                r##"[{"value":1},1]"##,
+                r##"[{"value":1},2]"##,
+                "[2]",
+                "[3]",
+                r##"[{"result":1},7]"##,
+                "",
+                r##"[{"contents":1},"The value: 7"]"##,
             ]
         );
         assert_eq!(

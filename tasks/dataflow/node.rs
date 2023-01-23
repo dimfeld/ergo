@@ -1,14 +1,15 @@
 use crate::{actions::TaskActionInvocation, Error, Result};
+pub use ergo_js::ConsoleMessage;
 use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-pub use js::ConsoleMessage;
+use super::run::DataFlowRunner;
 
 #[derive(Debug)]
 pub(crate) struct NodeResult {
-    pub state: serde_json::Value,
+    pub state: String,
     pub action: Option<TaskActionInvocation>,
     pub console: Vec<ConsoleMessage>,
 }
@@ -16,15 +17,15 @@ pub(crate) struct NodeResult {
 impl NodeResult {
     pub fn empty() -> Self {
         Self {
-            state: serde_json::Value::Null,
+            state: String::new(),
             action: None,
             console: Vec::new(),
         }
     }
 }
 
-impl From<(serde_json::Value, Vec<ConsoleMessage>)> for NodeResult {
-    fn from((state, console): (serde_json::Value, Vec<ConsoleMessage>)) -> Self {
+impl From<(String, Vec<ConsoleMessage>)> for NodeResult {
+    fn from((state, console): (String, Vec<ConsoleMessage>)) -> Self {
         Self {
             state,
             action: None,
@@ -112,8 +113,8 @@ pub enum JsCodeFormat {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowJs {
-    pub code: String,
-    pub format: JsCodeFormat,
+    /// The name of the function in the compiled code that stores this node.
+    pub func: String,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -122,57 +123,47 @@ pub struct DataFlowAction {
     pub payload_code: DataFlowJs,
 }
 
-pub(super) enum NodeInput {
-    Single(serde_json::Value),
-    Multiple(FxHashMap<String, serde_json::Value>),
-}
-
-impl From<NodeInput> for serde_json::Value {
-    fn from(input: NodeInput) -> Self {
-        match input {
-            NodeInput::Single(value) => value,
-            NodeInput::Multiple(map) => json!(map),
-        }
-    }
-}
-
 impl DataFlowNodeFunction {
     pub(super) async fn execute(
         &self,
         task_name: &str,
         node_name: &str,
-        current_state: &serde_json::Value,
-        input: NodeInput,
-    ) -> Result<NodeResult> {
+        runner: &DataFlowRunner,
+        null_check_nodes: &[&str],
+        input: Option<serde_json::Value>,
+    ) -> Result<Option<NodeResult>> {
         match self {
-            Self::Js(expr) => js::run_js(task_name, node_name, expr, current_state.clone(), input)
+            Self::Js(expr) => run_js(task_name, node_name, runner, null_check_nodes, expr)
                 .await
-                .map(NodeResult::from),
+                .map(|r| r.map(NodeResult::from)),
             Self::Action(expr) => {
-                evaluate_action_node(task_name, node_name, expr, current_state.clone(), input).await
+                evaluate_action_node(task_name, node_name, runner, null_check_nodes, expr).await
             }
-            Self::Trigger(_) => Ok(NodeResult {
-                state: input.into(),
-                action: None,
-                console: Vec::new(),
-            }),
-            Self::Text(_) | Self::Table | Self::Graph => Ok(NodeResult::empty()),
+            Self::Trigger(_) => {
+                let value = input.unwrap_or_default();
+                let store_state = runner.set_node_state(node_name, &value).await?;
+                Ok(Some(NodeResult {
+                    state: store_state,
+                    action: None,
+                    console: Vec::new(),
+                }))
+            }
+            Self::Text(t) => {
+                let state = runner.set_node_state(node_name, &json!(t.body)).await?;
+                Ok(Some(NodeResult {
+                    state,
+                    action: None,
+                    console: Vec::new(),
+                }))
+            }
+            Self::Table | Self::Graph => Ok(None),
         }
     }
 
     pub(super) fn persist_output(&self) -> bool {
         match self {
-            Self::Js(_) | Self::Action(_) | Self::Trigger(_) => true,
-            Self::Table | Self::Graph | Self::Text(_) => false,
-        }
-    }
-
-    pub(super) fn output(&self, state: &serde_json::Value) -> serde_json::Value {
-        match self {
-            Self::Js(_) | Self::Action(_) | Self::Trigger(_) => state.clone(),
-            Self::Text(node) => json!(node.body),
-            // Self::JsCode(node) => json!(node.code()),
-            Self::Table | Self::Graph => serde_json::Value::Null,
+            Self::Js(_) | Self::Action(_) | Self::Trigger(_) | Self::Table | Self::Graph => true,
+            Self::Text(_) => false,
         }
     }
 }
@@ -180,115 +171,74 @@ impl DataFlowNodeFunction {
 async fn evaluate_action_node(
     task_name: &str,
     node_name: &str,
+    runner: &DataFlowRunner,
+    null_check_nodes: &[&str],
     action: &DataFlowAction,
-    current_state: serde_json::Value,
-    input: NodeInput,
-) -> Result<NodeResult> {
-    let (result, console) = js::run_js(
+) -> Result<Option<NodeResult>> {
+    let result = run_js(
         task_name,
         node_name,
+        runner,
+        null_check_nodes,
         &action.payload_code,
-        current_state,
-        input,
     )
-    .await?;
+    .await
+    .map_err(|e| match e {
+        Error::TaskScript { error, console } => Error::DataflowScript {
+            node: node_name.to_string(),
+            error,
+            console,
+        },
+        _ => e,
+    })?;
 
-    let action_payload = match &result {
+    let Some((result, console)) = result else {
+        return Ok(None);
+    };
+
+    let action_payload =
+        runner
+            .get_raw_state(node_name)
+            .await
+            .map_err(|e| Error::DataflowGetStateError {
+                node: node_name.to_string(),
+                error: e,
+            })?;
+
+    let action = match action_payload {
         serde_json::Value::Null => None,
-        serde_json::Value::Object(_) => Some(result.clone()),
+        serde_json::Value::Object(_) => Some(TaskActionInvocation {
+            name: action.action_id.clone(),
+            payload: action_payload,
+        }),
         // TODO Log an error here?
         _ => None,
     };
 
-    let action = action_payload.map(|payload| TaskActionInvocation {
-        name: action.action_id.clone(),
-        payload,
-    });
-
-    Ok(NodeResult {
+    Ok(Some(NodeResult {
         state: result,
         action,
         console,
-    })
+    }))
 }
 
-const ASYNC_FUNCTION_START: &str = r##"(async function() { "##;
-const SYNC_FUNCTION_START: &str = r##"(function() { "##;
-const FUNCTION_END: &str = r##" })()"##;
-
-fn wrap_code(expr: &DataFlowJs) -> String {
-    match expr.format {
-        JsCodeFormat::Expression => format!(
-            "{SYNC_FUNCTION_START}return {body}{FUNCTION_END}",
-            body = expr.code
-        ),
-        JsCodeFormat::Function => format!(
-            "{SYNC_FUNCTION_START}{body}{FUNCTION_END}",
-            body = expr.code
-        ),
-        JsCodeFormat::AsyncFunction => format!(
-            "{ASYNC_FUNCTION_START}{body}{FUNCTION_END}",
-            body = expr.code
-        ),
-    }
-}
-
-#[cfg(target_family = "wasm")]
-mod js {
-    use super::*;
-
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct ConsoleMessage {
-        level: i32,
-        message: String,
-    }
-
-    pub(super) async fn run_js(
-        task_name: &str,
-        node_name: &str,
-        expr: &DataFlowJs,
-        current_state: serde_json::Value,
-        input: NodeInput,
-    ) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
-        let code = wrap_code(expr);
-        let result = js_sys::eval(&code)?;
-
-        Ok((serde_wasm_bindgen::from_value(result)?, Vec::new()))
-    }
-}
-
-#[cfg(not(target_family = "wasm"))]
-mod js {
-    use super::*;
-    use crate::scripting::{create_task_script_runtime, POOL};
-    pub use ergo_js::ConsoleMessage;
-    use ergo_js::Runtime;
-
-    pub(super) async fn run_js(
-        task_name: &str,
-        node_name: &str,
-        expr: &DataFlowJs,
-        current_state: serde_json::Value,
-        input: NodeInput,
-    ) -> Result<(serde_json::Value, Vec<ConsoleMessage>)> {
-        let name = format!("https://ergo/tasks/{task_name}/{node_name}.js");
-        let wrapped = wrap_code(expr);
-
-        POOL.run(move || async move {
-            let mut runtime = create_task_script_runtime(true);
-            set_up_env(&mut runtime, current_state, input).map_err(Error::TaskScriptSetup)?;
-
-            let run_result = runtime
-                .await_expression::<serde_json::Value>(&name, &wrapped)
-                .await;
-            let console = runtime.take_console_messages();
-            match run_result {
-                Ok(value) => Ok((value, console)),
-                // TODO Generate a source map and use it to translate the code locations in the error.
-                Err(error) => Err(Error::TaskScript { error, console }),
+async fn run_js(
+    task_name: &str,
+    node_name: &str,
+    runner: &DataFlowRunner,
+    null_check_nodes: &[&str],
+    expr: &DataFlowJs,
+) -> Result<Option<(String, Vec<ConsoleMessage>)>> {
+    runner
+        .run_node(task_name, node_name, &expr.func, null_check_nodes)
+        .await
+        .map(|(result, console)| {
+            if result.is_empty() {
+                None
+            } else {
+                Some((result, console))
             }
         })
-        .await
         .map_err(|e| match e {
             Error::TaskScript { error, console } => Error::DataflowScript {
                 node: node_name.to_string(),
@@ -297,24 +247,4 @@ mod js {
             },
             _ => e,
         })
-    }
-
-    fn set_up_env(
-        runtime: &mut Runtime,
-        current_state: serde_json::Value,
-        input: NodeInput,
-    ) -> Result<(), anyhow::Error> {
-        runtime.set_global_value("last_value", &current_state)?;
-
-        match input {
-            NodeInput::Single(value) => runtime.set_global_value("value", &value)?,
-            NodeInput::Multiple(values) => {
-                for (key, value) in values {
-                    runtime.set_global_value(&key, &value)?;
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
