@@ -1,35 +1,43 @@
 use crate::{actions::TaskActionInvocation, Error, Result};
+#[cfg(not(target_family = "wasm"))]
 pub use ergo_js::ConsoleMessage;
-use fxhash::FxHashMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use super::run::DataFlowRunner;
+#[cfg(not(target_family = "wasm"))]
+pub use node_result::*;
 
-#[derive(Debug)]
-pub(crate) struct NodeResult {
-    pub state: String,
-    pub action: Option<TaskActionInvocation>,
-    pub console: Vec<ConsoleMessage>,
-}
+#[cfg(not(target_family = "wasm"))]
+mod node_result {
+    pub use ergo_js::ConsoleMessage;
 
-impl NodeResult {
-    pub fn empty() -> Self {
-        Self {
-            state: String::new(),
-            action: None,
-            console: Vec::new(),
+    use crate::actions::TaskActionInvocation;
+
+    #[derive(Debug)]
+    pub(crate) struct NodeResult {
+        pub state: String,
+        pub action: Option<TaskActionInvocation>,
+        pub console: Vec<ConsoleMessage>,
+    }
+
+    impl NodeResult {
+        pub fn empty() -> Self {
+            Self {
+                state: String::new(),
+                action: None,
+                console: Vec::new(),
+            }
         }
     }
-}
 
-impl From<(String, Vec<ConsoleMessage>)> for NodeResult {
-    fn from((state, console): (String, Vec<ConsoleMessage>)) -> Self {
-        Self {
-            state,
-            action: None,
-            console,
+    impl From<(String, Vec<ConsoleMessage>)> for NodeResult {
+        fn from((state, console): (String, Vec<ConsoleMessage>)) -> Self {
+            Self {
+                state,
+                action: None,
+                console,
+            }
         }
     }
 }
@@ -124,11 +132,12 @@ pub struct DataFlowAction {
 }
 
 impl DataFlowNodeFunction {
+    #[cfg(not(target_family = "wasm"))]
     pub(super) async fn execute(
         &self,
         task_name: &str,
         node_name: &str,
-        runner: &DataFlowRunner,
+        runner: &super::run::DataFlowRunner,
         null_check_nodes: &[&str],
         input: Option<serde_json::Value>,
     ) -> Result<Option<NodeResult>> {
@@ -168,10 +177,11 @@ impl DataFlowNodeFunction {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 async fn evaluate_action_node(
     task_name: &str,
     node_name: &str,
-    runner: &DataFlowRunner,
+    runner: &super::run::DataFlowRunner,
     null_check_nodes: &[&str],
     action: &DataFlowAction,
 ) -> Result<Option<NodeResult>> {
@@ -222,10 +232,11 @@ async fn evaluate_action_node(
     }))
 }
 
+#[cfg(not(target_family = "wasm"))]
 async fn run_js(
     task_name: &str,
     node_name: &str,
-    runner: &DataFlowRunner,
+    runner: &super::run::DataFlowRunner,
     null_check_nodes: &[&str],
     expr: &DataFlowJs,
 ) -> Result<Option<(String, Vec<ConsoleMessage>)>> {

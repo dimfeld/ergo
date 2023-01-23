@@ -242,7 +242,7 @@ mod tests {
     mod dag_iterator {
         use fxhash::FxHashSet;
 
-        use crate::dataflow::{dag::NodeWalker, DataFlowConfig};
+        use crate::dataflow::{config::DataFlowConfig, dag::NodeWalker};
 
         use super::*;
 

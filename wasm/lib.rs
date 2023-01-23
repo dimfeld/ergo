@@ -179,27 +179,23 @@ pub fn new_periodic_trigger_id() -> String {
 }
 
 #[wasm_bindgen]
-pub fn parse_schedule(schedule: JsValue) -> Result<JsValue, JsValue> {
-    let schedule: String = serde_wasm_bindgen::from_value(schedule)?;
+pub fn parse_schedule(schedule: String) -> Result<Option<i64>, JsValue> {
     let next = PeriodicSchedule::Cron(schedule)
         .next_run()
         .map_err(|e| e.to_string())?
         .map(|d| d.timestamp_millis());
 
-    let output = serde_wasm_bindgen::to_value(&next)?;
-    Ok(output)
+    Ok(next)
 }
 
 #[wasm_bindgen]
-pub fn toposort_nodes(num_nodes: JsValue, edges: JsValue) -> Result<JsValue, JsValue> {
-    let num_nodes: usize = serde_wasm_bindgen::from_value(num_nodes)?;
+pub fn toposort_nodes(num_nodes: usize, edges: JsValue) -> Result<Vec<u32>, JsValue> {
     let edges_de = serde_wasm_bindgen::Deserializer::from(edges);
-    let edges: Vec<DataFlowEdge> = serde_path_to_error::deserialize(edges_de)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let edges: Vec<DataFlowEdge> =
+        serde_path_to_error::deserialize(edges_de).map_err(|e| e.to_string())?;
 
-    let sorted = ergo_tasks::dataflow::toposort_nodes(num_nodes, &edges)
-        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    let sorted =
+        ergo_tasks::dataflow::toposort_nodes(num_nodes, &edges).map_err(|e| e.to_string())?;
 
-    let output = serde_wasm_bindgen::to_value(&sorted)?;
-    Ok(output)
+    Ok(sorted)
 }

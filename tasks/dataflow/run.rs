@@ -1,11 +1,23 @@
 use ergo_js::{worker::JsWorker, ConsoleMessage};
 use futures::FutureExt;
 use fxhash::FxHashMap;
+use serde::{Deserialize, Serialize};
 
-use super::{DataFlowConfig, DataFlowNodeFunction, DataFlowState};
+use super::{config::DataFlowConfig, DataFlowNodeFunction, DataFlowState};
 use crate::{Error, Result};
 
 pub const DATAFLOW_ENV_CODE: &str = include_str!("../js_helpers/rust-dist/dataflow.js");
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DataFlowLog {
+    pub run: Vec<DataFlowNodeLog>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DataFlowNodeLog {
+    pub node: String,
+    pub console: Vec<ConsoleMessage>,
+}
 
 pub struct DataFlowRunner {
     worker: ergo_js::worker::JsWorker,

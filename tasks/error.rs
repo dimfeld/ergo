@@ -70,6 +70,7 @@ pub enum Error {
     },
 
     #[error("Failed to initialize dataflow environment: {error}")]
+    #[cfg(not(target_family = "wasm"))]
     DataflowInitScriptError {
         #[source]
         error: ergo_js::Error,

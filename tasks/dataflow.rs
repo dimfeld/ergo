@@ -1,180 +1,16 @@
-use crate::{actions::TaskActionInvocations, Error, Result};
-use fxhash::{FxHashMap, FxHashSet};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod config;
 mod dag;
 mod node;
+#[cfg(not(target_family = "wasm"))]
 mod run;
 
 pub use node::*;
-use tracing::{event, Level};
 
-pub use self::dag::toposort_nodes;
-use self::{dag::NodeWalker, run::DataFlowRunner};
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct DataFlowConfig {
-    nodes: Vec<DataFlowNode>,
-    /// The connection between nodes. This must be sorted.
-    edges: Vec<DataFlowEdge>,
-    /// The compiled JavaScript for all the nodes and their dependencies, bundled as an IIFE
-    compiled: String,
-    /// A source map for the compiled JavaScript
-    map: Option<String>,
-    toposorted: Vec<u32>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DataFlowLog {
-    pub run: Vec<DataFlowNodeLog>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DataFlowNodeLog {
-    pub node: String,
-    pub console: Vec<ConsoleMessage>,
-}
-
-impl DataFlowConfig {
-    pub fn new(
-        nodes: Vec<DataFlowNode>,
-        edges: Vec<DataFlowEdge>,
-        compiled: String,
-        map: Option<String>,
-    ) -> Result<Self> {
-        let config = Self {
-            toposorted: toposort_nodes(nodes.len(), &edges)?,
-            compiled,
-            map,
-            nodes,
-            edges,
-        };
-
-        Ok(config)
-    }
-
-    pub fn default_state(&self) -> DataFlowState {
-        DataFlowState { nodes: Vec::new() }
-    }
-
-    pub async fn evaluate_trigger(
-        &self,
-        task_name: &str,
-        mut state: DataFlowState,
-        trigger_id: &str,
-        payload: serde_json::Value,
-    ) -> Result<(DataFlowState, Option<DataFlowLog>, TaskActionInvocations)> {
-        if state.nodes.len() != self.nodes.len() {
-            state.nodes.resize_with(self.nodes.len(), String::new);
-        }
-
-        let mut to_run = FxHashSet::default();
-
-        let runner = DataFlowRunner::new(self, &state).await?;
-
-        let trigger_node = self
-            .nodes
-            .iter()
-            .position(|node| match &node.func {
-                DataFlowNodeFunction::Trigger(trigger) => trigger.local_id == trigger_id,
-                _ => false,
-            })
-            .ok_or_else(|| Error::TaskTriggerNotFound(trigger_id.to_string()))?;
-
-        to_run.insert(trigger_node);
-        let mut walker = NodeWalker::starting_from(self, trigger_node as u32)?;
-
-        // Directly send the payload into the first node. The rest of the nodes have their state built the
-        // normal way.
-        let first_node_idx = walker.next().unwrap();
-        let first_node = &self.nodes[first_node_idx];
-        let new_state = first_node
-            .func
-            .execute(task_name, &first_node.name, &runner, &[], Some(payload))
-            .await?;
-
-        let Some(new_state) = new_state else {
-            return Ok((state, None, TaskActionInvocations::default()));
-        };
-
-        if first_node.func.persist_output() {
-            state.nodes[first_node_idx] = new_state.state;
-        }
-
-        // Add all directly connected nodes to the list of nodes to run.
-        self.edges
-            .iter()
-            .filter(|edge| edge.from as usize == trigger_node)
-            .for_each(|edge| {
-                to_run.insert(edge.to as usize);
-            });
-
-        let mut logs = Vec::new();
-        let mut actions = TaskActionInvocations::new();
-
-        for node_idx in walker {
-            if !to_run.contains(&node_idx) {
-                // This node doesn't depend on anything that actually ran, so skip it.
-                continue;
-            }
-
-            let node = &self.nodes[node_idx];
-
-            let null_check_nodes = if node.allow_null_inputs {
-                vec![]
-            } else {
-                self.edges
-                    .iter()
-                    .filter(|edge| edge.to as usize == node_idx)
-                    .map(|edge| self.nodes[edge.from as usize].name.as_str())
-                    .collect()
-            };
-
-            event!(Level::DEBUG, node=%node.name, state=?state, "Evaluating node");
-            dbg!(&node);
-            dbg!(&state);
-            let result = node
-                .func
-                .execute(task_name, &node.name, &runner, &null_check_nodes, None)
-                .await?;
-            dbg!(&result);
-
-            let Some(result) = result else { continue; };
-
-            // Add all directly connected nodes to the list of nodes to run.
-            self.edges
-                .iter()
-                .filter(|edge| edge.from as usize == node_idx)
-                .for_each(|edge| {
-                    to_run.insert(edge.to as usize);
-                });
-
-            if !result.console.is_empty() {
-                logs.push(DataFlowNodeLog {
-                    node: node.name.clone(),
-                    console: result.console,
-                });
-            }
-
-            if node.func.persist_output() {
-                state.nodes[node_idx] = result.state;
-            }
-
-            if let Some(action) = result.action {
-                actions.push(action);
-            }
-        }
-
-        let log_output = if logs.is_empty() {
-            None
-        } else {
-            Some(DataFlowLog { run: logs })
-        };
-
-        Ok((state, log_output, actions))
-    }
-}
+pub use config::*;
+pub use dag::toposort_nodes;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[cfg_attr(not(target_family = "wasm"), derive(JsonSchema))]
@@ -205,46 +41,47 @@ impl Ord for DataFlowEdge {
     }
 }
 
-pub fn edge_indexes_from_names(
-    nodes: &[DataFlowNode],
-    edges_by_name: &[(impl AsRef<str>, impl AsRef<str>)],
-) -> Result<Vec<DataFlowEdge>> {
-    let name_indexes = nodes
-        .iter()
-        .enumerate()
-        .map(|(i, node)| (node.name.as_str(), i))
-        .collect::<FxHashMap<_, _>>();
-
-    edges_by_name
-        .iter()
-        .map(|(from, to)| {
-            let from = name_indexes
-                .get(from.as_ref())
-                .copied()
-                .ok_or_else(|| Error::MissingDataFlowNodeName(from.as_ref().to_string()))?
-                as u32;
-            let to = name_indexes
-                .get(to.as_ref())
-                .copied()
-                .ok_or_else(|| Error::MissingDataFlowNodeName(to.as_ref().to_string()))?
-                as u32;
-
-            Ok(DataFlowEdge { from, to })
-        })
-        .collect::<Result<Vec<_>>>()
-}
-
 #[cfg(test)]
 mod tests {
+    use fxhash::FxHashMap;
     use serde_json::json;
     use wiremock::{
         matchers::{method, path, path_regex},
         Mock, MockServer, ResponseTemplate,
     };
 
-    use crate::actions::TaskActionInvocation;
+    use crate::{actions::TaskActionInvocation, Error, Result};
 
-    use super::*;
+    use super::{config::DataFlowConfig, *};
+
+    fn edge_indexes_from_names(
+        nodes: &[DataFlowNode],
+        edges_by_name: &[(impl AsRef<str>, impl AsRef<str>)],
+    ) -> Result<Vec<DataFlowEdge>> {
+        let name_indexes = nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| (node.name.as_str(), i))
+            .collect::<FxHashMap<_, _>>();
+
+        edges_by_name
+            .iter()
+            .map(|(from, to)| {
+                let from = name_indexes
+                    .get(from.as_ref())
+                    .copied()
+                    .ok_or_else(|| Error::MissingDataFlowNodeName(from.as_ref().to_string()))?
+                    as u32;
+                let to = name_indexes
+                    .get(to.as_ref())
+                    .copied()
+                    .ok_or_else(|| Error::MissingDataFlowNodeName(to.as_ref().to_string()))?
+                    as u32;
+
+                Ok(DataFlowEdge { from, to })
+            })
+            .collect::<Result<Vec<_>>>()
+    }
 
     fn test_node(
         name: impl Into<String>,
