@@ -5,7 +5,7 @@ use fxhash::FxHashMap;
 use super::{DataFlowConfig, DataFlowNodeFunction, DataFlowState};
 use crate::{Error, Result};
 
-pub const DATAFLOW_ENV_CODE: &str = include_str!("../js_helpers/dist/dataflow.js");
+pub const DATAFLOW_ENV_CODE: &str = include_str!("../js_helpers/rust-dist/dataflow.js");
 
 pub struct DataFlowRunner {
     worker: ergo_js::worker::JsWorker,

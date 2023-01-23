@@ -2,7 +2,7 @@ import { stringify, parse } from 'devalue' ;
 
 let nodeState = {};
 
-export function initState(stateObj) {
+export function initState(stateObj: Record<string, string>) {
   nodeState = {}
   for(let [id, value] of Object.entries(stateObj)) {
     nodeState[id] = value ? parse(value) : null;
