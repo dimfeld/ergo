@@ -243,9 +243,9 @@ export type DataFlowNodeFunction =
   | {
       type: "trigger";
       /**
-       * The `task_trigger_local_id` of the trigger that this node should listen for.
+       * The `task_trigger_id` of the trigger that this node should listen for.
        */
-      local_id: string;
+      task_trigger_id: String;
     }
   | {
       type: "action";

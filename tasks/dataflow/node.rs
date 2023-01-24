@@ -1,4 +1,5 @@
 use crate::{actions::TaskActionInvocation, Error, Result};
+use ergo_database::object_id::TaskTriggerId;
 #[cfg(not(target_family = "wasm"))]
 pub use ergo_js::ConsoleMessage;
 use schemars::JsonSchema;
@@ -84,8 +85,8 @@ pub enum TextRenderAs {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct DataFlowTrigger {
-    /// The `task_trigger_local_id` of the trigger that this node should listen for.
-    pub local_id: String,
+    /// The `task_trigger_id` of the trigger that this node should listen for.
+    pub task_trigger_id: TaskTriggerId,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

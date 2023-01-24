@@ -17,7 +17,7 @@ pub enum ObjectIdError {
 
 /// A type that is internally stored as a UUID but externally as a
 /// more accessible string with a prefix indicating its type.
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ObjectId<const PREFIX: usize>(pub Uuid);
 
 pub type TaskId = ObjectId<0>;

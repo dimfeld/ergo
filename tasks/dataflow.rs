@@ -43,6 +43,7 @@ impl Ord for DataFlowEdge {
 
 #[cfg(test)]
 mod tests {
+    use ergo_database::object_id::TaskTriggerId;
     use fxhash::FxHashMap;
     use serde_json::json;
     use wiremock::{
@@ -98,7 +99,7 @@ mod tests {
     async fn test_config(
         allow_null_inputs: bool,
         script_error: bool,
-    ) -> (MockServer, DataFlowConfig) {
+    ) -> (MockServer, DataFlowConfig, TaskTriggerId, TaskTriggerId) {
         let mock_server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path(r"/doc/1"))
@@ -165,19 +166,22 @@ mod tests {
             fn_name = if script_error { "bad_func" } else { "fetch" }
         );
 
+        let trigger1_id = TaskTriggerId::new();
+        let trigger2_id = TaskTriggerId::new();
+
         let nodes = vec![
             test_node(
                 "trigger_a",
                 false,
                 DataFlowNodeFunction::Trigger(DataFlowTrigger {
-                    local_id: "trigger1".to_string(),
+                    task_trigger_id: trigger1_id,
                 }),
             ),
             test_node(
                 "trigger_b",
                 false,
                 DataFlowNodeFunction::Trigger(DataFlowTrigger {
-                    local_id: "trigger2".to_string(),
+                    task_trigger_id: trigger2_id,
                 }),
             ),
             test_node(
@@ -235,17 +239,19 @@ mod tests {
         (
             mock_server,
             DataFlowConfig::new(nodes, edges, code_bundle, None).unwrap(),
+            trigger1_id,
+            trigger2_id,
         )
     }
 
     #[tokio::test]
     async fn test_run_nodes() {
-        let (_server, config) = test_config(true, false).await;
+        let (_server, config, trigger1, trigger2) = test_config(true, false).await;
         let state = config.default_state();
 
         println!("Sending 1 to trigger1");
         let (state, log, actions) = config
-            .evaluate_trigger("task", state, "trigger1", json!({ "value": 1 }))
+            .evaluate_trigger("task", state, trigger1, "trigger1", json!({ "value": 1 }))
             .await
             .unwrap();
 
@@ -289,7 +295,7 @@ mod tests {
 
         println!("Sending -1 to trigger2");
         let (state, log, actions) = config
-            .evaluate_trigger("task", state, "trigger2", json!({ "value": -1 }))
+            .evaluate_trigger("task", state, trigger2, "trigger2", json!({ "value": -1 }))
             .await
             .unwrap();
 
@@ -321,7 +327,7 @@ mod tests {
 
         println!("Sending 2 to trigger2");
         let (state, log, actions) = config
-            .evaluate_trigger("task", state, "trigger2", json!({ "value": 2 }))
+            .evaluate_trigger("task", state, trigger2, "trigger2", json!({ "value": 2 }))
             .await
             .unwrap();
 
@@ -366,12 +372,12 @@ mod tests {
 
     #[tokio::test]
     async fn allow_null_inputs_false() {
-        let (_server, config) = test_config(false, false).await;
+        let (_server, config, trigger1, trigger2) = test_config(false, false).await;
         let state = config.default_state();
 
         println!("Sending 1 to trigger1");
         let (state, log, actions) = config
-            .evaluate_trigger("task", state, "trigger1", json!({ "value": 1 }))
+            .evaluate_trigger("task", state, trigger1, "trigger1", json!({ "value": 1 }))
             .await
             .unwrap();
 
@@ -385,7 +391,7 @@ mod tests {
 
         println!("Sending 2 to trigger2");
         let (state, log, actions) = config
-            .evaluate_trigger("task", state, "trigger2", json!({ "value": 2 }))
+            .evaluate_trigger("task", state, trigger2, "trigger2", json!({ "value": 2 }))
             .await
             .unwrap();
 
@@ -426,12 +432,12 @@ mod tests {
 
     #[tokio::test]
     async fn bad_script() {
-        let (_server, config) = test_config(true, true).await;
+        let (_server, config, trigger1, trigger2) = test_config(true, true).await;
         let state = config.default_state();
 
         println!("Sending 1 to trigger1");
         let err = config
-            .evaluate_trigger("task", state, "trigger1", json!({ "value": 1 }))
+            .evaluate_trigger("task", state, trigger1, "trigger1", json!({ "value": 1 }))
             .await
             .expect_err("should have failed");
 

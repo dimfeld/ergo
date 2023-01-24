@@ -61,7 +61,17 @@
         toolbar={false} />
       <div class="flex-1 border-t border-gray-500 text-sm">Results</div>
     </div>
+  {:else if node.config.func.type === 'trigger'}
+    <Editor
+      class="h-full"
+      contents={node.meta.contents}
+      format="json5"
+      notifyOnChange={true}
+      on:change={(e) => (node.meta.contents = e.detail)}
+      toolbar={false} />
   {:else}
-    Type {node.config.func.type} not implemented yet
+    <div class="flex h-full flex-col">
+      Type {node.config.func.type} not implemented yet
+    </div>
   {/if}
 </CanvasTitledBox>

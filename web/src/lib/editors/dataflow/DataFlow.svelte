@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DataFlowConfig, DataFlowEdge, TaskConfig } from '$lib/api_types';
+  import type { DataFlowConfig, DataFlowEdge, TaskConfig, TaskTrigger } from '$lib/api_types';
   import {
     dataflowManager,
     type DataFlowManagerNode,
@@ -17,8 +17,11 @@
 
   export let source: DataFlowSource;
   export let compiled: DataFlowConfig;
+  export let taskTriggers: Record<string, TaskTrigger>;
 
   $: data = dataflowManager(compiled, source);
+
+  $: data.syncTriggers(taskTriggers);
 
   export function getState(): { compiled: TaskConfig; source: any } {
     let { compiled, source } = data.compile();
@@ -46,7 +49,7 @@
   }
 
   function addNode(box: Box) {
-    data.addNode({
+    data.addJsNode({
       x: box.x,
       y: box.y,
       w: Math.max(box.w, 150),
@@ -68,7 +71,7 @@
       box: node.meta.position,
       point: {
         x: position.x + position.w,
-        y: position.y + 20,
+        y: position.y + 15,
       },
     };
   }
@@ -88,7 +91,7 @@
   function handleSelectModeClickNode(node: DataFlowManagerNode) {
     if (state === 'addingEdge' && edgeSourceNode && canAddEdge === 'valid') {
       data.addEdge(edgeSourceNode.meta.id, node.meta.id);
-    } else if (state === 'removing') {
+    } else if (state === 'removing' && !checkDeleteNode) {
       data.deleteNode(node.meta.id);
     }
 
@@ -102,6 +105,21 @@
 
   let canAddEdge: SelectionState;
   $: canAddEdge = checkAddEdge ? 'invalid' : 'valid';
+
+  function canDeleteNode(node: DataFlowManagerNode | null): string | null {
+    if (!node) {
+      return null;
+    }
+
+    if (node.config.func.type === 'trigger') {
+      return 'Trigger nodes should be removed using the trigger editor';
+    }
+
+    return null;
+  }
+  $: checkDeleteNode = canDeleteNode(removeHighlightedNode);
+
+  $: checkMessage = checkAddEdge || checkDeleteNode;
 
   $: selectMode = state === 'addingEdge' || state === 'removing';
 
@@ -167,7 +185,7 @@
     if (state === 'addingEdge' && node === edgeDestNode) {
       selected = canAddEdge;
     } else if (state === 'removing' && node === removeHighlightedNode) {
-      selected = 'valid';
+      selected = checkDeleteNode ? 'invalid' : 'valid';
     }
 
     return {
@@ -230,8 +248,8 @@
           <XIcon />
         </Button>
 
-        {#if checkAddEdge}
-          <span>{checkAddEdge}</span>
+        {#if checkMessage}
+          <span>{checkMessage}</span>
         {/if}
       </div>
 

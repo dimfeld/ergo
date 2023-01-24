@@ -1,4 +1,10 @@
-import type { DataFlowConfig, DataFlowEdge, DataFlowNode } from '$lib/api_types';
+import type {
+  DataFlowConfig,
+  DataFlowEdge,
+  DataFlowNode,
+  DataFlowNodeFunction,
+  TaskTrigger,
+} from '$lib/api_types';
 import zip from 'just-zip-it';
 import { get as getStore, writable } from 'svelte/store';
 import type { Box } from '../canvas/drag';
@@ -222,6 +228,80 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
     });
   }
 
+  function addNode(data: DataFlowManagerData, box: Box, name: string, func: DataFlowNodeFunction) {
+    let maxId = Math.max(...data.nodes.map((n) => n.meta.id), 0);
+
+    let nodes: DataFlowManagerNode[] = [
+      ...data.nodes,
+      {
+        config: {
+          allow_null_inputs: true,
+          name,
+          func,
+        },
+        meta: {
+          id: maxId + 1,
+          position: box,
+          splitPos: 75,
+          autorun: true,
+          lastOutput: '',
+          edgeColor: findLeastUsedColor(colors, data.nodes),
+          format: 'expression',
+          contents: '',
+        },
+      },
+    ];
+
+    return {
+      ...data,
+      nodes,
+    };
+  }
+
+  function createNodeName(
+    data: DataFlowManagerData,
+    prefix: string,
+    initialSuffix: number | null = null
+  ) {
+    let index = initialSuffix;
+    let name = typeof index === 'number' ? `${prefix}${index}` : prefix;
+    while (data.nodes.some((n) => n.config.name === name)) {
+      index = (index ?? 0) + 1;
+      name = `${prefix}${index}`;
+    }
+    return name;
+  }
+
+  function addJsNode(box: Box) {
+    update((data) => {
+      let newNodeName = createNodeName(data, 'node', data.nodes.length);
+      return addNode(data, box, newNodeName, { type: 'js', func: `__${newNodeName}` });
+    });
+  }
+
+  function deleteNodeInternal(data: DataFlowManagerData, index: number) {
+    let nodeId = data.nodes[index].meta.id;
+    let edges = data.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
+    let nodes = data.nodes.filter((n) => n.meta.id !== nodeId);
+
+    return {
+      ...data,
+      edges,
+      nodes,
+    };
+  }
+
+  function deleteNode(id: number) {
+    update((data) => {
+      let index = data.nodeIdToIndex.get(id);
+      if (typeof index !== 'number') {
+        return data;
+      }
+
+      return deleteNodeInternal(data, index);
+    });
+  }
+
   return {
     subscribe: store.subscribe,
     set: store.set,
@@ -229,6 +309,54 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
     compile(): { compiled: DataFlowConfig; source: DataFlowSource } {
       let data = getStore(store);
       return compileCode(data);
+    },
+    syncTriggers(triggers: Record<string, TaskTrigger>) {
+      update((data) => {
+        let idsToRemove: number[] = [];
+        let taskTriggerIds = new Set(Object.values(triggers).map((t) => t.task_trigger_id));
+
+        // Remove any trigger nodes that reference nonexistent triggers.
+        for (let node of data.nodes) {
+          if (node.config.func.type !== 'trigger') {
+            continue;
+          }
+
+          if (!taskTriggerIds.has(node.config.func.task_trigger_id)) {
+            idsToRemove.push(node.meta.id);
+          }
+        }
+
+        if (idsToRemove.length) {
+          data = {
+            ...data,
+            nodes: data.nodes.filter((n) => !idsToRemove.includes(n.meta.id)),
+            edges: data.edges.filter(
+              (e) => !idsToRemove.includes(e.from) && !idsToRemove.includes(e.to)
+            ),
+          };
+        }
+
+        // Add nodes for triggers that don't have them yet.
+        let newBoxOrigin = 60;
+        for (let [triggerLocalId, trigger] of Object.entries(triggers)) {
+          let triggerId = trigger.task_trigger_id;
+          let node = data.nodes.find(
+            (n) => n.config.func.type === 'trigger' && n.config.func.task_trigger_id === triggerId
+          );
+
+          if (!node) {
+            let nodeName = createNodeName(data, triggerLocalId, null);
+            // TODO Find some reasonably appropriate box, accounting for other existing boxes.
+            data = addNode(data, { x: newBoxOrigin, y: newBoxOrigin, w: 150, h: 150 }, nodeName, {
+              type: 'trigger',
+              task_trigger_id: triggerId,
+            });
+            newBoxOrigin += 40;
+          }
+        }
+
+        return data;
+      });
     },
     addEdge(from: number, to: number) {
       update((data) => {
@@ -268,64 +396,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
         };
       });
     },
-    addNode(box: Box) {
-      update((data) => {
-        let newNodeIndex = data.nodes.length;
-        let newNodeName = `node${newNodeIndex}`;
-        while (data.nodes.some((n) => n.config.name === newNodeName)) {
-          newNodeIndex += 1;
-          newNodeName = `node${newNodeIndex}`;
-        }
-
-        let maxId = Math.max(...data.nodes.map((n) => n.meta.id), 0);
-
-        let nodes: DataFlowManagerNode[] = [
-          ...data.nodes,
-          {
-            config: {
-              allow_null_inputs: true,
-              name: newNodeName,
-              func: {
-                type: 'js',
-                func: `__${newNodeName}`,
-              },
-            },
-            meta: {
-              id: maxId + 1,
-              position: box,
-              splitPos: 75,
-              autorun: true,
-              lastOutput: '',
-              edgeColor: findLeastUsedColor(colors, data.nodes),
-              format: 'expression',
-              contents: '',
-            },
-          },
-        ];
-
-        return {
-          ...data,
-          nodes,
-        };
-      });
-    },
-    deleteNode(id: number) {
-      update((data) => {
-        let index = data.nodeIdToIndex.get(id);
-        if (typeof index !== 'number') {
-          return data;
-        }
-
-        let nodeId = data.nodes[index].meta.id;
-        let edges = data.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
-        let nodes = data.nodes.filter((n) => n.meta.id !== id);
-
-        return {
-          ...data,
-          edges,
-          nodes,
-        };
-      });
-    },
+    addJsNode,
+    deleteNode,
   };
 }

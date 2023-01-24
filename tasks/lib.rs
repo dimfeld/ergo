@@ -271,7 +271,7 @@ mod native {
                                 .into_iter()
                                 .zip(state.into_iter())
                                 .enumerate() {
-                                    let mut m = StateMachineWithData::new(task_id.clone(), idx, machine, state);
+                                    let mut m = StateMachineWithData::new(task_id, idx, machine, state);
                                     let this_actions = m
                                       .apply_trigger(
                                           &task_trigger_local_id,
@@ -296,10 +296,10 @@ mod native {
                             let run_result = scripting::immediate::run_task(&task_name, config, state, payload.clone()).await?;
                             let actions = run_result.actions.into_iter().map(|action| {
                                 ActionInvocation{
-                                    task_id: task_id.clone(),
+                                    task_id,
                                     payload: action.payload,
                                     input_arrival_id: Some(input_arrival_id),
-                                    user_id: user_id.clone(),
+                                    user_id,
                                     task_action_local_id: action.name,
                                     actions_log_id: new_uuid(),
                                 }
@@ -312,19 +312,19 @@ mod native {
                             return Err(Error::ConfigStateMismatch("Js"))
                         },
                         (TaskConfig::DataFlow(config), TaskState::DataFlow(state)) => {
-                            let (state, log, actions) = config.evaluate_trigger(&task_name, state, &task_trigger_local_id, payload.clone()).await?;
+                            let (state, log, actions) = config.evaluate_trigger(&task_name, state, task_trigger_id, &task_trigger_local_id, payload.clone()).await?;
                             let actions = actions.into_iter().map(|action| {
                                 ActionInvocation{
-                                    task_id: task_id.clone(),
+                                    task_id,
                                     payload: action.payload,
                                     input_arrival_id: Some(input_arrival_id),
-                                    user_id: user_id.clone(),
+                                    user_id,
                                     task_action_local_id: action.name,
                                     actions_log_id: new_uuid(),
                                 }
                             }).collect::<ActionInvocations>();
 
-                            let log_out = serde_json::to_value(&log)?;
+                            let log_out = serde_json::to_value(log)?;
 
                             (TaskState::DataFlow(state), log_out, actions, true)
                         }
@@ -383,14 +383,14 @@ mod native {
 
                             validate_and_prepare_invocation(executor, &action.payload, invocation_action).await
                                 .map_err(|e| ExecuteError{
-                                    task_id: task_id.clone(),
+                                    task_id,
                                     task_action_local_id: action.task_action_local_id.clone(),
                                     task_action_name: task_action.task_action_name.clone(),
                                     error: e,
                                 })?;
 
                             log_query = log_query
-                                .bind(&action.task_id)
+                                .bind(action.task_id)
                                 .bind(&action.task_action_local_id)
                                 .bind(action.actions_log_id)
                                 .bind(action.input_arrival_id)

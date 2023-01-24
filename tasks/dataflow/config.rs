@@ -48,7 +48,8 @@ impl DataFlowConfig {
         &self,
         task_name: &str,
         mut state: DataFlowState,
-        trigger_id: &str,
+        task_trigger_id: ergo_database::object_id::TaskTriggerId,
+        task_trigger_local_id: &str,
         payload: serde_json::Value,
     ) -> Result<(
         DataFlowState,
@@ -71,10 +72,12 @@ impl DataFlowConfig {
             .nodes
             .iter()
             .position(|node| match &node.func {
-                DataFlowNodeFunction::Trigger(trigger) => trigger.local_id == trigger_id,
+                DataFlowNodeFunction::Trigger(trigger) => {
+                    trigger.task_trigger_id == task_trigger_id
+                }
                 _ => false,
             })
-            .ok_or_else(|| Error::TaskTriggerNotFound(trigger_id.to_string()))?;
+            .ok_or_else(|| Error::TaskTriggerNotFound(task_trigger_local_id.to_string()))?;
 
         to_run.insert(trigger_node);
         let mut walker = NodeWalker::starting_from(self, trigger_node as u32)?;
