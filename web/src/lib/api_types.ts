@@ -259,8 +259,10 @@ export type DataFlowNodeFunction =
     }
   | {
       type: "js";
-      code: string;
-      format: JsCodeFormat;
+      /**
+       * The name of the function in the compiled code that stores this node.
+       */
+      func: string;
     }
   | {
       type: "table";
@@ -268,8 +270,6 @@ export type DataFlowNodeFunction =
   | {
       type: "graph";
     };
-
-export type JsCodeFormat = "Expression" | "Function" | "AsyncFunction";
 
 export type TextRenderAs = "plainText" | "markdown" | "html";
 
@@ -323,6 +323,14 @@ export interface DataFlowConfig {
    * The connection between nodes. This must be sorted.
    */
   edges: DataFlowEdge[];
+  /**
+   * The compiled JavaScript for all the nodes and their dependencies, bundled as an IIFE
+   */
+  compiled: string;
+  /**
+   * A source map for the compiled JavaScript
+   */
+  map?: string | null;
   toposorted: number[];
 }
 
@@ -336,14 +344,15 @@ export interface DataFlowNode {
 }
 
 export interface DataFlowJs {
-  code: string;
-  format: JsCodeFormat;
+  /**
+   * The name of the function in the compiled code that stores this node.
+   */
+  func: string;
 }
 
 export interface DataFlowEdge {
   from: number;
   to: number;
-  name: string;
 }
 
 export interface TaskJsState {
@@ -351,7 +360,10 @@ export interface TaskJsState {
 }
 
 export interface DataFlowState {
-  nodes: any[];
+  /**
+   * The state is a set of JS values made safe for serialization by `devalue`. This allows objects such as Maps, Sets, Dates, etc. to be stored in the state.
+   */
+  nodes: string[];
 }
 
 export interface TaskActionInput {

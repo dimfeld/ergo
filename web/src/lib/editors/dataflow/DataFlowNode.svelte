@@ -50,10 +50,10 @@
     <div class="flex h-full flex-col">
       <Editor
         class="h-1/3"
-        contents={node.config.func.code}
+        contents={node.meta.contents}
         format="js"
         notifyOnChange={true}
-        on:change={(e) => (node.config.func.code = e.detail)}
+        on:change={(e) => (node.meta.contents = e.detail)}
         toolbar={false} />
       <div class="flex-1 border-t border-gray-500 text-sm">Results</div>
     </div>

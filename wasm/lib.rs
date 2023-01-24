@@ -189,7 +189,7 @@ pub fn parse_schedule(schedule: String) -> Result<Option<i64>, JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn toposort_nodes(num_nodes: usize, edges: JsValue) -> Result<Vec<u32>, JsValue> {
+pub fn toposort_nodes(num_nodes: usize, edges: JsValue) -> Result<JsValue, JsValue> {
     let edges_de = serde_wasm_bindgen::Deserializer::from(edges);
     let edges: Vec<DataFlowEdge> =
         serde_path_to_error::deserialize(edges_de).map_err(|e| e.to_string())?;
@@ -197,5 +197,5 @@ pub fn toposort_nodes(num_nodes: usize, edges: JsValue) -> Result<Vec<u32>, JsVa
     let sorted =
         ergo_tasks::dataflow::toposort_nodes(num_nodes, &edges).map_err(|e| e.to_string())?;
 
-    Ok(sorted)
+    Ok(serde_wasm_bindgen::to_value(&sorted)?)
 }

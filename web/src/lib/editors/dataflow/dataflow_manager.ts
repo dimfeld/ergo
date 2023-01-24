@@ -3,9 +3,10 @@ import zip from 'just-zip-it';
 import { get as getStore, writable } from 'svelte/store';
 import type { Box } from '../canvas/drag';
 import { toposort_nodes } from 'ergo-wasm';
-import camelCase from 'just-camel-case';
 import groupBy from 'just-group-by';
 import { schemeOranges } from 'd3';
+
+export type JsFunctionType = 'expression' | 'function';
 
 /** Metadata used only for the front-end. */
 export interface DataFlowNodeMeta {
@@ -15,7 +16,11 @@ export interface DataFlowNodeMeta {
   autorun: boolean;
   lastOutput: string;
   edgeColor: string;
+  format: JsFunctionType;
+  contents: string;
 }
+
+export const DEFAULT_FUNC_TYPE: JsFunctionType = 'expression';
 
 export interface DataFlowSource {
   nodes: DataFlowNodeMeta[];
@@ -36,7 +41,15 @@ export interface DataFlowManagerData {
   checkAddEdge: (from: number, to: number) => string | null;
 }
 
-function findLeastUsedColor(colors: string[], nodes: DataFlowManagerNode[]) {
+export function wrapFunction(func: string, funcType: JsFunctionType) {
+  if (funcType === 'expression') {
+    return `return ${func}`;
+  }
+
+  return func;
+}
+
+function findLeastUsedColor(colors: readonly string[], nodes: DataFlowManagerNode[]) {
   let colorCounts = new Map<string, number>(colors.map((c) => [c, 0]));
   for (let node of nodes) {
     if (node.meta.edgeColor) {
@@ -174,6 +187,8 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
         compiled: {
           nodes: nodeConfig,
           edges,
+          compiled: '', // TODO compile it
+          map: null,
           toposorted: data.toposorted,
         },
         source: {
@@ -181,7 +196,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
         },
       };
     },
-    addEdge(from: number, to: number, edgeName?: string) {
+    addEdge(from: number, to: number) {
       update((data) => {
         let existingEdge = data.edges.find((e) => e.from === from && e.to === to);
         if (existingEdge) {
@@ -191,18 +206,9 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
         if (!data.nodeIdToIndex.has(from)) {
           throw new Error('from node does not exist');
         }
-        let toNode = data.nodeIdToIndex.get(to);
-        if (toNode === undefined) {
-          throw new Error('to node does not exist');
-        }
 
-        let name = edgeName;
-        if (!name) {
-          let node = data.nodes[toNode];
-          name = node.config.name;
-          if (/[^a-zA-Z0-9]/.test(name)) {
-            name = camelCase(name);
-          }
+        if (!data.nodeIdToIndex.has(to)) {
+          throw new Error('to node does not exist');
         }
 
         let edges: DataFlowEdge[] = [
@@ -210,7 +216,6 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
           {
             from,
             to,
-            name,
           },
         ];
 
@@ -248,8 +253,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
               name: newNodeName,
               func: {
                 type: 'js',
-                code: '',
-                format: 'Expression',
+                func: `__${newNodeName}`,
               },
             },
             meta: {
@@ -259,6 +263,8 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
               autorun: true,
               lastOutput: '',
               edgeColor: findLeastUsedColor(colors, data.nodes),
+              format: 'expression',
+              contents: '',
             },
           },
         ];
