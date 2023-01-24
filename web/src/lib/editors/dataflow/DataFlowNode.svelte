@@ -2,7 +2,7 @@
   import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
   import Editor from '../Editor.svelte';
   import { createEventDispatcher } from 'svelte';
-  import type { DataFlowManagerNode } from './dataflow_manager';
+  import type { DataFlowManagerNode, JsFunctionType } from './dataflow_manager';
   import type { SelectionState } from '../canvas/drag';
 
   const dispatch = createEventDispatcher();
@@ -10,6 +10,10 @@
   export let node: DataFlowManagerNode;
   export let selectMode = false;
   export let selected: SelectionState = null;
+
+  $: if (!node.meta.format) {
+    node.meta.format = 'expression';
+  }
 </script>
 
 <CanvasTitledBox

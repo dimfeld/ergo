@@ -41,12 +41,70 @@ export interface DataFlowManagerData {
   checkAddEdge: (from: number, to: number) => string | null;
 }
 
-export function wrapFunction(func: string, funcType: JsFunctionType) {
-  if (funcType === 'expression') {
-    return `return ${func}`;
-  }
+function compileCode(data: DataFlowManagerData): {
+  compiled: DataFlowConfig;
+  source: DataFlowSource;
+} {
+  let nodeConfig = data.nodes.map((n) => n.config);
+  let nodeSource = data.nodes.map((n) => n.meta);
 
-  return func;
+  // Convert edges back from node IDs to indexes.
+  let edges = data.edges
+    .map((e) => ({
+      ...e,
+      from: data.nodeIdToIndex.get(e.from) ?? -1,
+      to: data.nodeIdToIndex.get(e.to) ?? -1,
+    }))
+    .filter((e) => e.from !== -1 && e.to !== -1);
+
+  let functions = data.nodes.map((node, i) => wrapFunction(data, edges, i, node)).join('\n');
+
+  // TODO Use a real bundler.
+  let compiled = `(function(){
+    var exports = {};
+    ${functions}
+    return exports;
+  })()`;
+
+  return {
+    compiled: {
+      nodes: nodeConfig,
+      edges,
+      compiled,
+      map: null,
+      toposorted: data.toposorted,
+    },
+    source: {
+      nodes: nodeSource,
+    },
+  };
+}
+
+export function wrapFunction(
+  data: DataFlowManagerData,
+  indexEdges: DataFlowEdge[],
+  nodeIndex: number,
+  node: DataFlowManagerNode
+) {
+  const nodeType = node.config.func.type;
+  if (nodeType === 'js' || nodeType === 'action') {
+    let contents = node.meta.contents;
+    if (node.meta.format === 'expression') {
+      contents = `return ${contents}`;
+    }
+
+    let inputNodes = indexEdges
+      .filter((edge) => edge.to === nodeIndex)
+      .map(({ from }) => data.nodes[from].config.name);
+
+    let funcName = nodeType === 'js' ? node.config.func.func : node.config.func.payload_code.func;
+
+    let args = inputNodes.length ? `{ ${inputNodes.join(',')} }` : '';
+
+    return `exports.${funcName} = async function ${funcName}(${args}) {
+      ${contents}
+    };`;
+  }
 }
 
 function findLeastUsedColor(colors: readonly string[], nodes: DataFlowManagerNode[]) {
@@ -170,31 +228,7 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
     update,
     compile(): { compiled: DataFlowConfig; source: DataFlowSource } {
       let data = getStore(store);
-
-      let nodeConfig = data.nodes.map((n) => n.config);
-      let nodeSource = data.nodes.map((n) => n.meta);
-
-      // Convert edges back from node IDs to indexes.
-      let edges = data.edges
-        .map((e) => ({
-          ...e,
-          from: data.nodeIdToIndex.get(e.from) ?? -1,
-          to: data.nodeIdToIndex.get(e.to) ?? -1,
-        }))
-        .filter((e) => e.from !== -1 && e.to !== -1);
-
-      return {
-        compiled: {
-          nodes: nodeConfig,
-          edges,
-          compiled: '', // TODO compile it
-          map: null,
-          toposorted: data.toposorted,
-        },
-        source: {
-          nodes: nodeSource,
-        },
-      };
+      return compileCode(data);
     },
     addEdge(from: number, to: number) {
       update((data) => {
