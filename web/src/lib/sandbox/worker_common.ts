@@ -6,13 +6,15 @@ function sendMessage(name, data) {
   self.postMessage({ name, data });
 }
 
-export interface WorkerContext<T> {
-  msg: WorkerMessage<T>;
+export interface WorkerContext<MessageName extends string, T> {
+  msg: WorkerMessage<MessageName, T>;
   reject(error: Error): void;
   resolve(data: any): void;
 }
 
-export function getMessageContext<T = any>(ev: MessageEvent<WorkerMessage>): WorkerContext<T> {
+export function getMessageContext<MessageName extends string = string, T = any>(
+  ev: MessageEvent<WorkerMessage<MessageName, T>>
+): WorkerContext<MessageName, T> {
   let { id } = ev.data;
 
   return {

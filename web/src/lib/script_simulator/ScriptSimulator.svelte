@@ -11,8 +11,8 @@
     type ConsoleMessage,
     type RunError,
     type RunOutput,
-    type SandboxWorker,
     sandboxWorker,
+    type ScriptSimulatorWorker,
   } from './messages';
   import debugMod from 'debug';
   const debug = debugMod('script_simulator');
@@ -35,7 +35,7 @@
 
   let runOutputs: RunRecord[] = [];
 
-  let sandbox: SandboxWorker | null = null;
+  let sandbox: ScriptSimulatorWorker | null = null;
   onDestroy(() => {
     sandbox?.destroy();
     sandbox = null;
@@ -148,7 +148,7 @@
               </div>
 
               <div class="flex-1">
-                {#if !runOutput.error}
+                {#if runOutput.output.type === 'success'}
                   <Labelled label="Actions">
                     <ul>
                       {#each runOutput.output.actions as action}
@@ -160,7 +160,7 @@
                   </Labelled>
                 {:else}
                   <Labelled label="Error">
-                    {runOutput.error}
+                    {runOutput.output.error}
                   </Labelled>
                 {/if}
               </div>
@@ -171,7 +171,7 @@
                 Context Before Run:
                 <pre>{JSON.stringify(runOutput.input.context, null, 2)}</pre>
               </div>
-              {#if !runOutput.error}
+              {#if runOutput.output.type === 'success'}
                 <div class="flex-1">
                   Context After Run:
                   <pre>{JSON.stringify(runOutput.output.context, null, 2)}</pre>

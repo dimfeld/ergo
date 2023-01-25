@@ -25,7 +25,7 @@ self.onmessage = function handleMessage(ev: MessageEvent<WorkerMessage>) {
 // This looks weird but is the MDN-approved way to get a reference to AsyncFunction.
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
-async function runScript(ctx: WorkerContext<RunScriptArguments>) {
+async function runScript(ctx: WorkerContext<string, RunScriptArguments>) {
   let { script, context, payload } = ctx.msg.data;
   let actions: { name: string; data: unknown }[] = [];
   const Ergo = {
@@ -50,10 +50,15 @@ async function runScript(ctx: WorkerContext<RunScriptArguments>) {
   try {
     await fn(Ergo);
     ctx.resolve({
+      type: 'success',
       context,
       actions,
     });
   } catch (e) {
-    ctx.reject(e);
+    // Return errors from the task code as regular messages since we want to record them in the log.
+    ctx.resolve({
+      type: 'error',
+      error: e,
+    });
   }
 }

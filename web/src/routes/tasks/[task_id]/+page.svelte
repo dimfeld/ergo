@@ -4,7 +4,7 @@
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
   import Modal, { type ModalOpener } from '$lib/components/Modal.svelte';
-  import type { TaskAction, TaskResult, TaskTrigger } from '$lib/api_types';
+  import type { TaskAction, TaskConfig, TaskResult, TaskTrigger } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
   import clone from 'just-clone';
