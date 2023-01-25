@@ -14,17 +14,21 @@
   import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
   import DataFlowNode from './DataFlowNode.svelte';
   import BoxToBoxArrow from '../canvas/BoxToBoxArrow.svelte';
+  import { onDestroy } from 'svelte';
+  import { Bundler } from '$lib/bundler';
 
   export let source: DataFlowSource;
   export let compiled: DataFlowConfig;
   export let taskTriggers: Record<string, TaskTrigger>;
 
-  $: data = dataflowManager(compiled, source);
+  let bundler = new Bundler();
+  onDestroy(() => bundler.destroy());
+  $: data = dataflowManager(bundler, compiled, source);
 
   $: data.syncTriggers(taskTriggers);
 
-  export function getState(): { compiled: TaskConfig; source: any } {
-    let { compiled, source } = data.compile();
+  export async function getState(): Promise<{ compiled: TaskConfig; source: any }> {
+    let { compiled, source } = await data.compile();
 
     return {
       compiled: {

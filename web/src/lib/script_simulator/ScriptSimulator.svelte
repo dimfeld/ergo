@@ -7,7 +7,13 @@
   import Editor from '$lib/editors/Editor.svelte';
   import { formatJson } from '$lib/editors/format';
   import { onDestroy } from 'svelte';
-  import { type ConsoleMessage, type RunError, type RunOutput, type SandboxWorker, sandboxWorker } from './messages';
+  import {
+    type ConsoleMessage,
+    type RunError,
+    type RunOutput,
+    type SandboxWorker,
+    sandboxWorker,
+  } from './messages';
   import debugMod from 'debug';
   const debug = debugMod('script_simulator');
 
@@ -54,7 +60,7 @@
 
     debug('bundled', bundled);
 
-    if (bundled.error) {
+    if (bundled.type === 'error') {
       throw bundled.error;
     }
 
@@ -100,8 +106,7 @@
       class="flex-1 pr-4"
       format="json"
       contents={formatJson(payload || {}, 'json')}
-      bind:getContents={getPayloadContents}
-    >
+      bind:getContents={getPayloadContents}>
       <div slot="left-toolbar" class="flex space-x-4">
         <Button size="xs" on:click={run}>Run</Button>
       </div>
@@ -110,13 +115,11 @@
       class="flex-1 pl-4"
       format="json"
       contents={formatJson(context || {}, 'json')}
-      bind:getContents={getContextContents}
-    >
+      bind:getContents={getContextContents}>
       <div slot="left-toolbar">
         <Checkbox
           bind:value={autosaveContext}
-          label="Automatically replace context with run output"
-        />
+          label="Automatically replace context with run output" />
       </div>
     </Editor>
   </div>

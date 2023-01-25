@@ -63,7 +63,7 @@
       },
     });
 
-    if (bundle.error) {
+    if (bundle.type === 'error') {
       throw bundle.error;
     }
 
@@ -96,7 +96,6 @@
     on:change={({ detail: newScript }) => (currentScript = newScript)}
     notifyOnChange={true}
     contents={source?.script ?? compiled?.script ?? ''}
-    tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }}
-  />
+    tsDefs={{ 'TaskScript.d.ts': scriptTypeDefs }} />
   <ScriptSimulator {getBundler} context={{}} script={currentScript} />
 </div>

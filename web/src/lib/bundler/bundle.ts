@@ -75,7 +75,12 @@ function replace(env: string): Plugin {
 export default async function bundle(
   job: BundleJob & { jobId: number; checkActive: () => void }
 ): Promise<Result> {
-  let input = 'index.ts' in job.files ? 'index.ts' : Object.keys(job.files)[0];
+  let input =
+    'index.ts' in job.files
+      ? 'index.ts'
+      : 'index.js' in job.files
+      ? 'index.js'
+      : Object.keys(job.files)[0];
   let warnings: string[] = [];
   let bundler = await rollup.rollup({
     input: '/' + input,
@@ -112,7 +117,7 @@ export default async function bundle(
   try {
     let result = (
       await bundler.generate({
-        format: 'es',
+        format: job.format ?? 'es',
         name: job.name ?? input,
         sourcemap: true,
       })
@@ -127,7 +132,7 @@ export default async function bundle(
     };
   } catch (e) {
     return {
-      type: 'result',
+      type: 'error',
       jobId: job.jobId,
       error: e as Error,
     };

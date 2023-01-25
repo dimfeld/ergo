@@ -3,6 +3,8 @@ import type { SourceMap } from 'rollup';
 export interface BundleJob {
   name?: string;
   files: Record<string, string>;
+  /** Output format. Defaults to ESM */
+  format?: 'es' | 'iife';
   production?: boolean;
 }
 
@@ -34,7 +36,7 @@ export interface BundleResult {
 export type AbortError = Error & { aborted: true };
 
 export interface ErrorResult {
-  type: 'result';
+  type: 'error';
   jobId: number;
   error: Error | AbortError;
 }

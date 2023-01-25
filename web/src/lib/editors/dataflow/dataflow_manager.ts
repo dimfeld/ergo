@@ -11,6 +11,7 @@ import type { Box } from '../canvas/drag';
 import { toposort_nodes } from 'ergo-wasm';
 import groupBy from 'just-group-by';
 import { schemeOranges } from 'd3';
+import type { Bundler } from '$lib/bundler';
 
 export type JsFunctionType = 'expression' | 'function';
 
@@ -47,10 +48,13 @@ export interface DataFlowManagerData {
   checkAddEdge: (from: number, to: number) => string | null;
 }
 
-function compileCode(data: DataFlowManagerData): {
+async function compileCode(
+  bundler: Bundler,
+  data: DataFlowManagerData
+): Promise<{
   compiled: DataFlowConfig;
   source: DataFlowSource;
-} {
+}> {
   let nodeConfig = data.nodes.map((n) => n.config);
   let nodeSource = data.nodes.map((n) => n.meta);
 
@@ -65,19 +69,26 @@ function compileCode(data: DataFlowManagerData): {
 
   let functions = data.nodes.map((node, i) => wrapFunction(data, edges, i, node)).join('\n');
 
-  // TODO Use a real bundler.
-  let compiled = `(function(){
-    var exports = {};
-    ${functions}
-    return exports;
-  })()`;
+  let bundled = await bundler.bundle({
+    files: {
+      'index.js': functions,
+    },
+    name: '',
+    format: 'iife',
+    production: true,
+  });
+
+  if (bundled.type === 'error') {
+    // TODO show the error somewhere
+    throw bundled.error;
+  }
 
   return {
     compiled: {
       nodes: nodeConfig,
       edges,
-      compiled,
-      map: null,
+      compiled: bundled.code,
+      map: bundled.map ? JSON.stringify(bundled.map) : undefined,
       toposorted: data.toposorted,
     },
     source: {
@@ -107,7 +118,7 @@ export function wrapFunction(
 
     let args = inputNodes.length ? `{ ${inputNodes.join(',')} }` : '';
 
-    return `exports.${funcName} = async function ${funcName}(${args}) {
+    return `export async function ${funcName}(${args}) {
       ${contents}
     };`;
   }
@@ -131,7 +142,7 @@ function findLeastUsedColor(colors: readonly string[], nodes: DataFlowManagerNod
   return minColor;
 }
 
-export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) {
+export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source: DataFlowSource) {
   let colors = schemeOranges[9];
 
   const nodes = zip(config?.nodes || [], source?.nodes || []).map(([config, meta], i) => {
@@ -306,9 +317,9 @@ export function dataflowManager(config: DataFlowConfig, source: DataFlowSource) 
     subscribe: store.subscribe,
     set: store.set,
     update,
-    compile(): { compiled: DataFlowConfig; source: DataFlowSource } {
+    compile(): Promise<{ compiled: DataFlowConfig; source: DataFlowSource }> {
       let data = getStore(store);
-      return compileCode(data);
+      return compileCode(bundler, data);
     },
     syncTriggers(triggers: Record<string, TaskTrigger>) {
       update((data) => {
