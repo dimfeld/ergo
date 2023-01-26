@@ -4,7 +4,7 @@
   import Button from '$lib/components/Button.svelte';
   import Card from '$lib/components/Card.svelte';
   import Modal, { type ModalOpener } from '$lib/components/Modal.svelte';
-  import type { TaskAction, TaskConfig, TaskResult, TaskTrigger } from '$lib/api_types';
+  import type { TaskAction, TaskConfig, TaskResult, TaskState, TaskTrigger } from '$lib/api_types';
   import { getHeaderTextStore } from '$lib/header';
   import { onDestroy } from 'svelte';
   import clone from 'just-clone';
@@ -70,16 +70,19 @@
     }
   }
 
-  let getEditorState: () => Promise<{ compiled: any; source: any }>;
+  let getEditorState: () => Promise<{ compiled: any; source: any; state?: TaskState }>;
   async function save() {
     let taskType = task.source?.type ?? task.compiled?.type;
     if (!taskType) {
       return;
     }
 
-    let { source, compiled } = await getEditorState();
+    let { source, compiled, state } = await getEditorState();
     task.source = source;
     task.compiled = compiled;
+    if (state) {
+      task.state = state;
+    }
 
     if (newTask) {
       let result = await client.post(`/api/tasks`, { json: task }).json<{ task_id: string }>();
@@ -285,6 +288,7 @@
           bind:getState={getEditorState}
           source={task.source?.data}
           compiled={task.compiled?.data}
+          state={task.state.data}
           taskTriggers={task.triggers}
           taskActions={task.actions}
           {validator} />

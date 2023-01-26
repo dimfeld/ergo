@@ -39,7 +39,7 @@ export function getMessageContext<MessageName extends string = string, T = any>(
 }
 
 export function initMessageHandler<MessageName extends string>(
-  handlers: Record<MessageName, (msg: WorkerMessage<MessageName, any>) => any>
+  handlers: Required<Record<MessageName, (msg: WorkerMessage<MessageName, any>) => any>>
 ) {
   self.onmessage = async (ev: MessageEvent<WorkerMessage<MessageName, any>>) => {
     const ctx = getMessageContext(ev);

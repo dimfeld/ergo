@@ -46,6 +46,7 @@ specifiers:
   d3: ~7.8.0
   date-fns: ~2.29.3
   debug: ~4.3.4
+  devalue: ~4.2.2
   dotenv: ~14.3.2
   ergo-wasm: link:../wasm/pkg
   eslint: ^8.13.0
@@ -129,6 +130,7 @@ dependencies:
   d3: 7.8.0
   date-fns: 2.29.3
   debug: 4.3.4
+  devalue: 4.2.2
   ergo-wasm: link:../wasm/pkg
   fast-deep-equal: 3.1.3
   focus-svelte: 0.3.4
@@ -2643,7 +2645,7 @@ packages:
       '@storybook/csf-plugin': 7.0.0-beta.13
       '@storybook/csf-tools': 7.0.0-beta.13
       '@storybook/global': 5.0.0
-      '@storybook/mdx2-csf': 1.0.0-next.4
+      '@storybook/mdx2-csf': 1.0.0-next.5
       '@storybook/node-logger': 7.0.0-beta.13
       '@storybook/postinstall': 7.0.0-beta.13
       '@storybook/preview-api': 7.0.0-beta.13
@@ -2996,7 +2998,7 @@ packages:
       '@storybook/client-logger': 7.0.0-beta.13
       '@storybook/core-common': 7.0.0-beta.13
       '@storybook/csf-plugin': 7.0.0-beta.13
-      '@storybook/mdx2-csf': 1.0.0-next.4
+      '@storybook/mdx2-csf': 1.0.0-next.5
       '@storybook/node-logger': 7.0.0-beta.13
       '@storybook/preview': 7.0.0-beta.13
       '@storybook/preview-api': 7.0.0-beta.13
@@ -3240,7 +3242,7 @@ packages:
       '@storybook/core-events': 7.0.0-beta.13
       '@storybook/csf': 0.0.2-next.8
       '@storybook/csf-tools': 7.0.0-beta.13
-      '@storybook/docs-mdx': 0.0.1-next.5
+      '@storybook/docs-mdx': 0.0.1-next.6
       '@storybook/global': 5.0.0
       '@storybook/node-logger': 7.0.0-beta.13
       '@storybook/preview-api': 7.0.0-beta.13
@@ -3322,8 +3324,8 @@ packages:
       type-fest: 2.19.0
     dev: true
 
-  /@storybook/docs-mdx/0.0.1-next.5:
-    resolution: {integrity: sha512-EowXFPq4TBZQguKCdU8y7EzpuSv2vSu5gy7pgF/1P5mq7LG9h8YIrerOW9DL4zfp9E0GHIWlSXR5KuFIqqKc/Q==}
+  /@storybook/docs-mdx/0.0.1-next.6:
+    resolution: {integrity: sha512-DjoSIXADmLJtdroXAjUotFiZlcZ2usWhqrS7aeOtZs0DVR0Ws5WQjnwtpDUXt8gryTSd+OZJ0cNsDcqg4JDEvQ==}
     dev: true
 
   /@storybook/docs-tools/7.0.0-beta.13:
@@ -3400,8 +3402,8 @@ packages:
     resolution: {integrity: sha512-OPWhHsZ581gr+5YvTV2reftALE4xssRRslT/aRqtSEtp7iLu0v+jpiqLVvGlEBTCXoJXB1uSePOq9An+cxUOtw==}
     dev: true
 
-  /@storybook/mdx2-csf/1.0.0-next.4:
-    resolution: {integrity: sha512-nvRgYdpYvXsvSgCzKc4LQA1JxtJzmv47IsFAsh1rTz5FoHyK8watLU2WqX9T4w52fpFXBHx7RwGEsCRt0XgZlQ==}
+  /@storybook/mdx2-csf/1.0.0-next.5:
+    resolution: {integrity: sha512-02w0sgGZaK1agT050yCVhJ+o4rLHANWvLKWjQjeAsYbjneLC5ITt+3GDB4jRiWwJboZ8dHW1fGSK1Vg5fA34aQ==}
     dev: true
 
   /@storybook/node-logger/7.0.0-beta.13:
@@ -3683,7 +3685,7 @@ packages:
       '@sveltejs/vite-plugin-svelte': 2.0.0_svelte@3.54.0+vite@4.0.0
       '@types/cookie': 0.5.1
       cookie: 0.5.0
-      devalue: 4.2.0
+      devalue: 4.2.2
       esm-env: 1.0.0
       kleur: 4.1.5
       magic-string: 0.27.0
@@ -6177,9 +6179,8 @@ packages:
       minimist: 1.2.7
     dev: true
 
-  /devalue/4.2.0:
-    resolution: {integrity: sha512-mbjoAaCL2qogBKgeFxFPOXAUsZchircF+B/79LD4sHH0+NHfYm8gZpQrskKDn5gENGt35+5OI1GUF7hLVnkPDw==}
-    dev: true
+  /devalue/4.2.2:
+    resolution: {integrity: sha512-Pkwd8qrI9O20VJ14fBNHu+on99toTNZFbgWRpZbC0zbDXpnE2WHYcrC1fHhMsF/3Ee+2yaW7vEujAT7fCYgqrA==}
 
   /didyoumean/1.2.2:
     resolution: {integrity: sha512-gxtyfqMg7GKyhQmb056K7M3xszy/myH8w+B4RT+QXBQsvAOdc3XymqDDPHx1BgPgsdAA5SIifona89YtRATDzw==}

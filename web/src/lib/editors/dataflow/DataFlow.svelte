@@ -1,5 +1,12 @@
 <script lang="ts">
-  import type { DataFlowConfig, DataFlowEdge, TaskConfig, TaskTrigger } from '$lib/api_types';
+  import type {
+    DataFlowConfig,
+    DataFlowEdge,
+    DataFlowState,
+    TaskConfig,
+    TaskState,
+    TaskTrigger,
+  } from '$lib/api_types';
   import {
     dataflowManager,
     type DataFlowManagerNode,
@@ -19,16 +26,21 @@
 
   export let source: DataFlowSource;
   export let compiled: DataFlowConfig;
+  export let state: DataFlowState;
   export let taskTriggers: Record<string, TaskTrigger>;
 
   let bundler = new Bundler();
   onDestroy(() => bundler.destroy());
-  $: data = dataflowManager(bundler, compiled, source);
+  $: data = dataflowManager(bundler, compiled, source, state);
 
   $: data.syncTriggers(taskTriggers);
 
-  export async function getState(): Promise<{ compiled: TaskConfig; source: any }> {
-    let { compiled, source } = await data.compile();
+  export async function getState(): Promise<{
+    compiled: TaskConfig;
+    source: any;
+    state: TaskState;
+  }> {
+    let { compiled, source, state } = await data.compile();
 
     return {
       compiled: {
@@ -39,16 +51,20 @@
         type: 'DataFlow',
         data: source,
       },
+      state: {
+        type: 'DataFlow',
+        data: state,
+      },
     };
   }
 
   type EditorState = 'normal' | 'addingNode' | 'addingEdge' | 'removing';
-  let state: EditorState = 'normal';
-  function toggleState(newState: EditorState) {
-    if (newState === state) {
+  let editorState: EditorState = 'normal';
+  function toggleState(newEditorState: EditorState) {
+    if (newEditorState === editorState) {
       enterNormalState();
     } else {
-      state = newState;
+      editorState = newEditorState;
     }
   }
 
@@ -59,13 +75,13 @@
       w: Math.max(box.w, 150),
       h: Math.max(box.h, 150),
     });
-    state = 'normal';
+    editorState = 'normal';
   }
 
   let edgeSourceNode: DataFlowManagerNode | null = null;
   let edgeDestNode: DataFlowManagerNode | null = null;
   function startAddEdge(sourceNode: DataFlowManagerNode) {
-    state = 'addingEdge';
+    editorState = 'addingEdge';
     edgeSourceNode = sourceNode;
   }
 
@@ -93,9 +109,9 @@
   }
 
   function handleSelectModeClickNode(node: DataFlowManagerNode) {
-    if (state === 'addingEdge' && edgeSourceNode && canAddEdge === 'valid') {
+    if (editorState === 'addingEdge' && edgeSourceNode && canAddEdge === 'valid') {
       data.addEdge(edgeSourceNode.meta.id, node.meta.id);
-    } else if (state === 'removing' && !checkDeleteNode) {
+    } else if (editorState === 'removing' && !checkDeleteNode) {
       data.deleteNode(node.meta.id);
     }
 
@@ -125,52 +141,52 @@
 
   $: checkMessage = checkAddEdge || checkDeleteNode;
 
-  $: selectMode = state === 'addingEdge' || state === 'removing';
+  $: selectMode = editorState === 'addingEdge' || editorState === 'removing';
 
   let removeHighlightedNode: DataFlowManagerNode | null = null;
   let removeHighlightedEdge: DataFlowEdge | null = null;
 
   function handleMouseMoveNode(node: DataFlowManagerNode) {
-    if (state === 'addingEdge' && node !== edgeSourceNode) {
+    if (editorState === 'addingEdge' && node !== edgeSourceNode) {
       edgeDestNode = node;
     }
 
-    if (state === 'removing') {
+    if (editorState === 'removing') {
       removeHighlightedNode = node;
     }
   }
 
   function handleMouseLeaveNode(node: DataFlowManagerNode) {
-    if (state === 'addingEdge' && node === edgeDestNode) {
+    if (editorState === 'addingEdge' && node === edgeDestNode) {
       edgeDestNode = undefined;
     }
 
-    if (state === 'removing' && removeHighlightedNode === node) {
+    if (editorState === 'removing' && removeHighlightedNode === node) {
       removeHighlightedNode = undefined;
     }
   }
 
   function handleMouseMoveEdge(edge: DataFlowEdge) {
-    if (state === 'removing') {
+    if (editorState === 'removing') {
       removeHighlightedEdge = edge;
     }
   }
 
   function handleMouseLeaveEdge(edge: DataFlowEdge) {
-    if (state === 'removing' && removeHighlightedEdge === edge) {
+    if (editorState === 'removing' && removeHighlightedEdge === edge) {
       removeHighlightedEdge = undefined;
     }
   }
 
   function handleClickEdge(edge: DataFlowEdge) {
-    if (state === 'removing') {
+    if (editorState === 'removing') {
       data.deleteEdge(edge.from, edge.to);
       enterNormalState();
     }
   }
 
   function enterNormalState() {
-    state = 'normal';
+    editorState = 'normal';
     addButtonEl?.blur();
     removeButtonEl?.blur();
     edgeSourceNode = null;
@@ -186,9 +202,9 @@
 
   $: nodes = $data.nodes.map((node) => {
     let selected: SelectionState = null;
-    if (state === 'addingEdge' && node === edgeDestNode) {
+    if (editorState === 'addingEdge' && node === edgeDestNode) {
       selected = canAddEdge;
-    } else if (state === 'removing' && node === removeHighlightedNode) {
+    } else if (editorState === 'removing' && node === removeHighlightedNode) {
       selected = checkDeleteNode ? 'invalid' : 'valid';
     }
 
@@ -227,14 +243,14 @@
           end={dataFlowEdgeDestPos($data.nodeById(edge.to), i)}
           color={fromNode.meta.edgeColor}
           {selectMode}
-          selected={state === 'removing' && edge === removeHighlightedEdge ? 'valid' : null}
+          selected={editorState === 'removing' && edge === removeHighlightedEdge ? 'valid' : null}
           on:mousemove={() => handleMouseMoveEdge(edge)}
           on:mouseleave={() => handleMouseLeaveEdge(edge)}
           on:click={() => handleClickEdge(edge)} />
       {/each}
     {/each}
 
-    {#if state === 'addingEdge' && edgeSourceNode && edgeDestNode}
+    {#if editorState === 'addingEdge' && edgeSourceNode && edgeDestNode}
       {@const numExistingEdges = $data.edgesByDestination[edgeDestNode.meta.id]?.length || 0}
       <BoxToBoxArrow
         start={dataFlowEdgeSourcePos(edgeSourceNode)}
@@ -257,7 +273,7 @@
         {/if}
       </div>
 
-      {#if state === 'addingNode'}
+      {#if editorState === 'addingNode'}
         <DrawRectangle
           on:done={(e) => addNode(e.detail)}
           class="border-2 border-daccent-100 bg-accent-500/25" />

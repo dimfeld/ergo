@@ -3,8 +3,10 @@ import type {
   DataFlowEdge,
   DataFlowNode,
   DataFlowNodeFunction,
+  DataFlowState,
   TaskTrigger,
 } from '$lib/api_types';
+import * as devalue from 'devalue';
 import zip from 'just-zip-it';
 import { get as getStore, writable } from 'svelte/store';
 import type { Box } from '../canvas/drag';
@@ -41,6 +43,7 @@ export interface DataFlowManagerNode {
 export interface DataFlowManagerData {
   nodes: DataFlowManagerNode[];
   edges: DataFlowEdge[];
+  nodeState: Map<number, unknown>;
   toposorted: number[];
   edgesByDestination: Record<number, DataFlowEdge[]>;
   nodeById: (id: number) => DataFlowManagerNode;
@@ -54,6 +57,7 @@ async function compileCode(
 ): Promise<{
   compiled: DataFlowConfig;
   source: DataFlowSource;
+  state: DataFlowState;
 }> {
   let nodeConfig = data.nodes.map((n) => n.config);
   let nodeSource = data.nodes.map((n) => n.meta);
@@ -67,11 +71,13 @@ async function compileCode(
     }))
     .filter((e) => e.from !== -1 && e.to !== -1);
 
-  let functions = data.nodes.map((node, i) => wrapFunction(data, edges, i, node)).join('\n');
+  let functions = data.nodes
+    .map((node, i) => wrapFunctionForCompile(data, edges, i, node))
+    .join('\n');
 
   let bundled = await bundler.bundle({
     files: {
-      'index.js': functions,
+      'index.ts': functions,
     },
     name: '',
     format: 'iife',
@@ -81,6 +87,19 @@ async function compileCode(
   if (bundled.type === 'error') {
     // TODO show the error somewhere
     throw bundled.error;
+  }
+
+  let stateOutput = new Array(nodeConfig.length);
+  for (let [nodeId, value] of data.nodeState) {
+    let nodeIndex = data.nodeIdToIndex.get(nodeId);
+    stateOutput[nodeIndex] = devalue.stringify(value);
+  }
+
+  // Make sure that all the state entries are filled.
+  for (let i = 0; i < nodeConfig.length; ++i) {
+    if (!stateOutput[i]) {
+      stateOutput[i] = '';
+    }
   }
 
   return {
@@ -94,10 +113,13 @@ async function compileCode(
     source: {
       nodes: nodeSource,
     },
+    state: {
+      nodes: stateOutput,
+    },
   };
 }
 
-export function wrapFunction(
+function wrapFunctionForCompile(
   data: DataFlowManagerData,
   indexEdges: DataFlowEdge[],
   nodeIndex: number,
@@ -142,7 +164,12 @@ function findLeastUsedColor(colors: readonly string[], nodes: DataFlowManagerNod
   return minColor;
 }
 
-export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source: DataFlowSource) {
+export function dataflowManager(
+  bundler: Bundler,
+  config: DataFlowConfig,
+  source: DataFlowSource,
+  inputState: DataFlowState
+) {
   let colors = schemeOranges[9];
 
   const nodes = zip(config?.nodes || [], source?.nodes || []).map(([config, meta], i) => {
@@ -178,7 +205,7 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
 
       let toNode = nodes[nodeIdToIndex.get(to)];
       if (toNode?.config.func.type === 'trigger') {
-        return 'A trigger cannot have any inputs';
+        return 'A trigger can not have any inputs';
       }
 
       let seen = new Set([from]);
@@ -231,9 +258,18 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
 
   let lookups = generateLookups(nodes, edges);
 
+  let nodeState = new Map(
+    inputState?.nodes.map((state, i) => {
+      let nodeId = nodes[i].meta.id;
+      let value = typeof state === 'string' && state.length ? devalue.parse(state) : null;
+      return [nodeId, value];
+    }) ?? []
+  );
+
   let store = writable({
     nodes,
     edges,
+    nodeState,
     ...lookups,
   });
 
@@ -250,6 +286,7 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
 
   function addNode(data: DataFlowManagerData, box: Box, name: string, func: DataFlowNodeFunction) {
     let maxId = Math.max(...data.nodes.map((n) => n.meta.id), 0);
+    let nodeId = maxId + 1;
 
     let nodes: DataFlowManagerNode[] = [
       ...data.nodes,
@@ -260,7 +297,7 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
           func,
         },
         meta: {
-          id: maxId + 1,
+          id: nodeId,
           position: box,
           splitPos: 75,
           autorun: true,
@@ -272,9 +309,12 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
       },
     ];
 
+    nodeState.set(nodeId, null);
+
     return {
       ...data,
       nodes,
+      nodeState,
     };
   }
 
@@ -303,11 +343,13 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
     let nodeId = data.nodes[index].meta.id;
     let edges = data.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
     let nodes = data.nodes.filter((n) => n.meta.id !== nodeId);
+    nodeState.delete(nodeId);
 
     return {
       ...data,
       edges,
       nodes,
+      nodeState,
     };
   }
 
@@ -326,7 +368,7 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
     subscribe: store.subscribe,
     set: store.set,
     update,
-    compile(): Promise<{ compiled: DataFlowConfig; source: DataFlowSource }> {
+    compile(): Promise<{ compiled: DataFlowConfig; source: DataFlowSource; state: DataFlowState }> {
       let data = getStore(store);
       return compileCode(bundler, data);
     },

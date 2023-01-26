@@ -7,13 +7,12 @@ import {
 } from '$lib/sandbox/worker_common';
 import groupBy from 'just-group-by';
 import type { DataFlowManagerData, DataFlowManagerNode } from '../dataflow_manager';
-import type { SandboxMessageName } from './messages';
+import type { SandboxMessageName, SandboxWorkerData } from './messages';
 
 initErrorHandlers();
 initConsoleHandlers();
 
-let config: DataFlowManagerData | null = null;
-let nodeState: Map<number, any> = new Map();
+let config: SandboxWorkerData | null = null;
 
 type Msg<T> = WorkerMessage<SandboxMessageName, T>;
 
@@ -75,13 +74,9 @@ function compile(node: DataFlowManagerNode, inputs: string[]) {
   return new AsyncFunction(...inputs, code);
 }
 
-function handleSetConfig(msg: Msg<DataFlowManagerData>) {
+function handleSetConfig(msg: Msg<SandboxWorkerData>) {
   config = msg.data;
   createWorkerState();
-}
-
-function handleInitState(msg: Msg<Map<number, any>>) {
-  nodeState = msg.data;
 }
 
 function handleUpdateNode(msg: Msg<{ id: number; name?: string; code?: string }>) {
@@ -120,9 +115,18 @@ function handleUpdateEdges(msg: Msg<DataFlowEdge[]>) {
   createWorkerState();
 }
 
+async function runAll() {
+  // TODO
+}
+
+async function runOne(rootId: number) {
+  // TODO
+}
+
 initMessageHandler<SandboxMessageName>({
   set_config: handleSetConfig,
-  init_state: handleInitState,
   update_node: handleUpdateNode,
   update_edges: handleUpdateEdges,
+  run_all: runAll,
+  run_one: runOne,
 });

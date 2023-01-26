@@ -7,9 +7,17 @@ import {
 import type { DataFlowManagerData } from '../dataflow_manager';
 import type { DataFlowEdge } from '$lib/api_types';
 
-export type SandboxMessageName = 'init_state' | 'set_config' | 'update_node' | 'update_edges';
+export type SandboxMessageName =
+  | 'set_config'
+  | 'update_node'
+  | 'update_edges'
+  | 'run_all'
+  | 'run_one';
 
-export type SandboxWorkerData = Pick<DataFlowManagerData, 'nodes' | 'edges' | 'toposorted'>;
+export type SandboxWorkerData = Pick<
+  DataFlowManagerData,
+  'nodes' | 'edges' | 'toposorted' | 'nodeState'
+>;
 
 export interface UpdateNodeArgs {
   id: number;
@@ -19,9 +27,11 @@ export interface UpdateNodeArgs {
 
 export interface DataflowSandboxWorker extends SandboxWorker {
   setConfig(data: DataFlowManagerData): Promise<void>;
-  initIfNeeded(data: DataFlowManagerData, state: Map<number, any>): Promise<void>;
+  initIfNeeded(data: DataFlowManagerData): Promise<void>;
   updateNode(args: UpdateNodeArgs): Promise<void>;
   updateEdges(edges: DataFlowEdge[]): Promise<void>;
+  runAll(): Promise<Map<number, unknown>>;
+  runOne(id: number): Promise<Map<number, unknown>>;
 }
 
 export function sandboxWorker(handlers: SandboxHandlers): DataflowSandboxWorker {
@@ -30,31 +40,30 @@ export function sandboxWorker(handlers: SandboxHandlers): DataflowSandboxWorker 
   let needsInit = true;
 
   async function setConfig(data: DataFlowManagerData) {
-    let workerData = {
+    let workerData: SandboxWorkerData = {
       nodes: data.nodes,
       edges: data.edges,
+      nodeState: data.nodeState,
       toposorted: data.toposorted,
     };
 
     return intf.sendMessage<void>('set_config', workerData);
   }
 
-  function initState(state: Map<number, object>) {
-    return intf.sendMessage<void>('init_state', state);
-  }
-
   return {
     ...intf,
     setConfig,
+    runAll: () => intf.sendMessage('run_all', null),
+    runOne: (id: number) => intf.sendMessage('run_one', id),
     updateNode: (args: UpdateNodeArgs) => intf.sendMessage('update_node', args),
     updateEdges: (edges: DataFlowEdge[]) => intf.sendMessage('update_edges', edges),
-    initIfNeeded: async (data: DataFlowManagerData, state: Map<number, any>) => {
+    initIfNeeded: async (data: DataFlowManagerData) => {
       if (!needsInit) {
         return;
       }
 
       try {
-        await Promise.all([setConfig(data), initState(state)]);
+        await setConfig(data);
       } catch (e) {
         needsInit = true;
         throw e;
