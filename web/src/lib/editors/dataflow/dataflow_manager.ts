@@ -168,8 +168,17 @@ export function dataflowManager(bundler: Bundler, config: DataFlowConfig, source
     const edgesByDestination = groupBy(edges, (edge) => edge.to);
 
     const checkAddEdge = (from: number, to: number) => {
+      if (from === to) {
+        return 'A node cannot be connected to itself';
+      }
+
       if (edges.find((e) => e.from === from && e.to === to)) {
-        return 'Edge already exists';
+        return 'This edge already exists';
+      }
+
+      let toNode = nodes[nodeIdToIndex.get(to)];
+      if (toNode?.config.func.type === 'trigger') {
+        return 'A trigger cannot have any inputs';
       }
 
       let seen = new Set([from]);
