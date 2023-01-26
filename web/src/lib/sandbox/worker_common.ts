@@ -10,6 +10,7 @@ export interface WorkerContext<MessageName extends string, T> {
   msg: WorkerMessage<MessageName, T>;
   reject(error: Error): void;
   resolve(data: any): void;
+  resolved(): boolean;
 }
 
 export function getMessageContext<MessageName extends string = string, T = any>(
@@ -17,10 +18,16 @@ export function getMessageContext<MessageName extends string = string, T = any>(
 ): WorkerContext<MessageName, T> {
   let { id } = ev.data;
 
+  let resolved = false;
   return {
     msg: ev.data,
-    resolve: (data) => self.postMessage({ id, name: 'respond_resolve', data }),
+    resolved: () => resolved,
+    resolve: (data) => {
+      resolved = true;
+      self.postMessage({ id, name: 'respond_resolve', data });
+    },
     reject: (error) => {
+      resolved = true;
       let data = {
         ...error,
         message: error.message,
@@ -28,6 +35,31 @@ export function getMessageContext<MessageName extends string = string, T = any>(
       };
       self.postMessage({ id, name: 'respond_reject', data });
     },
+  };
+}
+
+export function initMessageHandler<MessageName extends string>(
+  handlers: Record<MessageName, (msg: WorkerMessage<MessageName, any>) => any>
+) {
+  self.onmessage = async (ev: MessageEvent<WorkerMessage<MessageName, any>>) => {
+    const ctx = getMessageContext(ev);
+
+    const handler = handlers[ctx.msg.name];
+    if (!handler) {
+      ctx.reject(new Error(`No handler for ${ctx.msg.name}`));
+      return;
+    }
+
+    try {
+      let result = await handler(ctx.msg);
+      if (!ctx.resolved()) {
+        ctx.resolve(result);
+      }
+    } catch (e) {
+      if (!ctx.resolved()) {
+        ctx.reject(e);
+      }
+    }
   };
 }
 
