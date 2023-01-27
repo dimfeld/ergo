@@ -2,6 +2,7 @@ import {
   workerShell,
   type SandboxHandlers,
   type SandboxWorker,
+  type WorkerMessage,
 } from '$lib/sandbox/messages_common';
 import Worker from './worker?worker';
 
@@ -13,7 +14,6 @@ export interface RunOutputAction {
 }
 
 export interface RunOutput {
-  id: number;
   type: 'success';
   context: object;
   actions: RunOutputAction[];
@@ -31,17 +31,21 @@ export interface RunScriptArguments {
   payload: object;
 }
 
-export interface ScriptSimulatorWorker extends SandboxWorker {
+export interface ScriptSimulatorMessage {
+  run_script: (msg: WorkerMessage<RunScriptArguments>) => Promise<RunOutput | RunError>;
+}
+
+export interface ScriptSimulatorWorker extends SandboxWorker<ScriptSimulatorMessage> {
   runScript(data: RunScriptArguments, timeout?: number): Promise<RunOutput | RunError>;
 }
 
 export function sandboxWorker(handlers: SandboxHandlers): ScriptSimulatorWorker {
-  let intf = workerShell({ Worker, handlers });
+  let intf = workerShell<ScriptSimulatorMessage>({ Worker, handlers });
 
   return {
     ...intf,
-    runScript(data: RunScriptArguments, timeout?: number) {
-      return intf.sendMessage<RunOutput | RunError>('run_script', data, timeout);
+    runScript(data: RunScriptArguments, timeout?: number): Promise<RunOutput | RunError> {
+      return intf.sendMessage('run_script', data, timeout);
     },
   };
 }

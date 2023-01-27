@@ -1,4 +1,4 @@
-import type { WorkerMessage } from './messages_common';
+import type { MessageReturnType, WorkerMessage } from './messages_common';
 
 export type { WorkerMessage };
 
@@ -6,23 +6,23 @@ function sendMessage(name, data) {
   self.postMessage({ name, data });
 }
 
-export interface WorkerContext<MessageName extends string, T> {
-  msg: WorkerMessage<MessageName, T>;
+export interface WorkerContext<Messages> {
+  msg: WorkerMessage<Messages>;
   reject(error: Error): void;
-  resolve(data: any): void;
+  resolve(data: unknown): void;
   resolved(): boolean;
 }
 
-export function getMessageContext<MessageName extends string = string, T = any>(
-  ev: MessageEvent<WorkerMessage<MessageName, T>>
-): WorkerContext<MessageName, T> {
+export function getMessageContext<Messages>(
+  ev: MessageEvent<WorkerMessage<Messages>>
+): WorkerContext<Messages> {
   let { id } = ev.data;
 
   let resolved = false;
   return {
     msg: ev.data,
     resolved: () => resolved,
-    resolve: (data) => {
+    resolve: (data: MessageReturnType<Messages, keyof Messages>) => {
       resolved = true;
       self.postMessage({ id, name: 'respond_resolve', data });
     },
@@ -38,15 +38,14 @@ export function getMessageContext<MessageName extends string = string, T = any>(
   };
 }
 
-export function initMessageHandler<MessageName extends string>(
-  handlers: Required<Record<MessageName, (msg: WorkerMessage<MessageName, any>) => any>>
-) {
-  self.onmessage = async (ev: MessageEvent<WorkerMessage<MessageName, any>>) => {
+export function initMessageHandler<Messages>(handlers: Required<Messages>) {
+  self.onmessage = async (ev: MessageEvent<WorkerMessage<Messages>>) => {
     const ctx = getMessageContext(ev);
 
     const handler = handlers[ctx.msg.name];
     if (!handler) {
-      ctx.reject(new Error(`No handler for ${ctx.msg.name}`));
+      // TODO See why Typescript things ctx.msg.name might be a symbol.
+      ctx.reject(new Error(`No handler for ${ctx.msg.name as string}`));
       return;
     }
 
@@ -68,7 +67,7 @@ export function initErrorHandlers() {
     sendMessage('error', error);
   };
 
-  self.onunhandledrejection = (event) => {
+  self.onunhandledrejection = (event: PromiseRejectionEvent) => {
     sendMessage('error', event.reason);
   };
 }

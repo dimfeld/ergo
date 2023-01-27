@@ -3,25 +3,49 @@ export interface ConsoleMessage {
   args: unknown[];
 }
 
-export interface WorkerMessage<MessageName extends string = string, T = any> {
+// export type GenericMessageHandler = Record<string, (x: WorkerMessage<any>) => Promise<unknown>>;
+export type MessageParameter<
+  Messages,
+  MessageName extends keyof Messages
+> = Messages[MessageName] extends (x: WorkerMessage<unknown>) => Promise<unknown> | unknown
+  ? Parameters<Messages[MessageName]>[0]['data']
+  : never;
+export type MessageReturnType<
+  Messages,
+  MessageName extends keyof Messages
+> = Messages[MessageName] extends (x: WorkerMessage<unknown>) => Promise<unknown> | unknown
+  ? Awaited<ReturnType<Messages[MessageName]>>
+  : never;
+
+export interface WorkerMessage<Payload> {
   id?: number;
-  name: MessageName;
-  data: T;
+  name: string;
+  data: Payload;
+}
+
+export interface TypedWorkerMessage<Messages, Message extends keyof Messages = keyof Messages> {
+  id?: number;
+  name: keyof Messages;
+  data: MessageParameter<Messages, Message>;
 }
 
 interface Pending {
   reject: (e: Error) => void;
-  resolve: (data: any) => void;
+  resolve: (data: unknown) => void;
 }
 
-export interface SandboxWorker<MessageName extends string = string> {
-  sendMessage<RETVAL>(message: MessageName, data: any, timeout?: number): Promise<RETVAL>;
+export interface SandboxWorker<Messages> {
+  sendMessage<MESSAGE extends keyof Messages>(
+    message: MESSAGE,
+    data: MessageParameter<Messages, MESSAGE>,
+    timeout?: number
+  ): Promise<MessageReturnType<Messages, MESSAGE>>;
   /** Terminate and restart the worker. Useful to handle stalled jobs, runaway loops, etc. */
   restart(): void;
   destroy(): void;
 }
 
-export type SandboxHandlers = Record<string, (data: any) => void>;
+export type SandboxHandlers = Record<string, (data: unknown) => void>;
 
 let msgId = 1;
 
@@ -31,15 +55,15 @@ export interface WorkerShellArgs {
   onRestart?: () => void;
 }
 
-export function workerShell<MessageName extends string = string>({
+export function workerShell<Messages>({
   Worker: WorkerFn,
   handlers,
   onRestart,
-}: WorkerShellArgs): SandboxWorker<MessageName> {
+}: WorkerShellArgs): SandboxWorker<Messages> {
   const pending = new Map<number, Pending>();
   let worker = new WorkerFn();
 
-  function handleWorkerMessage(evt: MessageEvent<WorkerMessage>) {
+  function handleWorkerMessage(evt: MessageEvent<WorkerMessage<unknown>>) {
     const msg = evt.data;
 
     if (msg.id) {
@@ -52,7 +76,7 @@ export function workerShell<MessageName extends string = string>({
       pending.delete(msg.id);
 
       if (msg.name === 'respond_reject') {
-        let { stack, message } = msg.data;
+        let { stack, message } = msg.data as Error;
 
         // Reconstruct the error from the other side.
         let e = new Error(message);
@@ -64,16 +88,20 @@ export function workerShell<MessageName extends string = string>({
         handler.resolve(msg.data);
       }
     } else {
-      handlers[msg.name]?.(msg.data);
+      handlers[msg.name as string]?.(msg.data);
     }
   }
 
   worker.onmessage = handleWorkerMessage;
 
-  async function sendMessage<RETVAL>(message: MessageName, data: any, timeout?: number) {
+  async function sendMessage<MESSAGE extends keyof Messages>(
+    message: MESSAGE,
+    data: MessageParameter<Messages, MESSAGE>,
+    timeout?: number
+  ): Promise<MessageReturnType<Messages, MESSAGE>> {
     let id = msgId++;
 
-    let promise = new Promise<RETVAL>((resolve, reject) => {
+    let promise = new Promise<MessageReturnType<Messages, MESSAGE>>((resolve, reject) => {
       pending.set(id, { resolve, reject });
       worker.postMessage({ name: message, data, id });
     });

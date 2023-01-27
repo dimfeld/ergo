@@ -6,18 +6,18 @@ import {
   type WorkerMessage,
 } from '$lib/sandbox/worker_common';
 import groupBy from 'just-group-by';
-import type { DataFlowManagerData, DataFlowManagerNode } from '../dataflow_manager';
-import type { SandboxMessageName, SandboxWorkerData } from './messages';
+import type { DataFlowManagerNode } from '../dataflow_manager';
+import type { Errors, NodeError, RunResponse, SandboxMessage, SandboxWorkerData } from './messages';
 
 initErrorHandlers();
 initConsoleHandlers();
 
 let config: SandboxWorkerData | null = null;
 
-type Msg<T> = WorkerMessage<SandboxMessageName, T>;
+type Msg<T> = WorkerMessage<T>;
 
 interface NodeFunction {
-  func: () => Promise<any>;
+  func: (...args: unknown[]) => Promise<unknown>;
   inputIds: number[];
   inputNames: string[];
 }
@@ -25,10 +25,24 @@ interface NodeFunction {
 // This looks weird but is the MDN-approved way to get a reference to AsyncFunction.
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
-let workerState = {
-  nodeIdToIndex: new Map<number, number>(),
-  nodeFunctions: new Map<number, NodeFunction>(),
+interface WorkerState {
+  nodeIdToIndex: Map<number, number>;
+  nodeFunctions: Map<number, NodeFunction>;
+  errors: Errors;
+}
+
+let workerState: WorkerState = {
+  nodeIdToIndex: new Map(),
+  nodeFunctions: new Map(),
+  errors: {
+    nodes: new Map(),
+  },
 };
+
+function errorType(node: number): NodeError['type'] | null {
+  let error = workerState.errors.nodes.get(node);
+  return error?.type ?? null;
+}
 
 function createWorkerState() {
   // Gather node inputs
@@ -37,15 +51,27 @@ function createWorkerState() {
 
   let nodeFunctions = new Map<number, NodeFunction>();
 
+  let errors: Errors = {
+    nodes: new Map(),
+  };
+
   for (let node of config.nodes) {
     let edges = inputEdges[node.meta.id];
-    let f = createNodeFunction(node, edges);
-    nodeFunctions.set(node.meta.id, f);
+    try {
+      let f = createNodeFunction(node, edges);
+      nodeFunctions.set(node.meta.id, f);
+      if (errorType(node.meta.id) === 'compile') {
+        errors.nodes.delete(node.meta.id);
+      }
+    } catch (e) {
+      errors.nodes.set(node.meta.id, { type: 'compile', error: e });
+    }
   }
 
   workerState = {
     nodeIdToIndex,
     nodeFunctions,
+    errors,
   };
 }
 
@@ -77,6 +103,7 @@ function compile(node: DataFlowManagerNode, inputs: string[]) {
 function handleSetConfig(msg: Msg<SandboxWorkerData>) {
   config = msg.data;
   createWorkerState();
+  return workerState.errors;
 }
 
 function handleUpdateNode(msg: Msg<{ id: number; name?: string; code?: string }>) {
@@ -108,25 +135,105 @@ function handleUpdateNode(msg: Msg<{ id: number; name?: string; code?: string }>
     let newFunc = compile(node, existingState.inputNames);
     existingState.func = newFunc;
   }
+
+  return workerState.errors;
 }
 
 function handleUpdateEdges(msg: Msg<DataFlowEdge[]>) {
   config.edges = msg.data;
   createWorkerState();
+  return workerState.errors;
 }
 
-async function runAll() {
+/** Run all the nodes in topological order, accounting for the autorun setting. This is most useful when doing the initial load */
+async function runAll(): Promise<RunResponse> {
   // TODO
+  return {
+    errors: workerState.errors,
+    state: config.nodeState,
+  };
 }
 
-async function runOne(rootId: number) {
-  // TODO
+/** Run a node and its downstream nodes. */
+async function runFrom(msg: Msg<number>) {
+  const rootId = msg.data;
+  let toRun = new Set([rootId]);
+  let rootIndex = workerState.nodeIdToIndex.get(rootId);
+
+  let toposortedStart = config.toposorted.findIndex((n) => n === rootIndex);
+  let toposorted = config.toposorted.slice(toposortedStart);
+
+  for (let nodeIndex of toposorted) {
+    let node = config.nodes[nodeIndex];
+    if (!toRun.has(node.meta.id)) {
+      continue;
+    }
+
+    let ran = runOne(node.meta.id);
+
+    if (!ran) {
+      continue;
+    }
+
+    // Add the downstream edges to the list of nodes to run.
+    for (let edge of config.edges) {
+      if (edge.from === node.meta.id) {
+        toRun.add(edge.to);
+      }
+    }
+  }
+
+  return {
+    errors: workerState.errors,
+    state: config.nodeState,
+  };
 }
 
-initMessageHandler<SandboxMessageName>({
+/** Run just a single node. Returns true if it ran successfully, false if it didn't. */
+async function runOne(nodeId: number): Promise<boolean> {
+  if (errorType(nodeId) === 'compile') {
+    return false;
+  }
+
+  const nodeIndex = workerState.nodeIdToIndex.get(nodeId);
+  if (nodeIndex == undefined) {
+    throw new Error(`could not find node ${nodeId}`);
+  }
+
+  const node = config.nodes[nodeIndex];
+
+  const func = workerState.nodeFunctions.get(nodeId);
+
+  // Gather the state
+  let anyNull = false;
+  let inputValues = func.inputIds.map((id) => {
+    let state = config.nodeState.get(id) ?? null;
+    if (state == null) {
+      anyNull = true;
+    }
+    return state;
+  });
+
+  if (anyNull && !node.config.allow_null_inputs) {
+    return false;
+  }
+
+  try {
+    let result = await func.func(...inputValues);
+    config.nodeState.set(node.meta.id, result);
+    workerState.errors.nodes.delete(nodeId);
+  } catch (e) {
+    workerState.errors.nodes.set(nodeId, { type: 'run', error: e });
+    return false;
+  }
+
+  return true;
+}
+
+initMessageHandler<SandboxMessage>({
   set_config: handleSetConfig,
   update_node: handleUpdateNode,
   update_edges: handleUpdateEdges,
   run_all: runAll,
-  run_one: runOne,
+  run_from: runFrom,
 });
