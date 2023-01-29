@@ -14,6 +14,7 @@ import { toposort_nodes } from 'ergo-wasm';
 import groupBy from 'just-group-by';
 import { schemeOranges } from 'd3';
 import type { Bundler } from '$lib/bundler';
+import type { DataflowSandboxWorker } from './sandbox/messages';
 
 export type JsFunctionType = 'expression' | 'function';
 
@@ -166,6 +167,7 @@ function findLeastUsedColor(colors: readonly string[], nodes: DataFlowManagerNod
 
 export function dataflowManager(
   bundler: Bundler,
+  sandbox: DataflowSandboxWorker,
   config: DataFlowConfig,
   source: DataFlowSource,
   inputState: DataFlowState

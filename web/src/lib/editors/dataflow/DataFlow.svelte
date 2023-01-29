@@ -23,6 +23,7 @@
   import BoxToBoxArrow from '../canvas/BoxToBoxArrow.svelte';
   import { onDestroy } from 'svelte';
   import { Bundler } from '$lib/bundler';
+  import { sandboxWorker } from './sandbox/messages';
 
   export let source: DataFlowSource;
   export let compiled: DataFlowConfig;
@@ -30,8 +31,13 @@
   export let taskTriggers: Record<string, TaskTrigger>;
 
   let bundler = new Bundler();
-  onDestroy(() => bundler.destroy());
-  $: data = dataflowManager(bundler, compiled, source, state);
+  let sandbox = sandboxWorker();
+  onDestroy(() => {
+    bundler.destroy();
+    sandbox.destroy();
+  });
+
+  $: data = dataflowManager(bundler, sandbox, compiled, source, state);
 
   $: data.syncTriggers(taskTriggers);
 
