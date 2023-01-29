@@ -242,10 +242,13 @@ async function runOne(node: DataFlowManagerNode): Promise<boolean> {
   return true;
 }
 
-initMessageHandler<SandboxMessage>({
-  set_config: handleSetConfig,
-  update_node: handleUpdateNode,
-  update_edges: handleUpdateEdges,
-  run_all: runAll,
-  run_from: runFrom,
-});
+initMessageHandler<SandboxMessage>(
+  {
+    set_config: handleSetConfig,
+    update_node: handleUpdateNode,
+    update_edges: handleUpdateEdges,
+    run_all: runAll,
+    run_from: runFrom,
+  },
+  true
+);

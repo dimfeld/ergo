@@ -44,7 +44,23 @@ export function getMessageContext<Messages>(
   };
 }
 
-export function initMessageHandler<Messages>(handlers: Required<Messages>) {
+async function handleMessage<Messages>(handlers: Required<Messages>, ctx: WorkerContext<Messages>) {
+  const handler = handlers[ctx.msg.name];
+  try {
+    let result = await handler(ctx.msg);
+    if (!ctx.resolved()) {
+      ctx.resolve(result);
+    }
+  } catch (e) {
+    if (!ctx.resolved()) {
+      ctx.reject(e);
+    }
+  }
+}
+
+export function initMessageHandler<Messages>(handlers: Required<Messages>, synchronous = false) {
+  let queue = [];
+
   self.onmessage = async (ev: MessageEvent<WorkerMessage<Messages>>) => {
     const ctx = getMessageContext(ev);
 
@@ -54,15 +70,19 @@ export function initMessageHandler<Messages>(handlers: Required<Messages>) {
       return;
     }
 
-    try {
-      let result = await handler(ctx.msg);
-      if (!ctx.resolved()) {
-        ctx.resolve(result);
+    if (synchronous) {
+      queue.push(ctx);
+      if (queue.length > 1) {
+        // Something else is already running messages
+        return;
       }
-    } catch (e) {
-      if (!ctx.resolved()) {
-        ctx.reject(e);
+
+      while (queue.length) {
+        const ctx = queue.shift();
+        await handleMessage(handlers, ctx);
       }
+    } else {
+      handleMessage(handlers, ctx);
     }
   };
 }
