@@ -45,13 +45,16 @@ export interface SandboxWorker<Messages> {
   destroy(): void;
 }
 
-export type SandboxHandlers = Record<string, (data: unknown) => void>;
+export interface SandboxHandlers {
+  console?: (data: { level: string; args: unknown }) => void;
+  error?: (e: unknown) => void;
+}
 
 let msgId = 1;
 
 export interface WorkerShellArgs {
   Worker: new () => Worker;
-  handlers: SandboxHandlers;
+  handlers?: SandboxHandlers;
   onRestart?: () => void;
 }
 
@@ -88,7 +91,7 @@ export function workerShell<Messages>({
         handler.resolve(msg.data);
       }
     } else {
-      handlers[msg.name as string]?.(msg.data);
+      handlers?.[msg.name as string]?.(msg.data);
     }
   }
 

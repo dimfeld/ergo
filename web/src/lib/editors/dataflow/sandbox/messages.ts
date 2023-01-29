@@ -37,6 +37,7 @@ export type NodeState = Map<number, unknown>;
 export interface RunResponse {
   errors: Errors;
   state: NodeState;
+  ran: number[];
 }
 
 export interface UpdateNodeArgs {
@@ -54,7 +55,7 @@ export interface DataflowSandboxWorker extends SandboxWorker<SandboxMessage> {
   runFrom(id: number): Promise<RunResponse>;
 }
 
-export function sandboxWorker(handlers: SandboxHandlers): DataflowSandboxWorker {
+export function sandboxWorker(handlers?: SandboxHandlers): DataflowSandboxWorker {
   let intf = workerShell<SandboxMessage>({ Worker, handlers });
 
   let needsInit = true;

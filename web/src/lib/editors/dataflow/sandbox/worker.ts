@@ -147,10 +147,21 @@ function handleUpdateEdges(msg: Msg<DataFlowEdge[]>) {
 
 /** Run all the nodes in topological order, accounting for the autorun setting. This is most useful when doing the initial load */
 async function runAll(): Promise<RunResponse> {
-  // TODO
+  let nodesRan: number[] = [];
+  for (let nodeIndex of config.toposorted) {
+    let node = config.nodes[nodeIndex];
+    if (node.meta.autorun) {
+      let ran = await runOne(node);
+      if (ran) {
+        nodesRan.push(node.meta.id);
+      }
+    }
+  }
+
   return {
     errors: workerState.errors,
     state: config.nodeState,
+    ran: nodesRan,
   };
 }
 
@@ -159,6 +170,7 @@ async function runFrom(msg: Msg<number>) {
   const rootId = msg.data;
   let toRun = new Set([rootId]);
   let rootIndex = workerState.nodeIdToIndex.get(rootId);
+  let nodesRan: number[] = [];
 
   let toposortedStart = config.toposorted.findIndex((n) => n === rootIndex);
   let toposorted = config.toposorted.slice(toposortedStart);
@@ -169,16 +181,21 @@ async function runFrom(msg: Msg<number>) {
       continue;
     }
 
-    let ran = runOne(node.meta.id);
+    let ran = await runOne(node);
 
     if (!ran) {
       continue;
     }
 
-    // Add the downstream edges to the list of nodes to run.
+    nodesRan.push(node.meta.id);
+
+    // Add the directly connected downstream nodes to the list of nodes to run.
     for (let edge of config.edges) {
       if (edge.from === node.meta.id) {
-        toRun.add(edge.to);
+        let toNodeIndex = workerState.nodeIdToIndex.get(edge.to);
+        if (config.nodes[toNodeIndex]?.meta.autorun) {
+          toRun.add(edge.to);
+        }
       }
     }
   }
@@ -186,21 +203,16 @@ async function runFrom(msg: Msg<number>) {
   return {
     errors: workerState.errors,
     state: config.nodeState,
+    ran: nodesRan,
   };
 }
 
 /** Run just a single node. Returns true if it ran successfully, false if it didn't. */
-async function runOne(nodeId: number): Promise<boolean> {
+async function runOne(node: DataFlowManagerNode): Promise<boolean> {
+  const nodeId = node.meta.id;
   if (errorType(nodeId) === 'compile') {
     return false;
   }
-
-  const nodeIndex = workerState.nodeIdToIndex.get(nodeId);
-  if (nodeIndex == undefined) {
-    throw new Error(`could not find node ${nodeId}`);
-  }
-
-  const node = config.nodes[nodeIndex];
 
   const func = workerState.nodeFunctions.get(nodeId);
 

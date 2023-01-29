@@ -2,7 +2,7 @@ import type { MessageReturnType, WorkerMessage } from './messages_common';
 
 export type { WorkerMessage };
 
-function sendMessage(name, data) {
+function sendMessage(name: string, data: unknown) {
   self.postMessage({ name, data });
 }
 
@@ -23,10 +23,16 @@ export function getMessageContext<Messages>(
     msg: ev.data,
     resolved: () => resolved,
     resolve: (data: MessageReturnType<Messages, keyof Messages>) => {
+      if (resolved) {
+        return;
+      }
       resolved = true;
       self.postMessage({ id, name: 'respond_resolve', data });
     },
     reject: (error) => {
+      if (resolved) {
+        return;
+      }
       resolved = true;
       let data = {
         ...error,
@@ -44,8 +50,7 @@ export function initMessageHandler<Messages>(handlers: Required<Messages>) {
 
     const handler = handlers[ctx.msg.name];
     if (!handler) {
-      // TODO See why Typescript things ctx.msg.name might be a symbol.
-      ctx.reject(new Error(`No handler for ${ctx.msg.name as string}`));
+      ctx.reject(new Error(`No handler for ${ctx.msg.name}`));
       return;
     }
 
