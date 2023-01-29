@@ -14,7 +14,7 @@ import { toposort_nodes } from 'ergo-wasm';
 import groupBy from 'just-group-by';
 import { schemeOranges } from 'd3';
 import type { Bundler } from '$lib/bundler';
-import type { DataflowSandboxWorker } from './sandbox/messages';
+import type { DataflowSandboxWorker, Errors } from './sandbox/messages';
 
 export type JsFunctionType = 'expression' | 'function';
 
@@ -45,6 +45,7 @@ export interface DataFlowManagerData {
   nodes: DataFlowManagerNode[];
   edges: DataFlowEdge[];
   nodeState: Map<number, unknown>;
+  errors: Errors;
   toposorted: number[];
   edgesByDestination: Record<number, DataFlowEdge[]>;
   nodeById: (id: number) => DataFlowManagerNode;
@@ -268,10 +269,13 @@ export function dataflowManager(
     }) ?? []
   );
 
-  let store = writable({
+  let store = writable<DataFlowManagerData>({
     nodes,
     edges,
     nodeState,
+    errors: {
+      nodes: new Map(),
+    },
     ...lookups,
   });
 
@@ -285,6 +289,9 @@ export function dataflowManager(
       };
     });
   }
+
+  /** Used when you are sure you don't need to regenerate the lookups. */
+  const updateDataOnly = store.update;
 
   function addNode(data: DataFlowManagerData, box: Box, name: string, func: DataFlowNodeFunction) {
     let maxId = Math.max(...data.nodes.map((n) => n.meta.id), 0);
@@ -461,6 +468,27 @@ export function dataflowManager(
       });
     },
     addJsNode,
+    updateNode: async (id: number, update: { name?: string; contents?: string }) => {
+      // update without changing the lookups
+      updateDataOnly((data) => {
+        let node = data.nodes.find((n) => n.meta.id === id);
+        if (update.name) {
+          node.config.name = update.name;
+        }
+
+        if (update.contents) {
+          node.meta.contents = update.contents;
+        }
+
+        return data;
+      });
+
+      let errors = await sandbox.updateNode({ id, ...update });
+      updateDataOnly((data) => {
+        data.errors = errors;
+        return data;
+      });
+    },
     deleteNode,
   };
 }

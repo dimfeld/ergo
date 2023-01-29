@@ -233,9 +233,17 @@
     {#each nodes as { node, selected } (node.meta.id)}
       <DataFlowNode
         bind:node
+        on:updateContent={({ detail }) => {
+          data.updateNode(node.meta.id, { contents: detail });
+        }}
+        on:updateName={({ detail }) => {
+          data.updateNode(node.meta.id, { name: detail });
+        }}
         on:startAddEdge={() => startAddEdge(node)}
         {selectMode}
         {selected}
+        error={$data.errors.nodes.get(node.meta.id)}
+        state={$data.nodeState.get(node.meta.id)}
         on:selectModeClick={() => handleSelectModeClickNode(node)}
         on:mousemove={() => handleMouseMoveNode(node)}
         on:mouseleave={() => handleMouseLeaveNode(node)} />

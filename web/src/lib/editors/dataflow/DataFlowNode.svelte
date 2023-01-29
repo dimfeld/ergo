@@ -4,10 +4,14 @@
   import { createEventDispatcher } from 'svelte';
   import type { DataFlowManagerNode, JsFunctionType } from './dataflow_manager';
   import type { SelectionState } from '../canvas/drag';
+  import type { NodeError } from './sandbox/messages';
+  import capitalize from 'just-capitalize';
 
   const dispatch = createEventDispatcher();
 
   export let node: DataFlowManagerNode;
+  export let error: NodeError | undefined;
+  export let state: unknown;
   export let selectMode = false;
   export let selected: SelectionState = null;
 
@@ -31,7 +35,8 @@
       <input
         type="text"
         autocomplete="off"
-        bind:value={node.config.name}
+        value={node.config.name}
+        on:input={(e) => dispatch('updateName', e.target.value)}
         class="absolute inset-0 border-transparent !bg-transparent px-2 py-0 text-xs font-medium text-accent-800 hover:border-gray-500 " />
     </div>
 
@@ -57,9 +62,20 @@
         contents={node.meta.contents}
         format="js"
         notifyOnChange={true}
-        on:change={(e) => (node.meta.contents = e.detail)}
+        on:change={(e) => dispatch('updateContent', e.detail)}
         toolbar={false} />
-      <div class="flex-1 border-t border-gray-500 text-sm">Results</div>
+      <div class="flex-1 border-t border-gray-500 text-sm">
+        {#if error}
+          {capitalize(error.type)} Error
+          <br />
+          {error.error.message}
+        {:else}
+          Results:
+          <br />
+          <!-- TODO better display of results -->
+          {JSON.stringify(state)}
+        {/if}
+      </div>
     </div>
   {:else if node.config.func.type === 'trigger'}
     <div class="flex h-full flex-col">
