@@ -130,12 +130,15 @@ export function workerShell<Messages>({
 
   function destroy() {
     worker?.terminate();
-    let terminationError = new Error('Worker terminated');
-    terminationError.name = 'WorkerTerminated';
-    for (let val of pending.values()) {
-      val.reject(terminationError);
+
+    if (pending.size) {
+      let terminationError = new Error('Worker terminated');
+      terminationError.name = 'WorkerTerminated';
+      for (let val of pending.values()) {
+        val.reject(terminationError);
+      }
+      pending.clear();
     }
-    pending.clear();
   }
 
   function restart() {

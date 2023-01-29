@@ -85,7 +85,7 @@
         contents={node.meta.contents}
         format="json5"
         notifyOnChange={true}
-        on:change={(e) => (node.meta.contents = e.detail)}
+        on:change={(e) => dispatch('updateContent', e.detail)}
         toolbar={false} />
     </div>
   {:else}

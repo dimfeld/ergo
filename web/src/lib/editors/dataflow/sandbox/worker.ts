@@ -56,7 +56,7 @@ function createWorkerState() {
   };
 
   for (let node of config.nodes) {
-    let edges = inputEdges[node.meta.id];
+    let edges = inputEdges[node.meta.id] ?? [];
     try {
       let f = createNodeFunction(node, edges);
       nodeFunctions.set(node.meta.id, f);
@@ -73,6 +73,14 @@ function createWorkerState() {
     nodeFunctions,
     errors,
   };
+}
+
+async function initTriggersState() {
+  for (let node of config.nodes) {
+    if (node.config.func.type === 'trigger' && config.nodeState.get(node.meta.id) == null) {
+      await runOne(node);
+    }
+  }
 }
 
 function createNodeFunction(node: DataFlowManagerNode, edges: DataFlowEdge[]) {
@@ -100,9 +108,10 @@ function compile(node: DataFlowManagerNode, inputs: string[]) {
   return new AsyncFunction(...inputs, code);
 }
 
-function handleSetConfig(msg: Msg<SandboxWorkerData>) {
+async function handleSetConfig(msg: Msg<SandboxWorkerData>) {
   config = msg.data;
   createWorkerState();
+  await initTriggersState();
   return workerState.errors;
 }
 
@@ -132,8 +141,13 @@ function handleUpdateNode(msg: Msg<{ id: number; name?: string; code?: string }>
     createWorkerState();
   } else if (recompileOne) {
     let existingState = workerState.nodeFunctions.get(id);
-    let newFunc = compile(node, existingState.inputNames);
-    existingState.func = newFunc;
+    try {
+      let newFunc = compile(node, existingState.inputNames);
+      existingState.func = newFunc;
+      workerState.errors.nodes.delete(id);
+    } catch (e) {
+      workerState.errors.nodes.set(id, { type: 'compile', error: e });
+    }
   }
 
   return workerState.errors;

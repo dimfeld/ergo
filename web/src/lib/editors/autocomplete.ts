@@ -59,14 +59,14 @@ export function autocompleter<T>(specs: AutocompleteSpec<T>[]) {
       })
       .flatMap((spec) => spec.values(obj as T, path, inKey) ?? []);
 
-    console.dir({
-      node,
-      path,
-      name: nodeName,
-      inKey,
-      lookup: path ? nodeFromPath(context.state, tree, path) : null,
-      completions,
-    });
+    // console.dir({
+    //   node,
+    //   path,
+    //   name: nodeName,
+    //   inKey,
+    //   lookup: path ? nodeFromPath(context.state, tree, path) : null,
+    //   completions,
+    // });
 
     if (!completions.length) {
       return null;

@@ -9,7 +9,7 @@ import type { DataFlowManagerData } from '../dataflow_manager';
 import type { DataFlowEdge } from '$lib/api_types';
 
 export interface SandboxMessage {
-  set_config: (config: WorkerMessage<SandboxWorkerData>) => Errors;
+  set_config: (config: WorkerMessage<SandboxWorkerData>) => Promise<Errors>;
   run_all: (msg: WorkerMessage<null>) => Promise<RunResponse>;
   run_from: (msg: WorkerMessage<number>) => Promise<RunResponse>;
   update_node: (msg: WorkerMessage<UpdateNodeArgs>) => Errors;

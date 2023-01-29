@@ -269,7 +269,7 @@ export function dataflowManager(
     }) ?? []
   );
 
-  let store = writable<DataFlowManagerData>({
+  const initialData = {
     nodes,
     edges,
     nodeState,
@@ -277,21 +277,49 @@ export function dataflowManager(
       nodes: new Map(),
     },
     ...lookups,
-  });
+  };
 
-  function update(updateFn: (data: DataFlowManagerData) => DataFlowManagerData) {
-    store.update((data) => {
-      let result = updateFn(data);
-      let lookups = generateLookups(result.nodes, result.edges);
-      return {
-        ...result,
-        ...lookups,
-      };
-    });
-  }
+  let store = writable<DataFlowManagerData>(initialData);
 
   /** Used when you are sure you don't need to regenerate the lookups. */
   const updateDataOnly = store.update;
+
+  async function updateSandboxConfig(data: DataFlowManagerData) {
+    let errors = await sandbox.setConfig(data);
+    updateDataOnly((data) => {
+      data.errors = errors;
+      return data;
+    });
+  }
+
+  updateSandboxConfig(initialData);
+
+  async function runFrom(id: number) {
+    let runResult = await sandbox.runFrom(id);
+    updateDataOnly((data) => {
+      data.errors = runResult.errors;
+      data.nodeState = runResult.state;
+      return data;
+    });
+  }
+
+  function update(
+    updateFn: (data: DataFlowManagerData) => DataFlowManagerData
+  ): DataFlowManagerData {
+    let result: DataFlowManagerData;
+    store.update((data) => {
+      let updateResult = updateFn(data);
+      let lookups = generateLookups(updateResult.nodes, updateResult.edges);
+      result = {
+        ...updateResult,
+        ...lookups,
+      };
+
+      return result;
+    });
+
+    return result;
+  }
 
   function addNode(data: DataFlowManagerData, box: Box, name: string, func: DataFlowNodeFunction) {
     let maxId = Math.max(...data.nodes.map((n) => n.meta.id), 0);
@@ -341,11 +369,13 @@ export function dataflowManager(
     return name;
   }
 
-  function addJsNode(box: Box) {
-    update((data) => {
+  async function addJsNode(box: Box) {
+    let data = update((data) => {
       let newNodeName = createNodeName(data, 'node', data.nodes.length);
       return addNode(data, box, newNodeName, { type: 'js', func: `__${newNodeName}` });
     });
+
+    await updateSandboxConfig(data);
   }
 
   function deleteNodeInternal(data: DataFlowManagerData, index: number) {
@@ -362,8 +392,8 @@ export function dataflowManager(
     };
   }
 
-  function deleteNode(id: number) {
-    update((data) => {
+  async function deleteNode(id: number) {
+    let data = update((data) => {
       let index = data.nodeIdToIndex.get(id);
       if (typeof index !== 'number') {
         return data;
@@ -371,6 +401,8 @@ export function dataflowManager(
 
       return deleteNodeInternal(data, index);
     });
+
+    await updateSandboxConfig(data);
   }
 
   return {
@@ -381,8 +413,8 @@ export function dataflowManager(
       let data = getStore(store);
       return compileCode(bundler, data);
     },
-    syncTriggers(triggers: Record<string, TaskTrigger>) {
-      update((data) => {
+    syncTriggers: async (triggers: Record<string, TaskTrigger>) => {
+      let data = update((data) => {
         let idsToRemove: number[] = [];
         let taskTriggerIds = new Set(Object.values(triggers).map((t) => t.task_trigger_id));
 
@@ -428,9 +460,11 @@ export function dataflowManager(
 
         return data;
       });
+
+      await updateSandboxConfig(data);
     },
-    addEdge(from: number, to: number) {
-      update((data) => {
+    addEdge: async (from: number, to: number) => {
+      let data = update((data) => {
         let existingEdge = data.edges.find((e) => e.from === from && e.to === to);
         if (existingEdge) {
           return data;
@@ -457,15 +491,20 @@ export function dataflowManager(
           edges,
         };
       });
+
+      await updateSandboxConfig(data);
     },
-    deleteEdge(from: number, to: number) {
-      update((data) => {
+    deleteEdge: async (from: number, to: number) => {
+      let data = update((data) => {
         let edges = data.edges.filter((e) => e.from !== from || e.to !== to);
         return {
           ...data,
           edges,
         };
       });
+
+      await updateSandboxConfig(data);
+      await runFrom(to);
     },
     addJsNode,
     updateNode: async (id: number, update: { name?: string; contents?: string }) => {
@@ -483,11 +522,15 @@ export function dataflowManager(
         return data;
       });
 
-      let errors = await sandbox.updateNode({ id, ...update });
+      let errors = await sandbox.updateNode({ id, name: update.name, code: update.contents });
       updateDataOnly((data) => {
         data.errors = errors;
         return data;
       });
+
+      if (errors.nodes.get(id)?.type !== 'compile') {
+        await runFrom(id);
+      }
     },
     deleteNode,
   };
