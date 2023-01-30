@@ -59,7 +59,7 @@ self.onmessage = async (event: MessageEvent<BundlerWorkerMessage>) => {
         }
         self.postMessage(cloneableResult(result));
       } catch (e: unknown) {
-        self.postMessage({ type: 'result', jobId, error: e });
+        self.postMessage({ type: 'error', jobId, error: e });
       } finally {
         activeJobs.delete(jobId);
       }

@@ -73,6 +73,28 @@ async function compileCode(
     }))
     .filter((e) => e.from !== -1 && e.to !== -1);
 
+  let usedFuncNames = new Set<string>();
+  for (let node of data.nodes) {
+    let func = node.config.func;
+    if (func.type === 'js' || func.type === 'action') {
+      let funcName = `__${node.config.name}`;
+      while (usedFuncNames.has(funcName)) {
+        funcName = `${funcName}_a`;
+      }
+
+      usedFuncNames.add(funcName);
+
+      switch (func.type) {
+        case 'js':
+          func.func = funcName;
+          break;
+        case 'action':
+          func.payload_code.func = funcName;
+          break;
+      }
+    }
+  }
+
   let functions = data.nodes
     .map((node, i) => wrapFunctionForCompile(data, edges, i, node))
     .join('\n');
@@ -86,7 +108,7 @@ async function compileCode(
     production: true,
   });
 
-  if (bundled.type === 'error') {
+  if ('error' in bundled) {
     // TODO show the error somewhere
     throw bundled.error;
   }
