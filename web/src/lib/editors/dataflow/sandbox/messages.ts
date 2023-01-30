@@ -48,7 +48,8 @@ export interface UpdateNodeArgs {
 
 export interface DataflowSandboxWorker extends SandboxWorker<SandboxMessage> {
   setConfig(data: DataFlowManagerData): Promise<Errors>;
-  initIfNeeded(data: DataFlowManagerData): Promise<Errors>;
+  needsInit(): boolean;
+  initIfNeeded(data: DataFlowManagerData): Promise<Errors | undefined>;
   updateNode(args: UpdateNodeArgs): Promise<Errors>;
   updateEdges(edges: DataFlowEdge[]): Promise<void>;
   runAll(): Promise<RunResponse>;
@@ -78,6 +79,9 @@ export function sandboxWorker(handlers?: SandboxHandlers): DataflowSandboxWorker
     runFrom: (id: number) => intf.sendMessage('run_from', id),
     updateNode: (args: UpdateNodeArgs) => intf.sendMessage('update_node', args),
     updateEdges: (edges: DataFlowEdge[]) => intf.sendMessage('update_edges', edges),
+    needsInit() {
+      return needsInit;
+    },
     initIfNeeded: async (data: DataFlowManagerData) => {
       if (!needsInit) {
         return;

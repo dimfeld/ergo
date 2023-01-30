@@ -45,7 +45,7 @@ export function getMessageContext<Messages>(
 }
 
 async function handleMessage<Messages>(handlers: Required<Messages>, ctx: WorkerContext<Messages>) {
-  console.log('handling', ctx.msg.name, ctx.msg.data);
+  // console.log('handling', ctx.msg.name, ctx.msg.data);
   const handler = handlers[ctx.msg.name];
   try {
     let result = await handler(ctx.msg);

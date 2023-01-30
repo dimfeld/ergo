@@ -14,7 +14,7 @@ import { toposort_nodes } from 'ergo-wasm';
 import groupBy from 'just-group-by';
 import { schemeOranges } from 'd3';
 import type { Bundler } from '$lib/bundler';
-import type { DataflowSandboxWorker, Errors } from './sandbox/messages';
+import type { DataflowSandboxWorker, Errors, RunResponse } from './sandbox/messages';
 
 export type JsFunctionType = 'expression' | 'function';
 
@@ -282,25 +282,50 @@ export function dataflowManager(
   let store = writable<DataFlowManagerData>(initialData);
 
   /** Used when you are sure you don't need to regenerate the lookups. */
-  const updateDataOnly = store.update;
+  const updateDataOnly = function (updateFn: (data: DataFlowManagerData) => DataFlowManagerData) {
+    let result: DataFlowManagerData;
+    store.update((data) => {
+      result = updateFn(data);
+      return result;
+    });
+
+    return result;
+  };
+
+  async function initIfNeeded() {
+    if (sandbox.needsInit()) {
+      return updateSandboxConfig(getStore(store));
+    }
+  }
 
   async function updateSandboxConfig(data: DataFlowManagerData) {
     let errors = await sandbox.setConfig(data);
+    if (errors) {
+      updateDataOnly((data) => {
+        data.errors = errors;
+        return data;
+      });
+    }
+  }
+
+  function updateRunResponse(response: RunResponse) {
     updateDataOnly((data) => {
-      data.errors = errors;
+      data.errors = response.errors;
+      data.nodeState = response.state;
       return data;
     });
   }
 
-  updateSandboxConfig(initialData);
-
   async function runFrom(id: number) {
-    let runResult = await sandbox.runFrom(id);
-    updateDataOnly((data) => {
-      data.errors = runResult.errors;
-      data.nodeState = runResult.state;
-      return data;
-    });
+    await initIfNeeded();
+    let result = await sandbox.runFrom(id);
+    updateRunResponse(result);
+  }
+
+  async function runAll() {
+    await initIfNeeded();
+    let result = await sandbox.runAll();
+    updateRunResponse(result);
   }
 
   function update(
@@ -404,6 +429,11 @@ export function dataflowManager(
 
     await updateSandboxConfig(data);
   }
+
+  // Initialize the worker and run all the nodes to start. Although these are async operations, the worker processed
+  // them serially so there's no risk of race conditions here.
+  updateSandboxConfig(initialData);
+  runAll();
 
   return {
     subscribe: store.subscribe,
@@ -522,6 +552,7 @@ export function dataflowManager(
         return data;
       });
 
+      await initIfNeeded();
       let errors = await sandbox.updateNode({ id, name: update.name, code: update.contents });
       updateDataOnly((data) => {
         data.errors = errors;
