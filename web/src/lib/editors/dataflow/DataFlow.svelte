@@ -239,6 +239,7 @@
         on:updateName={({ detail }) => {
           data.updateNode(node.meta.id, { name: detail });
         }}
+        on:forceRun={() => data.runNode(node.meta.id, true)}
         on:startAddEdge={() => startAddEdge(node)}
         {selectMode}
         {selected}

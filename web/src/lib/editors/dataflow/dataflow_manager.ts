@@ -261,7 +261,7 @@ export function dataflowManager(
 
   let lookups = generateLookups(nodes, edges);
 
-  let nodeState = new Map(
+  let initialNodeState = new Map(
     inputState?.nodes.map((state, i) => {
       let nodeId = nodes[i].meta.id;
       let value = typeof state === 'string' && state.length ? devalue.parse(state) : null;
@@ -269,17 +269,17 @@ export function dataflowManager(
     }) ?? []
   );
 
-  const initialData = {
+  let currentData: DataFlowManagerData = {
     nodes,
     edges,
-    nodeState,
+    nodeState: initialNodeState,
     errors: {
       nodes: new Map(),
     },
     ...lookups,
   };
 
-  let store = writable<DataFlowManagerData>(initialData);
+  let store = writable<DataFlowManagerData>(currentData);
 
   /** Used when you are sure you don't need to regenerate the lookups. */
   const updateDataOnly = function (updateFn: (data: DataFlowManagerData) => DataFlowManagerData) {
@@ -289,6 +289,7 @@ export function dataflowManager(
       return result;
     });
 
+    currentData = result;
     return result;
   };
 
@@ -316,10 +317,13 @@ export function dataflowManager(
     });
   }
 
-  async function runFrom(id: number) {
-    await initIfNeeded();
-    let result = await sandbox.runFrom(id);
-    updateRunResponse(result);
+  async function runFrom(id: number, always = false) {
+    let node = currentData.nodeById(id);
+    if (node.meta.autorun || always) {
+      await initIfNeeded();
+      let result = await sandbox.runFrom(id);
+      updateRunResponse(result);
+    }
   }
 
   async function runAll() {
@@ -343,6 +347,7 @@ export function dataflowManager(
       return result;
     });
 
+    currentData = result;
     return result;
   }
 
@@ -371,12 +376,12 @@ export function dataflowManager(
       },
     ];
 
-    nodeState.set(nodeId, null);
+    data.nodeState.set(nodeId, null);
 
     return {
       ...data,
       nodes,
-      nodeState,
+      nodeState: data.nodeState,
     };
   }
 
@@ -407,13 +412,13 @@ export function dataflowManager(
     let nodeId = data.nodes[index].meta.id;
     let edges = data.edges.filter((e) => e.from !== nodeId && e.to !== nodeId);
     let nodes = data.nodes.filter((n) => n.meta.id !== nodeId);
-    nodeState.delete(nodeId);
+    data.nodeState.delete(nodeId);
 
     return {
       ...data,
       edges,
       nodes,
-      nodeState,
+      nodeState: data.nodeState,
     };
   }
 
@@ -432,7 +437,7 @@ export function dataflowManager(
 
   // Initialize the worker and run all the nodes to start. Although these are async operations, the worker processed
   // them serially so there's no risk of race conditions here.
-  updateSandboxConfig(initialData);
+  updateSandboxConfig(currentData);
   runAll();
 
   return {
@@ -537,6 +542,7 @@ export function dataflowManager(
       await runFrom(to);
     },
     addJsNode,
+    runNode: runFrom,
     updateNode: async (id: number, update: { name?: string; contents?: string }) => {
       // update without changing the lookups
       updateDataOnly((data) => {

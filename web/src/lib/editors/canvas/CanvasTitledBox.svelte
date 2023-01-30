@@ -50,7 +50,7 @@
       <span class="truncate px-2 text-sm font-medium text-accent-800">{name || ''}</span>
     </slot>
   </DragHandle>
-  <div class="p-1">
+  <div class="min-h-0 flex-1 p-1">
     <slot />
   </div>
 </CanvasNode>

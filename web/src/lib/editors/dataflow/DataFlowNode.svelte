@@ -40,12 +40,21 @@
         class="absolute inset-0 border-transparent !bg-transparent px-2 py-0 text-xs font-medium text-accent-800 hover:border-gray-500 " />
     </div>
 
-    <button
-      type="button"
-      class="no-drag whitespace-nowrap pt-px text-xs text-accent-800"
-      on:click={() => (node.meta.autorun = !node.meta.autorun)}>
-      Auto {node.meta.autorun ? 'ON' : 'OFF'}
-    </button>
+    <div class="flex gap-4 pt-px text-xs text-accent-800">
+      <button
+        type="button"
+        class="no-drag whitespace-nowrap hover:text-accent-600"
+        on:click={() => (node.meta.autorun = !node.meta.autorun)}>
+        Auto {node.meta.autorun ? 'ON' : 'OFF'}
+      </button>
+
+      <button
+        type="button"
+        class="no-drag whitespace-nowrap hover:text-accent-600"
+        on:click={() => dispatch('forceRun')}>
+        RUN
+      </button>
+    </div>
 
     <button
       type="button"
@@ -56,7 +65,7 @@
   </div>
 
   {#if node.config.func.type === 'js'}
-    <div class="flex h-full flex-col">
+    <div class="flex h-full min-h-0 flex-col">
       <Editor
         class="h-1/3"
         contents={node.meta.contents}
@@ -64,7 +73,7 @@
         notifyOnChange={true}
         on:change={(e) => dispatch('updateContent', e.detail)}
         toolbar={false} />
-      <div class="flex-1 border-t border-gray-500 text-sm">
+      <div class="min-h-0 flex-1 overflow-auto border-t border-gray-500 text-sm">
         {#if error}
           {capitalize(error.type)} Error
           <br />
@@ -73,7 +82,7 @@
           Results:
           <br />
           <!-- TODO better display of results -->
-          {JSON.stringify(state)}
+          {JSON.stringify(state ?? null, null, 2)}
         {/if}
       </div>
     </div>
