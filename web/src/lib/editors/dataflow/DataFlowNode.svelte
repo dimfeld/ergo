@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Drawer from '$lib/components/Drawer.svelte';
   import CanvasTitledBox from '../canvas/CanvasTitledBox.svelte';
   import Editor from '../Editor.svelte';
   import { createEventDispatcher } from 'svelte';
@@ -6,6 +7,8 @@
   import type { SelectionState } from '../canvas/drag';
   import type { NodeError } from './sandbox/messages';
   import capitalize from 'just-capitalize';
+  import TextField from '$lib/components/TextField.svelte';
+  import Labelled from '$lib/components/Labelled.svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -15,9 +18,13 @@
   export let selectMode = false;
   export let selected: SelectionState = null;
 
+  $: canTriggerAction = node.config.func.type === 'js' || node.config.func.type === 'action';
+
   $: if (!node.meta.format) {
     node.meta.format = 'expression';
   }
+
+  let drawerOpen = false;
 </script>
 
 <CanvasTitledBox
@@ -30,6 +37,19 @@
   on:mouseleave
   on:selectModeClick>
   <div slot="title" class="flex w-full items-center gap-1">
+    <button
+      type="button"
+      class="ml-1 text-accent-800 hover:text-accent-700"
+      on:click={() => (drawerOpen = true)}>
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="currentColor"
+        class="h-4 w-4">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="1" fill="currentColor" />
+      </svg>
+    </button>
+
     <div class="no-drag relative h-full">
       <!-- invisible element for sizing, so that the text box is no larger than needed -->
       <span class="invisible px-2 py-0">{node.config.name}</span>
@@ -44,14 +64,14 @@
     <div class="flex gap-2 pt-px text-xs text-accent-800">
       <button
         type="button"
-        class="no-drag whitespace-nowrap hover:text-accent-600"
+        class="no-drag whitespace-nowrap hover:text-accent-700"
         on:click={() => (node.meta.autorun = !node.meta.autorun)}>
         Auto {node.meta.autorun ? 'ON' : 'OFF'}
       </button>
 
       <button
         type="button"
-        class="no-drag whitespace-nowrap py-1 hover:text-accent-600"
+        class="no-drag whitespace-nowrap py-1 hover:text-accent-700"
         on:click={() => dispatch('forceRun')}>
         <!-- heroicons play button -->
         <svg
@@ -78,7 +98,7 @@
     </button>
   </div>
 
-  {#if node.config.func.type === 'js'}
+  {#if node.config.func.type === 'js' || node.config.func.type === 'action'}
     <div class="flex h-full min-h-0 flex-col">
       <Editor
         class="h-1/3"
@@ -117,3 +137,13 @@
     </div>
   {/if}
 </CanvasTitledBox>
+
+<Drawer bind:open={drawerOpen} class="p-2">
+  <Labelled label="Name" class="w-full">
+    <input
+      type="text"
+      class="w-full"
+      value={node.config.name}
+      on:input={(e) => dispatch('updateName', e.target.value)} />
+  </Labelled>
+</Drawer>
